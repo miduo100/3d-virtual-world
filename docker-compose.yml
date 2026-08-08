@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    image: virtual-world:latest
+    container_name: virtual-world-app
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env.production
+    volumes:
+      # 用户上传文件持久化 - 修正为正确的容器内路径
+      - ./public/uploads:/app/public/uploads
+      - ./public/models:/app/public/models
+      - ./public/generated:/app/public/generated
+      - ./public/uploaded:/app/public/uploaded
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/api/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
