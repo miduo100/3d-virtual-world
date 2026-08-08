@@ -46,6 +46,8 @@ public/gallery_content/
 
 # 截图和媒体文件（本地保留不上传）
 # screenshots/
+!Screenshot/
+!Screenshot/*
 
 # 大文件类型
 *.mp3
