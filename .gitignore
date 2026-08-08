@@ -1,0 +1,107 @@
+node_modules/
+.env
+.env.local
+.env.*.local
+dist/
+build/
+*.log
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+public/dist/
+coverage/
+.codebuddy/
+deploy-package/
+ubuntu-deploy-package/*.zip
+Windows Server 2025安装/
+deploy-ubuntu/
+
+# 画廊内容（大文件，本地保留不上传）
+public/gallery_content/
+
+# 上传的大模型文件（本地保留不上传）
+public/models/uploaded/
+public/uploads/
+uploads/
+
+# 视频文件（所有格式）
+*.mp4
+*.webm
+*.avi
+*.mov
+*.mkv
+*.wmv
+*.flv
+*.m4v
+*.ogg
+*.ogv
+*.3gp
+*.3g2
+*.mts
+*.m2ts
+*.ts
+*.vob
+
+# 截图和媒体文件（本地保留不上传）
+screenshots/
+
+# 大文件类型
+*.mp3
+*.wav
+*.zip
+*.yaml
+*.yml
+$null
+.playwright-cli/
+
+# 图片文件（所有格式）
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.bmp
+*.svg
+*.ico
+*.tiff
+*.tif
+*.psd
+*.ai
+*.eps
+*.heic
+*.heif
+*.raw
+
+# 3D 模型文件（所有格式）
+*.glb
+*.gltf
+*.obj
+*.mtl
+*.fbx
+*.blend
+*.dae
+*.3ds
+*.max
+*.stl
+*.ply
+*.usdz
+
+# 文档附件（大文件）
+*.pdf
+*.docx
+
+# 备份文件
+*.bak
+*.tar.gz
+*.tar
+*.rar
+*.7z
+_extracted_script.js
+20260713数据库打包/
+*.err
+
+
+
+

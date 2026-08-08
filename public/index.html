@@ -1,0 +1,1525 @@
+<!DOCTYPE html>
+<!--
+  济宁米多信息科技有限公司 版权所有
+  如需获取软件授权请联系：888@miduo100.com / 15660440944
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>创世虚拟世界CRM系统 - 虚拟世界主界面</title>
+  <meta name="description" content="基于Three.js的3D虚拟世界CRM系统，支持虚拟角色、3D建筑、联邦传送等功能">
+  <meta name="keywords" content="虚拟世界,3D游戏,Three.js,CRM系统,在线游戏">
+
+  <!-- import map：将 ESM 加载器（FBXLoader 等）内部的裸 'three' 指向本地桥接模块，
+       复用页面全局 UMD THREE，避免双实例冲突。必须位于任何 type="module" 脚本之前 -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "/js/lib/three-shim.js"
+    }
+  }
+  </script>
+  <script>
+    // 动态加载后台配置的 SEO TDK
+    async function loadSEOConfig() {
+      try {
+        const res = await fetch('/api/config/seo');
+        const data = await res.json();
+        if (data.seo_title) document.title = data.seo_title;
+        var metaDesc = document.querySelector('meta[name="description"]');
+        if (!metaDesc) { metaDesc = document.createElement('meta'); metaDesc.name = 'description'; document.head.appendChild(metaDesc); }
+        if (data.seo_description) metaDesc.content = data.seo_description;
+        var metaKw = document.querySelector('meta[name="keywords"]');
+        if (!metaKw) { metaKw = document.createElement('meta'); metaKw.name = 'keywords'; document.head.appendChild(metaKw); }
+        if (data.seo_keywords) metaKw.content = data.seo_keywords;
+      } catch(e) { console.error('加载SEO配置失败:', e); }
+    }
+    if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', loadSEOConfig); }
+    else { loadSEOConfig(); }
+  </script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --green: #00ff00;
+      --green-dim: rgba(0,255,0,0.12);
+      --green-dark: #00cc00;
+      --bg: #0d1117;
+      --sidebar-bg: #161b22;
+      --card-bg: rgba(22,27,34,0.95);
+      --border: rgba(0,255,0,0.2);
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --red: #ff4444;
+      --blue: #58a6ff;
+      --yellow: #ffd700;
+      --purple: #bc8cff;
+      --orange: #ff8c00;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+      background: #000;
+    }
+
+    #canvas {
+      display: block;
+      width: 100%;
+      height: 100vh;
+    }
+
+    #ui-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .hud {
+      position: absolute;
+      color: #00ff00;
+      font-family: 'Courier New', monospace;
+      pointer-events: auto;
+    }
+
+    .health-bar {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      width: 300px;
+      height: 30px;
+      border: 2px solid #00ff00;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 1000;
+    }
+
+    .health-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #00ff00, #ffff00);
+      transition: width 0.3s ease;
+    }
+
+    .skill-panel {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      border: 2px solid #00ff00;
+      padding: 10px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: row;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .skill-panel-title {
+      display: none;
+    }
+
+    #skillsList {
+      display: flex;
+      flex-direction: row;
+      gap: 8px;
+    }
+
+    .skill-item {
+      margin: 8px 0;
+      padding: 8px;
+      background: rgba(0, 100, 0, 0.5);
+      border: 1px solid #00ff00;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .skill-item:hover {
+      background: rgba(0, 150, 0, 0.8);
+    }
+
+    .minimap {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 200px;
+      height: 200px;
+      border: 2px solid #00ff00;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+    }
+
+    .voice-indicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      border: 3px solid #ff0000;
+      display: none;
+      background: rgba(255, 0, 0, 0.1);
+      animation: pulse 0.5s infinite;
+    }
+
+    .voice-indicator.active {
+      display: block;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(-50%, -50%) scale(1.1); }
+    }
+
+    .chat-box {
+      position: absolute;
+      bottom: 350px;
+      left: 20px;
+      width: 300px;
+      height: 200px;
+      background: rgba(0, 0, 0, 0.8);
+      border: 2px solid #00ff00;
+      overflow-y: auto;
+      padding: 10px;
+      display: none; /* 隐藏日志框 */
+    }
+
+    .chat-message {
+      margin: 5px 0;
+      font-size: 12px;
+      color: #00ff00;
+    }
+
+    .loading-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .loading-spinner {
+      border: 4px solid #00ff00;
+      border-top: 4px solid transparent;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* 移动端适配 */
+    @media (max-width: 768px) {
+      .health-bar {
+        width: 200px;
+        height: 25px;
+        top: 10px;
+        left: 10px;
+      }
+      
+      .minimap {
+        width: 120px;
+        height: 120px;
+        top: 10px;
+        right: 10px;
+      }
+      
+      #debug-panel {
+        font-size: 9px;
+        width: 180px;
+        padding: 8px 10px;
+        top: 60px;
+        right: 5px;
+      }
+      
+      #controls-hint {
+        width: 92%;
+        max-width: 92%;
+        padding: 14px;
+        max-height: 85vh;
+        font-size: 11px;
+      }
+      
+      #controls-hint > div:first-child {
+        font-size: 16px !important;
+        margin-bottom: 10px !important;
+      }
+      
+      #controls-hint > div:nth-child(2) {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 6px 10px !important;
+        font-size: 11px !important;
+        line-height: 1.5 !important;
+      }
+
+      /* 背包弹窗已使用 clamp() 实现真正响应式，无需手机端额外覆盖 */
+    }
+    
+    /* 防止移动端双击缩放 */
+    body {
+      touch-action: pan-x pan-y;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* ============================================
+       右上角快捷按钮样式
+       ============================================ */
+    #btn-profile:hover {
+      transform: scale(1.1);
+      background: linear-gradient(135deg, rgba(0, 255, 0, 0.4), rgba(0, 200, 0, 0.5)) !important;
+      box-shadow: 0 0 25px rgba(0, 255, 0, 0.6) !important;
+    }
+
+    #btn-inventory:hover {
+      transform: scale(1.1);
+      background: linear-gradient(135deg, rgba(255, 193, 7, 0.4), rgba(255, 160, 0, 0.5)) !important;
+      box-shadow: 0 0 25px rgba(255, 193, 7, 0.6) !important;
+    }
+
+    #btn-profile:active,
+    #btn-inventory:active {
+      transform: scale(0.95);
+    }
+
+    /* ============================================
+       背包弹窗 - 真正响应式（无媒体查询）
+       使用 CSS clamp() + vw/vh + CSS 变量
+       ============================================ */
+
+    /* 弹窗遮罩层 */
+    #inventory-page {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: linear-gradient(135deg, #1a1a1a 0%, #2d1f00 100%);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 2500;
+      overflow-y: auto;
+      padding: clamp(8px, 2vw, 20px);
+      box-sizing: border-box;
+      pointer-events: auto;
+    }
+
+    /* 弹窗内容卡片 */
+    .inv-card {
+      position: relative;
+      background: rgba(0, 0, 0, 0.9);
+      border: clamp(1px, 0.3vw, 2px) solid #ffc107;
+      border-radius: clamp(6px, 1vw, 10px);
+      padding: clamp(10px, 2.5vw, 25px);
+      width: clamp(260px, 70vw, 650px);
+      max-height: clamp(350px, 85vh, 85vh);
+      overflow-y: auto;
+      color: #ffc107;
+      font-family: 'Courier New', monospace;
+      box-shadow: 0 0 clamp(15px, 3vw, 35px) rgba(255, 193, 7, 0.3);
+      box-sizing: border-box;
+    }
+
+    /* 右上角关闭按钮 */
+    .inv-close {
+      position: absolute;
+      top: clamp(4px, 1vw, 8px);
+      right: clamp(4px, 1vw, 8px);
+      width: clamp(24px, 4vw, 32px);
+      height: clamp(24px, 4vw, 32px);
+      border-radius: 50%;
+      background: rgba(255, 0, 0, 0.3);
+      color: #ff4444;
+      border: 1px solid #ff4444;
+      font-size: clamp(14px, 2vw, 18px);
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Courier New', monospace;
+      transition: all 0.2s;
+      padding: 0;
+      z-index: 10;
+    }
+
+    .inv-close:hover {
+      background: rgba(255, 0, 0, 0.6);
+      color: #fff;
+    }
+
+    /* 标题区域：响应式 flex 换行 */
+    .inv-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: clamp(6px, 1.5vw, 14px);
+      margin-bottom: clamp(8px, 2vw, 18px);
+      flex-wrap: wrap;
+    }
+
+    .inv-title-group {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .inv-title {
+      font-size: clamp(15px, 3vw, 24px);
+      font-weight: bold;
+      text-align: left;
+      word-break: break-all;
+    }
+
+    .inv-subtitle {
+      text-align: left;
+      color: #ffeb3b;
+      font-size: clamp(9px, 1.3vw, 12px);
+      margin-top: clamp(1px, 0.3vw, 3px);
+    }
+
+    /* 统计信息区域 */
+    .inv-stats {
+      background: rgba(255, 193, 7, 0.1);
+      border: clamp(1px, 0.2vw, 1px) solid #ffc107;
+      border-radius: clamp(4px, 0.8vw, 8px);
+      padding: clamp(5px, 1.2vw, 10px);
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      gap: clamp(5px, 1vw, 10px);
+      width: 100%;
+    }
+
+    /* ≥600px 时标题区水平排列 */
+    @media (min-width: 600px) {
+      .inv-header {
+        flex-wrap: nowrap;
+        align-items: center;
+      }
+      .inv-stats {
+        width: auto;
+        flex-shrink: 0;
+      }
+    }
+
+    .inv-stat-item {
+      text-align: center;
+      min-width: clamp(35px, 6vw, 55px);
+    }
+
+    .inv-stat-value {
+      font-size: clamp(14px, 2.2vw, 18px);
+      font-weight: bold;
+    }
+
+    .inv-stat-label {
+      font-size: clamp(8px, 1.2vw, 10px);
+      margin-top: 1px;
+    }
+
+    /* 物品网格 - 真正响应式 */
+    .inventory-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(clamp(55px, 12vw, 80px), 1fr));
+      gap: clamp(5px, 1vw, 10px);
+      max-height: clamp(180px, 40vh, 320px);
+      overflow-y: auto;
+      padding: clamp(3px, 0.8vw, 8px);
+    }
+
+    .inventory-item {
+      background: rgba(0, 100, 0, 0.2);
+      border: clamp(1px, 0.2vw, 1px) solid #00ff00;
+      border-radius: clamp(4px, 0.8vw, 8px);
+      padding: clamp(5px, 1vw, 10px);
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .inventory-item:hover {
+      background: rgba(0, 255, 0, 0.2);
+      transform: translateY(-2px);
+      box-shadow: 0 3px 12px rgba(0, 255, 0, 0.3);
+    }
+
+    .inventory-item.used {
+      opacity: 0.5;
+      border-color: #666;
+    }
+
+    .inventory-item-icon {
+      font-size: clamp(16px, 3vw, 24px);
+      margin-bottom: clamp(2px, 0.6vw, 5px);
+    }
+
+    .inventory-item-name {
+      font-size: clamp(9px, 1.3vw, 11px);
+      color: #00ff00;
+      font-weight: bold;
+      word-break: break-all;
+    }
+
+    .inventory-item-desc {
+      font-size: clamp(7px, 1vw, 9px);
+      color: #88ff88;
+      margin-top: clamp(2px, 0.5vw, 3px);
+    }
+
+    /* 操作按钮区域 */
+    .inv-buttons {
+      display: flex;
+      gap: clamp(5px, 1.5vw, 10px);
+      justify-content: center;
+      margin-top: clamp(10px, 2vw, 20px);
+      flex-wrap: wrap;
+    }
+
+    .inv-btn {
+      padding: clamp(4px, 1vw, 8px) clamp(10px, 2vw, 20px);
+      border-radius: clamp(3px, 0.6vw, 4px);
+      font-weight: bold;
+      cursor: pointer;
+      font-size: clamp(10px, 1.3vw, 12px);
+      font-family: 'Courier New', monospace;
+      border-width: clamp(1px, 0.2vw, 1px);
+      border-style: solid;
+      transition: all 0.3s ease;
+    }
+
+    .inv-btn:active {
+      transform: scale(0.95);
+    }
+
+    .inv-btn-primary {
+      background: #ffc107;
+      color: #000;
+      border-color: #ffc107;
+    }
+
+    .inv-btn-primary:hover {
+      background: #ffd54f;
+    }
+
+    .inv-btn-secondary {
+      background: transparent;
+      color: #ffc107;
+      border-color: #ffc107;
+    }
+
+    .inv-btn-secondary:hover {
+      background: rgba(255, 193, 7, 0.1);
+    }
+
+    /* 说明文字区域 */
+    .inv-footer {
+      margin-top: clamp(8px, 1.5vw, 14px);
+      padding: clamp(5px, 1.2vw, 10px);
+      background: rgba(255, 193, 7, 0.05);
+      border-radius: clamp(3px, 0.6vw, 6px);
+      font-size: clamp(8px, 1.2vw, 10px);
+      color: #888;
+      line-height: 1.5;
+    }
+
+    .inv-footer-title {
+      color: #ffc107;
+      margin-bottom: clamp(2px, 0.6vw, 5px);
+      font-weight: bold;
+    }
+    /* ===== 怪物头顶血条 HUD ===== */
+    #monster-head-hud {
+      display: none;
+      position: absolute;
+      pointer-events: none;
+      z-index: 500;
+      transform: translateX(-50%);
+      min-width: 90px;
+      text-align: center;
+    }
+    .mhud-name {
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #ff4444;
+      text-shadow: 0 0 6px rgba(255,0,0,0.8), 1px 1px 2px #000;
+      font-weight: bold;
+      margin-bottom: 3px;
+      white-space: nowrap;
+    }
+    .mhud-bar-bg {
+      width: 90px;
+      height: 7px;
+      background: rgba(0,0,0,0.6);
+      border: 1px solid rgba(255,68,68,0.7);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 0 auto;
+    }
+    .mhud-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #ff2222, #ff8800);
+      border-radius: 2px;
+      transition: width 0.25s ease;
+      width: 100%;
+    }
+    /* ============================= */
+
+    /* ===== 坐标调试面板（宽高自适应：窄→隐藏轴，高→分行）===== */
+    #debug-panel.debug-panel {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      width: 240px;
+      height: 34px;
+      color: #00ff00;
+      font-family: 'Courier New', monospace;
+      z-index: 100;
+      pointer-events: auto;
+    }
+    .debug-panel-box {
+      container-type: size;
+      box-sizing: border-box;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+      overflow: hidden;
+      background: rgba(0, 255, 0, 0.1);
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 255, 0, 0.3);
+    }
+    .debug-panel-box .debug-label {
+      font-size: 9px;
+      color: #88ff88;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .debug-panel-box .debug-coords {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      min-width: 0;
+    }
+    .debug-panel-box .coord-axis {
+      white-space: nowrap;
+    }
+    .debug-panel-box .debug-copy-btn {
+      background: rgba(0, 255, 0, 0.15);
+      border: 1px solid #00ff00;
+      color: #00ff00;
+      padding: 3px 6px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 1;
+      transition: all 0.2s;
+      white-space: nowrap;
+      flex-shrink: 0;
+      pointer-events: auto;
+    }
+    /* 高度够高 → 分行显示，全部轴可见 */
+    @container (min-height: 40px) {
+      .debug-panel-box {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 3px;
+      }
+      .debug-panel-box .debug-coords {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1px;
+        padding-left: 0;
+      }
+    }
+    /* ============================= */
+
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="ui-overlay">
+    <!-- Health Bar -->
+    <div class="health-bar" id="health-bar">
+      <div class="health-fill" id="healthFill" style="width: 100%"></div>
+      <div class="health-text" id="healthText" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">HP: 100/100</div>
+    </div>
+    <!-- 怪物头顶血条 HUD（跟随3D投影位置） -->
+    <div id="monster-head-hud">
+      <div class="mhud-name">怪物</div>
+      <div class="mhud-bar-bg"><div class="mhud-bar-fill"></div></div>
+    </div>
+
+    <!-- Minimap -->
+    <canvas id="minimap" class="minimap"></canvas>
+
+    <!-- Voice Indicator -->
+    <div class="voice-indicator" id="voiceIndicator"></div>
+
+    <!-- ============================================
+         右上角快捷按钮区域 - 用户功能入口
+         ============================================ -->
+    <div id="user-quick-actions" style="
+      position: fixed;
+      top: 20px;
+      display: flex;
+      gap: 12px;
+      z-index: 100;
+      pointer-events: auto;
+    ">
+      <!-- 个人资料按钮 -->
+      <button id="btn-profile" style="
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, rgba(0, 255, 0, 0.2), rgba(0, 200, 0, 0.3));
+        border: 2px solid #00ff00;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        transition: all 0.3s ease;
+        box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
+      " data-i18n-title="world.profile" title="个人资料">
+        👤
+      </button>
+
+      <!-- 我的物品按钮 -->
+      <button id="btn-inventory" style="
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, rgba(255, 193, 7, 0.2), rgba(255, 160, 0, 0.3));
+        border: 2px solid #ffc107;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        transition: all 0.3s ease;
+        box-shadow: 0 0 15px rgba(255, 193, 7, 0.3);
+      " data-i18n-title="world.portfolio" title="我的物品">
+        🎒
+      </button>
+
+      <!-- 语言切换按钮 -->
+      <button id="btn-language" style="
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, rgba(0, 255, 0, 0.2), rgba(0, 200, 0, 0.3));
+        border: 2px solid #00ff00;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: bold;
+        transition: all 0.3s ease;
+        box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
+        color: #00ff00;
+      " title="Language / 语言" id="lang-btn-label">🌐</button>
+    </div>
+
+    <!-- World Portal Button (世界传送门按钮) -->
+    <button id="world-portal-btn" style="
+      position: fixed;
+      top: 140px;
+      right: 20px;
+      padding: 12px 16px;
+      background: linear-gradient(135deg, rgba(0, 204, 255, 0.2), rgba(0, 150, 200, 0.3));
+      border: 2px solid #00ccff;
+      color: #000;
+      border-radius: 5px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+      z-index: 1000;
+      pointer-events: auto;
+      box-shadow: 0 0 15px rgba(0, 200, 255, 0.3);
+      white-space: nowrap;
+    " data-i18n-title="world.openPortalManager" title="打开传送门管理" data-i18n="world.worldPortal">🌀 世界传送门</button>
+
+
+
+    <!-- Chat Box -->
+    <div class="chat-box" id="chatBox"></div>
+
+
+
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+      <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Controls Hint -->
+    <div id="controls-hint" style="
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.7);
+      color: #00ff00;
+      border: 2px solid #00ff00;
+      text-align: center;
+      font-family: 'Courier New', monospace;
+      z-index: 999;
+      border-radius: 10px;
+      max-width: 520px;
+      width: 90%;
+      max-height: 90vh;
+      padding: 20px 24px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    ">
+      <div style="font-size: 20px; margin-bottom: 14px; font-weight: bold; flex-shrink: 0;" data-i18n="world.controls">🎮 操作指南</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; text-align: left; font-size: 13px; line-height: 1.6; margin-bottom: 16px; overflow-y: auto; flex: 1; min-height: 0;">
+        <div>
+          <div style="color: #ffff00; font-weight: bold; margin-bottom: 4px;" data-i18n="world.firstPerson">📷 第一视角</div>
+          <div>WASD - 移动</div>
+          <div>Q/E - 左右转</div>
+          <div>鼠标 - 转向</div>
+        </div>
+        <div>
+          <div style="color: #ffff00; font-weight: bold; margin-bottom: 4px;" data-i18n="world.thirdPerson">👤 第三视角</div>
+          <div>W/S - 前/后</div>
+          <div>A/D - 左/右</div>
+          <div>鼠标 - 360°旋转</div>
+        </div>
+        <div>
+          <div style="color: #ff6666; font-weight: bold; margin-bottom: 4px;" data-i18n="world.combat">⚔️ 战斗</div>
+          <div>左键 - 挥剑砍杀</div>
+          <div>触摸 - 攻击怪物</div>
+        </div>
+        <div>
+          <div style="color: #66ffff; font-weight: bold; margin-bottom: 4px;" data-i18n="world.other">🔧 其他</div>
+          <div>Space - 跳跃</div>
+          <div>Shift - 冲刺</div>
+          <div>C - 切换视角</div>
+          <div>F - 交互</div>
+          <div>ESC - 重置视角</div>
+        </div>
+      </div>
+      <button id="close-controls-hint" style="
+        padding: 8px 30px;
+        background: #00ff00;
+        color: #000;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+        cursor: pointer;
+        font-size: 14px;
+        flex-shrink: 0;
+        margin-top: auto;
+      " data-i18n="world.startGame">开始游戏</button>
+    </div>
+
+    <!-- Debug Panel -->
+    <div id="debug-panel" class="debug-panel">
+      <div class="debug-panel-box">
+        <span class="debug-label">当前坐标</span>
+        <span class="debug-coords">
+          <span class="coord-axis axis-x" id="coord-x">X:0</span>
+          <span class="coord-axis axis-y" id="coord-y">Y:0</span>
+          <span class="coord-axis axis-z" id="coord-z">Z:0</span>
+        </span>
+        <button id="copy-coords-btn" class="debug-copy-btn" title="点击复制坐标到剪贴板">📋 复制</button>
+      </div>
+    </div>
+
+    <!-- Exit Confirmation Dialog -->
+    <div id="exit-dialog" style="
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      pointer-events: auto;
+    ">
+      <div style="
+        background: rgba(0, 0, 0, 0.95);
+        border: 3px solid #00ff00;
+        border-radius: 10px;
+        padding: 40px;
+        text-align: center;
+        color: #00ff00;
+        font-family: 'Courier New', monospace;
+        max-width: 500px;
+      ">
+        <div style="font-size: 28px; margin-bottom: 20px; font-weight: bold;" data-i18n="world.exitPrompt">⚠️ 退出提示</div>
+        <div style="font-size: 16px; margin-bottom: 30px; line-height: 1.6;">
+          确定要退出<strong style="color: #ffff00;">米多虚拟空间</strong>吗？<br>
+          <span data-i18n="world.exitHint">您可以前往个人资料界面修改信息</span>
+        </div>
+        <div style="display: flex; gap: 20px; justify-content: center;">
+          <button id="confirm-exit-btn" style="
+            padding: 12px 30px;
+            background: #ff0000;
+            color: #fff;
+            border: 2px solid #ff0000;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+          " data-i18n="world.exit">退出</button>
+          <button id="cancel-exit-btn" style="
+            padding: 12px 30px;
+            background: #00ff00;
+            color: #000;
+            border: 2px solid #00ff00;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+          " data-i18n="world.continueGame">继续游戏</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile Settings Page -->
+    <div id="profile-page" style="
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 2500;
+      overflow-y: auto;
+      pointer-events: auto;
+    ">
+      <div id="profile-accordion" style="
+        background: rgba(0, 0, 0, 0.9);
+        border: 3px solid #00ff00;
+        border-radius: 15px;
+        padding: 22px;
+        max-width: 600px;
+        width: 90%;
+        color: #00ff00;
+        font-family: 'Courier New', monospace;
+        box-shadow: 0 0 50px rgba(0, 255, 0, 0.3);
+        position: relative;
+      ">
+        <button type="button" onclick="document.getElementById('back-to-world-btn').click()" style="
+          position: absolute;
+          top: -14px;
+          right: -14px;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: rgba(255, 0, 0, 0.3);
+          color: #ff4444;
+          border: 2px solid #ff4444;
+          font-size: 20px;
+          line-height: 1;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: 'Courier New', monospace;
+          z-index: 10;
+        " onmouseover="this.style.background='rgba(255,0,0,0.6)';this.style.color='#fff';" onmouseout="this.style.background='rgba(255,0,0,0.3)';this.style.color='#ff4444';">✕</button>
+        <div style="max-height: 85vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <span style="font-size: 26px; font-weight: bold;" data-i18n="world.profileSettings">👤 个人资料设置</span>
+          <div style="display: flex; gap: 8px;">
+            <button type="submit" id="save-profile-btn" style="padding:8px 20px;background:#00ff00;color:#000;border:2px solid #00ff00;border-radius:5px;font-weight:bold;cursor:pointer;font-size:13px;font-family:'Courier New',monospace;" data-i18n="world.saveBtn">💾 保存</button>
+          </div>
+        </div>
+        <div style="text-align: left; color: #ffff00; margin-bottom: 16px; font-size: 12px;" data-i18n="world.midoVirtualSpace">
+          米多虚拟空间 - Mido Virtual Space
+        </div>
+
+        <form id="profile-form">
+          <!-- ====== 手风琴面板 1: 基本资料 ====== -->
+          <div class="accordion-section" style="margin-bottom: 8px;">
+            <div class="accordion-header" data-section="basic" style="
+              background: rgba(0, 255, 0, 0.12);
+              border: 2px solid #00ff00;
+              border-radius: 8px;
+              padding: 10px 14px;
+              cursor: pointer;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              transition: background 0.2s;
+            " onmouseover="this.style.background='rgba(0,255,0,0.25)'" onmouseout="this.style.background='rgba(0,255,0,0.12)'">
+              <span style="font-weight: bold; font-size: 13px;" data-i18n="world.basicInfo">📝 基本资料</span>
+              <span class="accordion-arrow" style="font-size: 12px; transition: transform 0.3s;">▼</span>
+            </div>
+            <div class="accordion-content" data-section="basic" style="
+              max-height: 0; overflow: hidden;
+              transition: max-height 0.35s ease, padding 0.35s ease;
+              padding: 0 10px;
+            ">
+              <div style="padding: 12px 0 4px 0;">
+                <div style="margin-bottom: 14px;">
+                  <label style="display: block; margin-bottom: 5px; font-weight: bold; font-size: 13px;" data-i18n="world.nickname">🏷️ 昵称 (Nickname)</label>
+                  <input type="text" id="profile-nickname" placeholder="请输入您的昵称" maxlength="20" data-i18n-placeholder="world.nicknamePlaceholder"
+                    style="width:100%;padding:10px;background:rgba(0,100,0,0.2);border:2px solid #00ff00;border-radius:5px;color:#00ff00;font-size:15px;font-family:'Courier New',monospace;">
+                  <div style="font-size:10px;color:#88ff88;margin-top:3px;" data-i18n="world.maxChars" data-i18n-params='{"count":20}'>最多20个字符</div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+                  <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold; font-size: 13px;" data-i18n="world.realName">📝 真实姓名</label>
+                    <input type="text" id="profile-realname" placeholder="可选" maxlength="50" data-i18n-placeholder="world.realNamePlaceholder"
+                      style="width:100%;padding:10px;background:rgba(0,100,0,0.2);border:2px solid #00ff00;border-radius:5px;color:#00ff00;font-size:15px;font-family:'Courier New',monospace;">
+                  </div>
+                  <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold; font-size: 13px;" data-i18n="world.email">📧 邮箱</label>
+                    <input type="email" id="profile-email" placeholder="your@email.com" data-i18n-placeholder="world.emailPlaceholder"
+                      style="width:100%;padding:10px;background:rgba(0,100,0,0.2);border:2px solid #00ff00;border-radius:5px;color:#00ff00;font-size:15px;font-family:'Courier New',monospace;">
+                  </div>
+                </div>
+                <div style="margin-bottom: 8px;">
+                  <label style="display: block; margin-bottom: 5px; font-weight: bold; font-size: 13px;" data-i18n="world.bio">💬 个性签名 (Bio)</label>
+                  <textarea id="profile-bio" placeholder="介绍一下自己..." maxlength="200" rows="2" data-i18n-placeholder="world.bioPlaceholder"
+                    style="width:100%;padding:10px;background:rgba(0,100,0,0.2);border:2px solid #00ff00;border-radius:5px;color:#00ff00;font-size:13px;font-family:'Courier New',monospace;resize:vertical;"></textarea>
+                  <div style="font-size:10px;color:#88ff88;margin-top:3px;" data-i18n="world.maxChars" data-i18n-params='{"count":200}'>最多200个字符</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ====== 手风琴面板 2: 头像颜色 ====== -->
+          <div class="accordion-section" style="margin-bottom: 8px;">
+            <div class="accordion-header" data-section="avatar" style="
+              background: rgba(0, 255, 0, 0.12);
+              border: 2px solid #00ff00;
+              border-radius: 8px;
+              padding: 10px 14px;
+              cursor: pointer;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              transition: background 0.2s;
+            " onmouseover="this.style.background='rgba(0,255,0,0.25)'" onmouseout="this.style.background='rgba(0,255,0,0.12)'">
+              <span style="font-weight: bold; font-size: 13px;" data-i18n="world.avatarColor">🎭 头像颜色</span>
+              <span class="accordion-arrow" style="font-size: 12px; transition: transform 0.3s;">▼</span>
+            </div>
+            <div class="accordion-content" data-section="avatar" style="
+              max-height: 0; overflow: hidden;
+              transition: max-height 0.35s ease, padding 0.35s ease;
+              padding: 0 10px;
+            ">
+              <div style="padding:12px 0;display:flex;gap:10px;flex-wrap:wrap;">
+                <div class="avatar-option" data-color="#00ff00" style="width:38px;height:38px;background:#00ff00;border:3px solid #00ff00;border-radius:50%;cursor:pointer;"></div>
+                <div class="avatar-option" data-color="#ff0000" style="width:38px;height:38px;background:#ff0000;border:3px solid transparent;border-radius:50%;cursor:pointer;"></div>
+                <div class="avatar-option" data-color="#0000ff" style="width:38px;height:38px;background:#0000ff;border:3px solid transparent;border-radius:50%;cursor:pointer;"></div>
+                <div class="avatar-option" data-color="#ffff00" style="width:38px;height:38px;background:#ffff00;border:3px solid transparent;border-radius:50%;cursor:pointer;"></div>
+                <div class="avatar-option" data-color="#ff00ff" style="width:38px;height:38px;background:#ff00ff;border:3px solid transparent;border-radius:50%;cursor:pointer;"></div>
+                <div class="avatar-option" data-color="#00ffff" style="width:38px;height:38px;background:#00ffff;border:3px solid transparent;border-radius:50%;cursor:pointer;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ====== 手风琴面板 3: 角色模板 ====== -->
+          <div class="accordion-section" style="margin-bottom: 8px;">
+            <div class="accordion-header" data-section="template" style="
+              background: rgba(0, 255, 0, 0.12);
+              border: 2px solid #00ff00;
+              border-radius: 8px;
+              padding: 10px 14px;
+              cursor: pointer;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              transition: background 0.2s;
+            " onmouseover="this.style.background='rgba(0,255,0,0.25)'" onmouseout="this.style.background='rgba(0,255,0,0.12)'">
+              <span style="font-weight: bold; font-size: 13px;" data-i18n="world.characterTemplate">🎮 角色模板</span>
+              <span class="accordion-arrow" style="font-size: 12px; transition: transform 0.3s;">▼</span>
+            </div>
+            <div class="accordion-content" data-section="template" style="
+              max-height: 0; overflow: hidden;
+              transition: max-height 0.35s ease, padding 0.35s ease;
+              padding: 0 10px;
+            ">
+              <div style="padding:12px 0;">
+                <div id="template-loading" style="color:#88ff88;font-size:11px;padding:3px 0;" data-i18n="world.loadTemplates">加载模板中...</div>
+                <div id="template-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;max-height:200px;overflow-y:auto;padding:4px;"></div>
+                <div id="template-selected-info" style="margin-top:5px;font-size:10px;color:#ffff00;min-height:16px;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ====== 手风琴面板 4: 角色信息 ====== -->
+          <div class="accordion-section" style="margin-bottom: 8px;">
+            <div class="accordion-header" data-section="stats" style="
+              background: rgba(0, 255, 0, 0.12);
+              border: 2px solid #00ff00;
+              border-radius: 8px;
+              padding: 10px 14px;
+              cursor: pointer;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              transition: background 0.2s;
+            " onmouseover="this.style.background='rgba(0,255,0,0.25)'" onmouseout="this.style.background='rgba(0,255,0,0.12)'">
+              <span style="font-weight: bold; font-size: 13px;" data-i18n="world.characterInfo">📊 角色信息</span>
+              <span class="accordion-arrow" style="font-size: 12px; transition: transform 0.3s;">▼</span>
+            </div>
+            <div class="accordion-content" data-section="stats" style="
+              max-height: 0; overflow: hidden;
+              transition: max-height 0.35s ease, padding 0.35s ease;
+              padding: 0 10px;
+            ">
+              <div style="padding:10px;background:rgba(0,255,0,0.08);border-radius:5px;font-size:12px;margin-top:12px;">
+                <div><span style="color:#ffff00;" data-i18n="world.userId">用户ID:</span> <span id="profile-userid" style="color:#88ff88;font-size:11px;">-</span></div>
+                <div><span style="color:#ffff00;" data-i18n="world.characterLevel">角色等级:</span> <span id="profile-level" style="color:#88ff88;">1</span></div>
+                <div><span style="color:#ffff00;" data-i18n="world.joinDate">加入时间:</span> <span id="profile-joindate" style="color:#88ff88;">-</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ====== 手风琴面板 5: 操作按钮 ====== -->
+          <div class="accordion-section" style="margin-bottom: 8px;">
+            <div class="accordion-header" data-section="actions" style="
+              background: rgba(0, 255, 0, 0.12);
+              border: 2px solid #00ff00;
+              border-radius: 8px;
+              padding: 10px 14px;
+              cursor: pointer;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              transition: background 0.2s;
+            " onmouseover="this.style.background='rgba(0,255,0,0.25)'" onmouseout="this.style.background='rgba(0,255,0,0.12)'">
+              <span style="font-weight: bold; font-size: 13px;" data-i18n="world.actions">⚙️ 操作</span>
+              <span class="accordion-arrow" style="font-size: 12px; transition: transform 0.3s;">▼</span>
+            </div>
+            <div class="accordion-content" data-section="actions" style="
+              max-height: 0; overflow: hidden;
+              transition: max-height 0.35s ease, padding 0.35s ease;
+              padding: 0 10px;
+            ">
+              <div style="padding:12px 0;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+                <button type="button" id="back-to-world-btn" style="padding:10px 24px;background:transparent;color:#00ff00;border:2px solid #00ff00;border-radius:5px;font-weight:bold;cursor:pointer;font-size:14px;font-family:'Courier New',monospace;" data-i18n="world.backToWorldBtn">🌍 返回</button>
+                <button type="button" id="portal-manager-btn" style="padding:10px 20px;background:#00ccff;color:#000;border:2px solid #00ffff;border-radius:5px;font-weight:bold;cursor:pointer;font-size:12px;font-family:'Courier New',monospace;" data-i18n="world.portalManagerBtn">🌀 传送门</button>
+                <button type="button" id="logout-btn" style="padding:10px 20px;background:#ff0000;color:#fff;border:2px solid #ff0000;border-radius:5px;font-weight:bold;cursor:pointer;font-size:12px;font-family:'Courier New',monospace;" data-i18n="world.exitBtn">🚪 退出</button>
+              </div>
+            </div>
+          </div>
+        </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================
+         我的物品/背包面板
+         功能：显示用户获得的奖励物品（支持跨虚拟世界）
+         ============================================ -->
+    <div id="inventory-page">
+      <div class="inv-card">
+        <!-- 右上角关闭按钮 -->
+        <button type="button" id="close-inventory-btn" class="inv-close" title="关闭" data-i18n-title="world.closeInventory">✕</button>
+
+        <!-- 标题区域（标题+刷新按钮+统计） -->
+        <div class="inv-header">
+          <!-- 左侧：标题 -->
+          <div class="inv-title-group">
+            <div class="inv-title" data-i18n="world.itemsTitle">🎒 我的物品</div>
+            <div class="inv-subtitle" data-i18n="world.itemsSubtitle">跨虚拟世界奖励背包 - Cross-World Inventory</div>
+          </div>
+
+          <!-- 中间：刷新按钮 -->
+          <button type="button" id="refresh-inventory-btn" class="inv-btn inv-btn-primary" data-i18n="world.refreshBtn">🔄 刷新</button>
+
+          <!-- 右侧：统计信息 -->
+          <div class="inv-stats">
+            <div class="inv-stat-item">
+              <div class="inv-stat-value" id="inv-total-count" style="color: #ffc107;">0</div>
+              <div class="inv-stat-label" style="color: #ffeb3b;" data-i18n="world.totalItems">总物品</div>
+            </div>
+            <div class="inv-stat-item">
+              <div class="inv-stat-value" id="inv-unused-count" style="color: #00ff00;">0</div>
+              <div class="inv-stat-label" style="color: #88ff88;" data-i18n="world.unused">未使用</div>
+            </div>
+            <div class="inv-stat-item">
+              <div class="inv-stat-value" id="inv-used-count" style="color: #888;">0</div>
+              <div class="inv-stat-label" style="color: #aaa;" data-i18n="world.used">已使用</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 物品列表 -->
+        <div id="inventory-list" class="inventory-grid">
+          <!-- 动态加载物品 -->
+          <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #888;">
+            <div style="font-size: 48px; margin-bottom: 15px;">📭</div>
+            <div data-i18n="world.emptyInventory">背包空空如也</div>
+            <div style="font-size: 12px; margin-top: 10px;" data-i18n="world.emptyInventoryHint">在虚拟世界中探索，获得丰厚奖励！</div>
+          </div>
+        </div>
+
+        <!-- 说明文字 -->
+        <div class="inv-footer">
+          <div class="inv-footer-title" data-i18n="world.usageGuide">💡 使用说明：</div>
+          <div data-i18n="world.usageDetail1">• 点击物品可查看详情和使用兑换码</div>
+          <div data-i18n="world.usageDetail2">• 奖励可能来自本世界或其他虚拟世界</div>
+          <div data-i18n="world.usageDetail3">• 部分奖励可能有使用期限，请及时兑换</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Portal Management Interface (传送门管理界面) -->
+  <div id="portal-manager" style="
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.95);
+    display: none;
+    z-index: 2000;
+    pointer-events: auto;
+  ">
+    <div style="
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 90%;
+      max-width: 900px;
+      max-height: 90vh;
+      overflow-y: auto;
+      background: #0a0a0a;
+      border: 3px solid #00ffff;
+      border-radius: 15px;
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+    ">
+      <div style="padding: 16px;">
+        <div style="position: relative;">
+          <h2 style="
+            color: #00ffff;
+            text-align: center;
+            margin-bottom: 16px;
+            font-family: 'Courier New', monospace;
+            font-size: 20px;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+          " data-i18n="world.portalManager">🌀 传送门管理系统</h2>
+          <button type="button" id="close-portal-manager" style="
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 0, 0, 0.3);
+            color: #ff4444;
+            border: 2px solid #ff4444;
+            font-size: 18px;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Courier New', monospace;
+            transition: all 0.2s;
+          " onmouseover="this.style.background='rgba(255,0,0,0.6)';this.style.color='#fff';" onmouseout="this.style.background='rgba(255,0,0,0.3)';this.style.color='#ff4444';">✕</button>
+        </div>
+
+        <!-- 坐标传送面板 -->
+        <div style="
+          background: rgba(0, 100, 100, 0.2);
+          border: 2px solid #00ffff;
+          border-radius: 10px;
+          padding: 14px;
+          margin-bottom: 16px;
+        ">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="color: #00ffff; margin: 0; font-size: 16px;" data-i18n="world.coordTeleport">🎯 坐标传送</h3>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" id="use-current-pos-btn" style="
+                padding: 6px 14px;
+                background: #006600;
+                color: #00ff00;
+                border: 1px solid #00ff00;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                font-family: 'Courier New', monospace;
+              " data-i18n="world.useCurrentPos">📍 使用当前位置</button>
+              <button type="button" id="teleport-coord-btn" style="
+                padding: 6px 14px;
+                background: #00ffff;
+                color: #000;
+                border: 2px solid #00ffff;
+                border-radius: 4px;
+                cursor: pointer;
+                font-weight: bold;
+                font-size: 12px;
+                font-family: 'Courier New', monospace;
+              " data-i18n="world.teleport">🚀 传送</button>
+            </div>
+          </div>
+          <div style="margin-bottom: 10px;">
+            <label style="color: #00ff00; display: block; margin-bottom: 3px; font-size: 12px;" data-i18n="world.pasteCoords">粘贴坐标:</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="text" id="coord-input" placeholder="X:8.2 Y:1.5 Z:34.7" style="
+                flex: 1;
+                height: 31px;
+                padding: 6px 10px;
+                background: #000;
+                border: 2px solid #00ff00;
+                color: #00ff00;
+                border-radius: 5px;
+                font-family: 'Courier New', monospace;
+                font-size: 13px;
+                line-height: 16px;
+              ">
+              <input type="number" id="coord-x" value="0" step="0.1" placeholder="X" style="
+                width: 64px;
+                height: 31px;
+                padding: 6px 8px;
+                background: #000;
+                border: 2px solid #00ff00;
+                color: #00ff00;
+                border-radius: 4px;
+                font-family: 'Courier New', monospace;
+                font-size: 13px;
+              ">
+              <input type="number" id="coord-y" value="2" step="0.1" placeholder="Y" style="
+                width: 64px;
+                height: 31px;
+                padding: 6px 8px;
+                background: #000;
+                border: 2px solid #00ff00;
+                color: #00ff00;
+                border-radius: 4px;
+                font-family: 'Courier New', monospace;
+                font-size: 13px;
+              ">
+              <input type="number" id="coord-z" value="0" step="0.1" placeholder="Z" style="
+                width: 64px;
+                height: 31px;
+                padding: 6px 8px;
+                background: #000;
+                border: 2px solid #00ff00;
+                color: #00ff00;
+                border-radius: 4px;
+                font-family: 'Courier New', monospace;
+                font-size: 13px;
+              ">
+            </div>
+            <div id="coord-preview" style="
+              display: none;
+              margin-top: 5px;
+              padding: 5px 8px;
+              background: rgba(0, 255, 0, 0.1);
+              border: 1px solid #00ff00;
+              border-radius: 4px;
+              color: #00ff00;
+              font-family: 'Courier New', monospace;
+              font-size: 11px;
+            "></div>
+            <div style="font-size: 11px; color: #888; margin-top: 5px;" data-i18n="world.coordFormat">
+              支持格式: X:8.2 Y:1.5 Z:34.7 | 8.2, 1.5, 34.7 | x=8.2 y=1.5 z=34.7
+            </div>
+          </div>
+        </div>
+
+        <!-- Portals List -->
+        <div style="
+          background: rgba(0, 100, 100, 0.2);
+          border: 2px solid #00ffff;
+          border-radius: 10px;
+          padding: 14px;
+          margin-bottom: 12px;
+        ">
+          <h3 style="color: #00ffff; margin-bottom: 10px; font-size: 16px;" data-i18n="world.portalList">📋 现有传送门列表</h3>
+          <div id="portals-list" style="
+            max-height: 200px;
+            overflow-y: auto;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+          ">
+            <div style="text-align: center; padding: 10px; color: #888;" data-i18n="world.loading">加载中...</div>
+          </div>
+        </div>
+
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Three.js 核心库 - 本地加载 -->
+  <script src="i18n/i18n.js"></script>
+  <script src="js/lib/three.min.js"></script>
+  <script src="js/lib/GLTFLoader.js"></script>
+  <script src="js/lib/DRACOLoader.js"></script>
+  <script src="js/lib/OBJLoader.js"></script>
+  <script src="js/lib/MTLLoader.js"></script>
+  <script src="js/lib/TransformControls.js"></script>
+  
+  <!-- 直接加载JS源文件（开发模式，无需打包） -->
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/geometryTemplates.js"></script>
+  <script src="js/geometryRenderer.js"></script>
+  <script src="js/modelCacheDB.js"></script>
+  <script src="js/model-detector.js"></script>
+  
+  <!-- 骨骼平台适配器 + 动画重定向 -->
+  <script src="js/bone-platforms-config.js"></script>
+  <script src="js/bone-platforms-adapter.js"></script>
+  <script src="js/anim-retarget-helper.js"></script>
+  
+  <script src="js/animLoader.js"></script>
+  <script src="js/modules/remote-model-guard.js"></script>
+  <script src="js/self-contained-char.js"></script>
+  <script src="js/modules/remote-anim-guard.js"></script>
+  <script src="js/modules/passwordRecovery.js"></script>
+  <script src="js/coordFormat.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/threejsCompatibility.js"></script>
+  <script src="js/threejsCodeNormalizer.js"></script>
+  <script src="js/threejsWorldSanitizer.js"></script>
+  <script src="js/threejsCodeRunner.js"></script>
+  <script src="js/customConfigRegistry.js"></script>
+  <script src="js/customConfigApplier.js"></script>
+  <script src="js/galleryRenderer.js"></script>
+  <script src="js/debug_controls.js"></script>
+  
+  <script src="js/player.js"></script>
+  <script src="js/voice.js"></script>
+  <script src="js/websocket.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/portalManager.js"></script>
+  <script src="js/mobileControls.js"></script>
+  <script src="js/buildingManager.js"></script>
+  <script src="js/federationUI.js"></script>
+
+  <script src="js/soundManager.js"></script>
+  <script src="js/skillManager.js"></script>
+  <script src="js/skillHUD.js"></script>
+  <script src="js/uiControlManager.js"></script>
+  <script src="js/main.js"></script>
+  
+  <!-- 国际化语言初始化 -->
+  <script>
+    (async function() {
+      await window.i18n.init();
+      translatePage();
+      
+      // 注册语言切换回调
+      window.i18n.onLocaleChange(function() {
+        translatePage();
+      });
+
+      // 监听 WebSocket 语言切换消息（后台管理员切换时实时同步）
+      const origWsOnMessage = window.wsClient && window.wsClient.onmessage;
+      const handleWsMessage = function(event) {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'LANGUAGE_CHANGE') {
+            console.log('[i18n] 收到语言切换广播:', data.payload.language);
+            window.i18n.setLocaleLocal(data.payload.language).then(function() {
+              translatePage();
+            });
+          }
+        } catch (e) { /* ignore non-JSON messages */ }
+        // 调用原始处理
+        if (typeof origWsOnMessage === 'function') {
+          origWsOnMessage(event);
+        }
+      };
+      
+      // 延迟绑定 WebSocket 监听（wsClient 可能在后续初始化）
+      var checkWsInterval = setInterval(function() {
+        if (window.wsClient) {
+          window.wsClient.onmessage = handleWsMessage;
+          clearInterval(checkWsInterval);
+        }
+      }, 500);
+      // 10秒后停止检查
+      setTimeout(function() { clearInterval(checkWsInterval); }, 10000);
+      
+      // 语言按钮点击：在当前语言间切换
+      document.getElementById('btn-language').onclick = async function() {
+        var newLocale = window.i18n.getCurrentLocale() === 'zh-CN' ? 'en-US' : 'zh-CN';
+        // 前端玩家只能本地切换（不影响其他用户）
+        await window.i18n.setLocaleLocal(newLocale);
+        translatePage();
+      };
+
+      /**
+       * 通用翻译函数 - 基于 data-i18n 属性自动翻译页面内容
+       * 同时处理一些特殊元素（如退出对话框的HTML消息、动态生成的内容等）
+       */
+      function translatePage() {
+        var i18n = window.i18n;
+        if (!i18n.initialized) return;
+        
+        // 1. 翻译 textContent（data-i18n）
+        document.querySelectorAll('[data-i18n]').forEach(function(el) {
+          var key = el.getAttribute('data-i18n');
+          var paramsStr = el.getAttribute('data-i18n-params');
+          if (paramsStr) {
+            try {
+              el.textContent = i18n.tp(key, JSON.parse(paramsStr));
+            } catch(e) {
+              el.textContent = i18n.t(key);
+            }
+          } else {
+            el.textContent = i18n.t(key);
+          }
+        });
+        
+        // 2. 翻译 placeholder（data-i18n-placeholder）
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
+          el.placeholder = i18n.t(el.getAttribute('data-i18n-placeholder'));
+        });
+        
+        // 3. 翻译 title 属性（data-i18n-title）
+        document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
+          el.title = i18n.t(el.getAttribute('data-i18n-title'));
+        });
+        
+        // 4. 语言切换按钮 title（不含在 data-i18n 中的特殊元素）
+        var langBtn = document.getElementById('lang-btn-label');
+        if (langBtn) langBtn.title = i18n.getSwitchText();
+        
+        console.log('[i18n] 前端翻译已应用:', i18n.getCurrentLocale());
+      }
+    })();
+  </script>
+</body>
+</html>

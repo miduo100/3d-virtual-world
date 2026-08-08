@@ -1,0 +1,800 @@
+/* UI控件管理页面样式 */
+
+/* 页面布局 */
+.ui-controls-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.ui-controls-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: rgba(22, 27, 34, 0.95);
+  border-bottom: 1px solid rgba(0, 255, 0, 0.2);
+}
+
+.ui-controls-header h2 {
+  color: #00ff00;
+  margin: 0;
+  font-size: 18px;
+}
+
+.ui-controls-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* 平台切换 */
+.ui-platform-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #8b949e;
+  font-size: 13px;
+}
+
+.ui-platform-toggle input[type="checkbox"] {
+  appearance: none;
+  width: 44px;
+  height: 24px;
+  background: rgba(0, 255, 0, 0.2);
+  border-radius: 12px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.ui-platform-toggle input[type="checkbox"]::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: #00ff00;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.3s;
+}
+
+.ui-platform-toggle input[type="checkbox"]:checked {
+  background: rgba(0, 255, 0, 0.4);
+}
+
+.ui-platform-toggle input[type="checkbox"]:checked::after {
+  transform: translateX(20px);
+}
+
+/* 主要内容区 */
+.ui-controls-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* 左侧控件列表 */
+.ui-controls-sidebar {
+  width: 280px;
+  background: rgba(13, 17, 23, 0.95);
+  border-right: 1px solid rgba(0, 255, 0, 0.2);
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.ui-category-group {
+  margin-bottom: 20px;
+}
+
+.ui-category-header {
+  color: #8b949e;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+  padding-left: 4px;
+}
+
+.ui-controls-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 控件卡片 */
+.ui-control-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(22, 27, 34, 0.8);
+  border: 1px solid rgba(0, 255, 0, 0.15);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ui-control-card:hover {
+  background: rgba(0, 255, 0, 0.08);
+  border-color: rgba(0, 255, 0, 0.4);
+}
+
+.ui-control-card.selected {
+  background: rgba(0, 255, 0, 0.12);
+  border-color: #00ff00;
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+}
+
+.ui-control-card.hidden {
+  opacity: 0.5;
+}
+
+.ui-control-icon {
+  font-size: 20px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 255, 0, 0.1);
+  border-radius: 6px;
+}
+
+.ui-control-info {
+  flex: 1;
+}
+
+.ui-control-name {
+  color: #e6edf3;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.ui-control-type {
+  color: #8b949e;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.ui-control-status {
+  font-size: 14px;
+}
+
+/* 中间预览区 - 优化版本 */
+.ui-preview-section {
+  flex: 1;
+  background: #0d1117;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: auto;
+  position: relative;
+}
+
+.ui-preview-frame {
+  background: #161b22;
+  border: 2px solid rgba(0, 255, 0, 0.3);
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+}
+
+.ui-preview-frame.desktop {
+  width: 960px;
+  height: 540px;
+  background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%);
+}
+
+.ui-preview-frame.mobile {
+  width: 375px;
+  height: 667px;
+  background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%);
+}
+
+.ui-preview-frame.mobile.landscape {
+  width: 667px;
+  height: 375px;
+}
+
+.ui-preview-frame.vr {
+  width: 800px;
+  height: 450px;
+  background: linear-gradient(135deg, #0a0a1a 0%, #1a0a2e 50%, #0a0a1a 100%);
+  border-color: rgba(188, 140, 255, 0.4);
+}
+
+.ui-preview-screen {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: 
+    linear-gradient(rgba(0, 255, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 0, 0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+.ui-preview-label {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #8b949e;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 6px 16px;
+  border-radius: 20px;
+  pointer-events: none;
+  z-index: 100;
+  border: 1px solid rgba(0, 255, 0, 0.2);
+}
+
+/* 横竖屏切换按钮 */
+.orientation-toggle {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  border-radius: 8px;
+  padding: 4px;
+  border: 1px solid rgba(0, 255, 0, 0.6);
+  z-index: 101;
+}
+
+.orientation-btn {
+  padding: 5px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  background: transparent;
+  color: #e6edf3;
+  transition: all 0.2s;
+}
+
+.orientation-btn:hover {
+  background: rgba(0, 255, 0, 0.2);
+}
+
+.orientation-btn.active {
+  background: #00ff00;
+  color: #000;
+  border-color: #00ff00;
+  font-weight: bold;
+}
+
+/* 预览控件 - 优化版本 */
+.ui-preview-control {
+  position: absolute;
+  user-select: none;
+  box-sizing: border-box;
+  transition: box-shadow 0.2s;
+}
+
+.ui-preview-control:hover {
+  z-index: 9999 !important;
+}
+
+.ui-preview-control.selected {
+  z-index: 9998 !important;
+}
+
+.ui-preview-control .resize-handle {
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: auto !important;
+}
+
+.ui-preview-control:hover .resize-handle,
+.ui-preview-control.selected .resize-handle {
+  opacity: 1;
+}
+
+/* 确保调整大小手柄可以被点击 */
+.resize-handle {
+  pointer-events: auto !important;
+  cursor: nwse-resize !important;
+}
+
+/* 摇杆样式 */
+.preview-joystick {
+  transition: all 0.2s;
+}
+
+.preview-joystick:hover {
+  transform: scale(1.02);
+}
+
+.preview-joystick.selected {
+  animation: pulse-green 1.5s infinite;
+}
+
+/* 按钮样式 */
+.preview-button {
+  transition: all 0.2s;
+}
+
+.preview-button:hover {
+  transform: scale(1.05);
+}
+
+.preview-button.selected {
+  animation: pulse-green 1.5s infinite;
+}
+
+/* 血条样式 */
+.preview-healthbar {
+  transition: all 0.2s;
+}
+
+.preview-healthbar.selected {
+  animation: pulse-green 1.5s infinite;
+}
+
+/* 小地图样式 */
+.preview-minimap {
+  transition: all 0.2s;
+}
+
+.preview-minimap:hover {
+  transform: scale(1.02);
+}
+
+.preview-minimap.selected {
+  animation: pulse-green 1.5s infinite;
+}
+
+/* 技能栏样式 */
+.preview-skillhud {
+  transition: all 0.2s;
+}
+
+.preview-skillhud.selected > div:not(:last-child) {
+  border-color: #00ff00 !important;
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+}
+
+/* 面板样式 */
+.preview-panel {
+  transition: all 0.2s;
+}
+
+.preview-panel:hover {
+  transform: scale(1.02);
+}
+
+.preview-panel.selected {
+  animation: pulse-green 1.5s infinite;
+}
+
+/* 性能监控面板样式 */
+.preview-performance-monitor {
+  transition: all 0.2s;
+}
+
+.preview-performance-monitor:hover {
+  transform: scale(1.02);
+}
+
+.preview-performance-monitor.selected {
+  animation: pulse-green 1.5s infinite;
+}
+
+/* 选中动画 */
+@keyframes pulse-green {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(0, 255, 0, 0.8);
+  }
+}
+
+/* 右侧编辑器 */
+.ui-editor-panel {
+  width: 320px;
+  background: rgba(22, 27, 34, 0.95);
+  border-left: 1px solid rgba(0, 255, 0, 0.2);
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.ui-editor-placeholder {
+  color: #8b949e;
+  text-align: center;
+  padding: 40px 20px;
+  font-size: 14px;
+}
+
+.ui-editor-header {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(0, 255, 0, 0.2);
+}
+
+.ui-editor-header h3 {
+  color: #00ff00;
+  margin: 0 0 6px 0;
+  font-size: 16px;
+}
+
+.ui-control-id {
+  color: #8b949e;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+}
+
+.ui-editor-section {
+  margin-bottom: 24px;
+}
+
+.ui-editor-section h4 {
+  color: #e6edf3;
+  font-size: 13px;
+  margin: 0 0 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 255, 0, 0.1);
+}
+
+/* 表单样式 */
+.ui-form-row {
+  margin-bottom: 14px;
+}
+
+.ui-form-row label {
+  display: block;
+  color: #8b949e;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.ui-form-row input[type="text"],
+.ui-form-row input[type="number"],
+.ui-form-row select,
+.ui-form-row textarea {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(13, 17, 23, 0.8);
+  border: 1px solid rgba(0, 255, 0, 0.2);
+  border-radius: 6px;
+  color: #e6edf3;
+  font-size: 13px;
+  transition: border-color 0.2s;
+}
+
+.ui-form-row input:focus,
+.ui-form-row select:focus,
+.ui-form-row textarea:focus {
+  outline: none;
+  border-color: #00ff00;
+}
+
+.ui-form-row textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.ui-checkbox-row label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.ui-checkbox-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #00ff00;
+}
+
+/* 编辑器操作按钮 */
+.ui-editor-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(0, 255, 0, 0.2);
+}
+
+.ui-editor-actions .btn {
+  width: 100%;
+  padding: 10px;
+  font-size: 13px;
+}
+
+/* 模态框 */
+.ui-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.ui-modal-content {
+  background: #161b22;
+  border: 1px solid rgba(0, 255, 0, 0.3);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 420px;
+  max-height: 90vh;
+  overflow: hidden;
+}
+
+.ui-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(0, 255, 0, 0.2);
+}
+
+.ui-modal-header h3 {
+  color: #00ff00;
+  margin: 0;
+  font-size: 16px;
+}
+
+.ui-modal-close {
+  background: none;
+  border: none;
+  color: #8b949e;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.ui-modal-close:hover {
+  background: rgba(255, 68, 68, 0.2);
+  color: #ff4444;
+}
+
+.ui-modal-body {
+  padding: 20px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.ui-modal-footer {
+  display: flex;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid rgba(0, 255, 0, 0.2);
+  justify-content: flex-end;
+}
+
+/* 通知 */
+.ui-notification {
+  animation: uiSlideIn 0.3s ease;
+}
+
+@keyframes uiSlideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes uiSlideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* 未保存更改指示器 */
+.ui-unsaved-indicator {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(255, 193, 7, 0.9);
+  color: #000;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  z-index: 10000;
+  animation: uiSlideIn 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ui-unsaved-indicator::before {
+  content: '●';
+  color: #ff5722;
+  animation: pulse 1s infinite;
+}
+
+/* 按钮样式补充 */
+.btn {
+  padding: 8px 16px;
+  background: #00ff00;
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.btn:hover {
+  background: #00cc00;
+}
+
+.btn-secondary {
+  background: rgba(139, 148, 158, 0.2);
+  color: #e6edf3;
+}
+
+.btn-secondary:hover {
+  background: rgba(139, 148, 158, 0.35);
+}
+
+.btn-danger {
+  background: rgba(255, 68, 68, 0.2);
+  color: #ff4444;
+}
+
+.btn-danger:hover {
+  background: rgba(255, 68, 68, 0.35);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.btn-blue {
+  background: rgba(88, 166, 255, 0.2);
+  color: #58a6ff;
+}
+
+.btn-blue:hover {
+  background: rgba(88, 166, 255, 0.35);
+}
+
+/* 响应式 */
+@media (max-width: 1400px) {
+  .ui-preview-frame.desktop {
+    width: 720px;
+    height: 405px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .ui-controls-sidebar {
+    width: 240px;
+  }
+  
+  .ui-editor-panel {
+    width: 280px;
+  }
+  
+  .ui-preview-frame.desktop {
+    width: 600px;
+    height: 338px;
+  }
+}
+
+/* 滚动条样式 */
+.ui-controls-sidebar::-webkit-scrollbar,
+.ui-editor-panel::-webkit-scrollbar,
+.ui-modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ui-controls-sidebar::-webkit-scrollbar-track,
+.ui-editor-panel::-webkit-scrollbar-track,
+.ui-modal-body::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.ui-controls-sidebar::-webkit-scrollbar-thumb,
+.ui-editor-panel::-webkit-scrollbar-thumb,
+.ui-modal-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 0, 0.3);
+  border-radius: 3px;
+}
+
+.ui-controls-sidebar::-webkit-scrollbar-thumb:hover,
+.ui-editor-panel::-webkit-scrollbar-thumb:hover,
+.ui-modal-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 0, 0.5);
+}
+
+/* ===== 坐标调试面板预览（与真实游戏结构一致，宽高自适应）===== */
+.debug-panel-box {
+  container-type: size;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  overflow: hidden;
+  color: #00ff00;
+  font-family: 'Courier New', monospace;
+  background: rgba(0, 255, 0, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 255, 0, 0.3);
+}
+.debug-panel-box.selected {
+  border-color: #00ff00;
+  box-shadow: 0 0 12px rgba(0, 255, 0, 0.7);
+}
+.debug-panel-box .debug-label {
+  font-size: 9px;
+  color: #88ff88;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.debug-panel-box .debug-coords {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  min-width: 0;
+}
+.debug-panel-box .coord-axis {
+  white-space: nowrap;
+}
+.debug-panel-box .debug-copy-btn {
+  background: rgba(0, 255, 0, 0.15);
+  border: 1px solid #00ff00;
+  color: #00ff00;
+  padding: 3px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+/* 高度够高 → 分行显示，全部轴可见 */
+@container (min-height: 40px) {
+  .debug-panel-box {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+  }
+  .debug-panel-box .debug-coords {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    padding-left: 0;
+  }
+}

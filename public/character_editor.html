@@ -1,0 +1,3988 @@
+<!DOCTYPE html>
+<!--
+  济宁米多信息科技有限公司 版权所有
+  如需获取软件授权请联系：888@miduo100.com / 15660440944
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>创世虚拟世界CRM系统 - 角色模板管理</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Segoe UI',sans-serif;background:linear-gradient(135deg,#0a0a1e,#16213e);min-height:100vh;display:flex;overflow:hidden;color:#fff;}
+#sidebar{width:440px;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);display:flex;flex-direction:column;border-right:2px solid #00ff00;max-height:100vh;overflow-y:auto;transition:all 0.3s ease;}
+#sidebar::-webkit-scrollbar{width:6px;}
+#sidebar::-webkit-scrollbar-thumb{background:#00ff00;border-radius:3px;transition:background 0.2s ease;}
+#sidebar::-webkit-scrollbar-thumb:hover{background:#00cc00;}
+.header{background:rgba(0,255,0,0.07);padding:14px 18px;border-bottom:1px solid #00ff00;box-shadow:0 2px 10px rgba(0,255,0,0.1);}
+.header h1{color:#00ff00;font-size:18px;display:flex;align-items:center;gap:8px;animation:glow 2s ease-in-out infinite alternate;}
+@keyframes glow {
+  from { text-shadow: 0 0 5px rgba(0,255,0,0.5); }
+  to { text-shadow: 0 0 15px rgba(0,255,0,0.8); }
+}
+.header p{color:#666;font-size:11px;margin-top:3px;}
+.tab-nav{display:flex;border-bottom:1px solid rgba(0,255,0,0.25);background:rgba(0,0,0,0.3);}
+.tab-btn{flex:1;padding:9px 2px;background:transparent;border:none;color:#555;font-size:11px;cursor:pointer;transition:all 0.3s ease;border-bottom:2px solid transparent;position:relative;overflow:hidden;}
+.tab-btn:hover{color:#00cc00;background:rgba(0,255,0,0.05);}
+.tab-btn.active{color:#00ff00;border-bottom-color:#00ff00;background:rgba(0,255,0,0.07);}
+.tab-btn.active::after{content:'';position:absolute;bottom:0;left:0;width:100%;height:2px;background:#00ff00;animation:slideIn 0.3s ease;}
+@keyframes slideIn {
+  from { width:0; }
+  to { width:100%; }
+}
+.tab-panel{display:none;padding:14px;animation:fadeIn 0.3s ease;}
+@keyframes fadeIn {
+  from { opacity:0; transform:translateY(10px); }
+  to { opacity:1; transform:translateY(0); }
+}
+.tab-panel.active{display:block;}
+.section{background:rgba(255,255,255,0.035);border:1px solid rgba(0,255,0,0.25);border-radius:8px;padding:12px;margin-bottom:12px;transition:all 0.3s ease;box-shadow:0 2px 8px rgba(0,0,0,0.2);}
+.section:hover{border-color:#00ff00;box-shadow:0 4px 12px rgba(0,255,0,0.1);}
+.sec-title{color:#00ff00;font-size:12px;font-weight:bold;margin-bottom:10px;display:flex;align-items:center;gap:5px;}
+.cg{margin-bottom:10px;}
+.cl{color:#999;font-size:11px;margin-bottom:3px;display:block;}
+.cr{display:flex;align-items:center;gap:7px;}
+input[type=range]{flex:1;-webkit-appearance:none;height:4px;border-radius:2px;background:rgba(255,255,255,0.1);outline:none;transition:background 0.2s ease;}
+input[type=range]:hover{background:rgba(255,255,255,0.2);}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:#00ff00;cursor:pointer;transition:all 0.2s ease;}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2);box-shadow:0 0 8px rgba(0,255,0,0.8);}
+.vd{min-width:48px;text-align:right;color:#00ff00;font-family:monospace;font-size:11px;}
+input[type=color]{width:40px;height:26px;border:1px solid #00ff00;border-radius:3px;background:transparent;cursor:pointer;transition:all 0.2s ease;}
+input[type=color]:hover{border-color:#00ffff;box-shadow:0 0 8px rgba(0,255,0,0.5);}
+input[type=number],select,input[type=text]{padding:4px 7px;background:rgba(0,0,0,0.5);border:1px solid rgba(0,255,0,0.35);border-radius:4px;color:#00ff00;font-size:11px;width:100%;transition:all 0.2s ease;}
+input[type=number]:focus,select:focus,input[type=text]:focus{outline:none;border-color:#00ff00;box-shadow:0 0 8px rgba(0,255,0,0.5);}
+select option{background:#0a0a1e;}
+textarea{width:100%;padding:5px 7px;background:rgba(0,0,0,0.5);border:1px solid rgba(0,255,0,0.25);border-radius:4px;color:#ccc;font-size:11px;resize:vertical;min-height:50px;transition:all 0.2s ease;}
+textarea:focus{outline:none;border-color:#00ff00;box-shadow:0 0 8px rgba(0,255,0,0.5);}
+.btn{padding:7px 14px;border:none;border-radius:5px;cursor:pointer;font-weight:bold;font-size:11px;transition:all 0.3s ease;display:inline-flex;align-items:center;gap:5px;position:relative;overflow:hidden;}
+.btn::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent);transition:all 0.5s ease;}
+.btn:hover::before{left:100%;}
+.btn-p{background:linear-gradient(135deg,#00ff00,#009900);color:#000;}
+.btn-p:hover{background:linear-gradient(135deg,#00ffff,#009999);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,255,0,0.3);}
+.btn-s{background:rgba(255,255,255,0.1);color:#ccc;}
+.btn-s:hover{background:rgba(255,255,255,0.18);transform:translateY(-1px);}
+.btn-d{background:linear-gradient(135deg,#ff4444,#cc0000);color:#fff;}
+.btn-d:hover{background:linear-gradient(135deg,#ff6666,#ee0000);transform:translateY(-1px);box-shadow:0 4px 12px rgba(255,68,68,0.3);}
+.btn-w{background:linear-gradient(135deg,#ff8800,#cc5500);color:#fff;}
+.btn-w:hover{background:linear-gradient(135deg,#ffaa22,#ee7700);transform:translateY(-1px);box-shadow:0 4px 12px rgba(255,136,0,0.3);}
+.btn-pur{background:linear-gradient(135deg,#9933ff,#6600cc);color:#fff;}
+.btn-pur:hover{background:linear-gradient(135deg,#bb55ff,#8822ee);transform:translateY(-1px);box-shadow:0 4px 12px rgba(153,51,255,0.3);}
+.bg{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px;}
+.tmpl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;}
+.tc{border:2px solid rgba(0,255,0,0.22);border-radius:7px;padding:7px;cursor:pointer;text-align:center;transition:all 0.3s ease;background:rgba(0,25,0,0.45);position:relative;overflow:hidden;}
+.tc::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(0,255,0,0.1),transparent);transition:all 0.5s ease;}
+.tc:hover::before{left:100%;}
+.tc:hover{border-color:#00ff00;background:rgba(0,255,0,0.09);transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,255,0,0.2);}
+.tc.selected{border-color:#00ff00;background:rgba(0,255,0,0.14);box-shadow:0 0 15px rgba(0,255,0,0.3);}
+.tc img,.tc-thumb{width:100%;height:58px;object-fit:cover;border-radius:4px;margin-bottom:3px;transition:all 0.3s ease;}
+.tc:hover img,.tc:hover .tc-thumb{transform:scale(1.05);}
+.tc-thumb{background:rgba(0,70,0,0.5);display:flex;align-items:center;justify-content:center;font-size:22px;}
+.tc-name{font-size:10px;color:#00ff00;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tc-chk{position:absolute;top:3px;right:4px;color:#00ff00;font-size:12px;animation:checkmark 0.3s ease;}
+@keyframes checkmark {
+  from { transform:scale(0); }
+  to { transform:scale(1); }
+}
+.preset-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;}
+.pc{padding:9px 6px;border:1px solid rgba(0,255,0,0.25);border-radius:6px;cursor:pointer;text-align:center;transition:all 0.3s ease;background:rgba(0,25,0,0.45);position:relative;overflow:hidden;}
+.pc::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(0,255,0,0.1),transparent);transition:all 0.5s ease;}
+.pc:hover::before{left:100%;}
+.pc:hover{background:rgba(0,255,0,0.1);border-color:#00ff00;transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,255,0,0.2);}
+.pc.active{background:rgba(0,255,0,0.18);border-color:#00ff00;border-width:2px;box-shadow:0 0 15px rgba(0,255,0,0.3);}
+.pc .pi{font-size:20px;margin-bottom:3px;transition:all 0.3s ease;}
+.pc:hover .pi{transform:scale(1.1);}
+.pc .pn{font-size:11px;color:#00ff00;}
+.pc .pd{font-size:10px;color:#555;margin-top:1px;}
+.weapon-opts{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;}
+.wo{padding:9px;border:1px solid rgba(0,255,0,0.22);border-radius:6px;cursor:pointer;text-align:center;transition:all 0.3s ease;background:rgba(0,15,0,0.5);position:relative;overflow:hidden;}
+.wo::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(0,255,0,0.1),transparent);transition:all 0.5s ease;}
+.wo:hover::before{left:100%;}
+.wo:hover{border-color:#00ff00;transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,255,0,0.2);}
+.wo.active{border-color:#00ff00;background:rgba(0,255,0,0.11);box-shadow:0 0 15px rgba(0,255,0,0.3);}
+.wo .wi{font-size:22px;margin-bottom:3px;transition:all 0.3s ease;}
+.wo:hover .wi{transform:scale(1.1);}
+.wo .wn{font-size:11px;color:#00ff00;}
+.cp{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px;}
+.sw{width:24px;height:24px;border-radius:4px;cursor:pointer;border:2px solid transparent;transition:all 0.3s ease;position:relative;overflow:hidden;}
+.sw::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent);transition:all 0.5s ease;}
+.sw:hover::before{left:100%;}
+.sw:hover{transform:scale(1.1);box-shadow:0 0 10px rgba(255,255,255,0.3);}
+.sw.active{border-color:#00ff00;box-shadow:0 0 15px rgba(0,255,0,0.5);transform:scale(1.15);}
+.anim-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;}
+.ab{padding:7px 3px;border:1px solid rgba(0,255,0,0.25);border-radius:5px;cursor:pointer;text-align:center;background:rgba(0,25,0,0.5);color:#00ff00;font-size:10px;transition:all 0.3s ease;position:relative;overflow:hidden;}
+.ab::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(0,255,0,0.1),transparent);transition:all 0.5s ease;}
+.ab:hover::before{left:100%;}
+.ab:hover{background:rgba(0,255,0,0.12);border-color:#00ff00;transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,255,0,0.2);}
+.ab.playing{background:rgba(0,255,0,0.22);border-color:#00ff00;border-width:2px;box-shadow:0 0 15px rgba(0,255,0,0.3);animation:pulse 1s ease-in-out infinite alternate;}
+@keyframes pulse {
+  from { box-shadow:0 0 15px rgba(0,255,0,0.3); }
+  to { box-shadow:0 0 25px rgba(0,255,0,0.6); }
+}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:7px;}
+.fr.full{grid-template-columns:1fr;}
+.fl{color:#777;font-size:10px;margin-bottom:2px;display:block;}
+#canvas-area{flex:1;position:relative;background:#000;}
+#canvas-area canvas{display:block;width:100%;height:100%;}
+.hud{position:absolute;top:12px;right:12px;background:rgba(0,0,0,0.82);border:1px solid #00ff00;border-radius:8px;padding:11px;min-width:170px;font-size:11px;transition:all 0.3s ease;backdrop-filter:blur(10px);}
+.hud:hover{border-color:#00ffff;box-shadow:0 0 15px rgba(0,255,0,0.3);}
+.hud h4{color:#00ff00;margin-bottom:7px;font-size:12px;animation:glow 2s ease-in-out infinite alternate;}
+.hr{display:flex;justify-content:space-between;margin-bottom:3px;transition:all 0.2s ease;}
+.hr:hover{color:#00ffff;}
+.hr span:first-child{color:#666;}
+.hr span:last-child{color:#00ff00;font-family:monospace;}
+.hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.65);border:1px solid rgba(0,255,0,0.25);border-radius:16px;padding:5px 14px;font-size:10px;color:#666;white-space:nowrap;transition:all 0.3s ease;}
+.hint:hover{background:rgba(0,0,0,0.8);border-color:#00ff00;color:#00ff00;}
+.notif{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:rgba(0,200,0,0.92);color:#000;padding:9px 20px;border-radius:6px;font-weight:bold;font-size:12px;z-index:9999;animation:sIn 0.3s ease;box-shadow:0 4px 12px rgba(0,200,0,0.3);}
+@keyframes sIn{from{transform:translateX(-50%) translateY(-60px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}
+hr.div{border:none;border-top:1px solid rgba(0,255,0,0.13);margin:10px 0;}
+.lp{text-align:center;padding:20px;color:#444;font-size:12px;}
+#anim-timeline{position:absolute;top:0;left:0;height:100%;background:rgba(0,255,0,0.5);width:0%;transition:width 0.1s ease;}
+#anim-timeline::after{content:'';position:absolute;right:0;top:0;width:2px;height:100%;background:#00ff00;box-shadow:0 0 5px rgba(0,255,0,0.8);}
+
+@media (max-width: 1024px) {
+  #sidebar{width:380px;}
+  .tmpl-grid{grid-template-columns:repeat(2,1fr);}
+  .anim-grid{grid-template-columns:repeat(2,1fr);}
+  .preset-grid{grid-template-columns:1fr;}
+  .weapon-opts{grid-template-columns:1fr;}
+  .fr{grid-template-columns:1fr;}
+}
+
+@media (max-width: 768px) {
+  body{flex-direction:column;overflow:auto;}
+  #sidebar{width:100%;max-height:none;height:auto;border-right:none;border-bottom:2px solid #00ff00;}
+  #canvas-area{height:60vh;}
+  .header h1{font-size:16px;}
+  .section{padding:10px;margin-bottom:10px;}
+  .btn{padding:6px 12px;font-size:10px;}
+  .tmpl-grid{grid-template-columns:repeat(3,1fr);}
+  .anim-grid{grid-template-columns:repeat(3,1fr);}
+  .hud{position:relative;top:0;right:0;margin:10px auto;width:90%;max-width:200px;}
+  .hint{position:relative;bottom:0;left:0;transform:none;text-align:center;margin:10px auto;}
+}
+
+@media (max-width: 480px) {
+  .header{padding:10px 14px;}
+  .header h1{font-size:14px;}
+  .header p{font-size:10px;}
+  .tab-btn{font-size:10px;padding:7px 2px;}
+  .tab-panel{padding:10px;}
+  .section{padding:8px;margin-bottom:8px;}
+  .sec-title{font-size:11px;margin-bottom:8px;}
+  .cg{margin-bottom:8px;}
+  .cl{font-size:10px;margin-bottom:2px;}
+  input[type=number],select,input[type=text]{font-size:10px;padding:3px 6px;}
+  .btn{padding:5px 10px;font-size:9px;}
+  .tmpl-grid{grid-template-columns:repeat(2,1fr);gap:5px;}
+  .tc img,.tc-thumb{height:48px;}
+  .tc-name{font-size:9px;}
+  .anim-grid{grid-template-columns:repeat(2,1fr);gap:4px;}
+  .ab{padding:5px 2px;font-size:9px;}
+  .pc{padding:7px 4px;}
+  .pc .pi{font-size:18px;}
+  .pc .pn{font-size:10px;}
+  .pc .pd{font-size:9px;}
+  .wo{padding:7px;}
+  .wo .wi{font-size:20px;}
+  .wo .wn{font-size:10px;}
+  .sw{width:20px;height:20px;}
+  .vd{min-width:40px;font-size:10px;}
+  .hud{padding:9px;font-size:10px;}
+  .hud h4{font-size:11px;margin-bottom:5px;}
+  .hr{margin-bottom:2px;}
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .btn{min-height:36px;min-width:80px;}
+  input[type=range]{height:6px;}
+  input[type=range]::-webkit-slider-thumb{width:16px;height:16px;}
+  .sw{width:28px;height:28px;}
+  .tc{padding:10px;}
+  .pc{padding:12px 8px;}
+  .ab{padding:9px 4px;}
+  .wo{padding:12px;}
+}
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div class="header">
+    <h1>角色模板编辑器</h1>
+    <p>选择模板 · 动作预设 · 武器装备 · 实时3D预览</p>
+  </div>
+
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('t-tmpl')">模板</button>
+    <button class="tab-btn" onclick="switchTab('t-motion')">动作</button>
+    <button class="tab-btn" onclick="switchTab('t-preview')">预览</button>
+    <button class="tab-btn" onclick="switchTab('t-weapon')">武器</button>
+    <button class="tab-btn" onclick="switchTab('t-save')">保存</button>
+  </div>
+
+  <div class="tab-panel active" id="t-tmpl">
+    <div class="section">
+      <div class="sec-title">角色模板列表</div>
+      <div style="display:flex;gap:7px;margin-bottom:10px;flex-wrap:wrap;">
+        <div style="flex:1;">
+          <input type="text" id="tmpl-search" placeholder="搜索模板名称..." style="width:100%;">
+        </div>
+        <div style="flex:1;">
+          <select id="tmpl-category" style="width:100%;">
+            <option value="">所有分类</option>
+          </select>
+        </div>
+        <button class="btn btn-s" onclick="filterTemplates()">筛选</button>
+      </div>
+      <div id="tmpl-loading" class="lp">加载中...</div>
+      <div id="tmpl-grid" class="tmpl-grid" style="display:none;"></div>
+      <div id="tmpl-label" style="margin-top:8px;font-size:10px;color:#555;"></div>
+    </div>
+
+    <div id="blockman-upload-section" class="section" style="display:none;">
+      <div class="sec-title">方块人模型上传</div>
+      <p style="font-size:10px;color:#555;margin-bottom:8px;">上传自定义GLB替换方块人，会作为"默认方块人"模板保存</p>
+      <div class="cg">
+        <label class="cl">主体模型 GLB/GLTF</label>
+        <input type="file" id="bm-glb-file" accept=".glb,.gltf" style="width:100%;padding:5px;background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,0,0.3);border-radius:4px;color:#ccc;font-size:11px;">
+        <div id="bm-glb-current" style="font-size:10px;color:#555;margin-top:3px;"></div>
+      </div>
+      <div class="cg">
+        <label class="cl">预览缩略图（可选）</label>
+        <input type="file" id="bm-thumb" accept="image/*" style="width:100%;padding:5px;background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,0,0.3);border-radius:4px;color:#ccc;font-size:11px;">
+      </div>
+      <div class="bg" style="margin-top:8px;">
+        <button class="btn btn-p" onclick="uploadBlockmanGlb()">上传并预览</button>
+        <button class="btn btn-s" onclick="clearBlockmanGlb()">恢复默认方块人</button>
+      </div>
+      <div id="bm-upload-status" style="font-size:10px;color:#00ff00;margin-top:6px;display:none;"></div>
+
+      <hr class="div">
+      <div class="sec-title" style="margin-top:4px;">动画上传（方块人GLB动画）</div>
+      <p style="font-size:10px;color:#555;margin-bottom:8px;">为方块人模板配置独立动画GLB，每个动作一个文件（Mixamo导出）</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <div><label class="cl">待机</label><input type="file" id="bm-anim-idle" accept=".glb,.gltf" style="width:100%;padding:4px;background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,0,0.25);border-radius:3px;color:#ccc;font-size:10px;"></div>
+        <div><label class="cl">走路</label><input type="file" id="bm-anim-walk" accept=".glb,.gltf" style="width:100%;padding:4px;background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,0,0.25);border-radius:3px;color:#ccc;font-size:10px;"></div>
+        <div><label class="cl">奔跑</label><input type="file" id="bm-anim-run" accept=".glb,.gltf" style="width:100%;padding:4px;background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,0,0.25);border-radius:3px;color:#ccc;font-size:10px;"></div>
+        <div><label class="cl">跳跃</label><input type="file" id="bm-anim-jump" accept=".glb,.gltf" style="width:100%;padding:4px;background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,0,0.25);border-radius:3px;color:#ccc;font-size:10px;"></div>
+        <div><label class="cl">普攻</label><input type="file" id="bm-anim-attack1" accept=".glb,.gltf" style="width:100%;padding:4px;background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,0,0.25);border-radius:3px;color:#ccc;font-size:10px;"></div>
+        <div><label class="cl">连击2</label><input type="file" id="bm-anim-attack2" accept=".glb,.gltf" style="width:100%;padding:4px;background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,0,0.25);border-radius:3px;color:#ccc;font-size:10px;"></div>
+        <div><label class="cl">连击3</label><input type="file" id="bm-anim-attack3" accept=".glb,.gltf" style="width:100%;padding:4px;background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,0,0.25);border-radius:3px;color:#ccc;font-size:10px;"></div>
+        <div><label class="cl">受击</label><input type="file" id="bm-anim-hit" accept=".glb,.gltf" style="width:100%;padding:4px;background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,0,0.25);border-radius:3px;color:#ccc;font-size:10px;"></div>
+        <div><label class="cl">死亡</label><input type="file" id="bm-anim-death" accept=".glb,.gltf" style="width:100%;padding:4px;background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,0,0.25);border-radius:3px;color:#ccc;font-size:10px;"></div>
+      </div>
+      <div class="bg" style="margin-top:8px;">
+        <button class="btn btn-p" onclick="uploadBlockmanAnims()">上传动画</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="sec-title">外观</div>
+      <div class="cg">
+        <label class="cl">角色高度（游戏单位，自动压缩模型）</label>
+        <div class="cr">
+          <input type="range" id="glbTargetHeight" min="0.5" max="4.0" step="0.1" value="1.8" oninput="onTargetHeight(this.value)">
+          <span class="vd" id="glbTargetHeightV">1.8u</span>
+        </div>
+        <div style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap;">
+          <button class="btn btn-s" style="font-size:10px;padding:3px 7px;" onclick="onTargetHeight(1.2);document.getElementById('glbTargetHeight').value=1.2;">矮(1.2)</button>
+          <button class="btn btn-s" style="font-size:10px;padding:3px 7px;" onclick="onTargetHeight(1.8);document.getElementById('glbTargetHeight').value=1.8;">标准(1.8)</button>
+          <button class="btn btn-s" style="font-size:10px;padding:3px 7px;" onclick="onTargetHeight(2.5);document.getElementById('glbTargetHeight').value=2.5;">高(2.5)</button>
+          <button class="btn btn-s" style="font-size:10px;padding:3px 7px;" onclick="onTargetHeight(3.5);document.getElementById('glbTargetHeight').value=3.5;">巨型(3.5)</button>
+        </div>
+      </div>
+      <div class="cg">
+        <label class="cl">角色缩放（在目标高度基础上微调）</label>
+        <div class="cr">
+          <input type="range" id="charScale" min="0.5" max="2.5" step="0.1" value="1" oninput="onScale(this.value)">
+          <span class="vd" id="charScaleV">1.0x</span>
+        </div>
+      </div>
+      
+      <!-- 模型适配控制面板 -->
+      <div class="cg" style="margin-top:10px;">
+        <label class="cl">模型适配策略</label>
+        <div class="cr">
+          <select id="fitStrategy" onchange="onFitStrategyChange(this.value)">
+            <option value="mixed">混合策略（推荐）</option>
+            <option value="bone">骨骼策略</option>
+            <option value="bbox">包围盒策略</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="cg">
+        <label class="cl">落地偏移 Y</label>
+        <div class="cr">
+          <input type="range" id="fitOffsetY" min="-1.0" max="1.0" step="0.05" value="0" oninput="onFitOffsetChange()">
+          <span class="vd" id="fitOffsetYV">0.00</span>
+        </div>
+      </div>
+      
+      <div class="cg">
+        <label class="cl">中心点 X 偏移</label>
+        <div class="cr">
+          <input type="range" id="fitOffsetX" min="-1.0" max="1.0" step="0.05" value="0" oninput="onFitOffsetChange()">
+          <span class="vd" id="fitOffsetXV">0.00</span>
+        </div>
+      </div>
+      
+      <div class="cg">
+        <label class="cl">中心点 Z 偏移</label>
+        <div class="cr">
+          <input type="range" id="fitOffsetZ" min="-1.0" max="1.0" step="0.05" value="0" oninput="onFitOffsetChange()">
+          <span class="vd" id="fitOffsetZV">0.00</span>
+        </div>
+      </div>
+      
+      <div class="cg">
+        <label class="cl">最大维度限制（米）</label>
+        <div class="cr">
+          <input type="range" id="maxDimension" min="3.0" max="10.0" step="0.5" value="5.0" oninput="onMaxDimensionChange(this.value)">
+          <span class="vd" id="maxDimensionV">5.00</span>
+        </div>
+      </div>
+      
+      <div class="cg">
+        <label class="cl">自动缩放</label>
+        <div class="cr">
+          <input type="checkbox" id="autoScale" checked onchange="onAutoScaleChange(this.checked)">
+          <span class="vd">启用自动缩放</span>
+        </div>
+      </div>
+      <div id="blockman-colors">
+        <div class="cg">
+          <label class="cl">头部颜色（仅方块人）</label>
+          <div class="cr"><input type="color" id="headColor" value="#ffaa99" onchange="onHeadColor(this.value)"></div>
+        </div>
+        <div class="cg">
+          <label class="cl">身体颜色（仅方块人）</label>
+          <div class="cr"><input type="color" id="bodyColor" value="#4a90e2" onchange="onBodyColor(this.value)"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="t-motion">
+    <div class="section">
+      <div class="sec-title" id="anim-status-title">MVP 动作状态</div>
+      <div id="anim-status-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px;"></div>
+      <div style="font-size:10px;color:#444;padding:5px;border:1px solid rgba(0,255,0,0.1);border-radius:4px;">
+        在管理后台-角色模板-编辑-上传各动画GLB（推荐Mixamo导出）
+      </div>
+    </div>
+    <div class="section">
+      <div class="sec-title">测试动作</div>
+      <div class="anim-grid" id="anim-test-grid">
+        <div class="ab" id="ab-idle" onclick="testAnim('idle')">待机</div>
+        <div class="ab" id="ab-walk" onclick="testAnim('walk')">行走</div>
+        <div class="ab" id="ab-run" onclick="testAnim('run')">奔跑</div>
+        <div class="ab" id="ab-jump" onclick="testAnim('jump')">跳跃</div>
+        <div class="ab" id="ab-attack1" onclick="testAnim('attack1')">普攻</div>
+        <div class="ab" id="ab-attack2" onclick="testAnim('attack2')">连击2</div>
+        <div class="ab" id="ab-attack3" onclick="testAnim('attack3')">连击3</div>
+        <div class="ab" id="ab-hit" onclick="testAnim('hit')">受击</div>
+        <div class="ab" id="ab-death" onclick="testAnim('death')">死亡</div>
+        <div class="ab" id="ab-stop" onclick="stopAnim()">停止</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sec-title">动画预览与编辑</div>
+      <div style="display:flex;gap:7px;margin-bottom:10px;align-items:center;">
+        <button class="btn btn-p" onclick="toggleAnimation()">播放/暂停</button>
+        <button class="btn btn-s" onclick="resetAnimation()">重置</button>
+        <div style="flex:1;">
+          <label class="cl">播放速度</label>
+          <div class="cr">
+            <input type="range" id="anim-speed" min="0.1" max="3" step="0.1" value="1" oninput="onAnimSpeed(this.value)">
+            <span class="vd" id="anim-speed-v">1.0x</span>
+          </div>
+        </div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label class="cl">动画时间轴</label>
+        <div style="position:relative;height:20px;background:rgba(0,255,0,0.1);border-radius:3px;margin-top:3px;">
+          <div id="anim-timeline" style="position:absolute;top:0;left:0;height:100%;background:rgba(0,255,0,0.5);width:0%;transition:width 0.1s;"></div>
+          <div id="anim-time" style="position:absolute;top:-15px;right:5px;font-size:10px;color:#00ff00;">0.0s / 0.0s</div>
+        </div>
+      </div>
+      <div class="fr">
+        <div>
+          <label class="cl">循环模式</label>
+          <select id="anim-loop" onchange="onAnimLoop(this.value)">
+            <option value="none">不循环</option>
+            <option value="loop" selected>循环</option>
+            <option value="pingpong">往返循环</option>
+          </select>
+        </div>
+        <div>
+          <label class="cl">动画时长 (s)</label>
+          <input type="number" id="anim-duration" min="0.1" step="0.1" value="3" onchange="onAnimDuration(this.value)">
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="sec-title">动作预设（方块人）</div>
+      <div class="preset-grid">
+        <div class="pc active" id="pc-default" onclick="loadPreset('default')"><div class="pi">人</div><div class="pn">默认待机</div><div class="pd">自然站立</div></div>
+        <div class="pc" id="pc-combat" onclick="loadPreset('combat')"><div class="pi">剑</div><div class="pn">战斗姿势</div><div class="pd">持剑备战</div></div>
+        <div class="pc" id="pc-guard" onclick="loadPreset('guard')"><div class="pi">盾</div><div class="pn">防御姿势</div><div class="pd">格挡站位</div></div>
+        <div class="pc" id="pc-charge" onclick="loadPreset('charge')"><div class="pi">电</div><div class="pn">蓄力姿势</div><div class="pd">后仰蓄力</div></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="sec-title">细节参数</div>
+      <div class="cg">
+        <label class="cl">攻击速度</label>
+        <div class="cr"><input type="range" id="atkSpeed" min="100" max="1000" step="50" value="300" oninput="onAtkSpeed(this.value)"><span class="vd" id="atkSpeedV">300ms</span></div>
+      </div>
+      <div class="cg">
+        <label class="cl">行走摆幅</label>
+        <div class="cr"><input type="range" id="walkSwing" min="0.1" max="2" step="0.1" value="0.6" oninput="onWalkSwing(this.value)"><span class="vd" id="walkSwingV">0.6</span></div>
+      </div>
+      <div class="cg">
+        <label class="cl">慢动作倍率</label>
+        <div class="cr"><input type="range" id="slowRate" min="0.1" max="1" step="0.1" value="1" oninput="onSlowRate(this.value)"><span class="vd" id="slowRateV">1.0x</span></div>
+      </div>
+      <div class="bg"><button class="btn btn-w" onclick="testSlowMotion()">慢动作预览</button></div>
+    </div>
+    <div class="section" id="glb-anim-section" style="display:none;">
+      <div class="sec-title">GLB 内置动画</div>
+      <div id="glb-anim-list" class="lp">加载 GLB 后可见</div>
+    </div>
+    
+    <div class="section" id="bone-mapping-section" style="display:none;">
+      <div class="sec-title">骨骼映射配置</div>
+      <div style="font-size:10px;color:#666;margin-bottom:8px;">
+        当动画骨骼与角色模型不匹配时，可手动配置映射关系
+      </div>
+      <div id="bone-mapping-status" style="font-size:11px;color:#00ff00;margin-bottom:8px;"></div>
+      <div class="bg" style="margin-bottom:10px;">
+        <button class="btn btn-p" onclick="openBoneMappingModal()">配置骨骼映射</button>
+        <button class="btn btn-s" onclick="clearBoneMapping()">清除映射</button>
+      </div>
+      <div id="bone-mapping-preview" style="font-size:10px;color:#555;max-height:100px;overflow-y:auto;"></div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="t-preview">
+    <div class="section">
+      <div class="sec-title">角色预览</div>
+      <div style="display:flex;gap:7px;margin-bottom:10px;align-items:center;">
+        <button class="btn btn-p" onclick="playPreview()">播放预览</button>
+        <button class="btn btn-s" onclick="stopPreview()">停止预览</button>
+        <button class="btn btn-w" onclick="loopPreview()">循环预览</button>
+      </div>
+      <div style="display:flex;gap:7px;margin-bottom:10px;align-items:center;">
+        <label class="cl">角色缩放</label>
+        <input type="range" id="scale" min="0.5" max="2" step="0.1" value="1" oninput="updateCharacterScale(this.value)">
+        <span class="vd" id="scale-value">1.0×</span>
+      </div>
+      <div style="display:flex;gap:7px;margin-bottom:10px;align-items:center;">
+        <label class="cl">预览速度</label>
+        <input type="range" id="preview-speed" min="0.1" max="3" step="0.1" value="1" oninput="onPreviewSpeed(this.value)">
+        <span class="vd" id="preview-speed-v">1.0x</span>
+      </div>
+      <div style="display:flex;gap:7px;margin-bottom:10px;align-items:center;">
+        <label class="cl">音量控制</label>
+        <input type="range" id="preview-volume" min="0" max="1" step="0.05" value="0.7" oninput="onPreviewVolume(this.value)">
+        <span class="vd" id="preview-volume-v">70%</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sec-title">动作列表</div>
+      <div id="preview-anim-list" class="anim-grid">
+        <!-- 动作列表将通过JavaScript动态生成 -->
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sec-title">声音预览</div>
+      <div id="preview-sound-list" style="font-size:11px;color:#00ff00;max-height:150px;overflow-y:auto;">
+        <!-- 声音列表将通过JavaScript动态生成 -->
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sec-title">预览信息</div>
+      <div id="preview-info" style="font-size:10px;color:#555;">
+        选择角色模板后，点击"播放预览"按钮开始预览角色的动作和声音
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="t-weapon">
+    <div class="section">
+      <div class="sec-title">武器选择</div>
+      <div class="weapon-opts">
+        <div class="wo active" id="weapon-none" onclick="selectWeapon('none')"><div class="wi">无</div><div class="wn">无武器</div></div>
+        <div class="wo" id="weapon-lightsaber" onclick="selectWeapon('lightsaber')"><div class="wi">剑</div><div class="wn">光剑</div></div>
+        <div class="wo" id="weapon-staff" onclick="selectWeapon('staff')"><div class="wi">杖</div><div class="wn">法杖</div></div>
+        <div class="wo" id="weapon-bow" onclick="selectWeapon('bow')"><div class="wi">弓</div><div class="wn">弓箭</div></div>
+      </div>
+    </div>
+
+    <div class="section" id="lightsaber-config" style="display:none;">
+      <div class="sec-title">光剑参数</div>
+      <div class="cg"><label class="cl">剑刃颜色</label>
+        <div class="cp">
+          <div class="sw active" style="background:#00ffff" onclick="setBladeColor('#00ffff')"></div>
+          <div class="sw" style="background:#00ff00" onclick="setBladeColor('#00ff00')"></div>
+          <div class="sw" style="background:#ff2222" onclick="setBladeColor('#ff2222')"></div>
+          <div class="sw" style="background:#2266ff" onclick="setBladeColor('#2266ff')"></div>
+          <div class="sw" style="background:#ff00ff" onclick="setBladeColor('#ff00ff')"></div>
+          <div class="sw" style="background:#ffff00" onclick="setBladeColor('#ffff00')"></div>
+          <div class="sw" style="background:#ff8800" onclick="setBladeColor('#ff8800')"></div>
+          <div class="sw" style="background:#ffffff" onclick="setBladeColor('#ffffff')"></div>
+        </div>
+      </div>
+      <div class="cg"><label class="cl">剑柄颜色</label>
+        <div class="cp">
+          <div class="sw active" style="background:#111111" onclick="setHiltColor('#111111')"></div>
+          <div class="sw" style="background:#555555" onclick="setHiltColor('#555555')"></div>
+          <div class="sw" style="background:#c0c0c0" onclick="setHiltColor('#c0c0c0')"></div>
+          <div class="sw" style="background:#ffd700" onclick="setHiltColor('#ffd700')"></div>
+          <div class="sw" style="background:#8b4513" onclick="setHiltColor('#8b4513')"></div>
+        </div>
+      </div>
+      <div class="cg"><label class="cl">剑刃长度</label>
+        <div class="cr"><input type="range" id="bladeLen" min="0.3" max="2" step="0.1" value="0.8" oninput="onBladeLen(this.value)"><span class="vd" id="bladeLenV">0.8</span></div>
+      </div>
+      <div class="cg"><label class="cl">发光强度</label>
+        <div class="cr"><input type="range" id="glowInt" min="0" max="3" step="0.1" value="0.8" oninput="onGlowInt(this.value)"><span class="vd" id="glowIntV">0.8</span></div>
+      </div>
+      <div class="cg"><label class="cl">武器大小</label>
+        <div class="cr"><input type="range" id="swordSize" min="0.5" max="2" step="0.1" value="1" oninput="onSwordSize(this.value)"><span class="vd" id="swordSizeV">1.0</span></div>
+      </div>
+      <hr class="div">
+      <div class="sec-title" style="margin-bottom:7px;">绑定位置</div>
+      <div class="cg"><label class="cl">偏移 X</label><div class="cr"><input type="range" id="swPosX" min="-0.5" max="0.5" step="0.02" value="0" oninput="onSwordPos()"><span class="vd" id="swPosXV">0.00</span></div></div>
+      <div class="cg"><label class="cl">偏移 Y</label><div class="cr"><input type="range" id="swPosY" min="-0.5" max="0.5" step="0.02" value="-0.3" oninput="onSwordPos()"><span class="vd" id="swPosYV">-0.30</span></div></div>
+      <div class="cg"><label class="cl">偏移 Z</label><div class="cr"><input type="range" id="swPosZ" min="-0.5" max="0.5" step="0.02" value="0.1" oninput="onSwordPos()"><span class="vd" id="swPosZV">0.10</span></div></div>
+      <div class="cg"><label class="cl">旋转 Z（握持角度）</label><div class="cr"><input type="range" id="swRotZ" min="-180" max="180" step="5" value="90" oninput="onSwordRot()"><span class="vd" id="swRotZV">90</span></div></div>
+    </div>
+
+    <div class="section" id="staff-config" style="display:none;">
+      <div class="sec-title">法杖参数</div>
+      <div class="cg"><label class="cl">宝珠颜色</label>
+        <div class="cp">
+          <div class="sw active" style="background:#aa44ff" onclick="setStaffColor('#aa44ff')"></div>
+          <div class="sw" style="background:#4488ff" onclick="setStaffColor('#4488ff')"></div>
+          <div class="sw" style="background:#ff4488" onclick="setStaffColor('#ff4488')"></div>
+          <div class="sw" style="background:#44ff88" onclick="setStaffColor('#44ff88')"></div>
+          <div class="sw" style="background:#ffcc00" onclick="setStaffColor('#ffcc00')"></div>
+        </div>
+      </div>
+      <div class="cg"><label class="cl">法杖长度</label><div class="cr"><input type="range" id="staffLen" min="0.5" max="2.5" step="0.1" value="1.2" oninput="onStaffLen(this.value)"><span class="vd" id="staffLenV">1.2</span></div></div>
+      <div class="cg"><label class="cl">武器大小</label>
+        <div class="cr"><input type="range" id="staffSize" min="0.5" max="2" step="0.1" value="1" oninput="onStaffSize(this.value)"><span class="vd" id="staffSizeV">1.0</span></div>
+      </div>
+    </div>
+
+    <div class="section" id="bow-config" style="display:none;">
+      <div class="sec-title">弓箭参数</div>
+      <div class="cg"><label class="cl">武器大小</label>
+        <div class="cr"><input type="range" id="bowSize" min="0.5" max="2" step="0.1" value="1" oninput="onBowSize(this.value)"><span class="vd" id="bowSizeV">1.0</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="t-save">
+    <div class="section">
+      <div class="sec-title">应用到游戏</div>
+      <p style="font-size:11px;color:#666;margin-bottom:10px;">将当前配置保存到本地，进入世界时自动读取</p>
+      <div class="bg">
+        <button class="btn btn-p" onclick="applyToGame()">应用到游戏</button>
+        <button class="btn btn-s" onclick="saveToServer()">保存到服务器</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="sec-title">导入/导出</div>
+      <div class="bg">
+        <button class="btn btn-s" onclick="exportJSON()">复制JSON</button>
+        <button class="btn btn-s" onclick="importJSON()">粘贴导入</button>
+        <button class="btn btn-s" onclick="downloadJSON()">下载文件</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="sec-title">快捷入口</div>
+      <div class="bg">
+        <button class="btn btn-pur" onclick="window.open('/animation_puppeteer.html','_blank')">动画编辑器</button>
+        <button class="btn btn-s" onclick="window.open('/admin.html','_blank')">管理后台</button>
+        <button class="btn btn-s" onclick="window.open('/','_blank')">进入世界</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="sec-title">重置</div>
+      <div class="bg"><button class="btn btn-d" onclick="if(confirm('确定恢复默认?'))location.reload()">恢复默认</button></div>
+    </div>
+  </div>
+</div>
+
+<div id="canvas-area">
+  <canvas id="canvas"></canvas>
+  <div class="hud">
+    <h4>实时信息</h4>
+    <div class="hr"><span>FPS</span><span id="hud-fps">-</span></div>
+    <div class="hr"><span>模板</span><span id="hud-tmpl">方块人</span></div>
+    <div class="hr"><span>预设</span><span id="hud-preset">默认待机</span></div>
+    <div class="hr"><span>武器</span><span id="hud-weapon">无</span></div>
+    <div class="hr"><span>动画</span><span id="hud-anim">待机</span></div>
+  </div>
+  <div class="hint">拖动旋转 · 滚轮缩放 · 右键平移</div>
+</div>
+
+<!-- 骨骼映射配置模态框 -->
+<div id="bone-mapping-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:10000;">
+  <div style="display:flex;height:100%;">
+    <!-- 左侧：3D模型预览区 -->
+    <div style="flex:1;position:relative;background:#0a0a1e;">
+      <canvas id="bone-mapping-canvas" style="width:100%;height:100%;display:block;"></canvas>
+      
+      <!-- 3D视图控制按钮 -->
+      <div style="position:absolute;top:10px;left:10px;display:flex;gap:5px;">
+        <button onclick="toggleBoneView('target')" id="btn-view-target" class="btn btn-p" style="font-size:11px;padding:5px 10px;">🎯 角色模型</button>
+        <button onclick="toggleBoneView('source')" id="btn-view-source" class="btn btn-s" style="font-size:11px;padding:5px 10px;">📁 动画源</button>
+        <button onclick="toggleBoneView('both')" id="btn-view-both" class="btn btn-s" style="font-size:11px;padding:5px 10px;">👥 并排</button>
+      </div>
+      
+      <!-- 骨骼显示控制 -->
+      <div style="position:absolute;top:10px;right:10px;display:flex;gap:5px;flex-wrap:wrap;max-width:200px;justify-content:flex-end;">
+        <button onclick="toggleMeshVisibility()" id="btn-toggle-mesh" class="btn btn-s" style="font-size:11px;padding:5px 10px;">👤 隐藏皮肤</button>
+        <button onclick="toggleSkeletonVisibility()" class="btn btn-s" style="font-size:11px;padding:5px 10px;">🦴 显示骨骼</button>
+        <button onclick="resetBoneMappingCamera()" class="btn btn-s" style="font-size:11px;padding:5px 10px;">🎥 重置视角</button>
+      </div>
+      
+      <!-- 选中骨骼信息 -->
+      <div id="selected-bone-info" style="position:absolute;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.8);border:1px solid #00ff00;border-radius:8px;padding:10px;display:none;">
+        <div style="color:#00ff00;font-size:12px;font-weight:bold;margin-bottom:5px;">当前选中</div>
+        <div id="selected-bone-name" style="color:#fff;font-size:14px;">-</div>
+        <div style="font-size:10px;color:#888;margin-top:5px;">点击另一侧模型对应位置完成映射</div>
+      </div>
+      
+      <!-- 操作提示 -->
+      <div id="bone-mapping-hint" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.9);border:2px solid #00ff00;border-radius:12px;padding:20px;text-align:center;max-width:400px;">
+        <div style="font-size:48px;margin-bottom:15px;">🦴</div>
+        <div style="color:#00ff00;font-size:16px;font-weight:bold;margin-bottom:10px;">骨骼映射模式</div>
+        <div style="color:#aaa;font-size:12px;line-height:1.6;">
+          1. 在<span style="color:#4488ff;">蓝色模型</span>（动画源）上点击骨骼<br>
+          2. 在<span style="color:#00ff00;">绿色模型</span>（角色）上点击对应位置<br>
+          3. 系统自动建立映射关系
+        </div>
+        <button onclick="hideBoneMappingHint()" style="margin-top:15px;padding:8px 20px;background:#00ff00;color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:bold;">开始配置</button>
+      </div>
+    </div>
+    
+    <!-- 右侧：控制面板 -->
+    <div style="width:350px;background:rgba(10,10,30,0.98);border-left:2px solid #00ff00;display:flex;flex-direction:column;">
+      <!-- 头部 -->
+      <div style="padding:15px;border-bottom:1px solid rgba(0,255,0,0.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h2 style="color:#00ff00;font-size:16px;margin:0;">🦴 骨骼映射配置</h2>
+          <button onclick="closeBoneMappingModal()" style="background:rgba(255,68,68,0.8);color:#fff;border:none;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:11px;">✕ 关闭</button>
+        </div>
+      </div>
+      
+      <!-- 滚动内容区 -->
+      <div style="flex:1;overflow-y:auto;padding:15px;">
+        <!-- 映射模式选择 -->
+        <div style="margin-bottom:15px;padding:12px;background:rgba(0,100,255,0.1);border:1px solid rgba(0,100,255,0.3);border-radius:8px;">
+          <div style="color:#4488ff;font-size:11px;margin-bottom:8px;font-weight:bold;">🌐 映射模式</div>
+          <select id="mapping-mode-select" style="padding:8px 12px;background:rgba(0,0,0,0.5);border:1px solid rgba(0,255,0,0.3);border-radius:4px;color:#00ff00;font-size:12px;width:100%;margin-bottom:8px;" onchange="onMappingModeChange(this.value)">
+            <option value="global">🌍 全局映射（所有动画共享）</option>
+            <option value="anim">📋 动画特定映射（仅当前动画）</option>
+          </select>
+          <div id="mapping-mode-desc" style="font-size:10px;color:#888;">
+            全局映射：配置的骨骼映射会应用到所有动画
+          </div>
+        </div>
+
+        <!-- 动画选择 -->
+        <div id="anim-select-container" style="margin-bottom:15px;padding:12px;background:rgba(0,100,255,0.1);border:1px solid rgba(0,100,255,0.3);border-radius:8px;display:none;">
+          <div style="color:#4488ff;font-size:11px;margin-bottom:8px;font-weight:bold;">📋 选择要配置的动画</div>
+          <select id="mapping-anim-select" style="padding:8px 12px;background:rgba(0,0,0,0.5);border:1px solid rgba(0,255,0,0.3);border-radius:4px;color:#00ff00;font-size:12px;width:100%;" onchange="onMappingAnimChange(this.value)">
+            <option value="">-- 请选择动画类型 --</option>
+          </select>
+          <div style="font-size:10px;color:#666;margin-top:5px;">
+            ✓ = 已上传GLB | ○ = 未上传GLB
+          </div>
+        </div>
+        
+        <!-- 映射进度 -->
+        <div style="margin-bottom:15px;padding:12px;background:rgba(0,255,0,0.05);border:1px solid rgba(0,255,0,0.2);border-radius:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="color:#00ff00;font-size:11px;font-weight:bold;">📊 映射进度</span>
+            <span id="mapping-progress-text" style="color:#00ff00;font-size:11px;">0/0</span>
+          </div>
+          <div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
+            <div id="mapping-progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg,#00ff00,#00aa00);transition:width 0.3s;"></div>
+          </div>
+        </div>
+        
+        <!-- 当前映射列表 -->
+        <div style="margin-bottom:15px;">
+          <div style="color:#00ff00;font-size:11px;margin-bottom:8px;font-weight:bold;">🔗 已建立的映射</div>
+          <div id="current-mappings" style="background:rgba(0,0,0,0.5);border:1px solid rgba(0,255,0,0.2);border-radius:6px;padding:10px;min-height:80px;max-height:200px;overflow-y:auto;font-size:11px;">
+            <div style="color:#666;text-align:center;padding:20px;">暂无映射<br><span style="font-size:10px;">在3D视图中点击骨骼建立映射</span></div>
+          </div>
+        </div>
+        
+        <!-- 待映射骨骼列表 -->
+        <div style="margin-bottom:15px;">
+          <div style="color:#ff8800;font-size:11px;margin-bottom:8px;font-weight:bold;">⏳ 待映射的动画骨骼</div>
+          <div id="pending-bones-list" style="background:rgba(255,136,0,0.05);border:1px solid rgba(255,136,0,0.2);border-radius:6px;padding:10px;max-height:150px;overflow-y:auto;font-size:10px;">
+            <div style="color:#666;text-align:center;padding:10px;">请先选择动画</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 底部按钮 -->
+      <div style="padding:15px;border-top:1px solid rgba(0,255,0,0.3);">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <button class="btn btn-p" onclick="autoMapBones()" style="font-size:11px;padding:8px;">🔄 自动匹配</button>
+          <button class="btn btn-s" onclick="clearCurrentMapping()" style="font-size:11px;padding:8px;">🗑️ 清空</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <button class="btn btn-p" onclick="saveBoneMapping()" style="font-size:11px;padding:8px;">💾 保存映射</button>
+          <button class="btn btn-s" onclick="testMappingWithAnim()" style="font-size:11px;padding:8px;">▶️ 测试</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<!-- 骨骼平台适配器 + 动画重定向 -->
+<script src="js/bone-platforms-config.js"></script>
+<script src="js/bone-platforms-adapter.js"></script>
+<script src="js/anim-retarget-helper.js"></script>
+<script src="js/soundManager.js"></script>
+<script>
+const API_BASE = window.location.origin + '/api';
+const SERVER_BASE = window.location.origin;
+let scene,camera,renderer,controls,gltfLoader;
+let charGroup=null,weaponGroup=null,rightElbow=null;
+let glbMixer=null,glbAnimations=[],glbCurrentAction=null;
+
+window.addEventListener('error', (e) => {
+  try { showNotif('错误: ' + (e.message || '页面脚本错误')); } catch {}
+  try { console.error('[character_editor] error:', e.error || e.message || e); } catch {}
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const reason = e?.reason;
+  const msg = reason?.message || (typeof reason === 'string' ? reason : 'Promise 未处理异常');
+  try { showNotif('错误: ' + msg); } catch {}
+  try { console.error('[character_editor] unhandledrejection:', reason); } catch {}
+});
+
+const ANIM_KEYS_BASE = ['idle','walk','run','jump','attack1','attack2','attack3','hit','death'];
+let ANIM_KEYS = [...ANIM_KEYS_BASE];
+const animMixers = {};
+const animActions = {};
+let currentAnimMode='idle',animTime=0;
+let lastT=performance.now(),fCount=0,fSample=0;
+
+const tmplAnimUrls = {};
+
+const cfg={
+  templateId:null,templateName:'默认方块人',glbUrl:null,
+  animSounds:null,
+  weaponSounds:null,
+  calibrationConfig: null,
+  weaponSocketConfig: null,
+  boneMappingConfig: null,
+  fitConfig:{
+    strategy: 'mixed',
+    offset: { x: 0, y: 0, z: 0 },
+    scale: 1.0,
+    rotation: { x: 0, y: 0, z: 0 },
+    maxDimension: 5.0,
+    autoScale: true,
+    cameraDistance: 5.0,
+    targetHeight: 1.8
+  },
+  character:{scale:1,headColor:0xffaa99,bodyColor:0x4a90e2},
+  glbTargetHeight:1.8,
+  preset:'default',
+  weapon:'none',
+  sword:{bladeColor:0x00ffff,hiltColor:0x111111,bladeLength:0.8,glowIntensity:0.8,size:1.0,position:{x:0,y:-0.3,z:0.1},rotation:{x:0,y:0,z:90}},
+  staff:{orbColor:0xaa44ff,length:1.2,size:1.0},
+  bow:{size:1.0},
+  attack:{duration:300,walkSwing:0.6,slowRate:1},
+  isCalibrated: false,
+  calibratedAt: null,
+  calibrationVersion: 1
+};
+
+// 初始化 SoundManager
+window.soundManager = new SoundManager();
+
+let weaponLibrary = [];
+
+async function loadWeaponLibrary() {
+  try {
+    const res = await fetch(`${API_BASE}/public/character-templates/weapons`);
+    if (res.ok) {
+      const data = await res.json();
+      weaponLibrary = data.weapons || [];
+      renderWeaponLibrary();
+      return;
+    }
+    const token = localStorage.getItem('adminToken') || '';
+    if (token) {
+      const r2 = await fetch(`${API_BASE}/character-templates/weapons`, { 
+        headers: { 'Authorization': `Bearer ${token}` } 
+      });
+      if (r2.ok) {
+        const data = await r2.json();
+        weaponLibrary = data.weapons || [];
+        renderWeaponLibrary();
+      }
+    }
+  } catch (e) {
+    console.warn('[loadWeaponLibrary]', e);
+    showNotif('武器库加载失败，使用默认武器');
+  }
+}
+
+function renderWeaponLibrary() {
+  const weaponOpts = document.querySelector('.weapon-opts');
+  if (!weaponOpts) return;
+  
+  weaponOpts.innerHTML = '';
+  
+  const noneOption = document.createElement('div');
+  noneOption.className = `wo ${cfg.weapon === 'none' ? 'active' : ''}`;
+  noneOption.id = 'weapon-none';
+  noneOption.onclick = () => selectWeapon('none');
+  noneOption.innerHTML = '<div class="wi">无</div><div class="wn">无武器</div>';
+  weaponOpts.appendChild(noneOption);
+  
+  weaponLibrary.forEach(weapon => {
+    const weaponOption = document.createElement('div');
+    weaponOption.className = `wo ${cfg.weapon === weapon.id ? 'active' : ''}`;
+    weaponOption.id = `weapon-${weapon.id}`;
+    weaponOption.onclick = () => selectWeapon(weapon.id);
+    // 根据icon_emoji或weapon_type决定显示图标
+    let icon = weapon.icon_emoji;
+    if (!icon) {
+      const t = (weapon.weapon_type || '').toLowerCase();
+      const n = (weapon.name || '').toLowerCase();
+      if (t.includes('lightsaber') || t.includes('sword') || n.includes('光剑') || n.includes('剑')) icon = '⚔️';
+      else if (t.includes('staff') || n.includes('法杖') || n.includes('杖')) icon = '🪄';
+      else if (t.includes('bow') || n.includes('弓')) icon = '🏹';
+      else icon = '⚔️';
+    }
+    weaponOption.innerHTML = `<div class="wi">${icon}</div><div class="wn">${weapon.name}</div>`;
+    weaponOpts.appendChild(weaponOption);
+  });
+}
+
+async function init(){
+  try{
+    loadFromStorage();
+    scene=new THREE.Scene();
+    scene.background=new THREE.Color(0x0a0a1e);
+    scene.fog=new THREE.Fog(0x0a0a1e,14,60);
+
+    const W=Math.max(320, window.innerWidth-440),H=window.innerHeight;
+    camera=new THREE.PerspectiveCamera(55,W/H,0.1,1000);
+    camera.position.set(2.5,2,3);
+    const canvas=document.getElementById('canvas');
+    renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+    renderer.setSize(W,H);
+    renderer.shadowMap.enabled=true;
+    controls=new THREE.OrbitControls(camera,canvas);
+    controls.enableDamping=true;controls.dampingFactor=0.06;controls.target.set(0,1,0);
+    gltfLoader=new THREE.GLTFLoader();
+    scene.add(new THREE.AmbientLight(0xffffff,0.7));
+    const dl=new THREE.DirectionalLight(0xffffff,0.8);dl.position.set(5,10,5);dl.castShadow=true;scene.add(dl);
+    scene.add(new THREE.HemisphereLight(0x4488ff,0x224411,0.3));
+    const gnd=new THREE.Mesh(new THREE.PlaneGeometry(60,60),new THREE.MeshStandardMaterial({color:0x1c2a3a,roughness:0.9}));
+    gnd.rotation.x=-Math.PI/2;gnd.receiveShadow=true;scene.add(gnd);
+    scene.add(new THREE.GridHelper(60,60,0x004422,0x002211));
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(2.5,0.025,8,80),new THREE.MeshBasicMaterial({color:0x004400,transparent:true,opacity:0.5}));
+    ring.rotation.x=Math.PI/2;ring.position.y=0.01;scene.add(ring);
+    buildChar();
+    applyPreset(cfg.preset,false);
+    if(cfg.weapon!=='none')buildWeapon(cfg.weapon);
+    syncUI();
+    animate();
+    window.addEventListener('resize',()=>{
+      let W2;
+      if (window.innerWidth <= 768) {
+        W2 = window.innerWidth;
+      } else {
+        const sidebarWidth = window.innerWidth <= 1024 ? 380 : 440;
+        W2 = Math.max(320, window.innerWidth - sidebarWidth);
+      }
+      camera.aspect=W2/window.innerHeight;camera.updateProjectionMatrix();
+      renderer.setSize(W2,window.innerHeight);
+    });
+    await loadTemplates();
+    await loadWeaponLibrary();
+    await loadServerCfg();
+    showNotif('编辑器就绪');
+  }catch(e){
+    console.error('[character_editor] init failed:', e);
+    const loading = document.getElementById('tmpl-loading');
+    if (loading) loading.textContent = '初始化失败：' + (e?.message || e);
+    try { showNotif('初始化失败：' + (e?.message || e)); } catch {}
+  }
+}
+
+function buildChar(){
+  if(charGroup)scene.remove(charGroup);
+  if(glbMixer){glbMixer.stopAllAction();glbMixer=null;}
+  glbAnimations=[];glbCurrentAction=null;weaponGroup=null;rightElbow=null;
+  charGroup=new THREE.Group();
+  const mArm=new THREE.MeshStandardMaterial({color:0xffaa99});
+  const mBody=new THREE.MeshStandardMaterial({color:cfg.character.bodyColor});
+  const mHead=new THREE.MeshStandardMaterial({color:cfg.character.headColor});
+  const mLeg=new THREE.MeshStandardMaterial({color:0x2c3e50});
+  const bodyM=new THREE.Mesh(new THREE.BoxGeometry(0.6,1.2,0.3),mBody);bodyM.position.y=0.3;bodyM.castShadow=true;charGroup.add(bodyM);charGroup.userData.body=bodyM;
+  const headM=new THREE.Mesh(new THREE.SphereGeometry(0.4,16,16),mHead);headM.position.y=1.2;headM.castShadow=true;charGroup.add(headM);charGroup.userData.head=headM;
+  const lA=new THREE.Group();lA.position.set(0.38,0.8,0);
+  const lU=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.5,8),mArm);lU.position.y=-0.25;lA.add(lU);
+  const lE=new THREE.Group();lE.position.set(0,-0.5,0);
+  const lF=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.5,8),mArm);lF.position.y=-0.25;lE.add(lF);
+  lA.add(lE);charGroup.add(lA);charGroup.userData.leftArm=lA;charGroup.userData.leftElbow=lE;
+  const rA=new THREE.Group();rA.position.set(-0.38,0.8,0);
+  const rU=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.5,8),mArm);rU.position.y=-0.25;rA.add(rU);
+  const rE=new THREE.Group();rE.position.set(0,-0.5,0);
+  const rF=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.5,8),mArm);rF.position.y=-0.25;rE.add(rF);
+  rA.add(rE);charGroup.add(rA);charGroup.userData.rightArm=rA;charGroup.userData.rightElbow=rE;rightElbow=rE;
+  const lLG=new THREE.Group();lLG.position.set(-0.18,-0.3,0);
+  const lTh=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.6,6),mLeg);lTh.position.y=-0.3;lLG.add(lTh);
+  const lK=new THREE.Group();lK.position.set(0,-0.6,0);
+  const lCa=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.6,6),mLeg);lCa.position.y=-0.3;lK.add(lCa);
+  lLG.add(lK);charGroup.add(lLG);charGroup.userData.leftLeg=lLG;charGroup.userData.leftKnee=lK;
+  const rLG=new THREE.Group();rLG.position.set(0.18,-0.3,0);
+  const rTh=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.6,6),mLeg);rTh.position.y=-0.3;rLG.add(rTh);
+  const rK=new THREE.Group();rK.position.set(0,-0.6,0);
+  const rCa=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.6,6),mLeg);rCa.position.y=-0.3;rK.add(rCa);
+  rLG.add(rK);charGroup.add(rLG);charGroup.userData.rightLeg=rLG;charGroup.userData.rightKnee=rK;
+  charGroup.scale.setScalar(cfg.character.scale);
+  charGroup.position.y=1.5;
+  scene.add(charGroup);
+  document.getElementById('blockman-colors').style.display='block';
+  updateHUD();
+}
+
+// 创建白色占位符纹理数据（1x1 白色 PNG）
+function createWhiteTextureDataURL() {
+  // 1x1 白色 PNG 的 base64 编码
+  return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==';
+}
+
+// 检查纹理 URI 是否需要修复（非 data URL 的外部引用）
+function needsTextureFix(uri) {
+  if (!uri) return false;
+  // 只有 data: 开头的内嵌纹理才不需要修复，其他都需要替换为占位符
+  return !uri.startsWith('data:');
+}
+
+// 修复 GLB 数据中的外部纹理引用
+async function fixGLBTextureURIs(arrayBuffer, baseUrl) {
+  const view = new DataView(arrayBuffer);
+  const decoder = new TextDecoder();
+  
+  // 读取 GLB 头
+  const magic = view.getUint32(0, true);
+  const version = view.getUint32(4, true);
+  const length = view.getUint32(8, true);
+  
+  if (magic !== 0x46546c67) { // 'glTF'
+    console.warn('[fixGLB] 不是有效的 GLB 文件');
+    return arrayBuffer;
+  }
+  
+  let offset = 12;
+  let jsonChunkData = null;
+  let binaryChunkData = null;
+  
+  // 解析 chunks
+  while (offset < length) {
+    const chunkLength = view.getUint32(offset, true);
+    const chunkType = view.getUint32(offset + 4, true);
+    
+    if (chunkType === 0x4E4F534A) { // JSON chunk
+      const jsonBytes = new Uint8Array(arrayBuffer, offset + 8, chunkLength);
+      jsonChunkData = JSON.parse(decoder.decode(jsonBytes));
+    } else if (chunkType === 0x004E4942) { // BIN chunk
+      binaryChunkData = new Uint8Array(arrayBuffer, offset + 8, chunkLength);
+    }
+    
+    offset += 8 + chunkLength;
+  }
+  
+  if (!jsonChunkData || !jsonChunkData.images) {
+    console.log('[fixGLB] 没有找到纹理定义');
+    return arrayBuffer;
+  }
+  
+  let needsFix = false;
+  const externalURIs = [];
+  
+  // 检查哪些纹理需要修复
+  jsonChunkData.images.forEach((img, i) => {
+    if (img.uri && needsTextureFix(img.uri)) {
+      needsFix = true;
+      externalURIs.push({ index: i, uri: img.uri });
+      console.warn(`[fixGLB] 发现外部纹理 ${i}: ${img.uri}`);
+    }
+  });
+  
+  if (!needsFix) {
+    console.log('[fixGLB] 所有纹理 URI 正常');
+    return arrayBuffer;
+  }
+  
+  // 创建白色纹理作为占位符
+  const whiteTextureDataURL = createWhiteTextureDataURL();
+  
+  // 修改 JSON 中的 URI
+  externalURIs.forEach(({ index }) => {
+    if (jsonChunkData.images[index]) {
+      jsonChunkData.images[index].uri = whiteTextureDataURL;
+      console.log(`[fixGLB] 已将纹理 ${index} 替换为白色占位符`);
+    }
+  });
+  
+  // 重新构建 GLB
+  const jsonString = JSON.stringify(jsonChunkData);
+  const jsonBytes = new TextEncoder().encode(jsonString);
+  // 对齐到 4 字节
+  const padding = (4 - (jsonBytes.length % 4)) % 4;
+  const paddedJsonLength = jsonBytes.length + padding;
+  
+  // 计算新的总长度
+  let binaryLength = binaryChunkData ? binaryChunkData.length : 0;
+  const newBinaryPaddedLength = binaryLength > 0 ? binaryLength + ((4 - (binaryLength % 4)) % 4) : 0;
+  const newLength = 12 + 8 + paddedJsonLength + (newBinaryPaddedLength > 0 ? 8 + newBinaryPaddedLength : 0);
+  
+  const newBuffer = new ArrayBuffer(newLength);
+  const newView = new DataView(newBuffer);
+  const newBytes = new Uint8Array(newBuffer);
+  
+  // 写入 GLB 头
+  newView.setUint32(0, 0x46546c67, true); // magic
+  newView.setUint32(4, version, true);
+  newView.setUint32(8, newLength, true);
+  
+  // 写入 JSON chunk 头
+  newView.setUint32(12, paddedJsonLength, true);
+  newView.setUint32(16, 0x4E4F534A, true); // 'JSON'
+  
+  // 写入 JSON 数据
+  newBytes.set(jsonBytes, 20);
+  // 填充对齐字节
+  for (let i = 0; i < padding; i++) {
+    newBytes[20 + jsonBytes.length + i] = 0x20; // 空格
+  }
+  
+  // 写入 BIN chunk（如果有）
+  if (binaryChunkData && binaryChunkData.length > 0) {
+    const binOffset = 20 + paddedJsonLength;
+    const binPaddedLength = newBinaryPaddedLength;
+    newView.setUint32(binOffset, binPaddedLength, true);
+    newView.setUint32(binOffset + 4, 0x004E4942, true); // 'BIN\0'
+    newBytes.set(binaryChunkData, binOffset + 8);
+    // 填充对齐字节
+    for (let i = 0; i < binPaddedLength - binaryLength; i++) {
+      newBytes[binOffset + 8 + binaryLength + i] = 0;
+    }
+  }
+  
+  console.log('[fixGLB] GLB 纹理修复完成');
+  return newBuffer;
+}
+
+function loadGLB(url, onProgress) {
+  const fullUrl = url.startsWith('http') ? url : SERVER_BASE + url;
+  console.log('[loadGLB] 开始加载:', fullUrl);
+  
+  if (glbMixer) { glbMixer.stopAllAction(); glbMixer = null; }
+  ANIM_KEYS.forEach(k => {
+    if (animMixers[k]) { animMixers[k].stopAllAction(); delete animMixers[k]; }
+    delete animActions[k];
+  });
+  glbAnimations = [];
+  glbCurrentAction = null;
+  
+  if (charGroup) scene.remove(charGroup);
+  charGroup = new THREE.Group();
+  charGroup.position.y = 0;
+  scene.add(charGroup);
+  
+  const ph = new THREE.Mesh(
+    new THREE.BoxGeometry(0.6, 1.6, 0.3),
+    new THREE.MeshStandardMaterial({ color: 0x00ff44, transparent: true, opacity: 0.35, wireframe: true })
+  );
+  ph.position.y = 0.8;
+  charGroup.add(ph);
+  charGroup.userData.ph = ph;
+  showNotif('正在加载角色模型...');
+
+  // 使用 fetch + 修复纹理后解析的方式
+  fetch(fullUrl)
+    .then(response => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.arrayBuffer();
+    })
+    .then(async arrayBuffer => {
+      console.log('[loadGLB] 文件加载成功，开始修复纹理引用...');
+      
+      // 修复外部纹理引用
+      const fixedBuffer = await fixGLBTextureURIs(arrayBuffer, fullUrl);
+      
+      // 使用 GLTFLoader.parse 解析修复后的数据
+      gltfLoader.parse(fixedBuffer, '', (gltf) => {
+        if (charGroup.userData.ph) charGroup.remove(charGroup.userData.ph);
+        weaponGroup = null;
+        rightElbow = null;
+        const model = gltf.scene;
+        model.position.set(0, 0, 0);
+        model.scale.set(1, 1, 1);
+        charGroup.add(model);
+        charGroup.userData.glbModel = model;
+        charGroup.userData.glbUrl = url;
+        charGroup.scale.set(1, 1, 1);
+
+        glbAnimations = gltf.animations || [];
+        if (glbAnimations.length > 0) {
+          glbMixer = new THREE.AnimationMixer(model);
+          glbMixer.update(0);
+        }
+
+        requestAnimationFrame(() => {
+          model.updateMatrixWorld(true);
+          _refit(model, cfg.glbTargetHeight || 1.8, cfg.character.scale || 1, cfg.fitConfig);
+          model.updateMatrixWorld(true);
+          if (charGroup) charGroup.updateMatrixWorld(true);
+          model.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+          document.getElementById('blockman-colors').style.display = 'none';
+          if (cfg.weapon !== 'none') buildWeapon(cfg.weapon);
+          buildGLBAnimList();
+          updateHUD();
+          showNotif('角色模型加载完成' + (glbAnimations.length > 0 ? '，GLB含' + glbAnimations.length + '个内置动画' : ' (使用占位符纹理)'));
+          ANIM_KEYS.forEach(k => { if (tmplAnimUrls[k]) preloadAnim(k, tmplAnimUrls[k]); });
+        });
+      }, (err) => {
+        console.error('[GLB解析失败]', err);
+        showNotif('GLB解析失败: ' + (err.message || err));
+        buildChar();
+        applyPreset(cfg.preset, false);
+      });
+    })
+    .catch(err => {
+      console.error('[GLB加载失败]', err, '\nURL:', fullUrl);
+      showNotif('GLB加载失败: ' + (err.message || err));
+      buildChar();
+      applyPreset(cfg.preset, false);
+    });
+}
+
+function _extractTrackNodeName(trackName){
+  if(!trackName) return '';
+  let head = trackName.split('.')[0] || '';
+  const m = head.match(/bones\[(.+?)\]/);
+  if(m && m[1]) head = m[1];
+  return head;
+}
+
+function _nodeDepth(node, stopAt){
+  let d = 0;
+  let cur = node;
+  while(cur && cur !== stopAt){
+    cur = cur.parent;
+    d++;
+    if(d > 200) break;
+  }
+  return d;
+}
+
+// 获取模型所有骨骼名称映射（包括mixamorig和简化名称）
+function _buildBoneNameMap(model) {
+  const boneMap = new Map();
+  const mixamoBones = [];
+  const regularBones = [];
+  
+  model.traverse(node => {
+    if (node.isBone || (node.parent && node.parent.isBone) || node.type === 'Bone') {
+      const name = node.name;
+      boneMap.set(name.toLowerCase(), node);
+      
+      if (/mixamorig/i.test(name)) {
+        mixamoBones.push({ name, node, simple: name.replace(/mixamorig/i, '').toLowerCase() });
+      } else {
+        regularBones.push({ name, node, simple: name.toLowerCase() });
+      }
+    }
+  });
+  
+  // 构建简化名称到实际骨骼的映射
+  const simpleMap = new Map();
+  mixamoBones.forEach(b => {
+    simpleMap.set(b.simple, b.node);
+  });
+  regularBones.forEach(b => {
+    if (!simpleMap.has(b.simple)) {
+      simpleMap.set(b.simple, b.node);
+    }
+  });
+  
+  return { boneMap, simpleMap, mixamoBones, regularBones };
+}
+
+// 查找动画轨道对应的模型骨骼
+function _findTargetBone(trackName, boneMap, simpleMap, model) {
+  const nodeName = _extractTrackNodeName(trackName);
+  if (!nodeName) return null;
+  
+  // 1. 直接匹配
+  let target = boneMap.get(nodeName.toLowerCase());
+  if (target) return target;
+  
+  // 2. 如果是mixamorig名称，尝试简化匹配
+  if (/mixamorig/i.test(nodeName)) {
+    const simple = nodeName.replace(/mixamorig/i, '').toLowerCase();
+    target = simpleMap.get(simple);
+    if (target) return target;
+  }
+  
+  // 3. 如果是简化名称，尝试匹配mixamorig
+  const simpleName = nodeName.toLowerCase();
+  target = simpleMap.get(simpleName);
+  if (target) return target;
+  
+  // 4. 尝试部分匹配（如 Hips 匹配 mixamorigHips）
+  for (const [key, bone] of boneMap) {
+    if (key.includes(simpleName) || simpleName.includes(key.replace(/mixamorig/i, ''))) {
+      return bone;
+    }
+  }
+  
+  return null;
+}
+
+// 重定向动画到目标模型的骨骼结构
+function retargetAnimation(clip, sourceModel, targetModel) {
+  if (!clip?.tracks?.length || !sourceModel || !targetModel) return clip;
+  
+  const sourceBones = _buildBoneNameMap(sourceModel);
+  const targetBones = _buildBoneNameMap(targetModel);
+  
+  // 创建新的tracks数组
+  const newTracks = [];
+  const missingBones = [];
+  
+  clip.tracks.forEach(track => {
+    const nodeName = _extractTrackNodeName(track.name);
+    if (!nodeName) {
+      newTracks.push(track);
+      return;
+    }
+    
+    // 查找目标模型中对应的骨骼
+    const targetBone = _findTargetBone(track.name, targetBones.boneMap, targetBones.simpleMap, targetModel);
+    
+    if (targetBone) {
+      // 骨骼存在，使用目标骨骼的名称创建新track
+      const prop = track.name.split('.').pop();
+      const newTrackName = targetBone.name + '.' + prop;
+      
+      // 创建新的track（复制数据）
+      const newTrack = track.clone();
+      newTrack.name = newTrackName;
+      newTracks.push(newTrack);
+    } else {
+      // 骨骼不存在，记录缺失
+      if (!missingBones.includes(nodeName)) {
+        missingBones.push(nodeName);
+      }
+      // 可选：保留原track（可能会导致变形）或丢弃
+      // 这里选择丢弃不匹配的骨骼动画以避免变形
+    }
+  });
+  
+  if (missingBones.length > 0) {
+    console.warn(`[retargetAnimation] 缺失骨骼 (${missingBones.length}个):`, missingBones.slice(0, 5));
+  }
+  
+  // 只有当有足够多的tracks匹配时才使用重定向后的动画
+  if (newTracks.length >= clip.tracks.length * 0.3) {
+    clip.tracks = newTracks;
+    console.log(`[retargetAnimation] 成功重定向 ${newTracks.length}/${clip.tracks.length} 条轨道`);
+  } else {
+    console.warn(`[retargetAnimation] 匹配度过低 (${newTracks.length}/${clip.tracks.length})，使用原始动画`);
+  }
+  
+  return clip;
+}
+
+function stripRootMotion(clip, model){
+  if(!clip?.tracks?.length) return clip;
+  if(!model) return clip;
+
+  const posNodes = [];
+  clip.tracks.forEach(t=>{
+    if(!t?.name?.endsWith('.position')) return;
+    const nodeName = _extractTrackNodeName(t.name);
+    if(!nodeName) return;
+    const obj = model.getObjectByName(nodeName);
+    if(obj) posNodes.push({ nodeName, obj });
+  });
+
+  if(posNodes.length === 0) return clip;
+
+  const preferred = posNodes.find(n => /hips|mixamorig/i.test(n.nodeName)) || null;
+  const rootLike = preferred || posNodes.reduce((best, cur)=>{
+    const bd = _nodeDepth(best.obj, model);
+    const cd = _nodeDepth(cur.obj, model);
+    return cd < bd ? cur : best;
+  }, posNodes[0]);
+
+  const rootNames = new Set([rootLike.nodeName, 'Armature', 'armature', 'Root', 'root']);
+  clip.tracks = clip.tracks.filter(track => {
+    if(!track?.name?.endsWith('.position')) return true;
+    const nodeName = _extractTrackNodeName(track.name);
+    return !rootNames.has(nodeName);
+  });
+  return clip;
+}
+
+function preloadAnim(key, url){
+  const fullUrl=url.startsWith('http')?url:SERVER_BASE+url;
+  const model=charGroup?.userData?.glbModel;
+  if(!model)return;
+  gltfLoader.load(fullUrl,(gltf)=>{
+    if(!gltf.animations?.length){console.warn('[preloadAnim]',key,'无动画');return;}
+
+    const clips = gltf.animations;
+    const allGeneric = clips.every(c => {
+      const n = (c.name||'').toLowerCase();
+      return /^mixamo\.com|^armature\|/i.test(c.name||'') || n==='' || n==='animation';
+    });
+
+    // 获取动画源模型的骨骼结构（用于重定向）
+    const sourceModel = gltf.scene;
+    
+    const scoreClip = (clip) => {
+      let score = 0;
+      clip.tracks.forEach(t=>{
+        const nodeName = _extractTrackNodeName(t.name);
+        if(!nodeName) return;
+        // 使用新的骨骼查找函数
+        const targetBone = _findTargetBone(t.name, _buildBoneNameMap(model).boneMap, _buildBoneNameMap(model).simpleMap, model);
+        if(targetBone) score++;
+      });
+      const n = (clip.name||'').toLowerCase();
+      if(n && n.includes(String(key).toLowerCase())) score += 5;
+      if(key==='idle' && /idle/.test(n)) score += 5;
+      if(key==='walk' && /walk/.test(n)) score += 5;
+      if(key==='run'  && /run/.test(n))  score += 5;
+      if(key==='jump' && /jump/.test(n)) score += 5;
+      if(key.startsWith('attack') && /attack|stab|slash|swing|upper/i.test(n)) score += 3;
+      return score;
+    };
+
+    let best = clips[0];
+    let bestScore = scoreClip(best);
+    if(!allGeneric){
+      for(let i=1;i<clips.length;i++){
+        const s = scoreClip(clips[i]);
+        if(s > bestScore){ best = clips[i]; bestScore = s; }
+      }
+    }
+
+    // 克隆clip以避免修改原始数据
+    let clip = best.clone();
+    
+    // 先进行动画重定向，将动画骨骼映射到目标模型
+    clip = retargetAnimation(clip, sourceModel, model);
+    
+    // 然后去除根运动
+    clip = stripRootMotion(clip, model);
+    
+    if(animMixers[key]){animMixers[key].stopAllAction();}
+    const mixer=new THREE.AnimationMixer(model);
+    const isLoop = (key==='idle'||key==='walk'||key==='run');
+    const action=mixer.clipAction(clip);
+    action.loop = isLoop ? THREE.LoopRepeat : THREE.LoopOnce;
+    if(!isLoop) action.clampWhenFinished=true;
+    animMixers[key]=mixer;
+    animActions[key]=action;
+    console.log(`[preloadAnim] ${key} 已加载: ${clip.name} (score=${bestScore})`);
+    if(bestScore < 5){
+      showNotif(`${key} 可能与当前模型骨骼不匹配`);
+    }
+    updateAnimStatusGrid();
+    if(currentAnimMode === key){ switchAnim(key); }
+  },null,(err)=>{console.warn('[preloadAnim]',key,'加载失败',err);});
+}
+
+function switchAnim(mode, transitionTime = 0.3){
+  const prev=currentAnimMode;
+  if(prev!==mode){
+    const prevAction=animActions[prev];
+    if(prevAction&&prevAction.isRunning()){
+      prevAction.fadeOut(transitionTime);
+    }
+    if(glbCurrentAction&&glbCurrentAction.isRunning()){
+      glbCurrentAction.fadeOut(transitionTime);
+    }
+  }
+  currentAnimMode=mode;
+  const action=animActions[mode];
+  if(action){
+    action.reset().fadeIn(transitionTime).play();
+  }
+  document.getElementById('hud-anim').textContent=mode;
+}
+
+const ANIM_LABELS_BASE={
+  idle:'待机', walk:'走路', run:'奔跑', jump:'跳跃',
+  attack1:'普攻1', attack2:'连击2', attack3:'连击3',
+  hit:'受击', death:'死亡'
+};
+
+function _animLabel(k){ return ANIM_LABELS_BASE[k]||k; }
+
+function updateAnimStatusGrid(){
+  const grid=document.getElementById('anim-status-grid');
+  if(!grid)return;
+  grid.innerHTML='';
+  const totalKeys=ANIM_KEYS.length;
+  const titleEl=document.getElementById('anim-status-title');
+  if(titleEl) titleEl.textContent=`MVP 动作状态（${totalKeys}个）`;
+  ANIM_KEYS.forEach(k=>{
+    const hasUrl=!!tmplAnimUrls[k];
+    const loaded=!!animActions[k];
+    const status=!hasUrl?'未配置':(loaded?'已加载':'加载中');
+    const color=!hasUrl?'#444':(loaded?'#00ff00':'#ff8800');
+    const div=document.createElement('div');
+    div.style.cssText=`background:rgba(0,0,0,0.35);border:1px solid rgba(0,255,0,0.2);border-radius:5px;padding:6px 5px;`;
+    div.innerHTML=`<div style="font-size:9px;color:#555;margin-bottom:2px;">${_animLabel(k)}</div>
+      <div style="font-size:10px;color:${color};">${status}</div>
+      ${hasUrl?`<button style="margin-top:3px;font-size:9px;padding:2px 5px;background:rgba(255,255,255,0.08);border:1px solid rgba(0,255,0,0.2);border-radius:3px;color:#aaa;cursor:pointer;" onclick="preloadAnim('${k}','${tmplAnimUrls[k]}')">刷新</button>`:''}`;
+    grid.appendChild(div);
+  });
+}
+
+function buildWeapon(type){
+  if(weaponGroup){if(rightElbow)rightElbow.remove(weaponGroup);else if(charGroup)charGroup.remove(weaponGroup);weaponGroup=null;}
+  if(type==='none')return;
+  
+  const weapon = weaponLibrary.find(w => w.id === type);
+  weaponGroup=new THREE.Group();
+  
+  if(weapon && weapon.glb_url) {
+    gltfLoader.load(weapon.glb_url, (gltf) => {
+      const model = gltf.scene;
+      weaponGroup.add(model);
+      const size = weapon.size || 1.0;
+      weaponGroup.scale.set(size, size, size);
+      // 使用角色模板的武器插槽配置，如果没有则使用默认值
+      if (cfg.weaponSocketConfig) {
+        weaponGroup.position.set(
+          cfg.weaponSocketConfig.rightHand?.position?.x || 0.05,
+          cfg.weaponSocketConfig.rightHand?.position?.y || -0.3,
+          cfg.weaponSocketConfig.rightHand?.position?.z || 0.1
+        );
+        weaponGroup.rotation.set(
+          cfg.weaponSocketConfig.rightHand?.rotation?.x || 0,
+          cfg.weaponSocketConfig.rightHand?.rotation?.y || 0,
+          cfg.weaponSocketConfig.rightHand?.rotation?.z || Math.PI/12
+        );
+      } else {
+        // 没有角色模板配置时使用默认值
+        weaponGroup.position.set(0.05, -0.3, 0.1);
+        weaponGroup.rotation.set(0, 0, Math.PI/12);
+      }
+      // 优先挂载到GLB模型的右手骨骼
+      if (charGroup && charGroup.userData.glbModel && cfg.weaponSocketConfig?.rightHand?.boneName) {
+        const boneName = cfg.weaponSocketConfig.rightHand.boneName;
+        let rightHandBone = null;
+        charGroup.userData.glbModel.traverse(n => {
+          if (n.isBone && n.name === boneName) rightHandBone = n;
+        });
+        if (rightHandBone) {
+          rightHandBone.add(weaponGroup);
+          console.log(`⚔️ [角色编辑器] 武器已挂载到GLB右手骨骼「${boneName}」`);
+        } else if(rightElbow) {
+          rightElbow.add(weaponGroup);
+        } else if(charGroup) {
+          charGroup.add(weaponGroup);
+        }
+      } else if(rightElbow) {
+        rightElbow.add(weaponGroup);
+      } else if(charGroup) {
+        charGroup.add(weaponGroup);
+      }
+    }, undefined, (error) => {
+      console.error('[buildWeapon] GLB加载失败:', error);
+      // GLB加载失败时，根据weapon_type降级为内置渲染
+      const fallbackType = _resolveBuiltinWeaponType(weapon);
+      buildDefaultWeapon(fallbackType);
+    });
+  } else if(weapon) {
+    // 武器库中无glb_url的武器，根据weapon_type使用内置渲染
+    const builtinType = _resolveBuiltinWeaponType(weapon);
+    buildDefaultWeapon(builtinType);
+  } else {
+    // 内置武器（lightsaber/staff/bow）直接渲染
+    buildDefaultWeapon(type);
+  }
+}
+
+// 将武器库的weapon_type映射为内置渲染类型
+function _resolveBuiltinWeaponType(weapon) {
+  const t = (weapon.weapon_type || '').toLowerCase();
+  if (t === 'lightsaber' || t === 'builtin_lightsaber' || t === 'sword') return 'lightsaber';
+  if (t === 'staff' || t === 'builtin_staff') return 'staff';
+  if (t === 'bow' || t === 'builtin_bow') return 'bow';
+  // 根据武器名称猜测类型
+  const name = (weapon.name || '').toLowerCase();
+  if (name.includes('光剑') || name.includes('剑') || name.includes('sword') || name.includes('saber')) return 'lightsaber';
+  if (name.includes('法杖') || name.includes('杖') || name.includes('staff')) return 'staff';
+  if (name.includes('弓') || name.includes('bow')) return 'bow';
+  return 'lightsaber'; // 默认光剑
+}
+
+function buildDefaultWeapon(type) {
+  if(type==='lightsaber'){
+    const hilt=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.3,8),new THREE.MeshStandardMaterial({color:cfg.sword.hiltColor,metalness:0.9,roughness:0.1}));
+    weaponGroup.add(hilt);weaponGroup.userData.hilt=hilt;
+    const blade=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,cfg.sword.bladeLength,8),new THREE.MeshStandardMaterial({color:cfg.sword.bladeColor,emissive:cfg.sword.bladeColor,emissiveIntensity:cfg.sword.glowIntensity,transparent:true,opacity:0.9}));
+    blade.position.y=0.15+cfg.sword.bladeLength/2;weaponGroup.add(blade);weaponGroup.userData.blade=blade;
+    const glow=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,cfg.sword.bladeLength,8),new THREE.MeshBasicMaterial({color:cfg.sword.bladeColor,transparent:true,opacity:0.25}));
+    glow.position.y=0.15+cfg.sword.bladeLength/2;weaponGroup.add(glow);weaponGroup.userData.glow=glow;
+    const light=new THREE.PointLight(cfg.sword.bladeColor,1.5,3);light.position.y=0.5+cfg.sword.bladeLength/2;weaponGroup.add(light);weaponGroup.userData.bladeLight=light;
+    weaponGroup.position.set(cfg.sword.position.x,cfg.sword.position.y,cfg.sword.position.z);
+    weaponGroup.rotation.set(cfg.sword.rotation.x*Math.PI/180,cfg.sword.rotation.y*Math.PI/180,cfg.sword.rotation.z*Math.PI/180);
+    weaponGroup.scale.set(cfg.sword.size, cfg.sword.size, cfg.sword.size);
+  } else if(type==='staff'){
+    const shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.03,cfg.staff.length,8),new THREE.MeshStandardMaterial({color:0x6b4226,roughness:0.7}));
+    shaft.position.y=cfg.staff.length/2;weaponGroup.add(shaft);
+    const orb=new THREE.Mesh(new THREE.SphereGeometry(0.1,16,16),new THREE.MeshStandardMaterial({color:cfg.staff.orbColor,emissive:cfg.staff.orbColor,emissiveIntensity:0.8,transparent:true,opacity:0.9}));
+    orb.position.y=cfg.staff.length+0.12;weaponGroup.add(orb);weaponGroup.userData.orb=orb;
+    const ol=new THREE.PointLight(cfg.staff.orbColor,1.2,2.5);ol.position.copy(orb.position);weaponGroup.add(ol);weaponGroup.userData.orbLight=ol;
+    // 使用角色模板的武器插槽配置
+    if (cfg.weaponSocketConfig) {
+      weaponGroup.position.set(
+        cfg.weaponSocketConfig.rightHand?.position?.x || 0.02,
+        cfg.weaponSocketConfig.rightHand?.position?.y || -0.35,
+        cfg.weaponSocketConfig.rightHand?.position?.z || 0.05
+      );
+      weaponGroup.rotation.set(
+        cfg.weaponSocketConfig.rightHand?.rotation?.x || 0,
+        cfg.weaponSocketConfig.rightHand?.rotation?.y || 0,
+        cfg.weaponSocketConfig.rightHand?.rotation?.z || Math.PI/12
+      );
+    } else {
+      // 没有角色模板配置时使用默认值
+      weaponGroup.position.set(0.02,-0.35,0.05);weaponGroup.rotation.set(0,0,Math.PI/12);
+    }
+    weaponGroup.scale.set(cfg.staff.size, cfg.staff.size, cfg.staff.size);
+  } else if(type==='bow'){
+    const bowM=new THREE.Mesh(new THREE.TorusGeometry(0.35,0.025,8,20,Math.PI),new THREE.MeshStandardMaterial({color:0x8b6914,roughness:0.6}));
+    bowM.rotation.z=Math.PI/2;bowM.rotation.x=Math.PI/2;weaponGroup.add(bowM);
+    const strP=[new THREE.Vector3(0,-0.35,0),new THREE.Vector3(0,0.35,0)];
+    const str=new THREE.Line(new THREE.BufferGeometry().setFromPoints(strP),new THREE.LineBasicMaterial({color:0xcccccc}));
+    weaponGroup.add(str);
+    // 使用角色模板的武器插槽配置
+    if (cfg.weaponSocketConfig) {
+      weaponGroup.position.set(
+        cfg.weaponSocketConfig.position?.x || 0.05,
+        cfg.weaponSocketConfig.position?.y || -0.2,
+        cfg.weaponSocketConfig.position?.z || 0.1
+      );
+      weaponGroup.rotation.set(
+        cfg.weaponSocketConfig.rotation?.x || 0,
+        cfg.weaponSocketConfig.rotation?.y || -Math.PI/6,
+        cfg.weaponSocketConfig.rotation?.z || 0
+      );
+    } else {
+      // 没有角色模板配置时使用默认值
+      weaponGroup.position.set(0.05,-0.2,0.1);weaponGroup.rotation.set(0,-Math.PI/6,0);
+    }
+    weaponGroup.scale.set(cfg.bow.size, cfg.bow.size, cfg.bow.size);
+  } else {
+    const shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.03,1.2,8),new THREE.MeshStandardMaterial({color:0x6b4226,roughness:0.7}));
+    shaft.position.y=0.6;weaponGroup.add(shaft);
+    const orb=new THREE.Mesh(new THREE.SphereGeometry(0.1,16,16),new THREE.MeshStandardMaterial({color:0xaa44ff,emissive:0xaa44ff,emissiveIntensity:0.8,transparent:true,opacity:0.9}));
+    orb.position.y=1.32;weaponGroup.add(orb);
+    weaponGroup.position.set(0.02,-0.35,0.05);weaponGroup.rotation.set(0,0,Math.PI/12);
+    weaponGroup.scale.set(1.0, 1.0, 1.0);
+  }
+  
+  // 优先挂载到GLB模型的右手骨骼
+  if (charGroup && charGroup.userData.glbModel && cfg.weaponSocketConfig?.rightHand?.boneName) {
+    const boneName = cfg.weaponSocketConfig.rightHand.boneName;
+    let rightHandBone = null;
+    charGroup.userData.glbModel.traverse(n => {
+      if (n.isBone && n.name === boneName) rightHandBone = n;
+    });
+    if (rightHandBone) {
+      rightHandBone.add(weaponGroup);
+      console.log(`⚔️ [角色编辑器] 武器已挂载到GLB右手骨骼「${boneName}」`);
+    } else if(rightElbow) {
+      rightElbow.add(weaponGroup);
+    } else if(charGroup) {
+      charGroup.add(weaponGroup);
+    }
+  } else if(rightElbow) {
+    rightElbow.add(weaponGroup);
+  } else if(charGroup) {
+    charGroup.add(weaponGroup);
+  }
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now(),dt=(now-lastT)/1000;lastT=now;
+  const dts=dt*cfg.attack.slowRate;
+  
+  // 更新GLB内置动画
+  if (glbMixer) glbMixer.update(dts);
+  
+  // 更新外部加载的动画（只更新当前活动的动画）
+  const currentAction = animActions[currentAnimMode];
+  if (currentAction && currentAction.isRunning()) {
+    const mixer = animMixers[currentAnimMode];
+    if (mixer) mixer.update(dts);
+  }
+  
+  // 只有方块人角色才运行程序化动画，GLB角色使用骨骼动画
+  const isGLBModel = charGroup && charGroup.userData && charGroup.userData.glbModel;
+  if (!isGLBModel && charGroup && charGroup.userData.leftArm) {
+    runBlockAnim(dts);
+  }
+  
+  // 武器光晕效果
+  if(weaponGroup && Math.floor(now/16) % 2 === 0){
+    const p=0.8+Math.sin(now/500)*0.2;
+    if(weaponGroup.userData.blade)weaponGroup.userData.blade.material.emissiveIntensity=cfg.sword.glowIntensity*p;
+    if(weaponGroup.userData.orb)weaponGroup.userData.orb.material.emissiveIntensity=0.8*p;
+  }
+  
+  updateAnimationTime(dt);
+  
+  controls.update();renderer.render(scene,camera);
+  
+  fCount++;fSample+=dt;if(fSample>=1){document.getElementById('hud-fps').textContent=fCount;fCount=0;fSample=0;}
+}
+
+function runBlockAnim(dt){
+  const ud=charGroup.userData;
+  if(currentAnimMode==='walk'||currentAnimMode==='run'){
+    animTime+=dt*(currentAnimMode==='run'?7:4);
+    const s=Math.sin(animTime)*cfg.attack.walkSwing*(currentAnimMode==='run'?1.4:1);
+    if(ud.leftArm)ud.leftArm.rotation.x=s;
+    if(ud.rightArm)ud.rightArm.rotation.x=-s;
+    if(ud.leftLeg)ud.leftLeg.rotation.x=-s;
+    if(ud.rightLeg)ud.rightLeg.rotation.x=s;
+    if(currentAnimMode==='run')charGroup.position.y=1.5+Math.abs(Math.sin(animTime))*0.05;
+  }
+}
+
+function resetLimbs(){
+  if(!charGroup)return;
+  const ud=charGroup.userData;
+  ['leftArm','rightArm','leftLeg','rightLeg'].forEach(k=>{if(ud[k]){ud[k].rotation.x=0;ud[k].rotation.z=0;}});
+  charGroup.position.y=1.5;charGroup.rotation.x=0;charGroup.rotation.y=0;
+}
+
+function switchTab(id){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const map={'t-tmpl':0,'t-motion':1,'t-preview':2,'t-weapon':3,'t-save':4};
+  const idx=map[id];if(idx!==undefined)document.querySelectorAll('.tab-btn')[idx]?.classList.add('active');
+}
+
+let allTemplates = [];
+
+async function loadTemplates(){
+  const grid=document.getElementById('tmpl-grid'),loading=document.getElementById('tmpl-loading');
+  try{
+    const res=await fetch(`${API_BASE}/public/character-templates`);
+    const data=await res.json();
+    allTemplates=data.templates||[];
+    loading.style.display='none';grid.style.display='grid';
+    updateCategoryDropdown();
+    filterTemplates();
+  }catch(e){loading.textContent='加载失败';}
+}
+
+function updateCategoryDropdown() {
+  const select = document.getElementById('tmpl-category');
+  const categories = new Set();
+  allTemplates.forEach(t => { if (t.category) categories.add(t.category); });
+  while (select.options.length > 1) select.remove(1);
+  Array.from(categories).sort().forEach(category => {
+    const option = document.createElement('option');
+    option.value = category;
+    option.textContent = category;
+    select.appendChild(option);
+  });
+}
+
+function filterTemplates() {
+  const searchTerm = document.getElementById('tmpl-search').value.toLowerCase();
+  const category = document.getElementById('tmpl-category').value;
+  const grid = document.getElementById('tmpl-grid');
+  
+  grid.innerHTML = '';
+  
+  const bmTmpl = allTemplates.find(t => t.name === '默认方块人');
+  grid.appendChild(mkTmplCard(bmTmpl || null, '方块人', '', cfg.templateId === null || (bmTmpl && cfg.templateId === bmTmpl.id)));
+  
+  const filteredTemplates = allTemplates.filter(t => {
+    if (t.name === '默认方块人') return false;
+    const matchesSearch = t.name.toLowerCase().includes(searchTerm);
+    const matchesCategory = !category || t.category === category;
+    return matchesSearch && matchesCategory;
+  });
+  
+  filteredTemplates.forEach(t => {
+    grid.appendChild(mkTmplCard(t, t.name, t.thumbnail_url, cfg.templateId === t.id));
+  });
+  
+  updateTmplLabel();
+}
+
+function mkTmplCard(tmpl,name,thumb,sel){
+  const c=document.createElement('div');
+  c.className='tc'+(sel?' selected':'');
+  if(tmpl)c.dataset.id=tmpl.id;
+  const hasGlb=tmpl&&tmpl.glb_url;
+  const img=thumb?`<img src="${thumb}" style="width:100%;height:58px;object-fit:cover;border-radius:4px;margin-bottom:3px;">`:`<div class="tc-thumb">${name.includes('方块')?'方':'角'}</div>`;
+  const badge=hasGlb?`<div style="position:absolute;bottom:22px;left:3px;background:rgba(0,255,0,0.7);color:#000;font-size:8px;padding:1px 3px;border-radius:2px;">GLB</div>`:`<div style="position:absolute;bottom:22px;left:3px;background:rgba(100,100,100,0.7);color:#ccc;font-size:8px;padding:1px 3px;border-radius:2px;">方块</div>`;
+  c.innerHTML=`${img}${badge}<div class="tc-name">${name}</div>${sel?'<div class="tc-chk">v</div>':''}`;
+  c.addEventListener('click',()=>selectTemplate(tmpl));
+  return c;
+}
+
+function selectTemplate(tmpl){
+  document.querySelectorAll('.tc').forEach(c=>{c.classList.remove('selected');const chk=c.querySelector('.tc-chk');if(chk)chk.remove();});
+  const tid=tmpl?tmpl.id:null;
+  document.querySelectorAll('.tc').forEach(c=>{
+    if((c.dataset.id||null)==tid){c.classList.add('selected');const chk=document.createElement('div');chk.className='tc-chk';chk.textContent='v';c.appendChild(chk);}
+  });
+  cfg.templateId=tmpl?tmpl.id:null;cfg.templateName=tmpl?tmpl.name:'默认方块人';cfg.glbUrl=tmpl?(tmpl.glb_url||null):null;
+  // 保存角色模板的声音信息
+  cfg.animSounds = tmpl ? (tmpl.anim_sounds || {}) : null;
+  cfg.weaponSounds = tmpl ? (tmpl.weapon_sounds || {}) : null;
+  // 保存角色模板的校准参数
+  cfg.calibrationConfig = tmpl ? (tmpl.calibration_config || {}) : null;
+  cfg.weaponSocketConfig = tmpl ? (tmpl.weapon_socket_config || {}) : null;
+  cfg.boneMappingConfig = tmpl ? (tmpl.bone_mapping_config || {}) : null;
+  // 关键：更新 fitConfig，确保加载GLB时使用角色模板的校准参数
+  if (tmpl && tmpl.fit_config) {
+    cfg.fitConfig = Object.assign({}, cfg.fitConfig, tmpl.fit_config);
+  }
+  cfg.isCalibrated = tmpl ? (tmpl.is_calibrated || false) : false;
+  cfg.calibratedAt = tmpl ? (tmpl.calibrated_at || null) : null;
+  cfg.calibrationVersion = tmpl ? (tmpl.calibration_version || 1) : 1;
+  
+  // 关键：将角色模板参数保存到本地存储中，以便在虚拟世界中生效
+    try {
+      console.log('[selectTemplate] 开始保存角色模板参数到本地存储');
+      console.log('[selectTemplate] cfg.calibrationConfig:', cfg.calibrationConfig);
+      console.log('[selectTemplate] cfg.weaponSocketConfig:', cfg.weaponSocketConfig);
+      console.log('[selectTemplate] cfg.boneMappingConfig:', cfg.boneMappingConfig);
+      console.log('[selectTemplate] cfg.fitConfig:', cfg.fitConfig);
+      
+      const calibrationToSave = cfg.calibrationConfig || {};
+      localStorage.setItem('selectedTemplateCalibration', JSON.stringify(calibrationToSave));
+      console.log('[selectTemplate] 已保存 calibrationConfig 到本地存储');
+      
+      const weaponSocketToSave = cfg.weaponSocketConfig || {};
+      localStorage.setItem('selectedTemplateWeaponSocket', JSON.stringify(weaponSocketToSave));
+      console.log('[selectTemplate] 已保存 weaponSocketConfig 到本地存储');
+      
+      const boneMapToSave = cfg.boneMappingConfig || {};
+      localStorage.setItem('selectedTemplateBoneMap', JSON.stringify(boneMapToSave));
+      console.log('[selectTemplate] 已保存 boneMappingConfig 到本地存储');
+      
+      const fitToSave = cfg.fitConfig || {};
+      localStorage.setItem('selectedTemplateFit', JSON.stringify(fitToSave));
+      console.log('[selectTemplate] 已保存 fitConfig 到本地存储');
+      
+      // 验证保存结果
+      console.log('[selectTemplate] 本地存储验证:');
+      console.log('selectedTemplateCalibration:', localStorage.getItem('selectedTemplateCalibration'));
+      console.log('selectedTemplateWeaponSocket:', localStorage.getItem('selectedTemplateWeaponSocket'));
+      console.log('selectedTemplateBoneMap:', localStorage.getItem('selectedTemplateBoneMap'));
+      console.log('selectedTemplateFit:', localStorage.getItem('selectedTemplateFit'));
+      
+      console.log('[selectTemplate] 角色模板参数保存到本地存储完成');
+    } catch (error) {
+      console.error('[selectTemplate] 保存角色模板参数失败:', error);
+    }
+  // 关键：应用角色模板的骨骼映射配置
+  if (tmpl && tmpl.bone_mapping_config) {
+    try {
+      // 解析角色模板的骨骼映射配置
+      const templateBoneMapping = typeof tmpl.bone_mapping_config === 'string' 
+        ? JSON.parse(tmpl.bone_mapping_config) 
+        : tmpl.bone_mapping_config;
+      
+      // 更新全局骨骼映射
+      if (templateBoneMapping.global) {
+        boneMappings.global = Object.assign({}, boneMappings.global, templateBoneMapping.global);
+      }
+      
+      // 更新动画特定骨骼映射
+      if (templateBoneMapping.perAnim) {
+        Object.entries(templateBoneMapping.perAnim).forEach(([animKey, mapping]) => {
+          if (!boneMappings.perAnim[animKey]) {
+            boneMappings.perAnim[animKey] = {};
+          }
+          boneMappings.perAnim[animKey] = Object.assign({}, boneMappings.perAnim[animKey], mapping);
+        });
+      }
+      
+      console.log('[selectTemplate] 已应用角色模板的骨骼映射配置');
+      updateBoneMappingStatus(); // 更新骨骼映射状态显示
+    } catch (error) {
+      console.error('[selectTemplate] 解析骨骼映射配置失败:', error);
+    }
+  }
+  ANIM_KEYS_BASE.forEach(k=>{ tmplAnimUrls[k]=null; });
+  if(tmpl && tmpl.id){
+    const token=localStorage.getItem('adminToken')||'';
+    fetch(`/api/character-templates/${tmpl.id}/anim-resolved`, {
+      headers:{'Authorization':'Bearer '+token}
+    }).then(r=>r.json()).then(data=>{
+      const resolved = data.resolved || {};
+      // 先用直接上传的URL作为基础，再用动画库的URL覆盖（优先级：动画库 > 直接上传）
+      ANIM_KEYS_BASE.forEach(k=>{
+        tmplAnimUrls[k] = tmpl['anim_'+k+'_url'] || null;
+      });
+      ANIM_KEYS_BASE.forEach(k=>{
+        if(resolved[k]){ tmplAnimUrls[k]=resolved[k].url; }
+      });
+      updateAnimStatusGrid();
+      if(charGroup?.userData?.glbModel){
+        ANIM_KEYS.forEach(k=>{if(tmplAnimUrls[k])preloadAnim(k,tmplAnimUrls[k]);});
+      }
+    }).catch(()=>{
+      ANIM_KEYS_BASE.forEach(k=>{ tmplAnimUrls[k]=tmpl['anim_'+k+'_url']||null; });
+      updateAnimStatusGrid();
+    });
+  }
+  const isBlockman = (tmpl===null || (tmpl&&tmpl.name==='默认方块人'));
+  document.getElementById('blockman-upload-section').style.display = isBlockman ? 'block' : 'none';
+  if(isBlockman && tmpl && tmpl.glb_url){
+    document.getElementById('bm-glb-current').textContent='当前：'+tmpl.glb_url.split('/').pop();
+  }
+  updateAnimStatusGrid();
+  if(cfg.glbUrl){
+    loadGLB(cfg.glbUrl);
+    document.getElementById('glb-anim-section').style.display='block';
+  } else {
+    buildChar();applyPreset(cfg.preset,false);if(cfg.weapon!=='none')buildWeapon(cfg.weapon);
+    document.getElementById('glb-anim-section').style.display='none';
+    if(tmpl&&!tmpl.glb_url)showNotif('该模板暂无GLB文件，显示方块人代替');
+  }
+  updateTmplLabel();updateHUD();showNotif('已切换：'+cfg.templateName);
+}
+
+function updateTmplLabel(){
+  document.getElementById('tmpl-label').textContent='当前：'+cfg.templateName+(cfg.glbUrl?' (GLB)':' (方块人)');
+  document.getElementById('hud-tmpl').textContent=cfg.templateName.slice(0,8);
+}
+
+async function _getOrCreateBlockmanTemplate(){
+  const token=localStorage.getItem('adminToken');
+  const res=await fetch(`${API_BASE}/character-templates`,{headers:{'Authorization':'Bearer '+token}});
+  if(!res.ok) throw new Error('需要管理员登录后台才能上传');
+  const data=await res.json();
+  const exist=(data.templates||[]).find(t=>t.name==='默认方块人');
+  if(exist) return exist.id;
+  const fd=new FormData();
+  fd.append('name','默认方块人');
+  fd.append('description','内置默认方块人角色模板');
+  fd.append('access_level','public');
+  fd.append('character_role','player');
+  fd.append('is_default','true');
+  const cr=await fetch(`${API_BASE}/character-templates`,{method:'POST',headers:{'Authorization':'Bearer '+token},body:fd});
+  if(!cr.ok) throw new Error('创建模板失败');
+  const cd=await cr.json();
+  return cd.template.id;
+}
+
+async function uploadBlockmanGlb(){
+  const statusEl=document.getElementById('bm-upload-status');
+  const glbFile=document.getElementById('bm-glb-file').files[0];
+  const thumbFile=document.getElementById('bm-thumb').files[0];
+  if(!glbFile){showNotif('请先选择GLB文件');return;}
+  statusEl.style.display='block';statusEl.textContent='上传中...';
+  try{
+    const token=localStorage.getItem('adminToken');
+    if(!token){showNotif('请先在管理后台登录');statusEl.textContent='未登录';return;}
+    const tmplId=await _getOrCreateBlockmanTemplate();
+    const fd=new FormData();
+    fd.append('name','默认方块人');
+    fd.append('glb_file',glbFile);
+    if(thumbFile) fd.append('thumbnail',thumbFile);
+    const res=await fetch(`${API_BASE}/character-templates/${tmplId}`,{method:'PUT',headers:{'Authorization':'Bearer '+token},body:fd});
+    if(!res.ok) throw new Error(await res.text());
+    const data=await res.json();
+    statusEl.textContent='上传成功！';
+    cfg.glbUrl=data.template.glb_url;
+    cfg.templateId=tmplId;
+    cfg.templateName='默认方块人';
+    document.getElementById('bm-glb-current').textContent='当前：'+data.template.glb_url.split('/').pop();
+    loadGLB(cfg.glbUrl);
+    showNotif('方块人GLB上传成功，已预览');
+    loadTemplates();
+  }catch(e){
+    statusEl.textContent='错误 '+e.message;
+    showNotif('上传失败: '+e.message);
+  }
+}
+
+async function clearBlockmanGlb(){
+  cfg.glbUrl=null;cfg.templateId=null;cfg.templateName='默认方块人';
+  buildChar();applyPreset(cfg.preset,false);if(cfg.weapon!=='none')buildWeapon(cfg.weapon);
+  document.getElementById('bm-glb-current').textContent='';
+  document.getElementById('bm-upload-status').style.display='none';
+  ANIM_KEYS.forEach(k=>tmplAnimUrls[k]=null);
+  ANIM_KEYS=([...ANIM_KEYS_BASE]);
+  updateAnimStatusGrid();
+  showNotif('已恢复内置方块人');
+}
+
+async function uploadBlockmanAnims(){
+  const token=localStorage.getItem('adminToken');
+  if(!token){showNotif('请先在管理后台登录');return;}
+  const animKeys=['idle','walk','run','jump','attack1','attack2','attack3','hit','death'];
+  const files={};
+  let hasAny=false;
+  animKeys.forEach(k=>{
+    const f=document.getElementById('bm-anim-'+k)?.files[0];
+    if(f){files[k]=f;hasAny=true;}
+  });
+  if(!hasAny){showNotif('请至少选择一个动画文件');return;}
+  showNotif('上传动画中...');
+  try{
+    const tmplId=await _getOrCreateBlockmanTemplate();
+    const fd=new FormData();
+    fd.append('name','默认方块人');
+    for(const[k,f] of Object.entries(files)) fd.append('anim_'+k,f);
+    const res=await fetch(`${API_BASE}/character-templates/${tmplId}`,{method:'PUT',headers:{'Authorization':'Bearer '+token},body:fd});
+    if(!res.ok) throw new Error(await res.text());
+    const data=await res.json();
+    ANIM_KEYS_BASE.forEach(k=>{tmplAnimUrls[k]=data.template['anim_'+k+'_url']||tmplAnimUrls[k]||null;});
+    updateAnimStatusGrid();
+    animKeys.forEach(k=>{if(files[k]&&tmplAnimUrls[k])preloadAnim(k,tmplAnimUrls[k]);});
+    showNotif('动画上传成功');
+  }catch(e){
+    showNotif('动画上传失败: '+e.message);
+  }
+}
+
+const PRESETS={
+  default:{name:'默认待机',ra:{x:0,z:0},la:{x:0,z:0},by:0},
+  combat: {name:'战斗姿势',ra:{x:-0.4,z:-0.3},la:{x:0.1,z:0.1},by:-0.3},
+  guard:  {name:'防御姿势',ra:{x:0.8,z:-0.5},la:{x:0.3,z:0.4},by:-0.1},
+  charge: {name:'蓄力姿势',ra:{x:-1.2,z:0},la:{x:-0.2,z:0},by:0},
+};
+
+function loadPreset(name){
+  cfg.preset=name;applyPreset(name,true);
+  document.querySelectorAll('.pc').forEach(c=>c.classList.remove('active'));
+  document.getElementById('pc-'+name)?.classList.add('active');
+  document.getElementById('hud-preset').textContent=PRESETS[name]?.name||name;
+  showNotif('预设：'+PRESETS[name]?.name||name);
+}
+
+function applyPreset(name,animated){
+  const p=PRESETS[name];if(!p||!charGroup||!charGroup.userData.rightArm)return;
+  const ud=charGroup.userData;
+  if(!animated){
+    if(ud.rightArm){ud.rightArm.rotation.x=p.ra?.x||0;ud.rightArm.rotation.z=p.ra?.z||0;}
+    if(ud.leftArm){ud.leftArm.rotation.x=p.la?.x||0;ud.leftArm.rotation.z=p.la?.z||0;}
+    charGroup.rotation.x=p.bx||0;charGroup.rotation.y=p.by||0;
+  } else {lerpPose(ud,p,400);}
+  document.querySelectorAll('.pc').forEach(c=>c.classList.remove('active'));
+  document.getElementById('pc-'+name)?.classList.add('active');
+  document.getElementById('hud-preset').textContent=p.name;
+}
+
+function lerpPose(ud,target,dur){
+  const t0=Date.now();
+  const fromRA=ud.rightArm?{x:ud.rightArm.rotation.x,z:ud.rightArm.rotation.z}:{x:0,z:0};
+  const fromLA=ud.leftArm?{x:ud.leftArm.rotation.x,z:ud.leftArm.rotation.z}:{x:0,z:0};
+  const fromB={x:charGroup.rotation.x,y:charGroup.rotation.y};
+  function step(){
+    const t=Math.min((Date.now()-t0)/dur,1),e=t<0.5?2*t*t:-1+(4-2*t)*t;
+    if(ud.rightArm){ud.rightArm.rotation.x=fromRA.x+((target.ra?.x||0)-fromRA.x)*e;ud.rightArm.rotation.z=fromRA.z+((target.ra?.z||0)-fromRA.z)*e;}
+    if(ud.leftArm){ud.leftArm.rotation.x=fromLA.x+((target.la?.x||0)-fromLA.x)*e;ud.leftArm.rotation.z=fromLA.z+((target.la?.z||0)-fromLA.z)*e;}
+    charGroup.rotation.x=fromB.x+((target.bx||0)-fromB.x)*e;charGroup.rotation.y=fromB.y+((target.by||0)-fromB.y)*e;
+    if(t<1)requestAnimationFrame(step);
+  }step();
+}
+
+function testAnim(mode){
+  document.querySelectorAll('.ab').forEach(b=>b.classList.remove('playing'));
+  document.getElementById('ab-'+mode)?.classList.add('playing');
+  if(charGroup?.userData?.glbModel){
+    if(ANIM_KEYS.includes(mode)){
+      if(!animActions[mode] && tmplAnimUrls[mode]) {
+        preloadAnim(mode, tmplAnimUrls[mode]);
+      }
+      switchAnim(mode);
+      if(!animActions[mode]){
+        const hint=tmplAnimUrls[mode]?'正在加载中':'请在管理后台上传此动画GLB';
+        showNotif(mode+'动画未就绪，'+hint);
+      }
+    }
+    document.getElementById('hud-anim').textContent=mode;
+    return;
+  }
+  if(mode==='walk'||mode==='run'){currentAnimMode=mode;}
+  else if(mode==='idle'){currentAnimMode='idle';resetLimbs();}
+  document.getElementById('hud-anim').textContent=mode;
+}
+
+function stopAnim(){
+  currentAnimMode='idle';
+  if(charGroup?.userData?.glbModel){switchAnim('idle');}
+  else{resetLimbs();applyPreset(cfg.preset,false);}
+  document.querySelectorAll('.ab').forEach(b=>b.classList.remove('playing'));
+  document.getElementById('hud-anim').textContent='待机';
+  resetAnimation();
+}
+
+let isAnimPlaying = false;
+let animSpeed = 1.0;
+let animLoopMode = 'loop';
+let animDuration = 3.0;
+let animCurrentTime = 0;
+let animTotalTime = 0;
+
+function toggleAnimation() {
+  isAnimPlaying = !isAnimPlaying;
+  const btn = document.querySelector('button[onclick="toggleAnimation()"]');
+  btn.textContent = isAnimPlaying ? '暂停' : '播放';
+}
+
+function resetAnimation() {
+  isAnimPlaying = false;
+  animCurrentTime = 0;
+  updateTimeline();
+  const btn = document.querySelector('button[onclick="toggleAnimation()"]');
+  btn.textContent = '播放';
+}
+
+function onAnimSpeed(value) {
+  animSpeed = parseFloat(value);
+  document.getElementById('anim-speed-v').textContent = animSpeed.toFixed(1) + 'x';
+  if (glbMixer) {
+    glbMixer.timeScale = animSpeed;
+  }
+  const currentAction = animActions[currentAnimMode];
+  if (currentAction) {
+    currentAction.setEffectiveTimeScale(animSpeed);
+  }
+}
+
+function onAnimLoop(value) {
+  animLoopMode = value;
+  const currentAction = animActions[currentAnimMode];
+  if (currentAction) {
+    if (animLoopMode === 'none') {
+      currentAction.setLoop(THREE.LoopOnce);
+      currentAction.clampWhenFinished = true;
+    } else if (animLoopMode === 'loop') {
+      currentAction.setLoop(THREE.LoopRepeat);
+    } else if (animLoopMode === 'pingpong') {
+      currentAction.setLoop(THREE.LoopPingPong);
+    }
+  }
+}
+
+function onAnimDuration(value) {
+  animDuration = parseFloat(value);
+}
+
+function updateTimeline() {
+  const timeline = document.getElementById('anim-timeline');
+  const timeDisplay = document.getElementById('anim-time');
+  
+  if (animTotalTime > 0) {
+    const progress = (animCurrentTime / animTotalTime) * 100;
+    timeline.style.width = Math.min(progress, 100) + '%';
+  } else {
+    timeline.style.width = '0%';
+  }
+  
+  timeDisplay.textContent = animCurrentTime.toFixed(1)+'s / '+animTotalTime.toFixed(1)+'s';
+}
+
+function updateAnimationTime(dt) {
+  if (!isAnimPlaying) return;
+  
+  animCurrentTime += dt * animSpeed;
+  
+  if (animCurrentTime >= animDuration) {
+    if (animLoopMode === 'none') {
+      isAnimPlaying = false;
+      animCurrentTime = animDuration;
+    } else if (animLoopMode === 'loop') {
+      animCurrentTime = 0;
+    } else if (animLoopMode === 'pingpong') {
+      animCurrentTime = animDuration - (animCurrentTime - animDuration);
+      animSpeed = -animSpeed;
+    }
+  }
+  
+  updateTimeline();
+}
+
+function testSlowMotion(){
+  cfg.attack.slowRate=0.2;document.getElementById('slowRate').value=0.2;document.getElementById('slowRateV').textContent='0.2x';
+  testAnim('attack1');
+  setTimeout(()=>{cfg.attack.slowRate=1;document.getElementById('slowRate').value=1;document.getElementById('slowRateV').textContent='1.0x';showNotif('慢动作结束');},3500);
+  showNotif('慢动作测试 3.5s');
+}
+
+function buildGLBAnimList(){
+  const c=document.getElementById('glb-anim-list');
+  if(!glbAnimations.length){c.textContent='此模型无内置动画';return;}
+  c.innerHTML='';
+  glbAnimations.forEach((clip,i)=>{
+    const btn=document.createElement('div');btn.className='ab';btn.style.marginBottom='4px;';
+    btn.textContent=clip.name||'Clip_'+i+' ('+clip.duration.toFixed(1)+'s)';
+    btn.onclick=()=>playGLBClip(i);c.appendChild(btn);
+  });
+  document.getElementById('glb-anim-section').style.display='block';
+}
+
+function playGLBClip(i){
+  if(!glbMixer||!glbAnimations[i])return;
+  
+  // 停止当前播放的外部动画
+  const currentAction = animActions[currentAnimMode];
+  if(currentAction && currentAction.isRunning()){
+    currentAction.fadeOut(0.2);
+  }
+  
+  if(glbCurrentAction)glbCurrentAction.fadeOut(0.2);
+  glbCurrentAction=glbMixer.clipAction(glbAnimations[i]);
+  glbCurrentAction.reset().fadeIn(0.2).play();
+  showNotip(glbAnimations[i].name||'Clip_'+i);
+  document.getElementById('hud-anim').textContent = glbAnimations[i].name || 'Clip_'+i;
+}
+
+function selectWeapon(type,notify=true){
+  cfg.weapon=type;
+  document.querySelectorAll('.wo').forEach(e=>e.classList.remove('active'));
+  document.getElementById('weapon-'+type)?.classList.add('active');
+  
+  // 判断内置武器类型（含武器库中的builtin类型）
+  let resolvedType = type;
+  if (!['none', 'lightsaber', 'staff', 'bow'].includes(type)) {
+    const weapon = weaponLibrary.find(w => w.id === type);
+    if (weapon) resolvedType = _resolveBuiltinWeaponType(weapon);
+  }
+  document.getElementById('lightsaber-config').style.display=resolvedType==='lightsaber'?'block':'none';
+  document.getElementById('staff-config').style.display=resolvedType==='staff'?'block':'none';
+  document.getElementById('bow-config').style.display=resolvedType==='bow'?'block':'none';
+  
+  buildWeapon(type);
+  
+  let weaponName;
+  if (type === 'none') {
+    weaponName = '无';
+  } else if (['lightsaber', 'staff', 'bow'].includes(type)) {
+    const wn={lightsaber:'光剑',staff:'法杖',bow:'弓箭'};
+    weaponName = wn[type];
+  } else {
+    const weapon = weaponLibrary.find(w => w.id === type);
+    weaponName = weapon ? weapon.name : type;
+  }
+  
+  document.getElementById('hud-weapon').textContent=weaponName;
+  if(notify)showNotif('武器：'+weaponName);
+}
+
+function _computeWorldMeshBoundingBox(model){
+  const box=new THREE.Box3();
+  let hasMesh=false;
+  model.traverse(node=>{
+    if(node.isMesh&&node.geometry){
+      // 计算世界坐标系的边界框
+      const nodeBox=new THREE.Box3().setFromObject(node);
+      box.union(nodeBox);
+      hasMesh=true;
+    }
+  });
+  return hasMesh?box:null;
+}
+
+function _refit(model, targetH, extraScale, fitConfig) {
+  if (!model) return;
+  fitConfig = fitConfig || {
+    strategy: 'mixed',
+    offset: { x: 0, y: 0, z: 0 },
+    scale: 1.0,
+    rotation: { x: 0, y: 0, z: 0 },
+    maxDimension: 5.0,
+    autoScale: true,
+    cameraDistance: 5.0,
+    targetHeight: 1.8
+  };
+
+  console.log('[_refit] 开始调整模型，目标高度:', targetH, '额外缩放:', extraScale);
+
+  // 保存原始父节点
+  const savedParent = model.parent;
+
+  // 创建一个临时根节点，重置模型变换
+  const tempRoot = new THREE.Object3D();
+  scene.add(tempRoot);
+  if (savedParent) savedParent.remove(model);
+  tempRoot.add(model);
+  
+  // 重置模型变换
+  model.position.set(0, 0, 0);
+  model.rotation.set(0, 0, 0);
+  model.scale.set(1, 1, 1);
+  tempRoot.updateMatrixWorld(true);
+
+  // 1. 识别根骨骼/髋骨 (优先使用 Hips/mixamorigHips)
+  let rootBone = null;
+  model.traverse(obj => {
+    if (obj.isBone && /hips|mixamorigHips|Armature|Root|root/i.test(obj.name)) {
+      if (!rootBone || obj.parent === model) {
+        rootBone = obj;
+      }
+    }
+  });
+
+  // 2. 智能尺寸检测与缩放（处理大模型问题）
+  // 【重要】先检测单位并修正尺寸，再判断是否超大，避免厘米单位被误判为超大模型
+  let sizeInfo = getModelSizeInfo(model);
+  let unitFix = 1;
+  
+  // 第1步：先检测单位并修正尺寸
+  if (sizeInfo.maxDimension > 50) {
+    unitFix = 0.01; // 厘米→米
+    console.log('[_refit] 检测到厘米单位，unitFix=0.01');
+  } else if (sizeInfo.maxDimension < 0.1 && sizeInfo.maxDimension > 0) {
+    unitFix = 100; // 毫米→米
+    console.log('[_refit] 检测到毫米/异常单位，unitFix=100');
+  }
+  const realMaxDim = sizeInfo.maxDimension * unitFix;
+  
+  // 第2步：基于修正后的尺寸判断是否超大（使用5m阈值）
+  if (fitConfig.autoScale && realMaxDim > fitConfig.maxDimension) {
+    console.log('[_refit] 检测到超大模型，修正后尺寸:', realMaxDim.toFixed(2) + 'm');
+    let scaleFactor = Math.min(1.0, fitConfig.maxDimension / realMaxDim);
+    targetH = Math.max(0.5, (targetH || fitConfig.targetHeight) * scaleFactor);
+    console.log('[_refit] 自动调整目标高度为:', targetH.toFixed(2) + 'm');
+  }
+
+  // 计算世界坐标系的边界框（原始尺寸）
+  const box = _computeWorldMeshBoundingBox(model);
+  if (!box) {
+    console.warn('[_refit] 未找到网格');
+    scene.remove(tempRoot);
+    if (savedParent) savedParent.add(model);
+    return;
+  }
+
+  const sz = new THREE.Vector3();
+  box.getSize(sz);
+  const center = new THREE.Vector3();
+  box.getCenter(center);
+
+  console.log('[_refit] 原始边界框:', '尺寸:', sz, '中心:', center, 'min:', box.min, 'max:', box.max);
+
+  // 计算缩放比例
+  let maxDim = Math.max(sz.x, sz.y, sz.z);
+  // 单位修正已在前面完成，使用已计算的 unitFix 和 realMaxDim
+  const realH = maxDim * unitFix;
+  const finalScale = ((targetH || 1.8) / (realH > 0.001 ? realH : 1)) * unitFix * (extraScale || 1) * fitConfig.scale;
+
+  console.log('[_refit] maxDim=' + maxDim.toFixed(4) + ' unitFix=' + unitFix + ' realH=' + realH.toFixed(3) + 'm finalScale=' + finalScale.toFixed(4));
+
+  // 应用缩放
+  model.scale.setScalar(finalScale);
+  tempRoot.updateMatrixWorld(true);
+
+  // 重新计算边界框（缩放后）
+  const nb = _computeWorldMeshBoundingBox(model);
+  if (!nb) {
+    console.warn('[_refit] 缩放后未找到网格');
+    scene.remove(tempRoot);
+    if (savedParent) savedParent.add(model);
+    return;
+  }
+  
+  const nCenter = new THREE.Vector3();
+  nb.getCenter(nCenter);
+
+  // 3. 计算定位偏移
+  let ox, oy, oz;
+  
+  if (fitConfig.strategy === 'bone' && rootBone) {
+    // 骨骼策略：使用 Hips 骨骼作为定位参考
+    console.log('[_refit] 使用骨骼策略定位，根骨骼:', rootBone.name);
+    const bonePosition = new THREE.Vector3();
+    rootBone.getWorldPosition(bonePosition);
+    
+    // 计算模型中心偏移
+    ox = -bonePosition.x;
+    oy = -bonePosition.y;
+    oz = -bonePosition.z;
+  } else if (fitConfig.strategy === 'mixed' && rootBone) {
+    // 混合策略：结合骨骼和包围盒
+    console.log('[_refit] 使用混合策略定位，根骨骼:', rootBone.name);
+    const bonePosition = new THREE.Vector3();
+    rootBone.getWorldPosition(bonePosition);
+    
+    const boxOx = -nCenter.x;
+    const boxOy = -nb.min.y;
+    const boxOz = -nCenter.z;
+    
+    // 骨骼和包围盒权重混合（骨骼更重要）
+    ox = bonePosition.x * 0.7 + boxOx * 0.3;
+    oy = bonePosition.y * 0.7 + boxOy * 0.3;
+    oz = bonePosition.z * 0.7 + boxOz * 0.3;
+  } else {
+    // 包围盒策略：使用原始方法
+    ox = -nCenter.x;
+    oy = -nb.min.y;
+    oz = -nCenter.z;
+  }
+
+  // 应用用户配置的偏移量
+  ox += fitConfig.offset.x;
+  oy += fitConfig.offset.y;
+  oz += fitConfig.offset.z;
+
+  console.log('[_refit] 缩放后边界框:', 'min:', nb.min, 'max:', nb.max, '中心:', nCenter);
+  console.log('[_refit] 计算偏移:', ox, oy, oz);
+
+  // 移除临时根节点，将模型重新添加回原始父节点
+  scene.remove(tempRoot);
+  if (savedParent) {
+    savedParent.add(model);
+  } else if (charGroup) {
+    charGroup.add(model);
+  }
+
+  // 应用变换
+  model.position.set(ox, oy, oz);
+  model.rotation.set(fitConfig.rotation.x, fitConfig.rotation.y, fitConfig.rotation.z);
+  
+  const finalBox = _computeWorldMeshBoundingBox(model);
+  console.log('[_refit] done box=(' + finalBox.min.x.toFixed(2) + ',' + finalBox.min.y.toFixed(2) + ',' + finalBox.min.z.toFixed(2) + ')~(' + finalBox.max.x.toFixed(2) + ',' + finalBox.max.y.toFixed(2) + ',' + finalBox.max.z.toFixed(2) + ') offset=(' + ox.toFixed(3) + ',' + oy.toFixed(3) + ',' + oz.toFixed(3) + ')');
+  
+  return {
+    scale: finalScale,
+    offset: { x: ox, y: oy, z: oz },
+    rotation: fitConfig.rotation,
+    strategy: fitConfig.strategy,
+    size: getModelSizeInfo(model)
+  };
+}
+
+function getModelSizeInfo(model) {
+  const box = _computeWorldMeshBoundingBox(model);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  return {
+    width: size.x,
+    height: size.y,
+    depth: size.z,
+    maxDimension: Math.max(size.x, size.y, size.z),
+    center: box.getCenter(new THREE.Vector3())
+  };
+}
+
+function onScale(v){
+  cfg.character.scale=parseFloat(v);
+  document.getElementById('charScaleV').textContent=parseFloat(v).toFixed(1)+'x';
+  const model=charGroup?.userData?.glbModel;
+  if(model){
+    _refit(model, cfg.glbTargetHeight||1.8, cfg.character.scale, cfg.fitConfig);
+  } else if(charGroup){
+    charGroup.scale.setScalar(cfg.character.scale);
+  }
+}
+
+function onTargetHeight(v){
+  cfg.glbTargetHeight=parseFloat(v);
+  document.getElementById('glbTargetHeightV').textContent=parseFloat(v).toFixed(1)+'u';
+  document.getElementById('glbTargetHeight').value=parseFloat(v);
+  const model=charGroup?.userData?.glbModel;
+  if(model){
+    _refit(model, cfg.glbTargetHeight, cfg.character.scale||1, cfg.fitConfig);
+    showNotif('高度已设为 '+parseFloat(v).toFixed(1)+' 单位');
+  }
+}
+
+function onFitStrategyChange(strategy){
+  cfg.fitConfig.strategy = strategy;
+  const model=charGroup?.userData?.glbModel;
+  if(model){
+    _refit(model, cfg.glbTargetHeight, cfg.character.scale||1, cfg.fitConfig);
+    showNotif('适配策略已切换为 '+strategy);
+  }
+}
+
+function onFitOffsetChange(){
+  cfg.fitConfig.offset.x = parseFloat(document.getElementById('fitOffsetX').value);
+  cfg.fitConfig.offset.y = parseFloat(document.getElementById('fitOffsetY').value);
+  cfg.fitConfig.offset.z = parseFloat(document.getElementById('fitOffsetZ').value);
+  
+  document.getElementById('fitOffsetXV').textContent = cfg.fitConfig.offset.x.toFixed(2);
+  document.getElementById('fitOffsetYV').textContent = cfg.fitConfig.offset.y.toFixed(2);
+  document.getElementById('fitOffsetZV').textContent = cfg.fitConfig.offset.z.toFixed(2);
+  
+  const model=charGroup?.userData?.glbModel;
+  if(model){
+    _refit(model, cfg.glbTargetHeight, cfg.character.scale||1, cfg.fitConfig);
+  }
+}
+
+function onMaxDimensionChange(v){
+  cfg.fitConfig.maxDimension = parseFloat(v);
+  document.getElementById('maxDimensionV').textContent = cfg.fitConfig.maxDimension.toFixed(2);
+  
+  const model=charGroup?.userData?.glbModel;
+  if(model){
+    _refit(model, cfg.glbTargetHeight, cfg.character.scale||1, cfg.fitConfig);
+    showNotif('最大维度限制已设置为 '+parseFloat(v).toFixed(1)+' 米');
+  }
+}
+
+function onAutoScaleChange(enabled){
+  cfg.fitConfig.autoScale = enabled;
+  
+  const model=charGroup?.userData?.glbModel;
+  if(model){
+    _refit(model, cfg.glbTargetHeight, cfg.character.scale||1, cfg.fitConfig);
+    showNotif('自动缩放已'+(enabled?'启用':'禁用'));
+  }
+}
+function onHeadColor(v){cfg.character.headColor=parseInt(v.replace('#','0x'));if(charGroup?.userData?.head)charGroup.userData.head.material.color.setHex(cfg.character.headColor);}
+function onBodyColor(v){cfg.character.bodyColor=parseInt(v.replace('#','0x'));if(charGroup?.userData?.body)charGroup.userData.body.material.color.setHex(cfg.character.bodyColor);}
+function onAtkSpeed(v){cfg.attack.duration=parseInt(v);document.getElementById('atkSpeedV').textContent=v+'ms';}
+function onWalkSwing(v){cfg.attack.walkSwing=parseFloat(v);document.getElementById('walkSwingV').textContent=parseFloat(v).toFixed(1);}
+function onSlowRate(v){cfg.attack.slowRate=parseFloat(v);document.getElementById('slowRateV').textContent=parseFloat(v).toFixed(1)+'x';}
+
+function setBladeColor(hex){const c=parseInt(hex.replace('#','0x'));cfg.sword.bladeColor=c;if(weaponGroup?.userData?.blade){weaponGroup.userData.blade.material.color.setHex(c);weaponGroup.userData.blade.material.emissive.setHex(c);weaponGroup.userData.glow?.material.color.setHex(c);if(weaponGroup.userData.bladeLight)weaponGroup.userData.bladeLight.color.setHex(c);}markSwatch(hex,0);}
+function setHiltColor(hex){const c=parseInt(hex.replace('#','0x'));cfg.sword.hiltColor=c;if(weaponGroup?.userData?.hilt)weaponGroup.userData.hilt.material.color.setHex(c);markSwatch(hex,1);}
+function setStaffColor(hex){const c=parseInt(hex.replace('#','0x'));cfg.staff.orbColor=c;if(weaponGroup?.userData?.orb){weaponGroup.userData.orb.material.color.setHex(c);weaponGroup.userData.orb.material.emissive.setHex(c);weaponGroup.userData.orbLight?.color.setHex(c);}markSwatch(hex,0);}
+
+function markSwatch(hex,pi){
+  const pals=document.querySelectorAll('.cp');if(!pals[pi])return;
+  pals[pi].querySelectorAll('.sw').forEach(s=>s.classList.toggle('active',s.style.background===hex));
+}
+
+function onBladeLen(v){cfg.sword.bladeLength=parseFloat(v);document.getElementById('bladeLenV').textContent=parseFloat(v).toFixed(1);if(cfg.weapon==='lightsaber')buildWeapon('lightsaber');}
+function onGlowInt(v){cfg.sword.glowIntensity=parseFloat(v);document.getElementById('glowIntV').textContent=parseFloat(v).toFixed(1);if(weaponGroup?.userData?.blade)weaponGroup.userData.blade.material.emissiveIntensity=cfg.sword.glowIntensity;}
+function onSwordPos(){
+  cfg.sword.position.x=parseFloat(document.getElementById('swPosX').value);
+  cfg.sword.position.y=parseFloat(document.getElementById('swPosY').value);
+  cfg.sword.position.z=parseFloat(document.getElementById('swPosZ').value);
+  document.getElementById('swPosXV').textContent=cfg.sword.position.x.toFixed(2);
+  document.getElementById('swPosYV').textContent=cfg.sword.position.y.toFixed(2);
+  document.getElementById('swPosZV').textContent=cfg.sword.position.z.toFixed(2);
+  if(weaponGroup)weaponGroup.position.set(cfg.sword.position.x,cfg.sword.position.y,cfg.sword.position.z);
+}
+function onSwordRot(){
+  cfg.sword.rotation.z=parseFloat(document.getElementById('swRotZ').value);
+  document.getElementById('swRotZV').textContent=cfg.sword.rotation.z.toFixed(0);
+  if(weaponGroup)weaponGroup.rotation.z=cfg.sword.rotation.z*Math.PI/180;
+}
+function onStaffLen(v){cfg.staff.length=parseFloat(v);document.getElementById('staffLenV').textContent=parseFloat(v).toFixed(1);if(cfg.weapon==='staff')buildWeapon('staff');}
+function onSwordSize(v){cfg.sword.size=parseFloat(v);document.getElementById('swordSizeV').textContent=parseFloat(v).toFixed(1);if(cfg.weapon==='lightsaber'&&weaponGroup)weaponGroup.scale.set(cfg.sword.size,cfg.sword.size,cfg.sword.size);}
+function onStaffSize(v){cfg.staff.size=parseFloat(v);document.getElementById('staffSizeV').textContent=parseFloat(v).toFixed(1);if(cfg.weapon==='staff'&&weaponGroup)weaponGroup.scale.set(cfg.staff.size,cfg.staff.size,cfg.staff.size);}
+function onBowSize(v){cfg.bow.size=parseFloat(v);document.getElementById('bowSizeV').textContent=parseFloat(v).toFixed(1);if(cfg.weapon==='bow'&&weaponGroup)weaponGroup.scale.set(cfg.bow.size,cfg.bow.size,cfg.bow.size);}
+
+function applyToGame(){
+  saveToStorage();
+  showNotif('已应用到游戏');
+}
+
+async function saveToServer(){
+  try{
+    const token=localStorage.getItem('adminToken');
+    if(!token){showNotif('请先登录管理后台');return;}
+    const res=await fetch(`${API_BASE}/character-templates/player-config`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({config:cfg})
+    });
+    if(!res.ok) throw new Error(await res.text());
+    showNotif('已保存到服务器');
+  }catch(e){
+    showNotif('保存失败: '+e.message);
+  }
+}
+
+async function loadServerCfg(){
+  try{
+    const token=localStorage.getItem('adminToken');
+    if(!token)return;
+    const res=await fetch(`${API_BASE}/character-templates/player-config`,{
+      headers:{'Authorization':'Bearer '+token}
+    });
+    if(!res.ok)return;
+    const data=await res.json();
+    if(data.config){
+      Object.assign(cfg,data.config);
+      syncUI();
+      showNotif('已从服务器加载配置');
+    }
+  }catch(e){console.log('无服务器配置');}
+}
+
+function saveToStorage(){
+  localStorage.setItem('character_editor_cfg',JSON.stringify(cfg));
+  
+  try {
+    const calibrationToSave = cfg.calibrationConfig || {};
+    localStorage.setItem('selectedTemplateCalibration', JSON.stringify(calibrationToSave));
+    
+    const weaponSocketToSave = cfg.weaponSocketConfig || {};
+    localStorage.setItem('selectedTemplateWeaponSocket', JSON.stringify(weaponSocketToSave));
+    
+    const boneMapToSave = cfg.boneMappingConfig || {};
+    localStorage.setItem('selectedTemplateBoneMap', JSON.stringify(boneMapToSave));
+    
+    const fitToSave = cfg.fitConfig || {};
+    localStorage.setItem('selectedTemplateFit', JSON.stringify(fitToSave));
+    
+    console.log('[saveToStorage] 已保存所有配置到本地存储');
+    console.log('  selectedTemplateCalibration:', localStorage.getItem('selectedTemplateCalibration'));
+    console.log('  selectedTemplateWeaponSocket:', localStorage.getItem('selectedTemplateWeaponSocket'));
+    console.log('  selectedTemplateBoneMap:', localStorage.getItem('selectedTemplateBoneMap'));
+    console.log('  selectedTemplateFit:', localStorage.getItem('selectedTemplateFit'));
+  } catch (error) {
+    console.error('[saveToStorage] 保存配置失败:', error);
+  }
+}
+
+function loadFromStorage(){
+  try{
+    const saved=localStorage.getItem('character_editor_cfg');
+    if(saved){
+      const parsed=JSON.parse(saved);
+      Object.assign(cfg,parsed);
+    }
+  }catch(e){console.log('无本地配置');}
+}
+
+function syncUI(){
+  document.getElementById('charScale').value=cfg.character.scale;
+  document.getElementById('charScaleV').textContent=cfg.character.scale.toFixed(1)+'x';
+  document.getElementById('glbTargetHeight').value=cfg.glbTargetHeight;
+  document.getElementById('glbTargetHeightV').textContent=cfg.glbTargetHeight.toFixed(1)+'u';
+  document.getElementById('headColor').value='#'+cfg.character.headColor.toString(16).padStart(6,'0');
+  document.getElementById('bodyColor').value='#'+cfg.character.bodyColor.toString(16).padStart(6,'0');
+  document.getElementById('atkSpeed').value=cfg.attack.duration;
+  document.getElementById('atkSpeedV').textContent=cfg.attack.duration+'ms';
+  document.getElementById('walkSwing').value=cfg.attack.walkSwing;
+  document.getElementById('walkSwingV').textContent=cfg.attack.walkSwing.toFixed(1);
+  document.getElementById('slowRate').value=cfg.attack.slowRate;
+  document.getElementById('slowRateV').textContent=cfg.attack.slowRate.toFixed(1)+'x';
+  document.getElementById('bladeLen').value=cfg.sword.bladeLength;
+  document.getElementById('bladeLenV').textContent=cfg.sword.bladeLength.toFixed(1);
+  document.getElementById('glowInt').value=cfg.sword.glowIntensity;
+  document.getElementById('glowIntV').textContent=cfg.sword.glowIntensity.toFixed(1);
+  document.getElementById('swordSize').value=cfg.sword.size;
+  document.getElementById('swordSizeV').textContent=cfg.sword.size.toFixed(1);
+  document.getElementById('swPosX').value=cfg.sword.position.x;
+  document.getElementById('swPosXV').textContent=cfg.sword.position.x.toFixed(2);
+  document.getElementById('swPosY').value=cfg.sword.position.y;
+  document.getElementById('swPosYV').textContent=cfg.sword.position.y.toFixed(2);
+  document.getElementById('swPosZ').value=cfg.sword.position.z;
+  document.getElementById('swPosZV').textContent=cfg.sword.position.z.toFixed(2);
+  document.getElementById('swRotZ').value=cfg.sword.rotation.z;
+  document.getElementById('swRotZV').textContent=cfg.sword.rotation.z.toFixed(0);
+  document.getElementById('staffLen').value=cfg.staff.length;
+  document.getElementById('staffLenV').textContent=cfg.staff.length.toFixed(1);
+  document.getElementById('staffSize').value=cfg.staff.size;
+  document.getElementById('staffSizeV').textContent=cfg.staff.size.toFixed(1);
+  document.getElementById('bowSize').value=cfg.bow.size;
+  document.getElementById('bowSizeV').textContent=cfg.bow.size.toFixed(1);
+}
+
+function exportJSON(){
+  const json=JSON.stringify(cfg,null,2);
+  navigator.clipboard.writeText(json).then(()=>showNotif('JSON已复制到剪贴板'));
+}
+
+function importJSON(){
+  const json=prompt('粘贴JSON配置:');
+  if(!json)return;
+  try{
+    const parsed=JSON.parse(json);
+    Object.assign(cfg,parsed);
+    syncUI();
+    showNotif('配置已导入');
+  }catch(e){showNotif('JSON格式错误');}
+}
+
+function downloadJSON(){
+  const json=JSON.stringify(cfg,null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='character_config.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showNotif('配置文件已下载');
+}
+
+function updateHUD(){
+  document.getElementById('hud-tmpl').textContent=cfg.templateName.slice(0,8);
+  document.getElementById('hud-preset').textContent=PRESETS[cfg.preset]?.name||cfg.preset;
+  const wn={none:'无',lightsaber:'光剑',staff:'法杖',bow:'弓箭'};
+  document.getElementById('hud-weapon').textContent=wn[cfg.weapon]||cfg.weapon;
+  document.getElementById('hud-anim').textContent=currentAnimMode;
+}
+
+function showNotif(msg){
+  const existing=document.querySelector('.notif');
+  if(existing)existing.remove();
+  const div=document.createElement('div');
+  div.className='notif';
+  div.textContent=msg;
+  document.body.appendChild(div);
+  setTimeout(()=>div.remove(),3000);
+}
+
+function showNotip(msg){
+  showNotif(msg);
+}
+
+// ==================== 3D可视化骨骼映射系统 ====================
+
+// 存储骨骼映射配置
+// global: { sourceBone: targetBone, ... } - 全局映射，所有动画共享
+// perAnim: { animKey: { sourceBone: targetBone, ... } } - 动画特定映射
+let boneMappings = { global: {}, perAnim: {} };
+let currentMappingMode = 'global'; // 'global' 或 'anim'
+let currentMappingAnim = null;
+let selectedSourceBone = null;  // 当前选中的动画源骨骼
+let selectedTargetBone = null;  // 当前选中的目标骨骼
+let pendingSourceBones = [];    // 待映射的动画骨骼列表
+
+// 骨骼映射3D视图相关
+let boneMappingScene = null;
+let boneMappingCamera = null;
+let boneMappingRenderer = null;
+let boneMappingControls = null;
+let boneMappingRaycaster = new THREE.Raycaster();
+let boneMappingMouse = new THREE.Vector2();
+let sourceModelClone = null;    // 动画源模型克隆
+let targetModelClone = null;    // 目标模型克隆
+let skeletonHelpers = [];       // 骨骼辅助显示
+let boneSpheres = [];           // 骨骼点击球体
+let currentViewMode = 'both';   // 'target', 'source', 'both'
+
+// 打开骨骼映射模态框
+function openBoneMappingModal() {
+  const modal = document.getElementById('bone-mapping-modal');
+  modal.style.display = 'block';
+  
+  // 初始化3D视图
+  setTimeout(() => {
+    initBoneMapping3DView();
+    updateMappingAnimSelect();
+  }, 100);
+}
+
+// 关闭骨骼映射模态框
+function closeBoneMappingModal() {
+  document.getElementById('bone-mapping-modal').style.display = 'none';
+  
+  // 移除事件监听器
+  const canvas = document.getElementById('bone-mapping-canvas');
+  if (canvas) {
+    canvas.removeEventListener('click', onBoneMappingClick);
+    canvas.removeEventListener('mousemove', onBoneMappingMouseMove);
+  }
+  
+  // 清理3D资源
+  if (boneMappingRenderer) {
+    boneMappingRenderer.dispose();
+    boneMappingRenderer = null;
+  }
+  
+  if (boneMappingScene) {
+    // 清理场景中的所有对象
+    boneMappingScene.traverse(obj => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(m => m.dispose());
+        } else {
+          obj.material.dispose();
+        }
+      }
+    });
+    boneMappingScene = null;
+  }
+  
+  if (boneMappingControls) {
+    boneMappingControls.dispose();
+    boneMappingControls = null;
+  }
+  
+  // 清空数组
+  boneSpheres = [];
+  skeletonHelpers = [];
+  
+  selectedSourceBone = null;
+  selectedTargetBone = null;
+  sourceModelClone = null;
+  targetModelClone = null;
+  boneMappingCamera = null;
+}
+
+// 隐藏提示
+function hideBoneMappingHint() {
+  document.getElementById('bone-mapping-hint').style.display = 'none';
+}
+
+// 初始化骨骼映射3D视图
+function initBoneMapping3DView() {
+  const canvas = document.getElementById('bone-mapping-canvas');
+  if (!canvas) return;
+  
+  // 创建场景
+  boneMappingScene = new THREE.Scene();
+  boneMappingScene.background = new THREE.Color(0x0a0a1e);
+  
+  // 创建相机
+  const width = canvas.parentElement.clientWidth;
+  const height = canvas.parentElement.clientHeight;
+  boneMappingCamera = new THREE.PerspectiveCamera(55, width / height, 0.1, 1000);
+  boneMappingCamera.position.set(3, 2, 4);
+  
+  // 创建渲染器
+  boneMappingRenderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  boneMappingRenderer.setSize(width, height);
+  boneMappingRenderer.shadowMap.enabled = true;
+  
+  // 创建控制器
+  boneMappingControls = new THREE.OrbitControls(boneMappingCamera, canvas);
+  boneMappingControls.enableDamping = true;
+  boneMappingControls.dampingFactor = 0.06;
+  boneMappingControls.target.set(0, 1, 0);
+  
+  // 添加灯光
+  boneMappingScene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const dl = new THREE.DirectionalLight(0xffffff, 0.8);
+  dl.position.set(5, 10, 5);
+  dl.castShadow = true;
+  boneMappingScene.add(dl);
+  
+  // 添加网格地面
+  const grid = new THREE.GridHelper(10, 10, 0x004422, 0x002211);
+  boneMappingScene.add(grid);
+  
+  // 加载模型
+  loadModelsForBoneMapping();
+  
+  // 添加点击事件
+  canvas.addEventListener('click', onBoneMappingClick);
+  canvas.addEventListener('mousemove', onBoneMappingMouseMove);
+  
+  // 开始渲染循环
+  animateBoneMapping();
+}
+
+// 加载模型到骨骼映射视图
+function loadModelsForBoneMapping() {
+  // 加载目标模型（当前角色）
+  const targetModel = charGroup?.userData?.glbModel;
+  if (targetModel) {
+    console.log('[loadModelsForBoneMapping] 原始模型位置:', targetModel.position);
+    console.log('[loadModelsForBoneMapping] 原始模型缩放:', targetModel.scale);
+    console.log('[loadModelsForBoneMapping] charGroup缩放:', charGroup.scale);
+
+    // 直接重新加载GLB文件，而不是克隆
+    // 这样可以确保骨骼位置正确
+    const modelUrl = charGroup.userData.glbUrl;
+    if (modelUrl) {
+      const fullUrl = modelUrl.startsWith('http') ? modelUrl : SERVER_BASE + modelUrl;
+      gltfLoader.load(fullUrl, (gltf) => {
+        targetModelClone = gltf.scene;
+        targetModelClone.position.set(1, 0, 0); // 右侧
+
+        targetModelClone.traverse(node => {
+          if (node.isMesh) {
+            node.material = node.material.clone();
+            if (node.material.emissive) {
+              node.material.emissive.setHex(0x004400);
+            }
+          }
+        });
+
+        boneMappingScene.add(targetModelClone);
+        targetModelClone.updateMatrixWorld(true);
+
+        console.log('[loadModelsForBoneMapping] 重新加载后模型缩放:', targetModelClone.scale);
+
+        // 添加骨骼辅助显示
+        addSkeletonVisualizer(targetModelClone, 0x00ff00, 'target');
+        
+        // 根据根骨骼位置调整相机目标点
+        _adjustCameraToRootBone(targetModelClone, 1); // 1 是模型在x轴的偏移量
+      });
+    } else {
+      // 如果没有URL，使用克隆方法作为备选
+      targetModelClone = targetModel.clone();
+      targetModelClone.position.set(1, 0, 0);
+      targetModelClone.scale.copy(targetModel.scale);
+
+      targetModelClone.traverse(node => {
+        if (node.isMesh) {
+          node.material = node.material.clone();
+          if (node.material.emissive) {
+            node.material.emissive.setHex(0x004400);
+          }
+        }
+      });
+
+      boneMappingScene.add(targetModelClone);
+      targetModelClone.updateMatrixWorld(true);
+
+      addSkeletonVisualizer(targetModelClone, 0x00ff00, 'target');
+      
+      // 根据根骨骼位置调整相机目标点
+      _adjustCameraToRootBone(targetModelClone, 1);
+    }
+  }
+}
+
+// 根据根骨骼位置调整相机目标点
+function _adjustCameraToRootBone(model, xOffset) {
+  if (!boneMappingCamera || !boneMappingControls) return;
+  
+  // 查找根骨骼（Hips、Root 或第一个骨骼）
+  let rootBone = null;
+  model.traverse(node => {
+    if (!rootBone && (node.isBone || node.type === 'Bone')) {
+      const name = node.name.toLowerCase();
+      // 优先查找常见的根骨骼名称
+      if (name.includes('hips') || name.includes('root') || name.includes('pelvis')) {
+        rootBone = node;
+      }
+    }
+  });
+  
+  // 如果没有找到特定名称的根骨骼，使用第一个找到的骨骼
+  if (!rootBone) {
+    model.traverse(node => {
+      if (!rootBone && (node.isBone || node.type === 'Bone')) {
+        rootBone = node;
+      }
+    });
+  }
+  
+  if (rootBone) {
+    const worldPos = new THREE.Vector3();
+    rootBone.getWorldPosition(worldPos);
+    
+    // 调整目标点：根骨骼位置 + x轴偏移
+    const targetPos = new THREE.Vector3(
+      xOffset,
+      worldPos.y,
+      worldPos.z
+    );
+    
+    boneMappingControls.target.copy(targetPos);
+    boneMappingControls.update();
+    
+    console.log('[BoneMapping] 相机目标已调整到根骨骼位置:', rootBone.name, targetPos);
+  }
+}
+
+// 加载动画源模型
+function loadSourceModelForMapping(animKey) {
+  const url = tmplAnimUrls[animKey];
+  if (!url) return;
+  
+  // 移除旧的源模型
+  if (sourceModelClone) {
+    boneMappingScene.remove(sourceModelClone);
+    sourceModelClone = null;
+  }
+  
+  const fullUrl = url.startsWith('http') ? url : SERVER_BASE + url;
+  gltfLoader.load(fullUrl, (gltf) => {
+    sourceModelClone = gltf.scene.clone();
+    sourceModelClone.position.set(-1, 0, 0); // 左侧
+    sourceModelClone.traverse(node => {
+      if (node.isMesh) {
+        node.material = node.material.clone();
+        // 给源模型蓝色色调
+        if (node.material.emissive) {
+          node.material.emissive.setHex(0x000044);
+        }
+      }
+    });
+    boneMappingScene.add(sourceModelClone);
+    
+    // 强制更新矩阵
+    sourceModelClone.updateMatrixWorld(true);
+    
+    // 添加骨骼辅助显示
+    addSkeletonVisualizer(sourceModelClone, 0x4488ff, 'source');
+    
+    // 如果是单视图模式（只显示源模型），调整相机目标
+    if (currentViewMode === 'source') {
+      _adjustCameraToRootBone(sourceModelClone, -1); // -1 是源模型在x轴的偏移量
+    }
+    
+    // 提取动画骨骼列表
+    extractSourceBones(gltf);
+    
+    showNotif('动画源模型已加载，点击骨骼进行映射');
+  }, null, (err) => {
+    showNotif('加载动画源模型失败: ' + err.message);
+  });
+}
+
+// 添加骨骼可视化
+function addSkeletonVisualizer(model, color, type) {
+  // 查找骨骼
+  const bones = [];
+  model.traverse(node => {
+    if (node.isBone || node.type === 'Bone') {
+      bones.push(node);
+    }
+  });
+
+  console.log(`[addSkeletonVisualizer] ${type} 模型找到 ${bones.length} 个骨骼`);
+  console.log(`[addSkeletonVisualizer] 模型位置:`, model.position);
+  console.log(`[addSkeletonVisualizer] 模型缩放:`, model.scale);
+
+  // 强制更新模型矩阵（关键！）
+  model.updateMatrixWorld(true);
+
+  // 为每个骨骼创建可视化球体
+  bones.forEach((bone, index) => {
+    // 获取骨骼在世界坐标系中的位置
+    const worldPos = new THREE.Vector3();
+    bone.getWorldPosition(worldPos);
+
+    // 检查位置是否有效
+    if (!isFinite(worldPos.x) || !isFinite(worldPos.y) || !isFinite(worldPos.z)) {
+      console.warn(`[addSkeletonVisualizer] 骨骼 ${bone.name} 位置无效:`, worldPos);
+      return;
+    }
+
+    // 调试：打印前几个骨骼的位置
+    if (index < 3) {
+      console.log(`[addSkeletonVisualizer] 骨骼 ${bone.name} 位置:`, worldPos);
+    }
+
+    // 创建点击球体（更小）
+    const sphere = new THREE.Mesh(
+      new THREE.SphereGeometry(0.008, 6, 6),
+      new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.9
+      })
+    );
+    sphere.position.copy(worldPos);
+    sphere.userData = {
+      isBoneMarker: true,
+      boneName: bone.name,
+      boneType: type,
+      boneRef: bone
+    };
+    boneMappingScene.add(sphere);
+    boneSpheres.push(sphere);
+
+    // 创建骨骼标签（只在重要骨骼上显示）
+    if (shouldShowBoneLabel(bone.name)) {
+      createBoneLabel(bone, color, type, worldPos);
+    }
+
+    // 创建骨骼连线
+    if (bone.parent && (bone.parent.isBone || bone.parent.type === 'Bone')) {
+      const parentPos = new THREE.Vector3();
+      bone.parent.getWorldPosition(parentPos);
+
+      // 检查父骨骼位置是否有效
+      if (!isFinite(parentPos.x) || !isFinite(parentPos.y) || !isFinite(parentPos.z)) {
+        return;
+      }
+
+      const lineGeometry = new THREE.BufferGeometry().setFromPoints([parentPos, worldPos]);
+      const line = new THREE.Line(lineGeometry, new THREE.LineBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.3
+      }));
+      line.userData = {
+        isBoneLine: true,
+        childBone: bone,
+        parentBone: bone.parent
+      };
+      boneMappingScene.add(line);
+      skeletonHelpers.push(line);
+    }
+  });
+
+  // 初始化骨骼球体颜色
+  updateBoneSpheresColor();
+}
+
+// 判断是否显示骨骼标签（只在重要骨骼上显示，避免重叠）
+function shouldShowBoneLabel(boneName) {
+  // 只显示主要骨骼，隐藏手指、脚趾等细节骨骼
+  const importantBones = [
+    'hips', 'spine', 'chest', 'neck', 'head',
+    'shoulder', 'arm', 'forearm', 'hand',
+    'leg', 'knee', 'foot', 'toe'
+  ];
+  
+  const lowerName = boneName.toLowerCase();
+  
+  // 排除手指和脚趾的细节骨骼
+  if (/thumb|index|middle|ring|pinky|finger|toe[0-9]|toebase/i.test(lowerName)) {
+    return false;
+  }
+  
+  // 检查是否是重要骨骼
+  return importantBones.some(keyword => lowerName.includes(keyword));
+}
+
+// 创建骨骼标签
+function createBoneLabel(bone, color, type, worldPos) {
+  // 进一步简化骨骼名称，避免标签过长
+  let displayName = simplifyBoneName(bone.name);
+
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  canvas.width = 120;
+  canvas.height = 24;
+
+  // 绘制背景（更小的标签）
+  context.fillStyle = 'rgba(0, 0, 0, 0.7)';
+  context.roundRect(0, 0, 120, 24, 4);
+  context.fill();
+
+  // 绘制文字（更小的字体）
+  context.font = 'bold 11px Arial';
+  context.fillStyle = type === 'source' ? '#4488ff' : '#00ff00';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(displayName, 60, 12);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const spriteMaterial = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    opacity: 0.9
+  });
+  const sprite = new THREE.Sprite(spriteMaterial);
+  sprite.scale.set(0.2, 0.04, 1);
+  sprite.position.copy(worldPos);
+  sprite.position.y += 0.06;
+  sprite.userData = {
+    isBoneLabel: true,
+    boneRef: bone,
+    boneType: type,
+    boneName: bone.name
+  };
+
+  boneMappingScene.add(sprite);
+  boneSpheres.push(sprite);
+}
+
+// 简化骨骼名称显示
+function simplifyBoneName(name) {
+  // 移除 mixamorig 前缀
+  let simplified = name.replace(/mixamorig/i, '');
+  // 简化常见后缀
+  simplified = simplified
+    .replace(/Left/g, 'L')
+    .replace(/Right/g, 'R')
+    .replace(/HandIndex1/g, 'Idx1')
+    .replace(/HandIndex2/g, 'Idx2')
+    .replace(/HandIndex3/g, 'Idx3')
+    .replace(/HandMiddle1/g, 'Mid1')
+    .replace(/HandMiddle2/g, 'Mid2')
+    .replace(/HandMiddle3/g, 'Mid3')
+    .replace(/HandRing1/g, 'Ring1')
+    .replace(/HandRing2/g, 'Ring2')
+    .replace(/HandRing3/g, 'Ring3')
+    .replace(/HandPinky1/g, 'Pinky1')
+    .replace(/HandPinky2/g, 'Pinky2')
+    .replace(/HandPinky3/g, 'Pinky3')
+    .replace(/HandThumb1/g, 'Thumb1')
+    .replace(/HandThumb2/g, 'Thumb2')
+    .replace(/HandThumb3/g, 'Thumb3')
+    .replace(/ForeArm/g, 'ForeArm')
+    .replace(/UpLeg/g, 'UpLeg')
+    .replace(/ToeBase/g, 'Toe')
+    .replace(/_End/g, '');
+
+  // 如果还是太长，截断
+  if (simplified.length > 15) {
+    simplified = simplified.substring(0, 13) + '..';
+  }
+
+  return simplified;
+}
+
+// 提取动画源骨骼
+function extractSourceBones(gltf) {
+  pendingSourceBones = [];
+  
+  if (gltf.animations) {
+    gltf.animations.forEach(clip => {
+      clip.tracks.forEach(track => {
+        const boneName = _extractTrackNodeName(track.name);
+        if (boneName && !pendingSourceBones.includes(boneName)) {
+          pendingSourceBones.push(boneName);
+        }
+      });
+    });
+  }
+  
+  updatePendingBonesList();
+  updateMappingProgress();
+}
+
+// 鼠标移动事件
+function onBoneMappingMouseMove(event) {
+  const canvas = document.getElementById('bone-mapping-canvas');
+  if (!canvas) return;
+  
+  const rect = canvas.getBoundingClientRect();
+  
+  boneMappingMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  boneMappingMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  
+  // 高亮悬停的骨骼（只处理球体，不处理标签）
+  boneMappingRaycaster.setFromCamera(boneMappingMouse, boneMappingCamera);
+  const clickableSpheres = boneSpheres.filter(s => s.userData.isBoneMarker);
+  const intersects = boneMappingRaycaster.intersectObjects(clickableSpheres);
+  
+  // 更新所有球体颜色（根据映射状态）
+  updateBoneSpheresColor();
+
+  // 高亮悬停的骨骼
+  if (intersects.length > 0) {
+    const sphere = intersects[0].object;
+    sphere.material.color.setHex(0xffff00); // 黄色高亮
+    sphere.scale.setScalar(1.5);
+    canvas.style.cursor = 'pointer';
+
+    // 显示Tooltip
+    showBoneTooltip(sphere.userData.boneName, sphere.userData.boneType, event.clientX, event.clientY);
+  } else {
+    canvas.style.cursor = 'default';
+    hideBoneTooltip();
+  }
+}
+
+// 显示骨骼Tooltip
+function showBoneTooltip(boneName, boneType, x, y) {
+  let tooltip = document.getElementById('bone-tooltip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.id = 'bone-tooltip';
+    tooltip.style.cssText = 'position:fixed;background:rgba(0,0,0,0.9);border:1px solid #00ff00;border-radius:4px;padding:5px 10px;color:#00ff00;font-size:11px;pointer-events:none;z-index:10001;white-space:nowrap;';
+    document.body.appendChild(tooltip);
+  }
+  
+  const typeText = boneType === 'source' ? '📁 动画源' : '🎯 角色';
+  tooltip.innerHTML = `${typeText}<br><strong>${boneName}</strong>`;
+  tooltip.style.left = (x + 10) + 'px';
+  tooltip.style.top = (y + 10) + 'px';
+  tooltip.style.display = 'block';
+}
+
+// 映射模式切换
+function onMappingModeChange(mode) {
+  currentMappingMode = mode;
+
+  const animContainer = document.getElementById('anim-select-container');
+  const modeDesc = document.getElementById('mapping-mode-desc');
+
+  if (mode === 'global') {
+    animContainer.style.display = 'none';
+    modeDesc.textContent = '全局映射：配置的骨骼映射会应用到所有动画';
+    currentMappingAnim = 'global';
+  } else {
+    animContainer.style.display = 'block';
+    modeDesc.textContent = '动画特定映射：只应用到选中的动画';
+    currentMappingAnim = null;
+  }
+  updateCurrentMappingsDisplay();
+  updatePendingBonesList();
+  updateMappingProgress();
+}
+
+// 获取当前映射对象
+function getCurrentMapping() {
+  if (currentMappingMode === 'global') {
+    return boneMappings.global;
+  } else {
+    const animKey = currentMappingAnim;
+    if (!animKey) return null;
+    if (!boneMappings.perAnim[animKey]) {
+      boneMappings.perAnim[animKey] = {};
+    }
+    return boneMappings.perAnim[animKey];
+  }
+}
+
+// 隐藏骨骼Tooltip
+function hideBoneTooltip() {
+  const tooltip = document.getElementById('bone-tooltip');
+  if (tooltip) tooltip.style.display = 'none';
+}
+
+// 点击事件
+function onBoneMappingClick(event) {
+  boneMappingRaycaster.setFromCamera(boneMappingMouse, boneMappingCamera);
+  const clickableSpheres = boneSpheres.filter(s => s.userData.isBoneMarker);
+  const intersects = boneMappingRaycaster.intersectObjects(clickableSpheres);
+
+  if (intersects.length > 0) {
+    const sphere = intersects[0].object;
+    const { boneName, boneType } = sphere.userData;
+
+    if (boneType === 'source') {
+      // 选择动画源骨骼
+      selectedSourceBone = boneName;
+      updateSelectedBoneInfo(boneName, 'source');
+      highlightSelectedBone(boneName, 'source');
+      showNotif(`已选择动画骨骼: ${boneName}，现在点击角色模型对应位置`);
+    } else if (boneType === 'target') {
+      // 选择目标骨骼
+      if (!selectedSourceBone) {
+        showNotif('请先在左侧动画模型上选择骨骼');
+        return;
+      }
+
+      selectedTargetBone = boneName;
+      addBoneMapping(selectedSourceBone, selectedTargetBone);
+      updateSelectedBoneInfo(null, null);
+
+      // 更新所有球体颜色（标记已映射的）
+      updateBoneSpheresColor();
+
+      selectedSourceBone = null;
+      selectedTargetBone = null;
+    }
+  }
+}
+
+// 更新骨骼球体颜色（标记已映射的）
+function updateBoneSpheresColor() {
+  const currentMapping = getCurrentMapping();
+  const mappedSourceBones = currentMapping ? Object.keys(currentMapping) : [];
+  const mappedTargetBones = currentMapping ? Object.values(currentMapping) : [];
+
+  boneSpheres.forEach(sphere => {
+    if (!sphere.userData.isBoneMarker) return;
+
+    const { boneName, boneType } = sphere.userData;
+
+    if (boneType === 'source') {
+      // 源骨骼：已映射的显示橙色，未映射的显示蓝色
+      if (mappedSourceBones.includes(boneName)) {
+        sphere.material.color.setHex(0xff8800); // 橙色 - 已映射
+      } else {
+        sphere.material.color.setHex(0x4488ff); // 蓝色 - 未映射
+      }
+    } else {
+      // 目标骨骼：已被映射的显示橙色，未映射的显示绿色
+      if (mappedTargetBones.includes(boneName)) {
+        sphere.material.color.setHex(0xff8800); // 橙色 - 已被映射
+      } else {
+        sphere.material.color.setHex(0x00ff00); // 绿色 - 未映射
+      }
+    }
+  });
+}
+
+// 更新选中骨骼信息
+function updateSelectedBoneInfo(boneName, type) {
+  const infoDiv = document.getElementById('selected-bone-info');
+  const nameDiv = document.getElementById('selected-bone-name');
+  
+  if (!boneName) {
+    infoDiv.style.display = 'none';
+    return;
+  }
+  
+  infoDiv.style.display = 'block';
+  const typeText = type === 'source' ? '📁 动画源骨骼' : '🎯 角色骨骼';
+  const color = type === 'source' ? '#4488ff' : '#00ff00';
+  nameDiv.innerHTML = `<span style="color:${color}">${typeText}</span><br><strong>${boneName}</strong>`;
+}
+
+// 高亮选中的骨骼
+function highlightSelectedBone(boneName, type) {
+  boneSpheres.forEach(sphere => {
+    if (sphere.userData.boneName === boneName && sphere.userData.boneType === type) {
+      sphere.material.color.setHex(0xffff00);
+      sphere.scale.setScalar(2);
+    }
+  });
+}
+
+// 更新待映射骨骼列表
+function updatePendingBonesList() {
+  const container = document.getElementById('pending-bones-list');
+  if (!container) return;
+
+  if (pendingSourceBones.length === 0) {
+    container.innerHTML = '<div style="color:#666;text-align:center;padding:10px;">请先选择动画</div>';
+    return;
+  }
+
+  // 获取当前映射
+  const currentMapping = getCurrentMapping();
+  const mappedBones = currentMapping ? Object.keys(currentMapping) : [];
+  const unmappedBones = pendingSourceBones.filter(bone => !mappedBones.includes(bone));
+
+  container.innerHTML = '';
+  unmappedBones.forEach(boneName => {
+    const div = document.createElement('div');
+    div.style.cssText = 'padding:4px 8px;margin:2px 0;background:rgba(255,136,0,0.1);border-radius:3px;cursor:pointer;';
+    div.textContent = boneName;
+    div.onclick = () => {
+      selectedSourceBone = boneName;
+      updateSelectedBoneInfo(boneName, 'source');
+      highlightSelectedBone(boneName, 'source');
+      // 在3D视图中高亮对应的骨骼球体
+      boneSpheres.forEach(sphere => {
+        if (sphere.userData.boneName === boneName && sphere.userData.boneType === 'source') {
+          sphere.material.color.setHex(0xffff00);
+          sphere.scale.setScalar(2);
+        }
+      });
+    };
+    container.appendChild(div);
+  });
+}
+
+// 更新映射进度
+function updateMappingProgress() {
+  const progressText = document.getElementById('mapping-progress-text');
+  const progressBar = document.getElementById('mapping-progress-bar');
+
+  const currentMapping = getCurrentMapping();
+
+  if (currentMappingMode === 'anim' && !currentMappingAnim) {
+    progressText.textContent = '0/0';
+    progressBar.style.width = '0%';
+    return;
+  }
+
+  if (pendingSourceBones.length === 0) {
+    progressText.textContent = '0/0';
+    progressBar.style.width = '0%';
+    return;
+  }
+
+  const mappedCount = currentMapping ? Object.keys(currentMapping).length : 0;
+  const totalCount = pendingSourceBones.length;
+  const percentage = (mappedCount / totalCount) * 100;
+
+  progressText.textContent = `${mappedCount}/${totalCount}`;
+  progressBar.style.width = percentage + '%';
+}
+
+// 动画选择改变
+function onMappingAnimChange(animKey) {
+  if (!animKey) return;
+  
+  currentMappingAnim = animKey;
+  
+  if (!tmplAnimUrls[animKey]) {
+    showNotif('该动画尚未上传GLB文件');
+    return;
+  }
+  
+  // 加载动画源模型
+  loadSourceModelForMapping(animKey);
+  
+  // 更新映射显示
+  updateCurrentMappingsDisplay();
+  updateMappingProgress();
+}
+
+// 更新动画选择下拉框
+function updateMappingAnimSelect() {
+  const select = document.getElementById('mapping-anim-select');
+  if (!select) return;
+  
+  select.innerHTML = '<option value="">-- 请选择动画类型 --</option>';
+  
+  ANIM_KEYS.forEach(key => {
+    const option = document.createElement('option');
+    option.value = key;
+    const hasUrl = tmplAnimUrls[key] ? '✓ ' : '○ ';
+    option.textContent = hasUrl + _animLabel(key);
+    select.appendChild(option);
+  });
+}
+
+// 添加骨骼映射
+function addBoneMapping(sourceBone, targetBone) {
+  const currentMapping = getCurrentMapping();
+
+  if (!currentMapping) {
+    showNotif('请先选择动画或切换到全局映射模式');
+    return;
+  }
+
+  currentMapping[sourceBone] = targetBone;
+
+  updateCurrentMappingsDisplay();
+  updatePendingBonesList();
+  updateMappingProgress();
+  showNotif(`已映射: ${sourceBone} → ${targetBone}`);
+}
+
+// 更新当前映射显示
+function updateCurrentMappingsDisplay() {
+  const container = document.getElementById('current-mappings');
+  if (!container) return;
+
+  const currentMapping = getCurrentMapping();
+
+  if (!currentMapping || Object.keys(currentMapping).length === 0) {
+    const modeText = currentMappingMode === 'global' ? '全局' : '当前动画';
+    container.innerHTML = `<div style="color:#666;text-align:center;padding:20px;">${modeText}暂无映射<br><span style="font-size:10px;">在3D视图中点击骨骼建立映射</span></div>`;
+    return;
+  }
+
+  container.innerHTML = '';
+
+  Object.entries(currentMapping).forEach(([source, target]) => {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:5px;margin:3px 0;background:rgba(0,255,0,0.1);border-radius:3px;font-size:10px;';
+    div.innerHTML = `
+      <span><span style="color:#4488ff">${source}</span> → <span style="color:#00ff00">${target}</span></span>
+      <button onclick="removeBoneMapping('${source}')" style="background:rgba(255,68,68,0.6);color:#fff;border:none;border-radius:3px;padding:2px 6px;cursor:pointer;font-size:9px;">✕</button>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// 删除单个映射
+function removeBoneMapping(sourceBone) {
+  const currentMapping = getCurrentMapping();
+  if (currentMapping) {
+    delete currentMapping[sourceBone];
+    updateCurrentMappingsDisplay();
+    updatePendingBonesList();
+    updateMappingProgress();
+  }
+}
+
+// 切换视图模式
+function toggleBoneView(mode) {
+  currentViewMode = mode;
+  
+  // 更新按钮状态
+  document.getElementById('btn-view-target').className = mode === 'target' ? 'btn btn-p' : 'btn btn-s';
+  document.getElementById('btn-view-source').className = mode === 'source' ? 'btn btn-p' : 'btn btn-s';
+  document.getElementById('btn-view-both').className = mode === 'both' ? 'btn btn-p' : 'btn btn-s';
+  
+  // 调整相机和模型位置
+  if (mode === 'target') {
+    if (targetModelClone) targetModelClone.position.set(0, 0, 0);
+    if (sourceModelClone) sourceModelClone.visible = false;
+    boneMappingCamera.position.set(2, 1.5, 3);
+    // 调整相机目标到目标模型的根骨骼
+    if (targetModelClone) {
+      _adjustCameraToRootBone(targetModelClone, 0);
+    }
+  } else if (mode === 'source') {
+    if (targetModelClone) targetModelClone.visible = false;
+    if (sourceModelClone) {
+      sourceModelClone.visible = true;
+      sourceModelClone.position.set(0, 0, 0);
+    }
+    boneMappingCamera.position.set(2, 1.5, 3);
+    // 调整相机目标到源模型的根骨骼
+    if (sourceModelClone) {
+      _adjustCameraToRootBone(sourceModelClone, 0);
+    }
+  } else {
+    if (targetModelClone) {
+      targetModelClone.visible = true;
+      targetModelClone.position.set(1, 0, 0);
+    }
+    if (sourceModelClone) {
+      sourceModelClone.visible = true;
+      sourceModelClone.position.set(-1, 0, 0);
+    }
+    boneMappingCamera.position.set(3, 2, 4);
+    // 双视图模式下使用默认目标点（中心）
+    boneMappingControls.target.set(0, 1, 0);
+    boneMappingControls.update();
+  }
+}
+
+// 切换皮肤可见性
+let meshVisible = true;
+function toggleMeshVisibility() {
+  meshVisible = !meshVisible;
+  
+  // 切换目标模型（绿色）的皮肤
+  if (targetModelClone) {
+    targetModelClone.traverse(node => {
+      if (node.isMesh) {
+        node.visible = meshVisible;
+      }
+    });
+  }
+  
+  // 切换源模型（蓝色）的皮肤
+  if (sourceModelClone) {
+    sourceModelClone.traverse(node => {
+      if (node.isMesh) {
+        node.visible = meshVisible;
+      }
+    });
+  }
+  
+  // 更新按钮文字
+  const btn = document.getElementById('btn-toggle-mesh');
+  if (btn) {
+    btn.textContent = meshVisible ? '👤 隐藏皮肤' : '👤 显示皮肤';
+  }
+}
+
+// 切换骨骼可见性
+let skeletonVisible = true;
+function toggleSkeletonVisibility() {
+  skeletonVisible = !skeletonVisible;
+  
+  boneSpheres.forEach(sphere => {
+    sphere.visible = skeletonVisible;
+  });
+  
+  skeletonHelpers.forEach(line => {
+    line.visible = skeletonVisible;
+  });
+}
+
+// 重置相机
+function resetBoneMappingCamera() {
+  if (currentViewMode === 'both') {
+    boneMappingCamera.position.set(3, 2, 4);
+    boneMappingControls.target.set(0, 1, 0);
+    boneMappingControls.update();
+  } else if (currentViewMode === 'target' && targetModelClone) {
+    boneMappingCamera.position.set(2, 1.5, 3);
+    _adjustCameraToRootBone(targetModelClone, 0);
+  } else if (currentViewMode === 'source' && sourceModelClone) {
+    boneMappingCamera.position.set(2, 1.5, 3);
+    _adjustCameraToRootBone(sourceModelClone, 0);
+  } else {
+    boneMappingCamera.position.set(2, 1.5, 3);
+    boneMappingControls.target.set(0, 1, 0);
+    boneMappingControls.update();
+  }
+}
+
+// 自动匹配骨骼
+function autoMapBones() {
+  if (!sourceModelClone || !targetModelClone) {
+    showNotif('请等待模型加载');
+    return;
+  }
+
+  if (currentMappingMode === 'anim' && !currentMappingAnim) {
+    showNotif('请先选择动画');
+    return;
+  }
+
+  // 获取源骨骼列表
+  const sourceBones = [];
+  sourceModelClone.traverse(node => {
+    if (node.isBone || node.type === 'Bone') {
+      sourceBones.push(node.name);
+    }
+  });
+
+  // 获取目标骨骼列表
+  const targetBones = [];
+  targetModelClone.traverse(node => {
+    if (node.isBone || node.type === 'Bone') {
+      targetBones.push(node.name);
+    }
+  });
+
+  const currentMapping = getCurrentMapping();
+  if (!currentMapping) {
+    showNotif('无法获取当前映射');
+    return;
+  }
+
+  let mappedCount = 0;
+
+  sourceBones.forEach(sourceBone => {
+    // 跳过已映射的
+    if (currentMapping[sourceBone]) return;
+
+    // 尝试直接匹配
+    let targetBone = targetBones.find(t => t.toLowerCase() === sourceBone.toLowerCase());
+
+    // 尝试Mixamo格式匹配
+    if (!targetBone && /mixamorig/i.test(sourceBone)) {
+      const simpleName = sourceBone.replace(/mixamorig/i, '').toLowerCase();
+      targetBone = targetBones.find(t => t.toLowerCase() === simpleName);
+    }
+
+    // 尝试反向匹配
+    if (!targetBone) {
+      targetBone = targetBones.find(t => {
+        if (/mixamorig/i.test(t)) {
+          return t.replace(/mixamorig/i, '').toLowerCase() === sourceBone.toLowerCase();
+        }
+        return false;
+      });
+    }
+
+    if (targetBone) {
+      currentMapping[sourceBone] = targetBone;
+      mappedCount++;
+    }
+  });
+
+  updateCurrentMappingsDisplay();
+  updatePendingBonesList();
+  updateMappingProgress();
+  showNotif(`自动匹配完成: ${mappedCount} 个骨骼`);
+}
+
+// 保存骨骼映射
+function saveBoneMapping() {
+  const currentMapping = getCurrentMapping();
+
+  if (!currentMapping || Object.keys(currentMapping).length === 0) {
+    showNotif('没有可保存的映射');
+    return;
+  }
+
+  const savedData = JSON.parse(localStorage.getItem('bone_mappings_v2') || '{"global":{},"perAnim":{}}');
+
+  if (currentMappingMode === 'global') {
+    savedData.global = boneMappings.global;
+  } else {
+    savedData.perAnim[currentMappingAnim] = boneMappings.perAnim[currentMappingAnim];
+  }
+
+  localStorage.setItem('bone_mappings_v2', JSON.stringify(savedData));
+
+  const modeText = currentMappingMode === 'global' ? '全局' : currentMappingAnim;
+  showNotif(`${modeText}骨骼映射已保存`);
+  updateBoneMappingStatus();
+}
+
+// 清除当前映射
+function clearCurrentMapping() {
+  const currentMapping = getCurrentMapping();
+  if (!currentMapping) return;
+
+  // 清空当前映射对象
+  Object.keys(currentMapping).forEach(key => delete currentMapping[key]);
+
+  updateCurrentMappingsDisplay();
+  updatePendingBonesList();
+  updateMappingProgress();
+
+  const modeText = currentMappingMode === 'global' ? '全局' : currentMappingAnim;
+  showNotif(`已清空${modeText}映射`);
+}
+
+// 清除所有映射
+function clearBoneMapping() {
+  boneMappings = { global: {}, perAnim: {} };
+  localStorage.removeItem('bone_mappings_v2');
+  updateBoneMappingStatus();
+  showNotif('已清除所有骨骼映射');
+}
+
+// 加载保存的骨骼映射
+function loadBoneMappings() {
+  try {
+    const saved = localStorage.getItem('bone_mappings_v2');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      boneMappings.global = parsed.global || {};
+      boneMappings.perAnim = parsed.perAnim || {};
+      updateBoneMappingStatus();
+    }
+  } catch (e) {
+    console.warn('加载骨骼映射失败:', e);
+    // 尝试加载旧版本数据
+    try {
+      const oldSaved = localStorage.getItem('bone_mappings');
+      if (oldSaved) {
+        const oldParsed = JSON.parse(oldSaved);
+        // 将旧数据转换为新格式（假设是perAnim数据）
+        boneMappings.perAnim = oldParsed;
+        updateBoneMappingStatus();
+      }
+    } catch (e2) {
+      console.warn('加载旧版本骨骼映射失败:', e2);
+    }
+  }
+}
+
+// 更新骨骼映射状态显示
+function updateBoneMappingStatus() {
+  const section = document.getElementById('bone-mapping-section');
+  const status = document.getElementById('bone-mapping-status');
+  const preview = document.getElementById('bone-mapping-preview');
+
+  const hasGLB = charGroup?.userData?.glbModel;
+  if (section) section.style.display = hasGLB ? 'block' : 'none';
+
+  if (!hasGLB || !status) return;
+
+  const globalCount = Object.keys(boneMappings.global).length;
+  const perAnimCount = Object.keys(boneMappings.perAnim).length;
+
+  if (globalCount > 0 || perAnimCount > 0) {
+    let statusText = '';
+    if (globalCount > 0) {
+      statusText += `全局: ${globalCount}个`;
+    }
+    if (perAnimCount > 0) {
+      if (statusText) statusText += ' | ';
+      statusText += `${perAnimCount}个动画特定`;
+    }
+    status.textContent = statusText;
+    status.style.color = '#00ff00';
+
+    if (preview) {
+      let previewHTML = '';
+      if (globalCount > 0) {
+        previewHTML += `<div style="color:#4488ff;font-size:10px;">全局: ${globalCount} 个骨骼映射</div>`;
+      }
+      if (perAnimCount > 0) {
+        previewHTML += Object.entries(boneMappings.perAnim).map(([anim, mapping]) => {
+          const count = Object.keys(mapping).length;
+          return count > 0 ? `<div>${_animLabel(anim)}: ${count} 个</div>` : '';
+        }).join('');
+      }
+      preview.innerHTML = previewHTML;
+    }
+  } else {
+    status.textContent = '未配置骨骼映射（使用自动匹配）';
+    status.style.color = '#888';
+    if (preview) preview.innerHTML = '';
+  }
+}
+
+// 测试映射
+function testMappingWithAnim() {
+  if (!currentMappingAnim) {
+    showNotif('请先选择动画');
+    return;
+  }
+  
+  if (tmplAnimUrls[currentMappingAnim]) {
+    if (animMixers[currentMappingAnim]) {
+      animMixers[currentMappingAnim].stopAllAction();
+      delete animMixers[currentMappingAnim];
+    }
+    delete animActions[currentMappingAnim];
+    
+    preloadAnim(currentMappingAnim, tmplAnimUrls[currentMappingAnim]);
+    
+    setTimeout(() => {
+      switchAnim(currentMappingAnim);
+      showNotif('正在测试映射效果...');
+    }, 500);
+  }
+}
+
+// 使用骨骼映射重定向动画
+function retargetAnimationWithMapping(clip, animKey) {
+  if (!clip?.tracks?.length) return clip;
+
+  // 合并全局映射和动画特定映射（动画特定映射优先级更高）
+  const combinedMapping = { ...boneMappings.global };
+  if (boneMappings.perAnim[animKey]) {
+    Object.assign(combinedMapping, boneMappings.perAnim[animKey]);
+  }
+
+  if (Object.keys(combinedMapping).length === 0) {
+    console.log(`[retargetAnimationWithMapping] ${animKey} 没有配置映射，使用自动匹配`);
+    return clip;
+  }
+
+  const newTracks = [];
+  const missingBones = [];
+  const mappedBones = [];
+
+  clip.tracks.forEach(track => {
+    const nodeName = _extractTrackNodeName(track.name);
+    if (!nodeName) {
+      newTracks.push(track);
+      return;
+    }
+
+    const targetBoneName = combinedMapping[nodeName];
+
+    if (targetBoneName) {
+      const prop = track.name.split('.').pop();
+      const newTrackName = targetBoneName + '.' + prop;
+
+      const newTrack = track.clone();
+      newTrack.name = newTrackName;
+      newTracks.push(newTrack);
+      mappedBones.push(nodeName);
+    } else {
+      missingBones.push(nodeName);
+    }
+  });
+
+  console.log(`[retargetAnimationWithMapping] ${animKey}: 已映射 ${mappedBones.length} 个骨骼，未映射 ${missingBones.length} 个`);
+
+  if (missingBones.length > 0) {
+    console.warn(`[retargetAnimationWithMapping] 未映射骨骼:`, missingBones.slice(0, 5));
+  }
+
+  clip.tracks = newTracks;
+  return clip;
+}
+
+// 骨骼映射渲染循环
+function animateBoneMapping() {
+  if (!boneMappingRenderer || !boneMappingScene) return;
+  
+  requestAnimationFrame(animateBoneMapping);
+  
+  if (boneMappingControls) boneMappingControls.update();
+  
+  // 标签始终面向相机
+  boneSpheres.forEach(obj => {
+    if (obj.userData.isBoneLabel) {
+      obj.lookAt(boneMappingCamera.position);
+    }
+  });
+  
+  boneMappingRenderer.render(boneMappingScene, boneMappingCamera);
+}
+
+// 修改后的preloadAnim函数，支持骨骼映射
+const originalPreloadAnim = preloadAnim;
+preloadAnim = function(key, url) {
+  const fullUrl = url.startsWith('http') ? url : SERVER_BASE + url;
+  const model = charGroup?.userData?.glbModel;
+  if (!model) return;
+  
+  gltfLoader.load(fullUrl, (gltf) => {
+    if (!gltf.animations?.length) {
+      console.warn('[preloadAnim]', key, '无动画');
+      return;
+    }
+    
+    const clips = gltf.animations;
+    const sourceModel = gltf.scene;
+    
+    // 选择最佳clip
+    const scoreClip = (clip) => {
+      let score = 0;
+      clip.tracks.forEach(t => {
+        const nodeName = _extractTrackNodeName(t.name);
+        if (!nodeName) return;
+        const targetBone = _findTargetBone(t.name, _buildBoneNameMap(model).boneMap, _buildBoneNameMap(model).simpleMap, model);
+        if (targetBone) score++;
+      });
+      const n = (clip.name || '').toLowerCase();
+      if (n && n.includes(String(key).toLowerCase())) score += 5;
+      return score;
+    };
+    
+    let best = clips[0];
+    let bestScore = scoreClip(best);
+    for (let i = 1; i < clips.length; i++) {
+      const s = scoreClip(clips[i]);
+      if (s > bestScore) { best = clips[i]; bestScore = s; }
+    }
+    
+    let clip = best.clone();
+
+    // 检查是否有配置骨骼映射（全局或动画特定）
+    const hasGlobalMapping = Object.keys(boneMappings.global).length > 0;
+    const hasAnimMapping = boneMappings.perAnim[key] && Object.keys(boneMappings.perAnim[key]).length > 0;
+
+    if (hasGlobalMapping || hasAnimMapping) {
+      console.log(`[preloadAnim] ${key} 使用人工骨骼映射`);
+      clip = retargetAnimationWithMapping(clip, key);
+    } else {
+      // 使用自动重定向
+      clip = retargetAnimation(clip, sourceModel, model);
+    }
+    
+    clip = stripRootMotion(clip, model);
+    
+    if (animMixers[key]) { animMixers[key].stopAllAction(); }
+    const mixer = new THREE.AnimationMixer(model);
+    const isLoop = (key === 'idle' || key === 'walk' || key === 'run');
+    const action = mixer.clipAction(clip);
+    action.loop = isLoop ? THREE.LoopRepeat : THREE.LoopOnce;
+    if (!isLoop) action.clampWhenFinished = true;
+    animMixers[key] = mixer;
+    animActions[key] = action;
+    
+    console.log(`[preloadAnim] ${key} 已加载: ${clip.name}`);
+    updateAnimStatusGrid();
+    if (currentAnimMode === key) { switchAnim(key); }
+  }, null, (err) => { console.warn('[preloadAnim]', key, '加载失败', err); });
+};
+
+// 在初始化时加载骨骼映射
+const originalInit = init;
+init = function() {
+  loadBoneMappings();
+  return originalInit.apply(this, arguments);
+};
+
+// 在加载GLB后更新骨骼映射状态
+const originalLoadGLB = loadGLB;
+loadGLB = function(url) {
+  const result = originalLoadGLB.apply(this, arguments);
+  // GLB加载完成后更新骨骼映射UI
+  setTimeout(() => {
+    updateBoneMappingStatus();
+  }, 1000);
+  return result;
+};
+
+init();
+</script>
+</body>
+</html>

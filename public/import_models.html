@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<!--
+  济宁米多信息科技有限公司 版权所有
+  如需获取软件授权请联系：888@miduo100.com / 15660440944
+-->
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>创世虚拟世界CRM系统 - 模型导入</title>
+  <style>
+    body { font-family: Arial; padding: 20px; background: #1a1a2e; color: white; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { color: #00ff00; }
+    button { padding: 15px 30px; background: #00ff00; color: #000; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin: 10px 5px; }
+    button:hover { background: #00cc00; }
+    #log { background: #000; padding: 15px; border-radius: 5px; height: 400px; overflow-y: auto; font-family: monospace; margin-top: 20px; }
+    .success { color: #00ff00; }
+    .error { color: #ff0000; }
+    .info { color: #00ffff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📦 导入基础几何体模型</h1>
+    <p>点击按钮将18个基础模型导入到数据库</p>
+    
+    <button onclick="importModels()">🚀 开始导入</button>
+    <button onclick="document.getElementById('log').innerHTML = ''">🗑️ 清空日志</button>
+    
+    <div id="log"></div>
+  </div>
+
+  <script>
+    function log(message, type = 'info') {
+      const logEl = document.getElementById('log');
+      const line = document.createElement('div');
+      line.className = type;
+      line.textContent = message;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    async function importModels() {
+      log('============================================');
+      log('导入基础几何体模型到数据库');
+      log('============================================');
+      log('');
+
+      const baseModels = [
+        // 树木类
+        { name: '🌲 松树', type: 'tree', tags: ['自然', '植物', '树木'], data: { trunkRadius: 0.3, trunkHeight: 3, crownRadius: 2, crownHeight: 4, color: '#228B22' } },
+        { name: '🌳 橡树', type: 'tree', tags: ['自然', '植物', '树木'], data: { trunkRadius: 0.4, trunkHeight: 2.5, crownRadius: 3, crownHeight: 5, color: '#2F4F2F' } },
+        { name: '🌴 棕榈树', type: 'tree', tags: ['自然', '植物', '树木', '热带'], data: { trunkRadius: 0.25, trunkHeight: 5, crownRadius: 2.5, crownHeight: 2, color: '#228B22' } },
+        
+        // 山脉类
+        { name: '⛰️ 小山丘', type: 'mountain', tags: ['自然', '地形', '山脉'], data: { baseRadius: 5, height: 6, segments: 16, color: '#8B7355' } },
+        { name: '🏔️ 高山', type: 'mountain', tags: ['自然', '地形', '山脉'], data: { baseRadius: 8, height: 12, segments: 20, color: '#A0826D' } },
+        { name: '🗻 雪山', type: 'mountain', tags: ['自然', '地形', '山脉', '雪景'], data: { baseRadius: 10, height: 15, segments: 24, color: '#E0E0E0' } },
+        
+        // 石头类
+        { name: '🪨 小石头', type: 'rock', tags: ['自然', '地形', '石头'], data: { width: 1, height: 0.8, depth: 1.2, color: '#696969' } },
+        { name: '🪨 巨石', type: 'rock', tags: ['自然', '地形', '石头'], data: { width: 3, height: 2.5, depth: 3.5, color: '#808080' } },
+        
+        // 灌木类
+        { name: '🌿 灌木丛', type: 'bush', tags: ['自然', '植物', '灌木'], data: { radius: 1.5, height: 1.2, color: '#32CD32' } },
+        { name: '🍃 小灌木', type: 'bush', tags: ['自然', '植物', '灌木'], data: { radius: 0.8, height: 0.6, color: '#90EE90' } },
+        
+        // 围栏类
+        { name: '🚧 木质围栏', type: 'fence', tags: ['建筑', '围栏', '装饰'], data: { length: 5, height: 1.5, posts: 6, color: '#8B4513' } },
+        { name: '⛓️ 铁链围栏', type: 'fence', tags: ['建筑', '围栏', '装饰'], data: { length: 5, height: 1.8, posts: 6, color: '#696969' } },
+        
+        // 道路类
+        { name: '🛤️ 石板路', type: 'path', tags: ['建筑', '道路', '装饰'], data: { length: 10, width: 2, thickness: 0.1, color: '#A9A9A9' } },
+        { name: '🛣️ 宽阔道路', type: 'path', tags: ['建筑', '道路', '装饰'], data: { length: 15, width: 4, thickness: 0.2, color: '#696969' } },
+        
+        // 水体类
+        { name: '💧 小池塘', type: 'water', tags: ['自然', '水体', '装饰'], data: { radius: 3, depth: 0.1, color: '#1E90FF' } },
+        { name: '🌊 湖泊', type: 'water', tags: ['自然', '水体', '装饰'], data: { radius: 8, depth: 0.2, color: '#4682B4' } },
+        
+        // 花朵类
+        { name: '🌸 粉色花朵', type: 'flower', tags: ['自然', '植物', '花朵', '装饰'], data: { petalRadius: 0.3, stemHeight: 0.5, color: '#FFB6C1' } },
+        { name: '🌻 向日葵', type: 'flower', tags: ['自然', '植物', '花朵', '装饰'], data: { petalRadius: 0.4, stemHeight: 1, color: '#FFD700' } }
+      ];
+
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const model of baseModels) {
+        try {
+          const response = await fetch('/api/geometry-building/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: model.name,
+              geometry_type: model.type,
+              geometry_data: model.data,
+              tags: model.tags
+            })
+          });
+
+          const result = await response.json();
+          if (result.success || response.ok) {
+            log(`✅ ${model.name}`, 'success');
+            successCount++;
+          } else {
+            log(`❌ ${model.name}: ${result.error || 'Unknown error'}`, 'error');
+            failCount++;
+          }
+        } catch (error) {
+          log(`❌ ${model.name}: ${error.message}`, 'error');
+          failCount++;
+        }
+        
+        // 添加小延迟避免请求过快
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      log('');
+      log('============================================');
+      log(`✅ 成功: ${successCount} 个`, 'success');
+      log(`❌ 失败: ${failCount} 个`, failCount > 0 ? 'error' : 'success');
+      log('============================================');
+      log('');
+      log('💡 下一步：', 'info');
+      log('  1. 打开编辑器: unified_editor.html', 'info');
+      log('  2. 点击"现有模型管理库"', 'info');
+      log('  3. 点击"刷新模型库"', 'info');
+      log('  4. 查看所有新模型！', 'info');
+    }
+  </script>
+</body>
+</html>

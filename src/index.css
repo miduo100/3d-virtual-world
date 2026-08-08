@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* 基础色板 - 现代蓝紫色主题 */
+    --background: 222 47% 98%;
+    --foreground: 222 47% 11%;
+    
+    /* 主色调 - 优雅的蓝紫色渐变 */
+    --primary: 250 84% 54%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 250 84% 64%;
+    
+    /* 辅助色 */
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    
+    --accent: 270 67% 56%;
+    --accent-foreground: 0 0% 100%;
+    
+    /* 功能色 */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    
+    /* 卡片和边框 */
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 250 84% 54%;
+    
+    /* 圆角 */
+    --radius: 0.75rem;
+    
+    /* 漂亮的渐变 */
+    --gradient-primary: linear-gradient(135deg, hsl(250 84% 54%), hsl(270 67% 56%));
+    --gradient-subtle: linear-gradient(180deg, hsl(222 47% 98%), hsl(210 40% 96%));
+    --gradient-hero: linear-gradient(135deg, hsl(250 84% 54%), hsl(270 67% 56%), hsl(222 47% 54%));
+    
+    /* 优雅的阴影 */
+    --shadow-elegant: 0 10px 40px -10px hsl(250 84% 54% / 0.3);
+    --shadow-glow: 0 0 40px hsl(250 84% 64% / 0.4);
+    
+    /* 动画 */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    
+    --primary: 250 84% 64%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 250 84% 74%;
+    
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --accent: 270 67% 66%;
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 63% 50%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 250 84% 64%;
+    
+    --gradient-primary: linear-gradient(135deg, hsl(250 84% 64%), hsl(270 67% 66%));
+    --gradient-subtle: linear-gradient(180deg, hsl(222 47% 11%), hsl(217 33% 17%));
+    --gradient-hero: linear-gradient(135deg, hsl(250 84% 64%), hsl(270 67% 66%), hsl(222 47% 44%));
+    
+    --shadow-elegant: 0 10px 40px -10px hsl(250 84% 64% / 0.4);
+    --shadow-glow: 0 0 40px hsl(250 84% 74% / 0.5);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.5);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary));
+}
+
+/* 玻璃态效果 */
+.glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dark .glass {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* 渐变文字 */
+.gradient-text {
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

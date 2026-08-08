@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<!--
+  济宁米多信息科技有限公司 版权所有
+  如需获取软件授权请联系：888@miduo100.com / 15660440944
+-->
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创世虚拟世界CRM系统 - 问题反馈</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        h2 {
+            color: #555;
+            margin-top: 0;
+        }
+        .form-group {
+            margin: 10px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .status-box {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .debug-info {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>角色模型显示问题反馈</h1>
+        
+        <div class="section">
+            <h2>问题描述</h2>
+            <div class="form-group">
+                <label for="issue-type">问题类型</label>
+                <select id="issue-type">
+                    <option value="model-not-display">模型不显示</option>
+                    <option value="model-partial-display">模型部分显示</option>
+                    <option value="model-distorted">模型变形</option>
+                    <option value="other">其他问题</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="issue-description">详细描述</label>
+                <textarea id="issue-description" placeholder="请详细描述问题，包括何时发生、如何复现等"></textarea>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>模型信息</h2>
+            <div class="form-group">
+                <label for="model-type">模型类型</label>
+                <select id="model-type">
+                    <option value="glb">GLB模型</option>
+                    <option value="default">默认几何体棍人</option>
+                    <option value="other">其他模型</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="model-path">模型路径/URL</label>
+                <input type="text" id="model-path" placeholder="例如: /models/character.glb">
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>视角信息</h2>
+            <div class="checkbox-group">
+                <div class="checkbox-item">
+                    <input type="checkbox" id="first-person" name="view-type">
+                    <label for="first-person">第一视角</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="third-person" name="view-type">
+                    <label for="third-person">第三视角</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="other-person" name="view-type">
+                    <label for="other-person">他人视角</label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>浏览器信息</h2>
+            <div class="debug-info" id="browser-info">
+                加载中...
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>控制台日志</h2>
+            <div class="form-group">
+                <label for="console-logs">控制台错误信息（如果有）</label>
+                <textarea id="console-logs" placeholder="请复制粘贴浏览器控制台中的错误信息"></textarea>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>网络请求</h2>
+            <div class="form-group">
+                <label for="network-requests">网络请求信息（如果有）</label>
+                <textarea id="network-requests" placeholder="请复制粘贴网络请求中的相关信息"></textarea>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>截图</h2>
+            <div class="form-group">
+                <label for="screenshot">问题截图（可选）</label>
+                <input type="file" id="screenshot" accept="image/*">
+            </div>
+        </div>
+        
+        <div class="section">
+            <button id="submit-btn">提交反馈</button>
+            <div id="status-message" class="status-box" style="display: none;"></div>
+        </div>
+    </div>
+    
+    <script>
+        // 填充浏览器信息
+        function fillBrowserInfo() {
+            const browserInfo = {
+                userAgent: navigator.userAgent,
+                platform: navigator.platform,
+                language: navigator.language,
+                deviceMemory: navigator.deviceMemory || 'N/A',
+                hardwareConcurrency: navigator.hardwareConcurrency || 'N/A',
+                screen: {
+                    width: screen.width,
+                    height: screen.height,
+                    pixelRatio: window.devicePixelRatio
+                },
+                threeJsVersion: window.THREE ? THREE.REVISION : 'N/A'
+            };
+            document.getElementById('browser-info').textContent = JSON.stringify(browserInfo, null, 2);
+        }
+        
+        // 提交反馈
+        function submitFeedback() {
+            const issueType = document.getElementById('issue-type').value;
+            const issueDescription = document.getElementById('issue-description').value;
+            const modelType = document.getElementById('model-type').value;
+            const modelPath = document.getElementById('model-path').value;
+            const viewTypes = [];
+            if (document.getElementById('first-person').checked) viewTypes.push('first-person');
+            if (document.getElementById('third-person').checked) viewTypes.push('third-person');
+            if (document.getElementById('other-person').checked) viewTypes.push('other-person');
+            const consoleLogs = document.getElementById('console-logs').value;
+            const networkRequests = document.getElementById('network-requests').value;
+            
+            const feedbackData = {
+                issueType,
+                issueDescription,
+                modelType,
+                modelPath,
+                viewTypes,
+                consoleLogs,
+                networkRequests,
+                browserInfo: JSON.parse(document.getElementById('browser-info').textContent),
+                timestamp: new Date().toISOString()
+            };
+            
+            // 显示提交状态
+            const statusMessage = document.getElementById('status-message');
+            statusMessage.textContent = '反馈提交中...';
+            statusMessage.className = 'status-box success';
+            statusMessage.style.display = 'block';
+            
+            // 模拟提交过程
+            setTimeout(() => {
+                // 保存到本地存储（实际项目中可以发送到服务器）
+                const feedbacks = JSON.parse(localStorage.getItem('modelFeedback') || '[]');
+                feedbacks.push(feedbackData);
+                localStorage.setItem('modelFeedback', JSON.stringify(feedbacks));
+                
+                statusMessage.textContent = '反馈提交成功！我们会尽快分析并解决问题。';
+                
+                // 清空表单
+                document.getElementById('issue-description').value = '';
+                document.getElementById('model-path').value = '';
+                document.getElementById('first-person').checked = false;
+                document.getElementById('third-person').checked = false;
+                document.getElementById('other-person').checked = false;
+                document.getElementById('console-logs').value = '';
+                document.getElementById('network-requests').value = '';
+                document.getElementById('screenshot').value = '';
+            }, 1000);
+        }
+        
+        // 页面加载完成后执行
+        window.onload = function() {
+            fillBrowserInfo();
+            document.getElementById('submit-btn').addEventListener('click', submitFeedback);
+        };
+        
+        // 收集控制台日志
+        (function() {
+            const originalConsoleError = console.error;
+            const logs = [];
+            
+            console.error = function(...args) {
+                logs.push({ type: 'error', message: args.join(' '), timestamp: new Date().toISOString() });
+                originalConsoleError.apply(console, args);
+            };
+            
+            // 提供获取日志的方法
+            window.getConsoleLogs = function() {
+                return logs;
+            };
+        })();
+    </script>
+</body>
+</html>

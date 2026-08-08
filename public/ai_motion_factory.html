@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<!--
+  济宁米多信息科技有限公司 版权所有
+  如需获取软件授权请联系：888@miduo100.com / 15660440944
+-->
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI动作工厂 - 创世虚拟世界CRM系统</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --primary: #00ff00;
+            --primary-dim: #00aa00;
+            --bg-dark: rgba(8, 8, 24, 0.95);
+            --bg-panel: rgba(12, 12, 32, 0.98);
+            --text-main: #e0e0e0;
+            --text-dim: #888;
+            --border: rgba(0, 255, 0, 0.2);
+            --danger: #ff4444;
+            --warning: #ffaa00;
+            --success: #00cc66;
+        }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg-dark); color: var(--text-main); min-height: 100vh; overflow: hidden; }
+        .app-container { display: flex; height: 100vh; }
+        .left-panel { width: 300px; background: var(--bg-panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+        .panel-header { padding: 15px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .panel-header h2 { font-size: 14px; color: var(--primary); }
+        .panel-body { flex: 1; overflow-y: auto; padding: 10px; }
+        .char-card { background: rgba(0,30,0,0.5); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s; }
+        .char-card:hover { border-color: rgba(0,255,0,0.3); background: rgba(0,50,0,0.2); }
+        .char-card.selected { border-color: var(--primary); background: rgba(0,80,0,0.3); }
+        .char-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+        .char-icon { font-size: 28px; }
+        .char-info { flex: 1; }
+        .char-name { font-weight: bold; margin-bottom: 4px; }
+        .char-files { font-size: 11px; color: var(--text-dim); }
+        .char-files .has { color: var(--success); }
+        .char-files .missing { color: var(--danger); }
+        .char-progress { height: 4px; background: rgba(0,255,0,0.1); border-radius: 2px; overflow: hidden; }
+        .char-progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary-dim), var(--primary)); transition: width 0.3s; }
+        .main-content { flex: 1; display: flex; flex-direction: column; }
+        .preview-section { height: 320px; min-height: 250px; position: relative; background: linear-gradient(135deg, #0a0a1a 0%, #1a1a2a 100%); }
+        #player-container { width: 100%; height: 100%; }
+        .preview-overlay { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); padding: 8px 12px; border-radius: 6px; font-size: 12px; }
+        .preview-overlay .name { color: var(--primary); font-weight: bold; }
+        .preview-overlay .motions { color: var(--text-dim); margin-top: 4px; }
+        .config-section { flex: 1; min-height: 450px; background: var(--bg-panel); border-top: 1px solid var(--border); display: flex; flex-direction: column; }
+        .config-tabs { display: flex; border-bottom: 1px solid var(--border); }
+        .panel-tab { padding: 10px 20px; cursor: pointer; color: var(--text-dim); border-bottom: 2px solid transparent; transition: all 0.2s; }
+        .panel-tab:hover { color: var(--text-main); }
+        .panel-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .config-body { flex: 1; overflow-y: auto; padding: 15px; }
+        .motion-category { margin-bottom: 15px; background: rgba(0,20,0,0.3); border-radius: 8px; overflow: hidden; }
+        .cat-header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: rgba(0,40,0,0.4); border-bottom: 1px solid var(--border); }
+        .cat-icon { font-size: 18px; }
+        .cat-title { font-weight: bold; font-size: 13px; }
+        .cat-count { font-size: 11px; color: var(--text-dim); }
+        .cat-actions { margin-left: auto; display: flex; gap: 5px; }
+        .cat-actions button { font-size: 10px; padding: 3px 8px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); border-radius: 4px; cursor: pointer; }
+        .cat-actions button:hover { background: rgba(0,255,0,0.1); color: var(--primary); }
+        .cat-body { padding: 10px; }
+        .motion-item { background: rgba(0,0,0,0.3); border: 1px solid transparent; border-radius: 6px; margin-bottom: 8px; transition: all 0.2s; }
+        .motion-item.done { border-color: rgba(0,200,100,0.3); background: rgba(0,50,30,0.3); }
+        .motion-item.error { border-color: rgba(255,68,68,0.3); background: rgba(50,0,0,0.3); }
+        .motion-item.modified { border-color: rgba(255,170,0,0.2); }
+        .motion-item.disabled { opacity: 0.5; }
+        .moti-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
+        .moti-left { display: flex; align-items: center; gap: 8px; min-width: 140px; }
+        .moti-emoji { font-size: 20px; }
+        .moti-name { font-weight: 500; font-size: 13px; }
+        .moti-badge { font-size: 10px; padding: 2px 6px; border-radius: 3px; margin-left: 5px; }
+        .moti-badge.done { background: rgba(0,200,100,0.2); color: #00cc66; }
+        .moti-badge.error { background: rgba(255,68,68,0.2); color: #ff4444; }
+        .moti-badge.modified { background: rgba(255,170,0,0.2); color: #ffaa00; }
+        .moti-prompt { flex: 1; font-size: 11px; color: var(--text-dim); cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: all 0.2s; }
+        .moti-prompt:hover { background: rgba(0,255,0,0.05); color: var(--text-main); }
+        .moti-prompt.user-edited { color: var(--warning); }
+        .moti-right { display: flex; align-items: center; gap: 8px; }
+        .moti-toggle { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-dim); cursor: pointer; }
+        .moti-toggle input { accent-color: var(--primary); }
+        .moti-expand { font-size: 10px; padding: 3px 8px; border-radius: 4px; background: transparent; color: var(--text-dim); cursor: pointer; border: 1px solid var(--border); transition: all 0.2s; }
+        .moti-expand:hover { background: rgba(0,255,0,0.1); color: var(--primary); }
+        .moti-expand.active { background: rgba(0,255,0,0.15); color: var(--primary); border-color: rgba(0,255,0,0.3); }
+        .moti-preview { font-size: 10px; padding: 3px 8px; border-radius: 4px; background: rgba(0,100,255,0.15); color: #00aaff; cursor: pointer; border: 1px solid rgba(0,100,255,0.3); transition: all 0.2s; }
+        .moti-preview:hover { background: rgba(0,100,255,0.3); color: #00ccff; }
+        .moti-preview.has-anim { background: rgba(0,200,100,0.15); color: #00cc66; border-color: rgba(0,200,100,0.3); }
+        .moti-preview.has-anim:hover { background: rgba(0,200,100,0.3); }
+        .motion-detail { display: none; padding: 10px 12px; border-top: 1px solid var(--border); background: rgba(0,0,0,0.2); }
+        .motion-item.expanded .motion-detail { display: block; }
+        .detail-row { margin-bottom: 10px; }
+        .detail-label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+        .detail-input, .detail-textarea, .detail-select { width: 100%; padding: 8px 10px; background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: 4px; color: var(--text-main); font-size: 12px; }
+        .detail-input:focus, .detail-textarea:focus { outline: none; border-color: var(--primary); }
+        .detail-textarea { resize: vertical; min-height: 60px; font-family: inherit; }
+        .detail-slider { width: 100%; accent-color: var(--primary); }
+        .detail-slider-val { color: var(--primary); margin-left: 10px; font-size: 11px; }
+        .detail-templates { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+        .tmpl-btn { font-size: 10px; padding: 4px 10px; border-radius: 12px; background: rgba(0,255,0,0.1); color: var(--text-dim); border: 1px solid transparent; cursor: pointer; transition: all 0.2s; }
+        .tmpl-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .tmpl-btn.active { background: rgba(0,255,0,0.2); color: var(--primary); border-color: var(--primary); }
+        .empty-state { text-align: center; padding: 40px 20px; color: var(--text-dim); }
+        .empty-state .icon { font-size: 48px; margin-bottom: 15px; opacity: 0.5; }
+        .empty-state .text { font-size: 14px; margin-bottom: 15px; }
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 10px 20px; background: rgba(0,0,0,0.9); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 13px; z-index: 1000; opacity: 0; transition: opacity 0.3s; }
+        .toast.show { opacity: 1; }
+        .toast.error { border-color: var(--danger); color: var(--danger); }
+        .toast.success { border-color: var(--success); color: var(--success); }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; transition: all 0.2s; border: none; }
+        .btn-primary { background: linear-gradient(135deg, var(--primary-dim), var(--primary)); color: #000; font-weight: bold; }
+        .btn-primary:hover { filter: brightness(1.2); }
+        .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text-dim); }
+        .btn-secondary:hover { border-color: var(--primary); color: var(--primary); }
+        .config-footer { display: none; padding: 12px 15px; border-top: 1px solid var(--border); background: rgba(0,20,0,0.4); justify-content: space-between; align-items: center; }
+        .stats-info { display: flex; gap: 20px; font-size: 12px; }
+        .stats-info span { color: var(--text-dim); }
+        .stats-info .val { color: var(--primary); font-weight: bold; }
+        .footer-actions { display: flex; gap: 10px; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="left-panel">
+            <div class="panel-header">
+                <h2>🎭 角色模板库</h2>
+                <button class="btn btn-secondary" onclick="showCreateChar()">➕ 新建</button>
+            </div>
+            <div class="panel-body" id="char-list"></div>
+        </div>
+        <div class="main-content">
+            <div class="preview-section">
+                <div id="player-container"><canvas id="preview-canvas" style="width:100%;height:100%;"></canvas></div>
+                <div class="preview-overlay">
+                    <div class="name" id="preview-char-name">未选择角色</div>
+                    <div class="motions" id="preview-char-motions">0/0 动作已完成</div>
+                </div>
+            </div>
+            <div class="config-section">
+                <div class="config-tabs">
+                    <div class="panel-tab active" data-tab="motions">🎬 动作配置</div>
+                    <div class="panel-tab" data-tab="settings">⚙️ 设置</div>
+                </div>
+                <div class="config-body" id="config-body">
+                    <div class="empty-state" id="empty-state">
+                        <div class="icon">🎭</div>
+                        <div class="text">请先选择一个角色或上传模型</div>
+                        <button class="btn btn-secondary" onclick="showCreateChar()">➕ 新建角色</button>
+                    </div>
+                    <div id="motion-categories" style="display:none;"></div>
+                <div id="settings-panel" style="display:none;padding:15px;">
+                    <div class="detail-row">
+                        <div class="detail-label">默认FPS</div>
+                        <input type="number" class="detail-input" id="default-fps" value="30" min="15" max="60">
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">T-Pose文件路径</div>
+                        <input type="text" class="detail-input" id="default-tpose" placeholder="/uploads/tpose.glb">
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">生成间隔(秒)</div>
+                        <input type="number" class="detail-input" id="gen-interval" value="5" min="1" max="30">
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">腾讯云 SecretId</div>
+                        <input type="text" class="detail-input" id="tencent-secret-id" placeholder="AKID...">
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">腾讯云 SecretKey</div>
+                        <input type="password" class="detail-input" id="tencent-secret-key" placeholder="...">
+                    </div>
+                    <button class="btn btn-primary" onclick="saveSettings()">💾 保存设置</button>
+                </div>
+
+                </div>
+                <div class="config-footer" id="config-footer">
+                    <div class="stats-info" id="stats-info">
+                        <span>总计: <span class="val" id="stat-total">0</span></span>
+                        <span>已生成: <span class="val" id="stat-done">0</span></span>
+                        <span>待生成: <span class="val" id="stat-pending">0</span></span>
+                    </div>
+                    <div class="footer-actions">
+                        <button class="btn btn-secondary" onclick="resetAllConfigs()">🔄 重置</button>
+                        <button class="btn btn-primary" onclick="generateAllMotions()">🚀 批量生成</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="toast" id="toast"></div>
+
+    <!-- 新建角色模板弹窗 -->
+    <div id="create-char-modal" class="modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:1000;align-items:center;justify-content:center;">
+        <div class="modal-content" style="background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;padding:20px;width:500px;max-width:90%;max-height:90vh;overflow-y:auto;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+                <h3 style="color:var(--primary);margin:0;">🎭 新建角色模板</h3>
+                <button onclick="closeCreateChar()" style="background:none;border:none;color:#888;cursor:pointer;font-size:20px;">✕</button>
+            </div>
+            <div class="form-group" style="margin-bottom:15px;">
+                <label style="display:block;margin-bottom:5px;color:var(--text-dim);font-size:12px;">模板名称</label>
+                <input type="text" id="create-char-name" placeholder="输入模板名称" style="width:100%;padding:10px;background:rgba(0,0,0,0.4);border:1px solid var(--border);border-radius:6px;color:var(--text-main);">
+            </div>
+            <!-- 平台选择器容器 -->
+            <div id="platform-selector-container" style="margin-bottom:15px;"></div>
+            <div class="form-group" style="margin-bottom:15px;">
+                <label style="display:block;margin-bottom:5px;color:var(--text-dim);font-size:12px;">GLB 模型文件</label>
+                <div id="create-glb-zone" onclick="document.getElementById('create-glb-input').click()" style="border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:all 0.2s;">
+                    <div id="create-glb-icon" style="font-size:24px;margin-bottom:8px;">📁</div>
+                    <div id="create-glb-text" style="color:var(--text-dim);font-size:12px;">拖拽或点击上传 GLB 模型</div>
+                    <input type="file" id="create-glb-input" accept=".glb,.gltf" onchange="handleCreateGlbUpload(this)" style="display:none;">
+                </div>
+                <div id="create-glb-file" style="display:none;margin-top:10px;padding:10px;background:rgba(0,255,0,0.1);border-radius:6px;font-size:12px;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <span>✅</span>
+                        <div style="flex:1;">
+                            <div id="create-glb-name" style="color:var(--primary);"></div>
+                            <div id="create-glb-size" style="color:var(--text-dim);font-size:11px;"></div>
+                        </div>
+                        <button onclick="removeCreateGlb()" style="background:none;border:none;color:#ff4444;cursor:pointer;">✕</button>
+                    </div>
+                </div>
+            </div>
+            <button id="btn-create-char" onclick="createCharacter()" class="btn btn-primary" style="width:100%;margin-top:10px;">✅ 创建模板</button>
+        </div>
+    </div>
+
+    <!-- 平台适配器脚本 -->
+    <script src="js/bone-platforms-config.js"></script>
+    <script>
+      // 调试：确认配置是否加载成功
+      console.log('[ai_motion_factory] SUPPORTED_PLATFORMS 加载后:', window.SUPPORTED_PLATFORMS);
+    </script>
+    <script src="js/bone-platforms-adapter.js"></script>
+    <script src="js/platform-ui.js"></script>
+    <script src="js/glb-texture-fixer.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.137.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.137.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.137.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="js/ai-factory-presets.js"></script>
+    <script src="js/ai-factory-player.js"></script>
+    <script src="js/ai-factory.js"></script>
+</body>
+</html>

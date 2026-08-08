@@ -1,0 +1,112 @@
+﻿Virtual World Federation System - Subscription License
+======================================================
+
+Copyright (c) 2026 济宁米多信息科技有限公司 (Jining Miduo Information Technology Co., Ltd.)
+All Rights Reserved.
+
+---------------------------------------------------------------------------
+1. FREE USE (Local Personal Use Only)
+---------------------------------------------------------------------------
+
+You may use this Software free of charge if ALL of the following conditions
+are met:
+
+  (a) You use the Software solely for personal purposes on your local machine.
+  (b) You do NOT expose the Software to others via any IP address or domain name.
+  (c) You do NOT establish federation connections with any other world.
+  (d) You do NOT engage in secondary development for external sale.
+
+If any of the above conditions is NOT met, you MUST obtain a Subscription
+License as described in Section 2 below.
+
+---------------------------------------------------------------------------
+2. SUBSCRIPTION LICENSE (Required for Networked / Federation / Commercial Use)
+---------------------------------------------------------------------------
+
+A Subscription License is REQUIRED if you do ANY of the following:
+
+  (a) Make the Software accessible to others via an IP address or domain name.
+  (b) Establish federation connections with other worlds.
+  (c) Engage in secondary development and sell the modified Software to others.
+
+By doing so, you acknowledge that the Software is delivering networked value,
+and you agree to subscribe to support continued development.
+
+2.1 First-Time Subscription
+  - Fee: CNY ¥60 (or USD $9.18)
+  - Includes: 2 months free after first payment, then ¥3 per month thereafter
+
+2.2 Monthly Renewal (per world)
+  - Fee: CNY ¥3 per month
+  - Equivalent: CNY ¥36 per year | ¥360 per 10 years | ¥3,600 per 100 years
+
+2.3 Lapse and Re-subscription
+
+  Lapse Duration         | Re-subscription Fee
+  -----------------------|------------------------------------
+  Up to 12 months        | CNY ¥3 per lapsed month (linear)
+  More than 12 months    | CNY ¥60 (flat, regardless of how
+    (no matter how long) |   long the lapse lasted)
+
+  Example: If your subscription lapsed for 3 months, you pay ¥9 to
+  re-subscribe. If it lapsed for 15 months or 5 years, you pay ¥60.
+
+2.4 Version Download Rights
+
+  - During an active subscription: You may download and install the latest
+    version of the Software at any time.
+  - After your subscription lapses: You may NOT download any new versions.
+    The version you have already installed may continue to run.
+  - To regain download access to new versions, you must re-subscribe
+    according to Section 2.3.
+
+2.5 Secondary Development for Sale
+
+  If you modify the Software and sell it to others, you MUST:
+  (a) Maintain an active Subscription License (same fee structure as above).
+  (b) Contact the Licensor to obtain written authorization.
+  (c) Provide appropriate attribution / feedback to the original author.
+
+---------------------------------------------------------------------------
+3. SUBSCRIPTION FEE SUMMARY
+---------------------------------------------------------------------------
+
+  | Item                          | CNY      | USD      |
+  |-------------------------------|----------|----------|
+  | First-time subscription       | ¥60      | $9.18    |
+  |   (2 months free, then ¥3/mo) |          |          |
+  | Monthly renewal (per world)   | ¥3/month | —        |
+  | Annual renewal (per world)    | ¥36/year | —        |
+  | 10-year renewal               | ¥360     | —        |
+  | 100-year renewal              | ¥3,600   | —        |
+  | Re-subscribe (lapse ≤12 mo)   | ¥3/month | —        |
+  | Re-subscribe (lapse >12 mo)   | ¥60      | $9.18    |
+
+  Note: The subscription model is designed to support long-term, sustained
+  development of this system. We rely on your ongoing support.
+
+---------------------------------------------------------------------------
+4. IMPORTANT NOTICES
+---------------------------------------------------------------------------
+
+1. The Virtual World Federation Protocol (VWFP v2.1) and its underlying
+   algorithms are proprietary technology. Unauthorized commercial use is
+   prohibited.
+
+2. The VWFP v2.1 protocol specification, all API endpoint structures,
+   field naming conventions, error code definitions, and database schemas
+   are proprietary intellectual property of 济宁米多信息科技有限公司.
+
+3. Using this software implies acceptance of the End User License Agreement
+   (see EULA.md in this repository).
+
+4. All trademark rights reserved.
+
+---------------------------------------------------------------------------
+5. CONTACT
+---------------------------------------------------------------------------
+
+  济宁米多信息科技有限公司
+  Unified Social Credit Code: 913708003104166341
+  Email: 888@miduo100.com
+  Website: https://miduo100.com

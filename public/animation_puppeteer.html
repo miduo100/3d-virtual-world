@@ -1,0 +1,2131 @@
+<!DOCTYPE html>
+<!--
+  济宁米多信息科技有限公司 版权所有
+  如需获取软件授权请联系：888@miduo100.com / 15660440944
+-->
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创世虚拟世界CRM系统 - 动画编辑器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #0a0a1e 0%, #1a1a3e 100%);
+            color: #00ff00;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* 顶部工具栏 */
+        .toolbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.9);
+            border-bottom: 2px solid #00ff00;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 15px;
+            z-index: 1000;
+            box-shadow: 0 2px 20px rgba(0, 255, 0, 0.3);
+        }
+
+        .toolbar h1 {
+            font-size: 20px;
+            margin-right: auto;
+            text-shadow: 0 0 10px #00ff00;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: 2px solid #00ff00;
+            background: rgba(0, 255, 0, 0.1);
+            color: #00ff00;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn:hover {
+            background: rgba(0, 255, 0, 0.3);
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn.active {
+            background: #00ff00;
+            color: #000;
+            font-weight: bold;
+        }
+
+        .btn-danger {
+            border-color: #ff0000;
+            color: #ff0000;
+            background: rgba(255, 0, 0, 0.1);
+        }
+
+        .btn-danger:hover {
+            background: rgba(255, 0, 0, 0.3);
+        }
+
+        /* 主要区域 */
+        #canvas-container {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 350px;
+            bottom: 150px;
+            background: #0a0a1e;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 右侧面板 */
+        .side-panel {
+            position: fixed;
+            top: 60px;
+            right: 0;
+            width: 350px;
+            bottom: 150px;
+            background: rgba(0, 0, 0, 0.9);
+            border-left: 2px solid #00ff00;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .panel-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(0, 255, 0, 0.05);
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            border-radius: 8px;
+        }
+
+        .panel-section h3 {
+            margin-bottom: 15px;
+            color: #00ff00;
+            text-shadow: 0 0 5px #00ff00;
+        }
+
+        .keyframe-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid #00ff00;
+            border-radius: 5px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s;
+        }
+
+        .keyframe-item:hover {
+            background: rgba(0, 255, 0, 0.2);
+            transform: translateX(5px);
+        }
+
+        .keyframe-item.active {
+            background: #00ff00;
+            color: #000;
+            font-weight: bold;
+        }
+
+        .keyframe-delete {
+            padding: 2px 8px;
+            background: rgba(255, 0, 0, 0.3);
+            border: 1px solid #ff0000;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .keyframe-delete:hover {
+            background: rgba(255, 0, 0, 0.5);
+        }
+
+        /* 时间轴 */
+        .timeline {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.95);
+            border-top: 2px solid #00ff00;
+            padding: 15px;
+        }
+
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .timeline-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .timeline-canvas {
+            width: 100%;
+            height: 80px;
+            background: rgba(0, 255, 0, 0.05);
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        /* 信息面板 */
+        .info-overlay {
+            position: fixed;
+            top: 80px;
+            left: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00ff00;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.6;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            margin: 5px 0;
+        }
+
+        .info-label {
+            color: #00ffaa;
+        }
+
+        .info-value {
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        /* 拖动指示器 */
+        .drag-indicator {
+            position: fixed;
+            pointer-events: none;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #ffff00;
+            border-radius: 50%;
+            background: rgba(255, 255, 0, 0.3);
+            display: none;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 20px rgba(255, 255, 0, 0.5);
+            z-index: 9999;
+        }
+
+        /* 通知 */
+        .notification {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            padding: 15px 20px;
+            background: rgba(0, 255, 0, 0.9);
+            color: #000;
+            border-radius: 8px;
+            font-weight: bold;
+            box-shadow: 0 4px 20px rgba(0, 255, 0, 0.5);
+            animation: slideIn 0.3s ease-out;
+            z-index: 2000;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* 滚动条样式 */
+        .side-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .side-panel::-webkit-scrollbar-track {
+            background: rgba(0, 255, 0, 0.1);
+        }
+
+        .side-panel::-webkit-scrollbar-thumb {
+            background: #00ff00;
+            border-radius: 4px;
+        }
+
+        /* 输入框 */
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+
+        input[type="text"]:focus, input[type="number"]:focus {
+            outline: none;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+        }
+
+        /* 选择框 */
+        select {
+            width: 100%;
+            padding: 8px;
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+
+        .joint-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .joint-item {
+            padding: 8px;
+            margin: 3px 0;
+            background: rgba(0, 255, 0, 0.05);
+            border: 1px solid rgba(0, 255, 0, 0.2);
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .joint-item:hover {
+            background: rgba(0, 255, 0, 0.15);
+        }
+
+        .joint-item.selected {
+            background: rgba(255, 255, 0, 0.3);
+            border-color: #ffff00;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部工具栏 -->
+    <div class="toolbar">
+        <h1>🎭 木偶动画编辑器</h1>
+        
+        <button class="btn" onclick="window.open('/character_editor.html', '_blank')" style="background: linear-gradient(135deg, #00ff00 0%, #00aa00 100%); margin-right: 10px;">
+            🤺 角色编辑器
+        </button>
+        
+        <button class="btn active" id="btn-pose" onclick="setMode('pose')">
+            ✋ 摆姿势模式
+        </button>
+        <button class="btn" id="btn-animate" onclick="setMode('animate')">
+            🎬 动画播放
+        </button>
+        
+        <div style="width: 2px; height: 30px; background: #00ff00;"></div>
+        
+        <button class="btn" onclick="recordKeyframe()">
+            ⏺️ 记录关键帧
+        </button>
+        <button class="btn" onclick="updateCurrentKeyframe()" style="background: linear-gradient(135deg, #ff8800 0%, #ff5500 100%);">
+            🔄 更新当前帧
+        </button>
+        <button class="btn" onclick="playAnimation()">
+            ▶️ 播放
+        </button>
+        <button class="btn" onclick="stopAnimation()">
+            ⏹️ 停止
+        </button>
+        
+        <div style="width: 2px; height: 30px; background: #00ff00;"></div>
+        
+        <button class="btn" onclick="toggleJointVisibility()" style="background: #ff8800;">
+            👁️ 切换关节球
+        </button>
+        
+        <div style="width: 2px; height: 30px; background: #00ff00;"></div>
+        
+        <button class="btn" onclick="exportAnimation()">
+            💾 导出动画
+        </button>
+        <button class="btn-danger" onclick="clearAnimation()">
+            🗑️ 清空
+        </button>
+    </div>
+
+    <!-- 3D画布 -->
+    <div id="canvas-container">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <!-- 信息面板 -->
+    <div class="info-overlay">
+        <h4 style="margin-bottom: 10px;">📊 实时信息</h4>
+        <div class="info-item">
+            <span class="info-label">当前模式:</span>
+            <span class="info-value" id="info-mode">摆姿势</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">选中关节:</span>
+            <span class="info-value" id="info-joint">无</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">配置同步:</span>
+            <span class="info-value" id="info-config-sync" style="color: #00ff88;">✓ 已同步</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">角色缩放:</span>
+            <span class="info-value" id="info-scale">1.0x</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">关键帧数:</span>
+            <span class="info-value" id="info-keyframes">0</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">当前时间:</span>
+            <span class="info-value" id="info-time">0.00s</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">FPS:</span>
+            <span class="info-value" id="info-fps">60</span>
+        </div>
+        <div class="info-item" style="color: #ffff00;">
+            <span class="info-label">🔍 调试:</span>
+            <span class="info-value" id="info-debug">等待交互</span>
+        </div>
+        <hr style="margin: 10px 0; border-color: rgba(0, 255, 0, 0.3);">
+        <div style="font-size: 12px; color: #00ffaa;">
+            💡 <strong>关节链规则</strong>:<br>
+            &nbsp;&nbsp;&nbsp;• <strong>拖动A点</strong> → 以B点为中心360°旋转<br>
+            &nbsp;&nbsp;&nbsp;• <strong>拖动B点</strong> → 以C点为中心旋转，A-B段锁定<br>
+            &nbsp;&nbsp;&nbsp;• <strong>拖动C点</strong> → 以D点为中心旋转，整链移动<br>
+            &nbsp;&nbsp;&nbsp;• <strong>D点固定</strong> → 根锚点，固定位置<br>
+            💡 <strong>黄色球体</strong> = 可拖动关节<br>
+            💡 <strong>红色球体</strong> = 已锁定无法移动<br>
+            💡 按住 <strong>Alt</strong> 键可旋转相机
+        </div>
+        <hr style="margin: 10px 0; border-color: rgba(0, 255, 0, 0.3);">
+        <div style="font-size: 12px; color: #ffaa00;">
+            ⌨️ <strong>快捷键</strong>:<br>
+            &nbsp;&nbsp;&nbsp;• <strong>空格</strong> → 记录新关键帧<br>
+            &nbsp;&nbsp;&nbsp;• <strong>U键</strong> → 更新当前关键帧<br>
+            &nbsp;&nbsp;&nbsp;• <strong>P键</strong> → 播放/停止<br>
+            &nbsp;&nbsp;&nbsp;• <strong>←/→</strong> → 上一帧/下一帧
+        </div>
+    </div>
+
+    <!-- 右侧面板 -->
+    <div class="side-panel">
+        <!-- 关节控制 -->
+        <div class="panel-section">
+            <h3>🦴 关节选择</h3>
+            <div class="joint-list" id="joint-list">
+                <!-- 动态生成 -->
+            </div>
+        </div>
+
+        <!-- 关节管理 -->
+        <div class="panel-section">
+            <h3>🔧 关节管理</h3>
+            <div style="margin-bottom: 10px;">
+                <div style="display: flex; gap: 5px; margin-bottom: 8px;">
+                    <button class="btn" onclick="toggleJointLock()" style="flex: 1; background: #ff8800;" id="lock-btn">
+                        🔓 解锁
+                    </button>
+                </div>
+                <div id="joint-info" style="font-size: 12px; color: #00ff88; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; min-height: 60px;">
+                    <div>选中关节: <span id="selected-joint-name">无</span></div>
+                    <div>锁定状态: <span id="lock-status">-</span></div>
+                    <div>父关节: <span id="parent-joint-name">-</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 关键帧列表 -->
+        <div class="panel-section">
+            <h3>🎬 关键帧列表</h3>
+            <div id="keyframe-list">
+                <p style="opacity: 0.5; text-align: center;">暂无关键帧</p>
+            </div>
+        </div>
+
+        <!-- 动画设置 -->
+        <div class="panel-section">
+            <h3>⚙️ 动画设置</h3>
+            <label>动画名称:</label>
+            <input type="text" id="anim-name" value="attack_combo_1" placeholder="例如: attack_combo_1">
+            
+            <label>帧率 (FPS):</label>
+            <input type="number" id="anim-fps" value="30" min="10" max="60">
+            
+            <label>插值方式:</label>
+            <select id="anim-interpolation">
+                <option value="linear">线性插值</option>
+                <option value="smooth">平滑插值</option>
+                <option value="step">阶梯（无插值）</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- 时间轴 -->
+    <div class="timeline">
+        <div class="timeline-header">
+            <h3>⏱️ 时间轴</h3>
+            <div class="timeline-controls">
+                <button class="btn" onclick="goToStart()">⏮️ 起始</button>
+                <button class="btn" onclick="prevKeyframe()">⏪ 上一帧</button>
+                <button class="btn" onclick="nextKeyframe()">⏩ 下一帧</button>
+                <button class="btn" onclick="goToEnd()">⏭️ 结尾</button>
+            </div>
+            <span id="timeline-time">时间: 0.00s / 0.00s</span>
+        </div>
+        <canvas class="timeline-canvas" id="timeline-canvas"></canvas>
+    </div>
+
+    <!-- 拖动指示器 -->
+    <div class="drag-indicator" id="drag-indicator"></div>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // ============================================
+        // 全局变量
+        // ============================================
+        let scene, camera, renderer, controls;
+        let character, joints = {};
+        let lockedJoints = new Set(); // 记录被锁定的关节
+        let raycaster, mouse, selectedJoint = null;
+        let isDragging = false;
+        let dragPlane;
+        let dragStartPos;
+        
+        // 角色配置（从角色编辑器同步）
+        let characterConfig = {
+            character: {
+                scale: 1.0,
+                bodyColor: 0x4a90e2,
+                headColor: 0xffaa99
+            },
+            sword: {
+                position: { x: 0, y: -0.15, z: 0 },  // 注意：位置不同步（关节层级不同）
+                rotation: { x: 0, y: 0, z: 90 },     // 旋转会同步
+                hiltColor: 0x000000,                  // 剑柄颜色同步
+                bladeColor: 0x00ffff,                 // 剑刃颜色同步
+                bladeLength: 0.8,                     // 剑刃长度同步
+                glowIntensity: 0.8                    // 发光强度同步
+            }
+        };
+        
+        // 动画系统
+        let keyframes = []; // { time: 0, pose: {...} }
+        let currentTime = 0;
+        let isPlaying = false;
+        let animationStartTime = 0;
+        let mode = 'pose'; // 'pose' or 'animate'
+        
+        // 状态持久化键名
+        const STORAGE_KEY = 'animation_puppeteer_data';
+        
+        // FPS计算
+        let lastFrameTime = Date.now();
+        let frameCount = 0;
+
+        // ============================================
+        // 初始化
+        // ============================================
+        async function init() {
+            // 先加载角色配置
+            await loadCharacterConfig();
+            
+            // 创建场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a1e);
+            scene.fog = new THREE.Fog(0x0a0a1e, 10, 50);
+
+            // 创建相机
+            const container = document.getElementById('canvas-container');
+            camera = new THREE.PerspectiveCamera(
+                60,
+                container.clientWidth / container.clientHeight,
+                0.1,
+                1000
+            );
+            camera.position.set(3, 2, 3);
+
+            // 创建渲染器
+            renderer = new THREE.WebGLRenderer({ 
+                canvas: document.getElementById('canvas'),
+                antialias: true 
+            });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.shadowMap.enabled = true;
+
+            // 轨道控制器
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.target.set(0, 1, 0);
+
+            // 光照
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 10, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            // 地面
+            const groundGeometry = new THREE.PlaneGeometry(50, 50);
+            const groundMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x1a1a3e,
+                roughness: 0.8
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // 网格
+            const gridHelper = new THREE.GridHelper(20, 20, 0x00ff00, 0x004400);
+            scene.add(gridHelper);
+
+            // Raycaster 和鼠标
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            // 拖动系统初始化
+            dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+            dragStartPos = new THREE.Vector3();
+
+            // 创建角色
+            createCharacter();
+
+            // 初始化关节列表
+            initJointList();
+
+            // 初始化时间轴
+            initTimeline();
+
+            // 事件监听
+            console.log('🔗 绑定事件监听器...');
+            console.log('   renderer.domElement:', renderer.domElement);
+            
+            // ⚠️ 使用捕获阶段（第三个参数true）确保在 OrbitControls 之前处理
+            renderer.domElement.addEventListener('mousedown', onMouseDown, true);
+            renderer.domElement.addEventListener('mousemove', onMouseMove, false);
+            renderer.domElement.addEventListener('mouseup', onMouseUp, false);
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('keydown', onKeyDown);
+            
+            console.log('✅ 事件监听器已绑定');
+
+            // 开始渲染
+            animate();
+
+            showNotification('✅ 木偶动画编辑器已初始化');
+            
+            // 测试：添加全局点击监听器用于调试
+            document.addEventListener('click', function(e) {
+                console.log('🌍 全局点击事件:', e.target.tagName, e.target.id || e.target.className);
+            });
+            
+            // 测试：canvas 点击监听
+            renderer.domElement.addEventListener('click', function(e) {
+                console.log('🎨 Canvas 点击事件触发！');
+            });
+        }
+
+        // ============================================
+        // 创建角色 - 完整关节链系统
+        // ============================================
+        function createCharacter() {
+            character = new THREE.Group();
+            character.position.y = 0;
+
+            // 应用角色缩放
+            character.scale.setScalar(characterConfig.character.scale);
+
+            // 身体材质 - 使用配置中的颜色
+            const bodyMaterial = new THREE.MeshStandardMaterial({ color: characterConfig.character.bodyColor });
+            const limbMaterial = new THREE.MeshStandardMaterial({ color: characterConfig.character.headColor });
+
+            // === 躯干（中心，固定） ===
+            const torso = new THREE.Mesh(
+                new THREE.BoxGeometry(0.6, 1.0, 0.3),
+                bodyMaterial
+            );
+            torso.position.y = 1.5;
+            torso.castShadow = true;
+            character.add(torso);
+            joints.torso = torso;
+
+            // === 头部 ===
+            const head = new THREE.Mesh(
+                new THREE.SphereGeometry(0.4, 16, 16),
+                new THREE.MeshStandardMaterial({ color: characterConfig.character.headColor })
+            );
+            head.position.y = 2.4;
+            head.castShadow = true;
+            character.add(head);
+            joints.head = head;
+
+            // === 头顶控制点 ===
+            const headTop = new THREE.Group();
+            headTop.position.y = 2.8;
+            character.add(headTop);
+            joints.headTop = headTop;
+
+            // ============================================
+            // 左臂链（用户视角左边） (A=手腕, B=肘部, C=肩部)
+            // ============================================
+            
+            // C点：左肩（固定锚点）
+            const leftShoulder = new THREE.Group();
+            leftShoulder.position.set(0.35, 1.8, 0);
+            character.add(leftShoulder);
+            joints.leftShoulder = leftShoulder;
+
+            // B点：左肘（连接到肩部）
+            const leftElbow = new THREE.Group();
+            leftElbow.position.y = -0.5; // 相对于肩部向下0.5
+            leftShoulder.add(leftElbow);
+            joints.leftElbow = leftElbow;
+
+            // 上臂网格（肩部到肘部之间）
+            const leftUpperArmMesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.08, 0.08, 0.5, 8),
+                limbMaterial
+            );
+            leftUpperArmMesh.position.y = -0.25;
+            leftUpperArmMesh.castShadow = true;
+            leftShoulder.add(leftUpperArmMesh);
+
+            // A点：左手腕（连接到肘部）
+            const leftWrist = new THREE.Group();
+            leftWrist.position.y = -0.4; // 相对于肘部向下0.4
+            leftElbow.add(leftWrist);
+            joints.leftWrist = leftWrist;
+
+            // 前臂网格（肘部到手腕之间）
+            const leftForearmMesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.07, 0.07, 0.4, 8),
+                limbMaterial
+            );
+            leftForearmMesh.position.y = -0.2;
+            leftForearmMesh.castShadow = true;
+            leftElbow.add(leftForearmMesh);
+
+            // ============================================
+            // 右臂链 + 光剑（用户视角右边，持剑手） (A=剑尖, B=手腕, C=肘部, D=肩部)
+            // ============================================
+            
+            // D点：右肩（固定锚点）
+            const rightShoulder = new THREE.Group();
+            rightShoulder.position.set(-0.35, 1.8, 0);
+            character.add(rightShoulder);
+            joints.rightShoulder = rightShoulder;
+
+            // C点：右肘（连接到肩部）
+            const rightElbow = new THREE.Group();
+            rightElbow.position.y = -0.5;
+            rightShoulder.add(rightElbow);
+            joints.rightElbow = rightElbow;
+
+            // 上臂网格（肩部到肘部之间）
+            const rightUpperArmMesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.08, 0.08, 0.5, 8),
+                limbMaterial
+            );
+            rightUpperArmMesh.position.y = -0.25;
+            rightUpperArmMesh.castShadow = true;
+            rightShoulder.add(rightUpperArmMesh);
+
+            // B点：右手腕（连接到肘部）
+            const rightWrist = new THREE.Group();
+            rightWrist.position.y = -0.4;
+            rightElbow.add(rightWrist);
+            joints.rightWrist = rightWrist;
+
+            // 前臂网格（肘部到手腕之间）
+            const rightForearmMesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.07, 0.07, 0.4, 8),
+                limbMaterial
+            );
+            rightForearmMesh.position.y = -0.2;
+            rightForearmMesh.castShadow = true;
+            rightElbow.add(rightForearmMesh);
+
+            // 光剑组（连接到手腕）
+            const swordGroup = new THREE.Group();
+            // 使用木偶编辑器固定位置（不同步位置，因为关节层级不同）
+            swordGroup.position.set(0, -0.15, 0);
+            // 应用光剑旋转配置
+            swordGroup.rotation.set(
+                characterConfig.sword.rotation.x * Math.PI / 180,
+                characterConfig.sword.rotation.y * Math.PI / 180,
+                characterConfig.sword.rotation.z * Math.PI / 180
+            );
+            rightWrist.add(swordGroup);
+
+            // 剑柄
+            const hilt = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.04, 0.04, 0.3, 8),
+                new THREE.MeshStandardMaterial({ 
+                    color: characterConfig.sword.hiltColor,
+                    metalness: 0.9,
+                    roughness: 0.1
+                })
+            );
+            hilt.castShadow = true;
+            swordGroup.add(hilt);
+
+            // 剑刃
+            const blade = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.02, 0.02, characterConfig.sword.bladeLength, 8),
+                new THREE.MeshStandardMaterial({ 
+                    color: characterConfig.sword.bladeColor,
+                    emissive: characterConfig.sword.bladeColor,
+                    emissiveIntensity: characterConfig.sword.glowIntensity,
+                    transparent: true,
+                    opacity: 0.9
+                })
+            );
+            blade.position.y = 0.15 + characterConfig.sword.bladeLength / 2;
+            blade.castShadow = true;
+            swordGroup.add(blade);
+
+            // 发光效果
+            const glow = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.04, 0.04, characterConfig.sword.bladeLength, 8),
+                new THREE.MeshBasicMaterial({ 
+                    color: characterConfig.sword.bladeColor,
+                    transparent: true,
+                    opacity: 0.3
+                })
+            );
+            glow.position.y = 0.15 + characterConfig.sword.bladeLength / 2;
+            swordGroup.add(glow);
+
+            // A点：剑尖控制点（剑的最顶端）
+            const swordTip = new THREE.Group();
+            swordTip.position.y = 0.15 + characterConfig.sword.bladeLength; // 剑柄一半 + 剑刃长度
+            swordGroup.add(swordTip);
+            joints.swordTip = swordTip;
+
+            // ============================================
+            // 下半身：腰部
+            // ============================================
+            const pelvis = new THREE.Mesh(
+                new THREE.BoxGeometry(0.6, 0.3, 0.3),
+                bodyMaterial
+            );
+            pelvis.position.y = 1.0;
+            pelvis.castShadow = true;
+            character.add(pelvis);
+            joints.pelvis = pelvis;
+
+            // ============================================
+            // 左腿链 (A=脚尖, B=脚踝, C=膝盖, D=髋部)
+            // ============================================
+            
+            // D点：左髋（固定锚点）
+            const leftHip = new THREE.Group();
+            leftHip.position.set(-0.15, 0.95, 0);
+            character.add(leftHip);
+            joints.leftHip = leftHip;
+
+            // C点：左膝（连接到髋部）
+            const leftKnee = new THREE.Group();
+            leftKnee.position.y = -0.5;
+            leftHip.add(leftKnee);
+            joints.leftKnee = leftKnee;
+
+            // 大腿网格（髋部到膝盖之间）
+            const leftThighMesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.1, 0.09, 0.5, 8),
+                limbMaterial
+            );
+            leftThighMesh.position.y = -0.25;
+            leftThighMesh.castShadow = true;
+            leftHip.add(leftThighMesh);
+
+            // B点：左脚踝（连接到膝盖）
+            const leftAnkle = new THREE.Group();
+            leftAnkle.position.y = -0.5;
+            leftKnee.add(leftAnkle);
+            joints.leftAnkle = leftAnkle;
+
+            // 小腿网格（膝盖到脚踝之间）
+            const leftShinMesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.08, 0.07, 0.5, 8),
+                limbMaterial
+            );
+            leftShinMesh.position.y = -0.25;
+            leftShinMesh.castShadow = true;
+            leftKnee.add(leftShinMesh);
+
+            // 脚部网格
+            const leftFootMesh = new THREE.Mesh(
+                new THREE.BoxGeometry(0.15, 0.1, 0.3),
+                limbMaterial
+            );
+            leftFootMesh.position.set(0, -0.05, 0.1);
+            leftFootMesh.castShadow = true;
+            leftAnkle.add(leftFootMesh);
+
+            // A点：左脚尖（连接到脚踝）
+            const leftToe = new THREE.Group();
+            leftToe.position.set(0, -0.05, 0.25);
+            leftAnkle.add(leftToe);
+            joints.leftToe = leftToe;
+
+            // ============================================
+            // 右腿链 (A=脚尖, B=脚踝, C=膝盖, D=髋部)
+            // ============================================
+            
+            // D点：右髋（固定锚点）
+            const rightHip = new THREE.Group();
+            rightHip.position.set(0.15, 0.95, 0);
+            character.add(rightHip);
+            joints.rightHip = rightHip;
+
+            // C点：右膝（连接到髋部）
+            const rightKnee = new THREE.Group();
+            rightKnee.position.y = -0.5;
+            rightHip.add(rightKnee);
+            joints.rightKnee = rightKnee;
+
+            // 大腿网格（髋部到膝盖之间）
+            const rightThighMesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.1, 0.09, 0.5, 8),
+                limbMaterial
+            );
+            rightThighMesh.position.y = -0.25;
+            rightThighMesh.castShadow = true;
+            rightHip.add(rightThighMesh);
+
+            // B点：右脚踝（连接到膝盖）
+            const rightAnkle = new THREE.Group();
+            rightAnkle.position.y = -0.5;
+            rightKnee.add(rightAnkle);
+            joints.rightAnkle = rightAnkle;
+
+            // 小腿网格（膝盖到脚踝之间）
+            const rightShinMesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.08, 0.07, 0.5, 8),
+                limbMaterial
+            );
+            rightShinMesh.position.y = -0.25;
+            rightShinMesh.castShadow = true;
+            rightKnee.add(rightShinMesh);
+
+            // 脚部网格
+            const rightFootMesh = new THREE.Mesh(
+                new THREE.BoxGeometry(0.15, 0.1, 0.3),
+                limbMaterial
+            );
+            rightFootMesh.position.set(0, -0.05, 0.1);
+            rightFootMesh.castShadow = true;
+            rightAnkle.add(rightFootMesh);
+
+            // A点：右脚尖（连接到脚踝）
+            const rightToe = new THREE.Group();
+            rightToe.position.set(0, -0.05, 0.25);
+            rightAnkle.add(rightToe);
+            joints.rightToe = rightToe;
+
+            // ============================================
+            // 添加关节可视化球体
+            // ============================================
+            const draggableJoints = [
+                'headTop',
+                // 左臂: A-B-C
+                'leftWrist', 'leftElbow', 'leftShoulder',
+                // 右臂+剑: A-B-C-D
+                'swordTip', 'rightWrist', 'rightElbow', 'rightShoulder',
+                // 左腿: A-B-C-D
+                'leftToe', 'leftAnkle', 'leftKnee', 'leftHip',
+                // 右腿: A-B-C-D
+                'rightToe', 'rightAnkle', 'rightKnee', 'rightHip'
+            ];
+
+            draggableJoints.forEach(name => {
+                const sphere = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.12, 16, 16),
+                    new THREE.MeshBasicMaterial({ 
+                        color: 0xffff00,
+                        transparent: true,
+                        opacity: 0.8,
+                        depthTest: false,
+                        depthWrite: false
+                    })
+                );
+                sphere.userData.jointName = name;
+                sphere.userData.isJoint = true;
+                sphere.renderOrder = 999;
+                joints[name].add(sphere);
+                joints[name].userData.visualSphere = sphere;
+            });
+
+            scene.add(character);
+        }
+
+        // ============================================
+        // 关节列表UI
+        // ============================================
+        function initJointList() {
+            const list = document.getElementById('joint-list');
+            const jointNames = {
+                'headTop': '👤 头顶',
+                // 左臂链 (A-B-C)
+                'leftWrist': '✋ 左手腕 (A点)',
+                'leftElbow': '💪 左肘 (B点)',
+                'leftShoulder': '💪 左肩 (C点)',
+                // 右臂+剑链 (A-B-C-D)
+                'swordTip': '⚔️ 剑尖 (A点)',
+                'rightWrist': '✋ 右手腕 (B点)',
+                'rightElbow': '💪 右肘 (C点)',
+                'rightShoulder': '💪 右肩 (D点)',
+                // 左腿链 (A-B-C-D)
+                'leftToe': '👣 左脚尖 (A点)',
+                'leftAnkle': '👟 左脚踝 (B点)',
+                'leftKnee': '🦿 左膝 (C点)',
+                'leftHip': '🦴 左髋 (D点)',
+                // 右腿链 (A-B-C-D)
+                'rightToe': '👣 右脚尖 (A点)',
+                'rightAnkle': '👟 右脚踝 (B点)',
+                'rightKnee': '🦿 右膝 (C点)',
+                'rightHip': '🦴 右髋 (D点)'
+            };
+
+            Object.entries(jointNames).forEach(([key, label]) => {
+                const item = document.createElement('div');
+                item.className = 'joint-item';
+                item.textContent = label;
+                item.dataset.joint = key;
+                item.onclick = () => selectJointByName(key);
+                list.appendChild(item);
+            });
+        }
+
+        function selectJointByName(name) {
+            selectedJoint = joints[name];
+            updateJointListUI();
+            updateInfoPanel();
+        }
+
+        function updateJointListUI() {
+            document.querySelectorAll('.joint-item').forEach(item => {
+                const jointName = item.dataset.joint;
+                if (selectedJoint && joints[jointName] === selectedJoint) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+
+        // ============================================
+        // 鼠标交互
+        // ============================================
+        function onMouseDown(event) {
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('🖱️ MOUSEDOWN 触发！');
+            
+            if (event.target !== renderer.domElement) {
+                console.log('❌ 点击的不是Canvas，忽略');
+                return;
+            }
+            
+            if (mode !== 'pose') {
+                console.log('⚠️ 不在摆姿势模式，当前模式:', mode);
+                return;
+            }
+
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            // 收集所有可拖动的关节球体
+            const jointMeshes = [];
+            Object.keys(joints).forEach(name => {
+                const joint = joints[name];
+                if (joint && joint.userData && joint.userData.visualSphere) {
+                    jointMeshes.push(joint.userData.visualSphere);
+                }
+            });
+
+            const intersects = raycaster.intersectObjects(jointMeshes, true);
+
+            if (intersects.length > 0) {
+                event.preventDefault();
+                event.stopPropagation();
+                
+                const sphere = intersects[0].object;
+                const jointName = sphere.userData.jointName;
+                selectedJoint = joints[jointName];
+
+                // 🔒 检查关节是否被锁定
+                if (lockedJoints.has(jointName)) {
+                    showNotification(`🔒 关节已锁定: ${jointName}`);
+                    updateJointInfo();
+                    updateJointListUI();
+                    console.log('🔒 尝试拖动已锁定的关节:', jointName);
+                    return;
+                }
+
+                isDragging = true;
+                controls.enabled = false;
+
+                console.log('✅ 成功进入拖动模式！');
+                console.log('   关节名称:', jointName);
+
+                // 记录初始位置
+                dragStartPos.copy(intersects[0].point);
+                
+                // 设置拖动平面（垂直于相机方向）
+                const worldPos = new THREE.Vector3();
+                selectedJoint.getWorldPosition(worldPos);
+                const cameraDir = new THREE.Vector3();
+                camera.getWorldDirection(cameraDir);
+                dragPlane.setFromNormalAndCoplanarPoint(cameraDir, worldPos);
+
+                // 显示拖动指示器
+                const indicator = document.getElementById('drag-indicator');
+                indicator.style.display = 'block';
+                indicator.style.left = event.clientX + 'px';
+                indicator.style.top = event.clientY + 'px';
+                indicator.textContent = '🔄 旋转';
+
+                updateJointListUI();
+                updateInfoPanel();
+                updateJointInfo();
+                
+                showNotification(`🎯 选中: ${jointName}`);
+            }
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        }
+
+        function onMouseMove(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            // 更新拖动指示器位置
+            const indicator = document.getElementById('drag-indicator');
+            if (isDragging) {
+                indicator.style.left = event.clientX + 'px';
+                indicator.style.top = event.clientY + 'px';
+            }
+
+            // 高亮悬停的关节
+            if (mode === 'pose' && !isDragging) {
+                raycaster.setFromCamera(mouse, camera);
+                const jointMeshes = [];
+                Object.keys(joints).forEach(name => {
+                    const joint = joints[name];
+                    if (joint && joint.userData && joint.userData.visualSphere) {
+                        jointMeshes.push(joint.userData.visualSphere);
+                        // 重置颜色：锁定=红色，解锁=黄色
+                        const isLocked = lockedJoints.has(name);
+                        const color = isLocked ? 0xff0000 : 0xffff00;
+                        joint.userData.visualSphere.material.color.setHex(color);
+                        joint.userData.visualSphere.material.opacity = 0.8;
+                    }
+                });
+
+                const intersects = raycaster.intersectObjects(jointMeshes, true);
+                if (intersects.length > 0) {
+                    const jointName = intersects[0].object.userData.jointName;
+                    const isLocked = lockedJoints.has(jointName);
+                    
+                    if (isLocked) {
+                        intersects[0].object.material.color.setHex(0xff8800);
+                    } else {
+                        intersects[0].object.material.color.setHex(0x00ff00);
+                    }
+                    intersects[0].object.material.opacity = 1.0;
+                    renderer.domElement.style.cursor = isLocked ? 'not-allowed' : 'grab';
+                } else {
+                    renderer.domElement.style.cursor = 'default';
+                }
+            }
+
+            // 拖动逻辑：旋转父节点，使选中的关节跟随鼠标（保持关节链连接）
+            if (isDragging && selectedJoint) {
+                raycaster.setFromCamera(mouse, camera);
+
+                // 获取父关节（将被旋转的节点）
+                const parent = selectedJoint.parent;
+                if (!parent) return;
+
+                // 获取父节点的世界位置（旋转中心）
+                const pivotWorldPos = new THREE.Vector3();
+                parent.getWorldPosition(pivotWorldPos);
+
+                // 创建以父节点为中心的拖动平面（垂直于相机）
+                const cameraDir = new THREE.Vector3();
+                camera.getWorldDirection(cameraDir);
+                dragPlane.setFromNormalAndCoplanarPoint(cameraDir, pivotWorldPos);
+
+                // 计算鼠标射线与拖动平面的交点
+                const intersectPoint = new THREE.Vector3();
+                const hasIntersect = raycaster.ray.intersectPlane(dragPlane, intersectPoint);
+
+                if (hasIntersect) {
+                    // 计算从旋转中心指向选中关节的当前方向
+                    const currentJointWorldPos = new THREE.Vector3();
+                    selectedJoint.getWorldPosition(currentJointWorldPos);
+                    const currentDir = new THREE.Vector3()
+                        .subVectors(currentJointWorldPos, pivotWorldPos)
+                        .normalize();
+
+                    // 计算从旋转中心指向鼠标交点的目标方向
+                    const targetDir = new THREE.Vector3()
+                        .subVectors(intersectPoint, pivotWorldPos)
+                        .normalize();
+
+                    // 计算从当前方向到目标方向的旋转
+                    const rotationQuat = new THREE.Quaternion();
+                    rotationQuat.setFromUnitVectors(currentDir, targetDir);
+
+                    // 在世界空间应用旋转
+                    const parentWorldQuat = new THREE.Quaternion();
+                    parent.getWorldQuaternion(parentWorldQuat);
+                    
+                    // 将旋转应用到父节点：世界旋转 = 新旋转 * 旧世界旋转
+                    parentWorldQuat.premultiply(rotationQuat);
+                    
+                    // 转换回本地空间
+                    const grandParent = parent.parent;
+                    if (grandParent) {
+                        const grandParentWorldQuat = new THREE.Quaternion();
+                        grandParent.getWorldQuaternion(grandParentWorldQuat);
+                        const grandParentInverse = grandParentWorldQuat.clone().invert();
+                        parent.quaternion.copy(grandParentInverse.multiply(parentWorldQuat));
+                    } else {
+                        parent.quaternion.copy(parentWorldQuat);
+                    }
+
+                    // 实时输出（低频）
+                    if (Math.random() < 0.05) {
+                        console.log('🔄 旋转父节点');
+                    }
+
+                    updateInfoPanel();
+                }
+            }
+        }
+
+        function onMouseUp(event) {
+            if (isDragging) {
+                isDragging = false;
+                
+                // ⚠️ 只在非 pose 模式下重新启用 OrbitControls
+                if (mode !== 'pose') {
+                    controls.enabled = true;
+                    console.log('🔓 拖动结束 - OrbitControls 重新启用');
+                } else {
+                    console.log('🔒 拖动结束 - 保持在 pose 模式，OrbitControls 仍禁用');
+                }
+
+                // 隐藏拖动指示器
+                document.getElementById('drag-indicator').style.display = 'none';
+
+                showNotification('✅ 关节调整完成');
+            }
+        }
+
+        // ============================================
+        // 关键帧系统
+        // ============================================
+        function recordKeyframe() {
+            console.log('⏺️ 准备记录关键帧...');
+            console.log('   当前模式:', mode);
+            console.log('   是否播放中:', isPlaying);
+            console.log('   当前时间:', currentTime);
+            console.log('   已有关键帧数:', keyframes.length);
+            
+            // 确保在pose模式下才能记录
+            if (mode !== 'pose') {
+                console.log('❌ 无法记录：不在pose模式');
+                showNotification('❌ 请先停止动画播放');
+                return;
+            }
+            
+            const pose = capturePose();
+            let time = currentTime;
+
+            // 🎯 关键修改：检查是否已存在相同时间的关键帧
+            const existingIndex = keyframes.findIndex(kf => Math.abs(kf.time - time) < 0.01);
+            
+            if (existingIndex >= 0) {
+                // 发现已存在关键帧，询问用户意图
+                // 默认行为：自动递增时间并添加新帧（更符合常规操作）
+                time = keyframes[keyframes.length - 1].time + 1.0;
+                console.log('⚠️ 时间冲突，自动递增时间到:', time);
+                
+                // 添加新关键帧
+                keyframes.push({ time, pose });
+                keyframes.sort((a, b) => a.time - b.time);
+                console.log('✅ 新增关键帧:', keyframes.length, '时间:', time);
+                showNotification(`⏺️ 记录关键帧 #${keyframes.length} (${time}s)`);
+                
+                // 更新当前时间为新帧+1秒
+                currentTime = time + 1.0;
+                console.log('   下一帧时间:', currentTime);
+            } else {
+                // 添加新关键帧
+                keyframes.push({ time, pose });
+                keyframes.sort((a, b) => a.time - b.time);
+                console.log('✅ 新增关键帧:', keyframes.length, '时间:', time);
+                showNotification(`⏺️ 记录关键帧 #${keyframes.length} (${time}s)`);
+                
+                // 🎯 自动递增时间，方便连续记录
+                currentTime += 1.0; // 每帧间隔1秒
+                console.log('   下一帧时间:', currentTime);
+            }
+
+            updateKeyframeList();
+            updateTimeline();
+            updateInfoPanel();
+            saveState();
+        }
+
+        // 更新当前时间点的关键帧
+        function updateCurrentKeyframe() {
+            console.log('🔄 准备更新关键帧...');
+            console.log('   当前时间:', currentTime);
+            
+            // 确保在pose模式下才能操作
+            if (mode !== 'pose') {
+                console.log('❌ 无法更新：不在pose模式');
+                showNotification('❌ 请先停止动画播放');
+                return;
+            }
+            
+            // 查找当前时间点的关键帧
+            const existingIndex = keyframes.findIndex(kf => Math.abs(kf.time - currentTime) < 0.01);
+            
+            if (existingIndex >= 0) {
+                // 更新现有关键帧
+                const pose = capturePose();
+                keyframes[existingIndex] = { time: currentTime, pose };
+                console.log('✅ 更新关键帧 #' + (existingIndex + 1), '时间:', currentTime);
+                showNotification(`🔄 关键帧 #${existingIndex + 1} 已更新 (${currentTime}s)`);
+                
+                updateKeyframeList();
+                updateTimeline();
+                updateInfoPanel();
+            } else {
+                console.log('❌ 当前时间点没有关键帧');
+                showNotification('❌ 当前时间点没有关键帧，请使用"记录关键帧"添加新帧');
+            }
+        }
+
+        function capturePose() {
+            const pose = {};
+            Object.entries(joints).forEach(([name, joint]) => {
+                if (name === 'body' || name === 'head') return;
+                pose[name] = {
+                    rotation: {
+                        x: joint.rotation.x,
+                        y: joint.rotation.y,
+                        z: joint.rotation.z
+                    }
+                };
+            });
+            return pose;
+        }
+
+        function applyPose(pose) {
+            Object.entries(pose).forEach(([name, data]) => {
+                if (joints[name]) {
+                    joints[name].rotation.set(
+                        data.rotation.x,
+                        data.rotation.y,
+                        data.rotation.z
+                    );
+                }
+            });
+        }
+
+        function interpolatePose(pose1, pose2, t) {
+            const interpolationType = document.getElementById('anim-interpolation').value;
+            
+            // 应用插值曲线
+            let smoothT = t;
+            if (interpolationType === 'smooth') {
+                smoothT = t * t * (3 - 2 * t); // Smoothstep
+            } else if (interpolationType === 'step') {
+                smoothT = 0; // 阶梯，直接使用pose1
+            }
+
+            const result = {};
+            Object.keys(pose1).forEach(name => {
+                result[name] = {
+                    rotation: {
+                        x: pose1[name].rotation.x + (pose2[name].rotation.x - pose1[name].rotation.x) * smoothT,
+                        y: pose1[name].rotation.y + (pose2[name].rotation.y - pose1[name].rotation.y) * smoothT,
+                        z: pose1[name].rotation.z + (pose2[name].rotation.z - pose1[name].rotation.z) * smoothT
+                    }
+                };
+            });
+            return result;
+        }
+
+        function updateKeyframeList() {
+            const list = document.getElementById('keyframe-list');
+            
+            if (keyframes.length === 0) {
+                list.innerHTML = '<p style="opacity: 0.5; text-align: center;">暂无关键帧</p>';
+                return;
+            }
+
+            list.innerHTML = '';
+            keyframes.forEach((kf, index) => {
+                const item = document.createElement('div');
+                item.className = 'keyframe-item';
+                if (Math.abs(kf.time - currentTime) < 0.01) {
+                    item.classList.add('active');
+                }
+                
+                const label = document.createElement('span');
+                label.textContent = `#${index + 1} - ${kf.time.toFixed(2)}s`;
+                
+                const deleteBtn = document.createElement('span');
+                deleteBtn.className = 'keyframe-delete';
+                deleteBtn.textContent = '删除';
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteKeyframe(index);
+                };
+
+                item.appendChild(label);
+                item.appendChild(deleteBtn);
+                item.onclick = () => jumpToKeyframe(index);
+                
+                list.appendChild(item);
+            });
+        }
+
+        function deleteKeyframe(index) {
+            keyframes.splice(index, 1);
+            updateKeyframeList();
+            updateTimeline();
+            updateInfoPanel();
+            saveState();
+            showNotification('🗑️ 关键帧已删除');
+        }
+
+        function jumpToKeyframe(index) {
+            if (keyframes[index]) {
+                currentTime = keyframes[index].time;
+                applyPose(keyframes[index].pose);
+                updateKeyframeList();
+                updateTimeline();
+                showNotification(`⏱️ 跳转到关键帧 #${index + 1}`);
+            }
+        }
+
+        // ============================================
+        // 动画播放
+        // ============================================
+        function playAnimation() {
+            if (keyframes.length < 2) {
+                showNotification('❌ 至少需要2个关键帧才能播放');
+                return;
+            }
+
+            isPlaying = true;
+            animationStartTime = Date.now() - currentTime * 1000;
+            setMode('animate');
+            showNotification('▶️ 动画播放中...');
+        }
+
+        function stopAnimation() {
+            isPlaying = false;
+            
+            // 🎯 智能处理停止后的时间：
+            // 如果当前时间接近某个关键帧（0.3秒内），则跳转到该关键帧
+            // 否则，将时间设置为最后一个关键帧后1秒，方便继续记录
+            if (keyframes.length > 0) {
+                let snappedToKeyframe = false;
+                for (let i = 0; i < keyframes.length; i++) {
+                    if (Math.abs(currentTime - keyframes[i].time) < 0.3) {
+                        currentTime = keyframes[i].time;
+                        applyPose(keyframes[i].pose);
+                        snappedToKeyframe = true;
+                        console.log('📍 停止动画：吸附到关键帧', i + 1, '时间:', currentTime);
+                        break;
+                    }
+                }
+                
+                // 如果没有吸附到关键帧，则设置为最后关键帧+1秒
+                if (!snappedToKeyframe) {
+                    currentTime = keyframes[keyframes.length - 1].time + 1.0;
+                    console.log('⏭️ 停止动画：设置时间为下一帧', currentTime);
+                }
+            }
+            
+            setMode('pose');
+            console.log('🛑 停止动画 - 当前模式:', mode, '是否播放中:', isPlaying, '当前时间:', currentTime);
+            updateInfoPanel();
+            updateTimeline();
+            showNotification('⏹️ 动画已停止');
+        }
+
+        function updateAnimation() {
+            if (!isPlaying || keyframes.length < 2) return;
+
+            const elapsed = (Date.now() - animationStartTime) / 1000;
+            const totalDuration = keyframes[keyframes.length - 1].time;
+
+            currentTime = elapsed % totalDuration;
+
+            // 找到当前时间所在的关键帧区间
+            let prevKf = keyframes[0];
+            let nextKf = keyframes[1];
+            let foundInterval = false;
+
+            for (let i = 0; i < keyframes.length - 1; i++) {
+                if (currentTime >= keyframes[i].time && currentTime <= keyframes[i + 1].time) {
+                    prevKf = keyframes[i];
+                    nextKf = keyframes[i + 1];
+                    foundInterval = true;
+                    break;
+                }
+            }
+
+            // 如果没有找到区间（时间接近或等于总时长），使用最后两个关键帧
+            if (!foundInterval) {
+                prevKf = keyframes[keyframes.length - 2];
+                nextKf = keyframes[keyframes.length - 1];
+            }
+
+            // 插值
+            const segmentDuration = nextKf.time - prevKf.time;
+            const segmentProgress = (currentTime - prevKf.time) / segmentDuration;
+            const interpolatedPose = interpolatePose(prevKf.pose, nextKf.pose, segmentProgress);
+            
+            applyPose(interpolatedPose);
+            updateKeyframeList();
+        }
+
+        // ============================================
+        // 时间轴
+        // ============================================
+        function initTimeline() {
+            const canvas = document.getElementById('timeline-canvas');
+            canvas.addEventListener('click', onTimelineClick);
+        }
+
+        function updateTimeline() {
+            const canvas = document.getElementById('timeline-canvas');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+            
+            canvas.width = width;
+            canvas.height = height;
+
+            // 背景
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.05)';
+            ctx.fillRect(0, 0, width, height);
+
+            if (keyframes.length === 0) {
+                ctx.fillStyle = '#00ff00';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('点击记录关键帧开始创建动画', width / 2, height / 2);
+                return;
+            }
+
+            const totalDuration = keyframes[keyframes.length - 1].time || 1;
+            const scale = width / totalDuration;
+
+            // 绘制时间刻度
+            ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
+            ctx.lineWidth = 1;
+            for (let t = 0; t <= totalDuration; t += 0.5) {
+                const x = t * scale;
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+
+            // 绘制关键帧
+            keyframes.forEach((kf, index) => {
+                const x = kf.time * scale;
+                
+                ctx.fillStyle = '#00ff00';
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x - 5, 10);
+                ctx.lineTo(x + 5, 10);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.fillStyle = '#00ff00';
+                ctx.fillRect(x - 2, 10, 4, height - 10);
+
+                ctx.fillStyle = '#00ff00';
+                ctx.font = '10px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`#${index + 1}`, x, height - 5);
+            });
+
+            // 绘制播放头
+            const playheadX = currentTime * scale;
+            ctx.strokeStyle = '#ffff00';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(playheadX, 0);
+            ctx.lineTo(playheadX, height);
+            ctx.stroke();
+
+            // 更新时间显示
+            document.getElementById('timeline-time').textContent = 
+                `时间: ${currentTime.toFixed(2)}s / ${totalDuration.toFixed(2)}s`;
+        }
+
+        function onTimelineClick(event) {
+            if (keyframes.length === 0) return;
+
+            const canvas = event.target;
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const width = canvas.clientWidth;
+
+            const totalDuration = keyframes[keyframes.length - 1].time;
+            currentTime = (x / width) * totalDuration;
+
+            // 应用对应的姿势
+            if (keyframes.length === 1) {
+                applyPose(keyframes[0].pose);
+            } else {
+                let prevKf = keyframes[0];
+                let nextKf = keyframes[1];
+
+                for (let i = 0; i < keyframes.length - 1; i++) {
+                    if (currentTime >= keyframes[i].time && currentTime <= keyframes[i + 1].time) {
+                        prevKf = keyframes[i];
+                        nextKf = keyframes[i + 1];
+                        break;
+                    }
+                }
+
+                const segmentDuration = nextKf.time - prevKf.time;
+                const segmentProgress = (currentTime - prevKf.time) / segmentDuration;
+                const interpolatedPose = interpolatePose(prevKf.pose, nextKf.pose, segmentProgress);
+                
+                applyPose(interpolatedPose);
+            }
+
+            updateTimeline();
+            updateKeyframeList();
+        }
+
+        // ============================================
+        // 时间轴导航
+        // ============================================
+        function goToStart() {
+            if (keyframes.length > 0) {
+                currentTime = 0;
+                applyPose(keyframes[0].pose);
+                updateTimeline();
+                updateKeyframeList();
+            }
+        }
+
+        function goToEnd() {
+            if (keyframes.length > 0) {
+                const lastKf = keyframes[keyframes.length - 1];
+                currentTime = lastKf.time;
+                applyPose(lastKf.pose);
+                updateTimeline();
+                updateKeyframeList();
+            }
+        }
+
+        function prevKeyframe() {
+            if (keyframes.length === 0) return;
+            
+            for (let i = keyframes.length - 1; i >= 0; i--) {
+                if (keyframes[i].time < currentTime - 0.01) {
+                    jumpToKeyframe(i);
+                    return;
+                }
+            }
+            jumpToKeyframe(0);
+        }
+
+        function nextKeyframe() {
+            if (keyframes.length === 0) return;
+            
+            for (let i = 0; i < keyframes.length; i++) {
+                if (keyframes[i].time > currentTime + 0.01) {
+                    jumpToKeyframe(i);
+                    return;
+                }
+            }
+            jumpToKeyframe(keyframes.length - 1);
+        }
+
+        // ============================================
+        // 模式切换
+        // ============================================
+        function setMode(newMode) {
+            mode = newMode;
+            document.getElementById('btn-pose').classList.toggle('active', mode === 'pose');
+            document.getElementById('btn-animate').classList.toggle('active', mode === 'animate');
+            
+            if (mode === 'pose') {
+                isPlaying = false;
+                // ⚠️ 在 pose 模式下禁用 OrbitControls，避免拦截鼠标事件
+                controls.enabled = false;
+                console.log('🔒 切换到摆姿势模式 - OrbitControls 已禁用');
+            } else {
+                // 在动画模式重新启用 OrbitControls
+                controls.enabled = true;
+                console.log('🔓 切换到动画模式 - OrbitControls 已启用');
+            }
+            
+            updateInfoPanel();
+        }
+
+        // ============================================
+        // 导出动画
+        // ============================================
+        function exportAnimation() {
+            if (keyframes.length === 0) {
+                showNotification('❌ 没有可导出的动画数据');
+                return;
+            }
+
+            const animData = {
+                name: document.getElementById('anim-name').value || 'untitled_anim',
+                fps: parseInt(document.getElementById('anim-fps').value),
+                interpolation: document.getElementById('anim-interpolation').value,
+                duration: keyframes[keyframes.length - 1].time,
+                keyframes: keyframes
+            };
+
+            const json = JSON.stringify(animData, null, 2);
+            
+            // 复制到剪贴板
+            navigator.clipboard.writeText(json).then(() => {
+                showNotification('✅ 动画数据已复制到剪贴板');
+            });
+
+            // 同时下载文件
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${animData.name}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            console.log('动画数据:', animData);
+        }
+
+        function clearAnimation() {
+            if (confirm('确定要清空所有关键帧吗？')) {
+                keyframes = [];
+                currentTime = 0;
+                isPlaying = false;
+                updateKeyframeList();
+                updateTimeline();
+                updateInfoPanel();
+                showNotification('🗑️ 动画已清空');
+            }
+        }
+
+        // 切换关节球可见性
+        let jointSpheresVisible = true;
+        function toggleJointVisibility() {
+            jointSpheresVisible = !jointSpheresVisible;
+            
+            Object.keys(joints).forEach(name => {
+                const joint = joints[name];
+                if (joint && joint.userData && joint.userData.visualSphere) {
+                    joint.userData.visualSphere.visible = jointSpheresVisible;
+                }
+            });
+            
+            const status = jointSpheresVisible ? '👁️ 可见' : '🙈 隐藏';
+            showNotification(`关节球体: ${status}`);
+            
+            console.log('🎯 关节球体状态:', jointSpheresVisible ? '可见' : '隐藏');
+        }
+
+        // ============================================
+        // 关节锁定/解锁功能
+        // ============================================
+        function toggleJointLock() {
+            if (!selectedJoint) {
+                showNotification('⚠️ 请先选择一个关节', 'warning');
+                return;
+            }
+
+            const jointName = getJointName(selectedJoint);
+            
+            if (lockedJoints.has(jointName)) {
+                // 解锁
+                lockedJoints.delete(jointName);
+                showNotification(`🔓 已解锁: ${jointName}`);
+            } else {
+                // 锁定
+                lockedJoints.add(jointName);
+                showNotification(`🔒 已锁定: ${jointName}`);
+            }
+
+            updateJointSphereColors();
+            updateJointInfo();
+            console.log('🔐 锁定的关节:', Array.from(lockedJoints));
+        }
+
+        // 获取关节名称
+        function getJointName(joint) {
+            for (let [name, j] of Object.entries(joints)) {
+                if (j === joint) return name;
+            }
+            return null;
+        }
+
+        // 更新球体颜色（锁定=红色，解锁=黄色）
+        function updateJointSphereColors() {
+            Object.keys(joints).forEach(name => {
+                const joint = joints[name];
+                if (joint && joint.userData && joint.userData.visualSphere) {
+                    const isLocked = lockedJoints.has(name);
+                    const color = isLocked ? 0xff0000 : 0xffff00; // 红色=锁定，黄色=解锁
+                    joint.userData.visualSphere.material.color.setHex(color);
+                }
+            });
+        }
+
+        // 更新关节信息显示
+        function updateJointInfo() {
+            const jointNameEl = document.getElementById('selected-joint-name');
+            const lockStatusEl = document.getElementById('lock-status');
+            const parentJointEl = document.getElementById('parent-joint-name');
+            const lockBtn = document.getElementById('lock-btn');
+
+            if (selectedJoint) {
+                const jointName = getJointName(selectedJoint);
+                const isLocked = lockedJoints.has(jointName);
+                const parent = selectedJoint.parent;
+                const parentName = getJointName(parent) || '根节点';
+
+                jointNameEl.textContent = jointName || '未知';
+                lockStatusEl.textContent = isLocked ? '🔒 已锁定' : '🔓 未锁定';
+                lockStatusEl.style.color = isLocked ? '#ff0000' : '#00ff00';
+                parentJointEl.textContent = parentName;
+
+                // 更新按钮文字
+                lockBtn.textContent = isLocked ? '🔓 解锁' : '🔒 锁定';
+                lockBtn.style.background = isLocked ? '#00aa00' : '#ff0000';
+            } else {
+                jointNameEl.textContent = '无';
+                lockStatusEl.textContent = '-';
+                lockStatusEl.style.color = '#888888';
+                parentJointEl.textContent = '-';
+                lockBtn.textContent = '🔓 解锁';
+                lockBtn.style.background = '#ff8800';
+            }
+        }
+
+        // ============================================
+        // 键盘快捷键
+        // ============================================
+        function onKeyDown(event) {
+            if (event.code === 'Space') {
+                event.preventDefault();
+                recordKeyframe();
+            } else if (event.code === 'KeyU') {
+                // U键：更新当前关键帧
+                event.preventDefault();
+                updateCurrentKeyframe();
+            } else if (event.code === 'KeyP') {
+                isPlaying ? stopAnimation() : playAnimation();
+            } else if (event.code === 'ArrowLeft') {
+                prevKeyframe();
+            } else if (event.code === 'ArrowRight') {
+                nextKeyframe();
+            } else if (event.altKey && mode === 'pose') {
+                // 按住 Alt 键时临时启用相机旋转
+                if (!controls.enabled) {
+                    controls.enabled = true;
+                    console.log('🔓 按住 Alt - 临时启用相机旋转');
+                }
+            }
+        }
+
+        // 添加 keyup 监听器来恢复状态
+        window.addEventListener('keyup', function(event) {
+            if (event.key === 'Alt' && mode === 'pose') {
+                // 松开 Alt 键时禁用相机旋转
+                if (!isDragging) {
+                    controls.enabled = false;
+                    console.log('🔒 松开 Alt - 禁用相机旋转');
+                }
+            }
+        });
+
+        // ============================================
+        // 信息面板更新
+        // ============================================
+        function updateInfoPanel() {
+            document.getElementById('info-mode').textContent = mode === 'pose' ? '摆姿势' : '播放动画';
+            
+            const jointName = selectedJoint ? Object.keys(joints).find(k => joints[k] === selectedJoint) : null;
+            document.getElementById('info-joint').textContent = jointName || '无';
+            
+            document.getElementById('info-keyframes').textContent = keyframes.length;
+            document.getElementById('info-time').textContent = currentTime.toFixed(2) + 's';
+            
+            // 更新调试信息
+            const debugEl = document.getElementById('info-debug');
+            if (debugEl) {
+                if (isDragging) {
+                    debugEl.textContent = '🟢 正在拖动';
+                    debugEl.style.color = '#00ff00';
+                } else if (jointName) {
+                    debugEl.textContent = '🟡 已选中';
+                    debugEl.style.color = '#ffff00';
+                } else {
+                    debugEl.textContent = '⚪ 等待点击';
+                    debugEl.style.color = '#888888';
+                }
+            }
+        }
+
+        // ============================================
+        // 窗口调整
+        // ============================================
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            updateTimeline();
+        }
+
+        // ============================================
+        // 从角色编辑器加载配置
+        // ============================================
+        async function loadCharacterConfig() {
+            try {
+                const response = await fetch('/api/config/character-editor?key=character_editor_config');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.config_value) {
+                        try {
+                            const config = JSON.parse(data.config_value);
+                            
+                            // 同步完整配置
+                            if (config.character) {
+                                characterConfig.character = {
+                                    scale: config.character.scale || 1.0,
+                                    bodyColor: config.character.bodyColor || 0x4a90e2,
+                                    headColor: config.character.headColor || 0xffaa99
+                                };
+                            }
+                            
+                            // 同步光剑配置
+                            if (config.sword) {
+                                characterConfig.sword = {
+                                    position: config.sword.position || { x: 0, y: -0.15, z: 0 },
+                                    rotation: config.sword.rotation || { x: 0, y: 0, z: 90 },
+                                    hiltColor: config.sword.hiltColor || 0x000000,
+                                    bladeColor: config.sword.bladeColor || 0x00ffff,
+                                    bladeLength: config.sword.bladeLength || 0.8,
+                                    glowIntensity: config.sword.glowIntensity || 0.8
+                                };
+                            }
+                            
+                            console.log('✅ 角色配置已从角色编辑器同步:', characterConfig);
+                            
+                            // 更新信息面板
+                            const syncEl = document.getElementById('info-config-sync');
+                            if (syncEl) {
+                                syncEl.textContent = '✓ 已同步';
+                                syncEl.style.color = '#00ff88';
+                            }
+                            const scaleEl = document.getElementById('info-scale');
+                            if (scaleEl) {
+                                scaleEl.textContent = characterConfig.character.scale.toFixed(1) + 'x';
+                            }
+                            
+                            return true;
+                        } catch (parseError) {
+                            console.error('❌ 解析配置失败:', parseError);
+                            showNotification('❌ 配置格式错误，使用默认配置');
+                        }
+                    }
+                } else {
+                    console.warn('⚠️ 配置请求失败:', response.status);
+                }
+                
+                // 未找到配置
+                const syncEl = document.getElementById('info-config-sync');
+                if (syncEl) {
+                    syncEl.textContent = '使用默认';
+                    syncEl.style.color = '#ffaa00';
+                }
+                return false;
+            } catch (error) {
+                console.error('❌ 加载配置失败:', error);
+                showNotification('❌ 无法加载角色配置，使用默认设置');
+                const syncEl = document.getElementById('info-config-sync');
+                if (syncEl) {
+                    syncEl.textContent = '使用默认';
+                    syncEl.style.color = '#ffaa00';
+                }
+                return false;
+            }
+        }
+
+        // ============================================        
+        // 通知系统        
+        // ============================================
+        function showNotification(message) {
+            const existing = document.querySelector('.notification');
+            if (existing) existing.remove();
+
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.style.animation = 'slideIn 0.3s ease-out reverse';
+                setTimeout(() => notification.remove(), 300);
+            }, 2500);
+        }
+
+        // ============================================        
+        // 状态持久化        
+        // ============================================
+        function loadSavedState() {
+            try {
+                const savedData = localStorage.getItem(STORAGE_KEY);
+                if (savedData) {
+                    const data = JSON.parse(savedData);
+                    keyframes = data.keyframes || [];
+                    currentTime = data.currentTime || 0;
+                    console.log('✅ 已加载保存的动画数据，关键帧数量:', keyframes.length);
+                    showNotification('✅ 已恢复上次的动画数据');
+                    
+                    // 更新UI
+                    updateKeyframeList();
+                    updateTimeline();
+                    updateInfoPanel();
+                }
+            } catch (error) {
+                console.error('❌ 加载保存的状态失败:', error);
+                showNotification('❌ 加载保存的状态失败');
+            }
+        }
+        
+        function saveState() {
+            try {
+                const data = {
+                    keyframes: keyframes,
+                    currentTime: currentTime
+                };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                console.log('✅ 动画数据已保存');
+            } catch (error) {
+                console.error('❌ 保存状态失败:', error);
+            }
+        }
+
+        // ============================================        
+        // 动画循环        
+        // ============================================
+        // 性能优化：减少DOM操作频率
+        let lastTimelineUpdate = 0;
+        let lastInfoUpdate = 0;
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            const now = Date.now();
+
+            // 更新播放动画
+            if (isPlaying) {
+                updateAnimation();
+            }
+
+            // 优化：每16ms（约60fps）更新一次时间轴
+            if (now - lastTimelineUpdate >= 16) {
+                updateTimeline();
+                lastTimelineUpdate = now;
+            }
+
+            // 优化：每100ms更新一次信息面板
+            if (now - lastInfoUpdate >= 100) {
+                document.getElementById('info-time').textContent = currentTime.toFixed(2) + 's';
+                lastInfoUpdate = now;
+            }
+
+            // 计算FPS
+            frameCount++;
+            if (now - lastFrameTime >= 1000) {
+                document.getElementById('info-fps').textContent = frameCount;
+                frameCount = 0;
+                lastFrameTime = now;
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // 启动
+        window.addEventListener('DOMContentLoaded', function() {
+            init();
+            // 延迟加载保存的状态，确保DOM已完全初始化
+            setTimeout(loadSavedState, 100);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<!--
+  济宁米多信息科技有限公司 版权所有
+  如需获取软件授权请联系：888@miduo100.com / 15660440944
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>创世虚拟世界CRM系统 - UI控件管理</title>
+  <link rel="stylesheet" href="/css/admin-ui-controls.css">
+  <style>
+    /* 基础样式 */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --green: #00ff00;
+      --green-dim: rgba(0,255,0,0.12);
+      --green-dark: #00cc00;
+      --bg: #0d1117;
+      --sidebar-bg: #161b22;
+      --card-bg: rgba(22,27,34,0.95);
+      --border: rgba(0,255,0,0.2);
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --red: #ff4444;
+      --blue: #58a6ff;
+      --yellow: #ffd700;
+      --purple: #bc8cff;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* 顶部导航栏 */
+    .top-nav {
+      height: 56px;
+      background: var(--sidebar-bg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--green);
+      font-size: 16px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .nav-brand:hover {
+      color: var(--green-dark);
+    }
+
+    .nav-back {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+
+    .nav-back:hover {
+      color: var(--text);
+      background: var(--green-dim);
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* 主内容区 */
+    .main-container {
+      padding-top: 56px;
+      height: 100vh;
+      display: flex;
+    }
+
+    /* 左侧控件列表 */
+    .controls-sidebar {
+      width: 280px;
+      background: rgba(13, 17, 23, 0.95);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 16px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-title {
+      color: var(--green);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    /* 中间预览区 */
+    .preview-section {
+      flex: 1;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow: auto;
+      position: relative;
+    }
+
+    .preview-toolbar {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+      background: var(--card-bg);
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      z-index: 100;
+    }
+
+    /* 右侧编辑器 */
+    .editor-panel {
+      width: 320px;
+      background: rgba(22, 27, 34, 0.95);
+      border-left: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 20px;
+      flex-shrink: 0;
+    }
+
+    /* 按钮样式 */
+    .btn {
+      padding: 8px 16px;
+      background: var(--green);
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn:hover {
+      background: var(--green-dark);
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    .btn-secondary {
+      background: rgba(139, 148, 158, 0.2);
+      color: var(--text);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(139, 148, 158, 0.35);
+    }
+
+    .btn-blue {
+      background: rgba(88, 166, 255, 0.2);
+      color: var(--blue);
+    }
+
+    .btn-blue:hover {
+      background: rgba(88, 166, 255, 0.35);
+    }
+
+    .btn-danger {
+      background: rgba(255, 68, 68, 0.2);
+      color: var(--red);
+    }
+
+    .btn-danger:hover {
+      background: rgba(255, 68, 68, 0.35);
+    }
+
+    /* 平台切换按钮组 */
+    .platform-btn-group {
+      display: flex;
+      gap: 4px;
+      background: rgba(0, 255, 0, 0.08);
+      border-radius: 8px;
+      padding: 3px;
+      border: 1px solid var(--border);
+    }
+
+    .platform-btn {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .platform-btn:hover {
+      color: var(--text);
+      background: rgba(0, 255, 0, 0.1);
+    }
+
+    .platform-btn.active {
+      background: var(--green);
+      color: #000;
+      font-weight: 600;
+    }
+
+    .platform-btn.active:hover {
+      background: var(--green-dark);
+    }
+
+    /* 加载状态 */
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(13, 17, 23, 0.95);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    }
+
+    .loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 3px solid var(--border);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    /* 错误提示 */
+    .error-message {
+      position: fixed;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 68, 68, 0.9);
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      z-index: 10001;
+      animation: slideDown 0.3s ease;
+    }
+
+    @keyframes slideDown {
+      from {
+        transform: translateX(-50%) translateY(-20px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+      }
+    }
+
+    /* 隐藏滚动条但保持功能 */
+    .controls-sidebar::-webkit-scrollbar,
+    .editor-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .controls-sidebar::-webkit-scrollbar-track,
+    .editor-panel::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .controls-sidebar::-webkit-scrollbar-thumb,
+    .editor-panel::-webkit-scrollbar-thumb {
+      background: rgba(0, 255, 0, 0.3);
+      border-radius: 3px;
+    }
+
+    .controls-sidebar::-webkit-scrollbar-thumb:hover,
+    .editor-panel::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 255, 0, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <!-- 加载遮罩 -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">正在加载UI控件配置...</div>
+  </div>
+
+  <!-- 顶部导航 -->
+  <nav class="top-nav">
+    <div class="nav-left">
+      <a href="/admin.html" class="nav-back">
+        <span>←</span>
+        <span>返回管理后台</span>
+      </a>
+      <a href="/" class="nav-brand">
+        <span>🎨</span>
+        <span>UI控件管理器</span>
+      </a>
+    </div>
+    <div class="nav-right">
+      <div class="platform-btn-group" id="platformBtnGroup">
+        <button class="platform-btn active" data-mode="desktop">💻 桌面</button>
+        <button class="platform-btn" data-mode="mobile">📱 手机</button>
+        <button class="platform-btn" data-mode="vr">🥽 VR</button>
+      </div>
+      <!-- 手机模式下的横竖屏切换，默认隐藏 -->
+      <div class="platform-btn-group" id="orientationBtnGroup" style="display:none;">
+        <button class="platform-btn active" data-orientation="portrait">📱 竖屏</button>
+        <button class="platform-btn" data-orientation="landscape">📱 横屏</button>
+      </div>
+      <button class="btn btn-sm" id="addControlBtn">
+        <span>➕</span>
+        <span>添加控件</span>
+      </button>
+      <button class="btn btn-sm btn-blue" id="batchSaveBtn">
+        <span>💾</span>
+        <span>批量保存</span>
+      </button>
+      <button class="btn btn-sm btn-secondary" id="refreshBtn">
+        <span>🔄</span>
+        <span>刷新</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- 主内容区 -->
+  <div class="main-container">
+    <!-- 左侧控件列表 -->
+    <aside class="controls-sidebar" id="controlsList">
+      <div class="sidebar-header">
+        <span class="sidebar-title">📋 控件列表</span>
+      </div>
+      <!-- 控件列表将在这里渲染 -->
+    </aside>
+
+    <!-- 中间预览区 -->
+    <section class="preview-section" id="previewContainer">
+      <div class="preview-toolbar">
+        <span style="color: var(--muted); font-size: 12px;">💡 提示：拖拽控件可调整位置</span>
+      </div>
+      <!-- 预览区域 -->
+    </section>
+
+    <!-- 右侧编辑器 -->
+    <aside class="editor-panel" id="editorPanel">
+      <div class="ui-editor-placeholder">请选择一个控件进行编辑</div>
+    </aside>
+  </div>
+
+  <!-- 引入管理脚本 -->
+  <script src="/js/coordFormat.js"></script>
+  <script src="/js/debugPanelPreview.js"></script>
+  <script src="/js/adminUIControls.js"></script>
+  <script>
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', function() {
+      // 检查登录状态
+      const token = localStorage.getItem('adminToken');
+      if (!token) {
+        showError('未登录，请先登录管理后台');
+        setTimeout(() => {
+          window.location.href = '/admin_login.html';
+        }, 2000);
+        return;
+      }
+
+      // 初始化UI控件管理器（内部已包含所有事件绑定）
+      AdminUIControls.init();
+    });
+
+    // 显示错误消息
+    function showError(message) {
+      const existing = document.querySelector('.error-message');
+      if (existing) existing.remove();
+
+      const error = document.createElement('div');
+      error.className = 'error-message';
+      error.textContent = message;
+      document.body.appendChild(error);
+
+      setTimeout(() => {
+        error.remove();
+      }, 3000);
+    }
+  </script>
+</body>
+</html>

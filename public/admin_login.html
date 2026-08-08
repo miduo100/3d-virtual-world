@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<!--
+  济宁米多信息科技有限公司 版权所有
+  如需获取软件授权请联系：888@miduo100.com / 15660440944
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="pageTitle">创世虚拟世界CRM系统 - 管理员登录</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .login-container {
+      background: rgba(255, 255, 255, 0.95);
+      padding: 40px;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 400px;
+      width: 100%;
+      position: relative;
+    }
+
+    .lang-switcher {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      display: flex;
+      gap: 6px;
+    }
+
+    .lang-switcher button {
+      background: transparent;
+      border: 1px solid #667eea;
+      color: #667eea;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .lang-switcher button:hover {
+      background: rgba(102, 126, 234, 0.1);
+    }
+
+    .lang-switcher button.active {
+      background: #667eea;
+      color: #fff;
+    }
+
+    .login-header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .login-header h1 {
+      color: #667eea;
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    .login-header p {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: #333;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 12px 15px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .login-btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .login-btn:hover {
+      transform: translateY(-2px);
+    }
+
+    .login-btn:active {
+      transform: translateY(0);
+    }
+
+    .login-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .error-message {
+      background: #ffebee;
+      color: #c62828;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      display: none;
+    }
+
+    .error-message.show {
+      display: block;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 20px;
+      color: #666;
+      font-size: 12px;
+    }
+
+    .divider {
+      height: 1px;
+      background: #e0e0e0;
+      margin: 20px 0;
+    }
+
+    .info-box {
+      background: #e3f2fd;
+      border-left: 4px solid #2196f3;
+      padding: 12px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: #0d47a1;
+    }
+
+    .world-link {
+      text-align: center;
+      margin-top: 20px;
+    }
+
+    .world-link a {
+      color: #667eea;
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    .world-link a:hover {
+      text-decoration: underline;
+    }
+
+    /* 忘记密码 */
+    .forgot-password {
+      text-align: center;
+      margin-top: 16px;
+    }
+
+    .forgot-password a {
+      color: #667eea;
+      text-decoration: none;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .forgot-password a:hover {
+      text-decoration: underline;
+    }
+
+    .reset-guide {
+      display: none;
+      background: #fff3e0;
+      border-left: 4px solid #ff9800;
+      padding: 16px;
+      border-radius: 6px;
+      margin-top: 14px;
+      font-size: 12px;
+      line-height: 1.8;
+    }
+
+    .reset-guide.show { display: block; }
+
+    .reset-guide h4 {
+      color: #e65100;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    .reset-guide code {
+      display: block;
+      background: rgba(0,0,0,0.06);
+      padding: 10px 12px;
+      border-radius: 5px;
+      font-size: 11px;
+      word-break: break-all;
+      margin: 8px 0;
+      color: #333;
+      user-select: all;
+    }
+
+    .reset-guide .copy-btn {
+      background: #ff9800;
+      color: #fff;
+      border: none;
+      padding: 5px 14px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      margin-top: 6px;
+    }
+
+    .reset-guide .copy-btn:hover { background: #f57c00; }
+    .reset-guide .hint { color: #666; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="lang-switcher">
+      <button type="button" data-lang="zh" class="active">中文</button>
+      <button type="button" data-lang="en">English</button>
+    </div>
+
+    <div class="login-header">
+      <h1 data-i18n="loginTitle">🎮 管理后台登录</h1>
+      <p data-i18n="systemName">创世虚拟世界CRM系统</p>
+    </div>
+
+    <div id="errorMessage" class="error-message"></div>
+
+    <div class="info-box">
+      <span data-i18n="defaultAccount">默认账号</span>: <strong>admin</strong><br>
+      <span data-i18n="defaultPassword">默认密码</span>: <strong>admin123456</strong><br>
+      <small data-i18n="changePasswordHint">首次登录后请立即修改密码</small>
+    </div>
+
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="username" data-i18n="usernameLabel">👤 管理员账号</label>
+        <input 
+          type="text" 
+          id="username" 
+          name="username" 
+          required 
+          autocomplete="username"
+          data-i18n-placeholder="usernamePlaceholder"
+          placeholder="请输入管理员账号"
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="password" data-i18n="passwordLabel">🔒 密码</label>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          required 
+          autocomplete="current-password"
+          data-i18n-placeholder="passwordPlaceholder"
+          placeholder="请输入密码"
+        >
+      </div>
+
+      <button type="submit" class="login-btn" id="loginBtn" data-i18n="loginBtn">
+        登录
+      </button>
+    </form>
+
+    <div class="divider"></div>
+
+    <div class="world-link">
+      <a href="/index.html" data-i18n="backToWorld">🌍 返回虚拟世界</a>
+    </div>
+
+    <div class="forgot-password">
+      <a id="toggleResetGuide" data-i18n="forgotPassword">❓ 忘记密码？</a>
+    </div>
+
+    <div class="reset-guide" id="resetGuide">
+      <h4 data-i18n="resetTitle">⚠️ 密码重置说明</h4>
+      <p data-i18n="resetStep1">1. 打开数据库管理工具（如 pgAdmin、DBeaver）或终端</p>
+      <p data-i18n="resetStep2">2. 执行以下 SQL 语句：</p>
+      <code id="resetSql">UPDATE admin_users SET password_hash = '$2a$10$N9qo8uLOickgx2ZMRZoMye/pKq3g.zhCdPMKdYH5B4M5HJq3VXQW', updated_at = CURRENT_TIMESTAMP WHERE username = 'admin';</code>
+      <button class="copy-btn" onclick="copyResetSql()" data-i18n="copySqlBtn">📋 复制SQL</button>
+      <p class="hint"><span data-i18n="resetHint1">✅ 重置后密码为：</span><strong>admin123456</strong></p>
+      <p class="hint" data-i18n="resetHint2">登录后请立即进入「账户设置」修改密码。</p>
+    </div>
+
+    <div class="footer">
+      <span data-i18n="copyright">© 2026 创世虚拟世界CRM系统</span><br>
+      <span data-i18n="adminSystemText">独立管理员账号系统</span>
+    </div>
+  </div>
+
+  <script>
+    const i18n = {
+      zh: {
+        pageTitle: '创世虚拟世界CRM系统 - 管理员登录',
+        loginTitle: '🎮 管理后台登录',
+        systemName: '创世虚拟世界CRM系统',
+        defaultAccount: 'ℹ️ 默认账号',
+        defaultPassword: '默认密码',
+        changePasswordHint: '首次登录后请立即修改密码',
+        usernameLabel: '👤 管理员账号',
+        usernamePlaceholder: '请输入管理员账号',
+        passwordLabel: '🔒 密码',
+        passwordPlaceholder: '请输入密码',
+        loginBtn: '登录',
+        backToWorld: '🌍 返回虚拟世界',
+        forgotPassword: '❓ 忘记密码？',
+        forgotPasswordClose: '▲ 收起重置说明',
+        resetTitle: '⚠️ 密码重置说明',
+        resetStep1: '1. 打开数据库管理工具（如 pgAdmin、DBeaver）或终端',
+        resetStep2: '2. 执行以下 SQL 语句：',
+        copySqlBtn: '📋 复制SQL',
+        copySqlSuccess: '✅ 已复制！',
+        resetHint1: '✅ 重置后密码为：',
+        resetHint2: '登录后请立即进入「账户设置」修改密码。',
+        copyright: '© 2026 创世虚拟世界CRM系统',
+        adminSystemText: '独立管理员账号系统',
+        inputRequired: '请输入用户名和密码',
+        loggingIn: '登录中...',
+        networkError: '网络错误，请稍后重试',
+        accountLocked: '🔒 账号已被锁定，请联系管理员',
+        rateLimited: '⏳ 请求过于频繁，请稍后再试',
+        loginFailed: '登录失败',
+        waitSeconds: '请等待 {seconds} 秒...',
+        waitMinutesSeconds: '请等待 {minutes} 分 {seconds} 秒...',
+        copiedAlert: '已复制到剪贴板'
+      },
+      en: {
+        pageTitle: 'Genesis Virtual World CRM - Admin Login',
+        loginTitle: '🎮 Admin Login',
+        systemName: 'Genesis Virtual World CRM System',
+        defaultAccount: 'ℹ️ Default Account',
+        defaultPassword: 'Default Password',
+        changePasswordHint: 'Please change your password immediately after first login',
+        usernameLabel: '👤 Admin Account',
+        usernamePlaceholder: 'Enter admin account',
+        passwordLabel: '🔒 Password',
+        passwordPlaceholder: 'Enter password',
+        loginBtn: 'Login',
+        backToWorld: '🌍 Back to Virtual World',
+        forgotPassword: '❓ Forgot password?',
+        forgotPasswordClose: '▲ Hide reset guide',
+        resetTitle: '⚠️ Password Reset Instructions',
+        resetStep1: '1. Open a database management tool (e.g. pgAdmin, DBeaver) or terminal',
+        resetStep2: '2. Execute the following SQL statement:',
+        copySqlBtn: '📋 Copy SQL',
+        copySqlSuccess: '✅ Copied!',
+        resetHint1: '✅ Password after reset: ',
+        resetHint2: 'Please go to "Account Settings" to change your password after login.',
+        copyright: '© 2026 Genesis Virtual World CRM System',
+        adminSystemText: 'Independent Admin Account System',
+        inputRequired: 'Please enter username and password',
+        loggingIn: 'Logging in...',
+        networkError: 'Network error, please try again later',
+        accountLocked: '🔒 Account locked, please contact administrator',
+        rateLimited: '⏳ Too many requests, please try again later',
+        loginFailed: 'Login failed',
+        waitSeconds: 'Please wait {seconds}s...',
+        waitMinutesSeconds: 'Please wait {minutes}m {seconds}s...',
+        copiedAlert: 'Copied to clipboard'
+      }
+    };
+
+    let currentLang = localStorage.getItem('adminLoginLang') || 'zh';
+
+    function t(key, vars) {
+      let text = i18n[currentLang][key] || i18n['zh'][key] || key;
+      if (vars) {
+        Object.keys(vars).forEach(k => {
+          text = text.replace('{' + k + '}', vars[k]);
+        });
+      }
+      return text;
+    }
+
+    function applyLanguage(lang) {
+      currentLang = lang;
+      localStorage.setItem('adminLoginLang', lang);
+      document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.dataset.i18n;
+        if (i18n[lang][key]) {
+          el.textContent = i18n[lang][key];
+        }
+      });
+
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.dataset.i18nPlaceholder;
+        if (i18n[lang][key]) {
+          el.placeholder = i18n[lang][key];
+        }
+      });
+
+      document.querySelectorAll('.lang-switcher button').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.lang === lang);
+      });
+
+      // 更新忘记密码切换按钮的当前文本
+      const guide = document.getElementById('resetGuide');
+      const toggle = document.getElementById('toggleResetGuide');
+      if (guide && toggle) {
+        toggle.textContent = guide.classList.contains('show') ? t('forgotPasswordClose') : t('forgotPassword');
+      }
+
+      // 登录按钮在空闲时更新文本
+      if (loginBtn && !loginBtn.disabled && !lockCountdownTimer) {
+        loginBtn.textContent = t('loginBtn');
+      }
+    }
+
+    document.querySelectorAll('.lang-switcher button').forEach(btn => {
+      btn.addEventListener('click', () => applyLanguage(btn.dataset.lang));
+    });
+
+    const loginForm = document.getElementById('loginForm');
+    const loginBtn = document.getElementById('loginBtn');
+    const errorMessage = document.getElementById('errorMessage');
+    let lockCountdownTimer = null;
+
+    applyLanguage(currentLang);
+
+    // 忘记密码 - 展开/收起
+    document.getElementById('toggleResetGuide').addEventListener('click', function(e) {
+      e.preventDefault();
+      var guide = document.getElementById('resetGuide');
+      guide.classList.toggle('show');
+      this.textContent = guide.classList.contains('show') ? t('forgotPasswordClose') : t('forgotPassword');
+    });
+
+    // 复制SQL
+    window.copyResetSql = function() {
+      var sql = document.getElementById('resetSql').textContent;
+      navigator.clipboard.writeText(sql).then(function() {
+        var btn = document.querySelector('.copy-btn');
+        btn.textContent = t('copySqlSuccess');
+        setTimeout(function() { btn.textContent = t('copySqlBtn'); }, 2000);
+      }).catch(function() {
+        var ta = document.createElement('textarea');
+        ta.value = sql;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        alert(t('copiedAlert'));
+      });
+    };
+
+    // 检查是否已登录
+    checkLoginStatus();
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+
+      // 验证输入
+      if (!username || !password) {
+        showError(t('inputRequired'));
+        return;
+      }
+
+      // 禁用按钮
+      disableLoginBtn(true, t('loggingIn'));
+      hideError();
+
+      try {
+        const response = await fetch('/api/admin-auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          // 保存token到localStorage
+          localStorage.setItem('adminToken', data.token);
+          localStorage.setItem('adminUser', JSON.stringify(data.adminUser));
+
+          // 把登录页选中的语言偏好传给管理后台
+          localStorage.setItem('locale', currentLang === 'zh' ? 'zh-CN' : 'en-US');
+
+          // 跳转到管理后台
+          window.location.href = '/admin.html';
+        } else {
+          handleLoginError(response.status, data);
+        }
+      } catch (error) {
+        console.error('登录错误:', error);
+        showError(t('networkError'));
+        disableLoginBtn(false, t('loginBtn'));
+      }
+    });
+
+    function handleLoginError(status, data) {
+      // 账号锁定 (423)
+      if (status === 423) {
+        if (data.retryAfter) {
+          showError('🔒 ' + data.error);
+          startLockCountdown(data.retryAfter);
+        } else {
+          showError(t('accountLocked'));
+          disableLoginBtn(false, t('loginBtn'));
+        }
+        return;
+      }
+
+      // 频率限制 (429)
+      if (status === 429) {
+        if (data.retryAfter) {
+          showError('⏳ ' + data.error);
+          startLockCountdown(data.retryAfter);
+        } else {
+          showError(t('rateLimited'));
+          disableLoginBtn(false, t('loginBtn'));
+        }
+        return;
+      }
+
+      // 其他错误
+      showError(data.error || t('loginFailed'));
+      disableLoginBtn(false, t('loginBtn'));
+    }
+
+    function startLockCountdown(seconds) {
+      // 清除旧定时器
+      if (lockCountdownTimer) clearInterval(lockCountdownTimer);
+
+      let remaining = Math.ceil(seconds);
+      if (remaining <= 0) {
+        disableLoginBtn(false, t('loginBtn'));
+        hideError();
+        return;
+      }
+
+      function updateBtn() {
+        if (remaining <= 0) {
+          clearInterval(lockCountdownTimer);
+          lockCountdownTimer = null;
+          disableLoginBtn(false, t('loginBtn'));
+          hideError();
+          return;
+        }
+        const mins = Math.floor(remaining / 60);
+        const secs = remaining % 60;
+        const text = mins > 0
+          ? t('waitMinutesSeconds', { minutes: mins, seconds: secs })
+          : t('waitSeconds', { seconds: secs });
+        loginBtn.textContent = text;
+        loginBtn.disabled = true;
+        remaining--;
+      }
+
+      updateBtn(); // 立即更新
+      lockCountdownTimer = setInterval(updateBtn, 1000);
+    }
+
+    function disableLoginBtn(disabled, text) {
+      loginBtn.disabled = disabled;
+      loginBtn.textContent = text;
+      if (!disabled) {
+        if (lockCountdownTimer) {
+          clearInterval(lockCountdownTimer);
+          lockCountdownTimer = null;
+        }
+      }
+    }
+
+    function showError(message) {
+      errorMessage.textContent = message;
+      errorMessage.classList.add('show');
+    }
+
+    function hideError() {
+      errorMessage.classList.remove('show');
+    }
+
+    async function checkLoginStatus() {
+      const token = localStorage.getItem('adminToken');
+      if (!token) return;
+
+      try {
+        const response = await fetch('/api/admin-auth/verify', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          // 已登录，直接跳转
+          window.location.href = '/admin.html';
+        } else {
+          // Token无效，清除
+          localStorage.removeItem('adminToken');
+          localStorage.removeItem('adminUser');
+        }
+      } catch (error) {
+        console.error('验证登录状态失败:', error);
+      }
+    }
+  </script>
+</body>
+</html>

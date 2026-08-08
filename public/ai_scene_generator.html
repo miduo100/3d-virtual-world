@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<!--
+  济宁米多信息科技有限公司 版权所有
+  如需获取软件授权请联系：888@miduo100.com / 15660440944
+-->
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创世虚拟世界CRM系统 - AI场景生成</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* 主容器 */
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        /* 顶部栏 */
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-bottom: 1px solid rgba(99, 102, 241, 0.3);
+            flex-shrink: 0;
+        }
+        
+        .top-bar-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            color: #a78bfa;
+        }
+        
+        .top-bar-title svg {
+            width: 24px;
+            height: 24px;
+        }
+        
+        /* AI选择器区域 */
+        .ai-selectors {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .selector-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .selector-label {
+            font-size: 13px;
+            color: #888;
+        }
+        
+        .ai-select {
+            background: rgba(30, 30, 50, 0.8);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 8px;
+            padding: 6px 12px;
+            color: #e0e0e0;
+            font-size: 13px;
+            cursor: pointer;
+            min-width: 130px;
+            transition: all 0.2s;
+        }
+        
+        .ai-select:hover {
+            border-color: rgba(99, 102, 241, 0.7);
+            background: rgba(40, 40, 70, 0.9);
+        }
+        
+        .ai-select:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+        
+        /* 关闭按钮 */
+        .close-btn {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #f87171;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .close-btn:hover {
+            background: rgba(239, 68, 68, 0.3);
+            border-color: rgba(239, 68, 68, 0.6);
+        }
+        
+        /* 主内容区 */
+        .content-area {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        /* 左侧预览区 */
+        .preview-panel {
+            width: 45%;
+            background: #0d0d15;
+            border-right: 1px solid rgba(99, 102, 241, 0.2);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .preview-header {
+            padding: 12px 16px;
+            background: rgba(20, 20, 35, 0.8);
+            border-bottom: 1px solid rgba(99, 102, 241, 0.15);
+            font-size: 13px;
+            color: #888;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .preview-canvas {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #preview-canvas-container {
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a15 100%);
+        }
+        
+        .preview-placeholder {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #555;
+        }
+        
+        .preview-placeholder svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+        
+        .preview-placeholder p {
+            font-size: 14px;
+        }
+        
+        /* 右侧对话区 */
+        .chat-panel {
+            width: 55%;
+            display: flex;
+            flex-direction: column;
+            background: #0f0f1a;
+        }
+        
+        .chat-header {
+            padding: 12px 16px;
+            background: rgba(20, 20, 35, 0.8);
+            border-bottom: 1px solid rgba(99, 102, 241, 0.15);
+            font-size: 13px;
+            color: #888;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.3);
+            border-radius: 3px;
+        }
+        
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.5);
+        }
+        
+        /* 消息样式 */
+        .message {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.6;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message.user {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message.ai {
+            align-self: flex-start;
+            background: rgba(30, 30, 50, 0.9);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            color: #e0e0e0;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message.ai.error {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.3);
+            color: #f87171;
+        }
+        
+        .message .sender {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .message.user .sender {
+            justify-content: flex-end;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        /* AI状态指示器 */
+        .ai-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .ai-status .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .ai-status .dot.idle {
+            background: #888;
+            animation: none;
+        }
+        
+        .ai-status .dot.loading {
+            background: #f59e0b;
+        }
+        
+        /* 聊天输入区 */
+        .chat-input-area {
+            padding: 16px;
+            background: rgba(20, 20, 35, 0.8);
+            border-top: 1px solid rgba(99, 102, 241, 0.15);
+        }
+        
+        .chat-input-wrapper {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+        
+        .chat-input {
+            flex: 1;
+            background: rgba(30, 30, 50, 0.8);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: #e0e0e0;
+            font-size: 14px;
+            resize: none;
+            min-height: 48px;
+            max-height: 120px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        
+        .chat-input:focus {
+            outline: none;
+            border-color: #6366f1;
+        }
+        
+        .chat-input::placeholder {
+            color: #666;
+        }
+        
+        .chat-send-btn {
+            background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+            border: none;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .chat-send-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        }
+        
+        .chat-send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        /* 底部场景输入区 */
+        .bottom-bar {
+            padding: 16px 20px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-top: 1px solid rgba(99, 102, 241, 0.3);
+            flex-shrink: 0;
+        }
+        
+        .scene-input-wrapper {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+        
+        .scene-label {
+            font-size: 13px;
+            color: #a78bfa;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .scene-input {
+            flex: 1;
+            background: rgba(30, 30, 50, 0.8);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 10px;
+            padding: 14px 18px;
+            color: #e0e0e0;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .scene-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+        
+        .scene-input::placeholder {
+            color: #666;
+        }
+        
+        .generate-btn {
+            background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%);
+            border: none;
+            color: white;
+            padding: 14px 28px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+        
+        .generate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+        }
+        
+        .generate-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        /* 加载动画 */
+        .loading-dots {
+            display: inline-flex;
+            gap: 4px;
+        }
+        
+        .loading-dots span {
+            width: 6px;
+            height: 6px;
+            background: #a78bfa;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        
+        .loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+        .loading-dots span:nth-child(3) { animation-delay: 0; }
+        
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        
+        /* 代码块样式 */
+        .code-block {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 8px;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .code-block::-webkit-scrollbar {
+            height: 4px;
+        }
+        
+        .code-block::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.3);
+            border-radius: 2px;
+        }
+        
+        /* 进度状态 */
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: rgba(99, 102, 241, 0.1);
+            border-radius: 20px;
+            font-size: 12px;
+            color: #a78bfa;
+        }
+        
+        .status-indicator.success {
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+        }
+        
+        .status-indicator.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #f87171;
+        }
+        
+        /* 空状态提示 */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #555;
+        }
+        
+        .empty-state svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 12px;
+            opacity: 0.3;
+        }
+        
+        /* 功能提示卡片 */
+        .feature-hint {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        
+        .feature-hint h3 {
+            color: #a78bfa;
+            font-size: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .feature-hint ul {
+            color: #888;
+            font-size: 13px;
+            line-height: 1.8;
+            list-style: none;
+            padding: 0;
+        }
+        
+        .feature-hint li {
+            padding: 4px 0;
+        }
+        
+        .feature-hint li::before {
+            content: "• ";
+            color: #6366f1;
+        }
+        
+        .feature-hint code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- 顶部栏 -->
+        <div class="top-bar">
+            <div class="top-bar-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+                <span>AI 3D内容生成器</span>
+            </div>
+            
+            <div class="ai-selectors">
+                <div class="selector-group">
+                    <span class="selector-label">AI供应商：</span>
+                    <select id="provider-select" class="ai-select">
+                        <option value="">加载中...</option>
+                    </select>
+                </div>
+                <div class="selector-group">
+                    <span class="selector-label">生成方式：</span>
+                    <select id="mode-select" class="ai-select">
+                        <option value="model-priority">模型库优先</option>
+                        <option value="ai-generate">AI完整生成</option>
+                    </select>
+                </div>
+            </div>
+            
+            <button class="close-btn" onclick="window.close()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+                关闭
+            </button>
+        </div>
+        
+        <!-- 主内容区 -->
+        <div class="content-area">
+            <!-- 左侧预览区 -->
+            <div class="preview-panel">
+                <div class="preview-header">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    3D预览
+                </div>
+                <div class="preview-canvas">
+                    <div id="preview-canvas-container"></div>
+                    <div id="preview-placeholder" class="preview-placeholder">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+                            <polyline points="3.27,6.96 12,12.01 20.73,6.96"/>
+                            <line x1="12" y1="22.08" x2="12" y2="12"/>
+                        </svg>
+                        <p>在对话框中描述你想要的内容<br/>我会用Three.js生成3D模型</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右侧对话区 -->
+            <div class="chat-panel">
+                <div class="chat-header">
+                    <div id="ai-status" class="ai-status">
+                        <span class="dot idle"></span>
+                        <span id="ai-status-text">待机中</span>
+                    </div>
+                </div>
+                <div id="chat-messages" class="chat-messages">
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                        </svg>
+                        <p>AI对话记录将显示在这里</p>
+                    </div>
+                </div>
+                <div class="chat-input-area">
+                    <div class="chat-input-wrapper">
+                        <textarea 
+                            id="chat-input" 
+                            class="chat-input" 
+                            placeholder="描述你想要生成的3D内容..."
+                            rows="1"
+                            onkeydown="handleChatKeyDown(event)"
+                        ></textarea>
+                        <button id="chat-send-btn" class="chat-send-btn" onclick="sendGenerationRequest()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/>
+                            </svg>
+                            生成
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <!-- AI相关 -->
+    <script src="/js/adminAIProviders.js"></script>
+    
+    <script>
+        // ============================================
+        // 全局变量
+        // ============================================
+        let previewScene, previewCamera, previewRenderer, previewControls;
+        let currentProvider = null;
+        let isGenerating = false;
+        let chatHistory = [];
+        
+        // API基础路径
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? 'http://localhost:3000' 
+            : '';
+        
+        // ============================================
+        // 初始化
+        // ============================================
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 初始化Three.js预览
+            initPreviewScene();
+            
+            // 加载AI供应商列表
+            await loadAIProviders();
+            
+            // 添加欢迎消息和功能提示
+            addWelcomeMessage();
+        });
+        
+        // ============================================
+        // Three.js 预览场景初始化
+        // ============================================
+        function initPreviewScene() {
+            const container = document.getElementById('preview-canvas-container');
+            if (!container) return;
+            
+            // 场景
+            previewScene = new THREE.Scene();
+            previewScene.background = new THREE.Color(0x0a0a15);
+            
+            // 相机
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            previewCamera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
+            previewCamera.position.set(0, 5, 10);
+            
+            // 渲染器
+            previewRenderer = new THREE.WebGLRenderer({ antialias: true });
+            previewRenderer.setSize(width, height);
+            previewRenderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(previewRenderer.domElement);
+            
+            // 控制器
+            previewControls = new THREE.OrbitControls(previewCamera, previewRenderer.domElement);
+            previewControls.enableDamping = true;
+            previewControls.dampingFactor = 0.05;
+            previewControls.target.set(0, 0, 0);
+            
+            // 灯光
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            previewScene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 10, 5);
+            previewScene.add(directionalLight);
+            
+            // 地面网格（帮助定位）
+            const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
+            previewScene.add(gridHelper);
+            
+            // 添加一个示例立方体
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshStandardMaterial({ 
+                color: 0x6366f1,
+                metalness: 0.3,
+                roughness: 0.7
+            });
+            const cube = new THREE.Mesh(geometry, material);
+            cube.position.y = 0.5;
+            previewScene.add(cube);
+            
+            // 星空背景
+            createStarfield();
+            
+            // 窗口大小调整
+            window.addEventListener('resize', () => {
+                const width = container.clientWidth;
+                const height = container.clientHeight;
+                previewCamera.aspect = width / height;
+                previewCamera.updateProjectionMatrix();
+                previewRenderer.setSize(width, height);
+            });
+            
+            // 动画循环
+            animate();
+        }
+        
+        function createStarfield() {
+            const starsGeometry = new THREE.BufferGeometry();
+            const starsMaterial = new THREE.PointsMaterial({
+                color: 0xffffff,
+                size: 0.1,
+                transparent: true,
+                opacity: 0.8
+            });
+            
+            const starsVertices = [];
+            for (let i = 0; i < 1000; i++) {
+                const x = (Math.random() - 0.5) * 200;
+                const y = (Math.random() - 0.5) * 200;
+                const z = (Math.random() - 0.5) * 200;
+                starsVertices.push(x, y, z);
+            }
+            
+            starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
+            const stars = new THREE.Points(starsGeometry, starsMaterial);
+            previewScene.add(stars);
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            previewControls.update();
+            previewRenderer.render(previewScene, previewCamera);
+        }
+        
+        // ============================================
+        // 加载AI供应商
+        // ============================================
+        async function loadAIProviders() {
+            const select = document.getElementById('provider-select');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/ai-providers`);
+                if (!response.ok) throw new Error('获取供应商列表失败');
+                
+                const providers = await response.json();
+                
+                // 清空并重新填充
+                select.innerHTML = '';
+                
+                if (providers.length === 0) {
+                    select.innerHTML = '<option value="">暂无可用供应商</option>';
+                    return;
+                }
+                
+                providers.forEach(provider => {
+                    const option = document.createElement('option');
+                    option.value = provider.id;
+                    option.textContent = `${provider.name}`;
+                    option.dataset.type = provider.type;
+                    select.appendChild(option);
+                });
+                
+                // 默认选中第一个
+                if (providers.length > 0) {
+                    select.value = providers[0].id;
+                    currentProvider = providers[0];
+                }
+                
+            } catch (error) {
+                console.error('加载AI供应商失败:', error);
+                select.innerHTML = '<option value="">加载失败</option>';
+                addAIMessage('⚠️ 加载AI供应商列表失败，请刷新页面重试。', 'error');
+            }
+        }
+        
+        // ============================================
+        // AI对话功能
+        // ============================================
+        function addUserMessage(text) {
+            const messagesDiv = document.getElementById('chat-messages');
+            
+            // 清除空状态
+            const emptyState = messagesDiv.querySelector('.empty-state');
+            if (emptyState) emptyState.remove();
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message user';
+            messageDiv.innerHTML = `
+                <div class="sender">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                    </svg>
+                    你
+                </div>
+                <div class="content">${escapeHtml(text)}</div>
+            `;
+            messagesDiv.appendChild(messageDiv);
+            scrollToBottom();
+            
+            chatHistory.push({ role: 'user', content: text });
+        }
+        
+        function addWelcomeMessage() {
+            const messagesDiv = document.getElementById('chat-messages');
+            
+            // 清除空状态
+            const emptyState = messagesDiv.querySelector('.empty-state');
+            if (emptyState) emptyState.remove();
+            
+            // 添加欢迎消息
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ai';
+            
+            const providerName = currentProvider ? currentProvider.name : 'AI';
+            
+            messageDiv.innerHTML = `
+                <div class="sender">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                    ${providerName}
+                </div>
+                <div class="content">
+                    <div class="feature-hint">
+                        <h3>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/>
+                            </svg>
+                            AI 3D内容生成器
+                        </h3>
+                        <ul>
+                            <li>告诉我你想要的内容，我会用 <code>Three.js</code> 生成3D模型</li>
+                            <li>可以说"场景"或"物品"，比如：<code>创建一个星空下的城市夜景</code></li>
+                            <li>可以说"物品"或"模型"，比如：<code>生成一个机械齿轮</code></li>
+                            <li>也可以调整颜色、材质、大小等属性</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+            messagesDiv.appendChild(messageDiv);
+            scrollToBottom();
+        }
+        
+        function addAIMessage(text, type = 'normal') {
+            const messagesDiv = document.getElementById('chat-messages');
+            
+            // 清除空状态
+            const emptyState = messagesDiv.querySelector('.empty-state');
+            if (emptyState) emptyState.remove();
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ai ${type === 'error' ? 'error' : ''}`;
+            
+            const statusDiv = document.getElementById('ai-status');
+            const providerName = currentProvider ? currentProvider.name : 'AI';
+            
+            messageDiv.innerHTML = `
+                <div class="sender">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                    ${providerName}
+                </div>
+                <div class="content">${formatMessage(text)}</div>
+            `;
+            messagesDiv.appendChild(messageDiv);
+            scrollToBottom();
+            
+            chatHistory.push({ role: 'assistant', content: text });
+        }
+        
+        function updateLastAIMessage(text) {
+            const messages = document.querySelectorAll('.message.ai');
+            if (messages.length > 0) {
+                const lastMessage = messages[messages.length - 1];
+                lastMessage.querySelector('.content').innerHTML = formatMessage(text);
+                scrollToBottom();
+            }
+        }
+        
+        function scrollToBottom() {
+            const messagesDiv = document.getElementById('chat-messages');
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function formatMessage(text) {
+            // 转义HTML
+            let formatted = escapeHtml(text);
+            
+            // 转换代码块
+            formatted = formatted.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre class="code-block"><code>$2</code></pre>');
+            
+            // 转换行内代码
+            formatted = formatted.replace(/`([^`]+)`/g, '<code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-size: 12px;">$1</code>');
+            
+            // 转换换行
+            formatted = formatted.replace(/\n/g, '<br/>');
+            
+            return formatted;
+        }
+        
+        // ============================================
+        // 发送生成请求（整合聊天和生成功能）
+        // ============================================
+        async function sendGenerationRequest() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            
+            if (!text || isGenerating) return;
+            
+            // 获取AI供应商
+            const providerId = document.getElementById('provider-select').value;
+            const mode = document.getElementById('mode-select').value;
+            
+            if (!providerId) {
+                addAIMessage('请先选择一个AI供应商', 'error');
+                return;
+            }
+            
+            isGenerating = true;
+            setAIStatus('loading', '生成中...');
+            
+            // 添加用户消息
+            addUserMessage(text);
+            input.value = '';
+            
+            try {
+                // 智能判断用户想要生成什么
+                const generationType = detectGenerationType(text);
+                
+                let apiEndpoint = '';
+                let requestBody = {};
+                
+                if (generationType === 'scene') {
+                    // 生成场景
+                    apiEndpoint = `${API_BASE}/generate-scene`;
+                    requestBody = {
+                        providerId: providerId,
+                        mode: mode,
+                        prompt: text
+                    };
+                } else if (generationType === 'object') {
+                    // 生成物品/模型
+                    apiEndpoint = `${API_BASE}/api/ai-scene/generate-threejs-code`;
+                    requestBody = {
+                        providerId: providerId,
+                        prompt: text
+                    };
+                } else {
+                    // 普通对话
+                    addAIMessage('⏳ 正在思考...');
+                    
+                    const response = await fetch(`${API_BASE}/api/ai/chat`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            providerId: providerId,
+                            messages: chatHistory,
+                            stream: false
+                        })
+                    });
+                    
+                    if (!response.ok) throw new Error('请求失败');
+                    
+                    const data = await response.json();
+                    updateLastAIMessage(data.message || data.content || '收到回复');
+                    setAIStatus('ready', '就绪');
+                    isGenerating = false;
+                    return;
+                }
+                
+                // 调用生成API
+                addAIMessage(`⏳ 正在生成${generationType === 'scene' ? '场景' : '物品'}，请稍候...`);
+                
+                const response = await fetch(apiEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || '生成失败');
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateLastAIMessage('✅ 生成完成！正在渲染...');
+                    
+                    // 渲染生成的内容
+                    if (generationType === 'scene' && data.sceneData) {
+                        await renderSceneData(data.sceneData);
+                    } else if (generationType === 'object' && data.code) {
+                        await renderThreeJSCode(data.code);
+                    }
+                    
+                    addAIMessage('🎉 内容已生成！可以在左侧预览区查看效果。如果需要调整，可以继续描述或重新生成。');
+                } else {
+                    throw new Error(data.error || '生成失败');
+                }
+                
+                setAIStatus('ready', '就绪');
+                
+            } catch (error) {
+                console.error('生成失败:', error);
+                updateLastAIMessage('❌ 生成失败：' + error.message);
+                addAIMessage('生成过程中出现错误，请重试或检查AI服务是否正常。', 'error');
+                setAIStatus('error', '连接失败');
+            } finally {
+                isGenerating = false;
+            }
+        }
+        
+        // 智能判断生成类型
+        function detectGenerationType(text) {
+            const lowerText = text.toLowerCase();
+            
+            // 场景关键词
+            const sceneKeywords = ['场景', '环境', '世界', '城市', '村庄', '海滩', '森林', '太空', '星空', '夜景', '日落', '日出', '公园', '街道', '房间', '室内', '室外'];
+            
+            // 物品关键词
+            const objectKeywords = ['物品', '模型', '物体', '东西', '生成一个', '创建', '制作一个', '画一个', '做一个'];
+            
+            // 检查是否包含场景关键词
+            for (const keyword of sceneKeywords) {
+                if (lowerText.includes(keyword)) {
+                    return 'scene';
+                }
+            }
+            
+            // 检查是否包含物品关键词
+            for (const keyword of objectKeywords) {
+                if (lowerText.includes(keyword)) {
+                    return 'object';
+                }
+            }
+            
+            // 默认返回场景（更通用）
+            return 'scene';
+        }
+        
+        function handleChatKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendGenerationRequest();
+            }
+        }
+        
+        // 渲染Three.js代码生成的物体
+        async function renderThreeJSCode(code) {
+            try {
+                // 清空当前场景（保留星空）
+                const toRemove = [];
+                previewScene.traverse((child) => {
+                    if (child.isMesh && child.userData.generated) {
+                        toRemove.push(child);
+                    }
+                });
+                toRemove.forEach(obj => previewScene.remove(obj));
+                
+                // 隐藏占位符
+                const placeholder = document.getElementById('preview-placeholder');
+                if (placeholder) placeholder.style.display = 'none';
+                
+                // 执行生成的代码
+                const createGeometry = new Function('THREE', code);
+                const meshes = createGeometry(THREE);
+                
+                if (Array.isArray(meshes)) {
+                    meshes.forEach(mesh => {
+                        mesh.userData.generated = true;
+                        previewScene.add(mesh);
+                    });
+                } else if (meshes) {
+                    meshes.userData.generated = true;
+                    previewScene.add(meshes);
+                }
+                
+            } catch (error) {
+                console.error('渲染Three.js代码失败:', error);
+                addAIMessage('⚠️ 渲染代码时出错：' + error.message, 'error');
+            }
+        }
+        
+        // ============================================
+        // 渲染场景数据
+        // ============================================
+        async function renderSceneData(sceneData) {
+            try {
+                // 清空当前场景（保留星空）
+                const toRemove = [];
+                previewScene.traverse((child) => {
+                    if (child.isMesh && child.userData.generated) {
+                        toRemove.push(child);
+                    }
+                });
+                toRemove.forEach(obj => previewScene.remove(obj));
+                
+                // 隐藏占位符
+                const placeholder = document.getElementById('preview-placeholder');
+                if (placeholder) placeholder.style.display = 'none';
+                
+                // 解析场景数据
+                if (sceneData.objects && Array.isArray(sceneData.objects)) {
+                    sceneData.objects.forEach(obj => {
+                        const geometry = createGeometryFromConfig(obj);
+                        if (geometry) {
+                            geometry.userData.generated = true;
+                            previewScene.add(geometry);
+                        }
+                    });
+                }
+                
+            } catch (error) {
+                console.error('渲染场景失败:', error);
+                addAIMessage('⚠️ 渲染场景时出错：' + error.message, 'error');
+            }
+        }
+        
+        // 根据配置创建几何体
+        function createGeometryFromConfig(config) {
+            try {
+                const { type, position, rotation, scale, color, ...other } = config;
+                
+                let geometry;
+                switch (type.toLowerCase()) {
+                    case 'box':
+                    case 'cube':
+                        geometry = new THREE.BoxGeometry(1, 1, 1);
+                        break;
+                    case 'sphere':
+                        geometry = new THREE.SphereGeometry(0.5, 32, 32);
+                        break;
+                    case 'cylinder':
+                        geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
+                        break;
+                    case 'cone':
+                        geometry = new THREE.ConeGeometry(0.5, 1, 32);
+                        break;
+                    case 'torus':
+                        geometry = new THREE.TorusGeometry(0.3, 0.1, 16, 100);
+                        break;
+                    case 'plane':
+                        geometry = new THREE.PlaneGeometry(1, 1);
+                        break;
+                    default:
+                        geometry = new THREE.BoxGeometry(1, 1, 1);
+                }
+                
+                const materialConfig = other.material || {};
+                const material = new THREE.MeshStandardMaterial({
+                    color: color || 0x6366f1,
+                    metalness: materialConfig.metalness ?? 0.3,
+                    roughness: materialConfig.roughness ?? 0.7,
+                    ...materialConfig
+                });
+                
+                const mesh = new THREE.Mesh(geometry, material);
+                
+                // 设置位置
+                mesh.position.set(
+                    position?.x || 0,
+                    position?.y || 0,
+                    position?.z || 0
+                );
+                
+                // 设置旋转
+                mesh.rotation.set(
+                    rotation?.x || 0,
+                    rotation?.y || 0,
+                    rotation?.z || 0
+                );
+                
+                // 设置缩放
+                mesh.scale.set(
+                    scale?.x || 1,
+                    scale?.y || 1,
+                    scale?.z || 1
+                );
+                
+                return mesh;
+                
+            } catch (error) {
+                console.error('创建几何体失败:', error);
+                return null;
+            }
+        }
+        
+        // ============================================
+        // 辅助函数
+        // ============================================
+        function setAIStatus(status, text) {
+            const dot = document.querySelector('#ai-status .dot');
+            const statusText = document.getElementById('ai-status-text');
+            
+            dot.className = 'dot';
+            if (status === 'idle') dot.classList.add('idle');
+            else if (status === 'loading') dot.classList.add('loading');
+            
+            statusText.textContent = text;
+        }
+        
+        // ============================================
+        // 自动调整聊天输入框高度
+        // ============================================
+        document.getElementById('chat-input')?.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+    </script>
+</body>
+</html>

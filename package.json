@@ -1,0 +1,52 @@
+{
+  "name": "virtual-world-server",
+  "private": true,
+  "version": "1.0.0",
+  "author": "济宁米多信息科技有限公司 <888@miduo100.com>",
+  "description": "Copyright © 2026 济宁米多信息科技有限公司 版权所有 如需获取软件授权请联系：888@miduo100.com / 15660440944",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "init-admin": "node src/init_admin_users.js",
+    "init-ai-scenes": "node src/init_ai_scenes_db.js"
+  },
+  "dependencies": {
+    "@types/three": "^0.183.1",
+    "adm-zip": "^0.5.16",
+    "axios": "^1.13.6",
+    "bcryptjs": "^3.0.3",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.0.0",
+    "compression": "^1.8.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "gltfpack": "^0.24.0",
+    "jsonwebtoken": "^9.0.3",
+    "lucide-react": "^0.294.0",
+    "multer": "^2.1.1",
+    "pg": "^8.11.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0",
+    "tailwind-merge": "^2.1.0",
+    "tailwindcss-animate": "^1.0.7",
+    "tencentcloud-sdk-nodejs": "^4.1.189",
+    "three": "^0.183.2",
+    "uuid": "^9.0.1",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.16",
+    "docx": "^9.6.1",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8"
+  }
+}
