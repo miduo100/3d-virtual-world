@@ -1,4 +1,4 @@
-node_modules/
+# node_modules/
 .env
 .env.local
 .env.*.local
@@ -22,9 +22,9 @@ deploy-ubuntu/
 public/gallery_content/
 
 # 上传的大模型文件（本地保留不上传）
-public/models/uploaded/
-public/uploads/
-uploads/
+# public/models/uploaded/
+# public/uploads/
+# uploads/
 
 # 视频文件（所有格式）
 *.mp4
@@ -45,7 +45,7 @@ uploads/
 *.vob
 
 # 截图和媒体文件（本地保留不上传）
-screenshots/
+# screenshots/
 
 # 大文件类型
 *.mp3
