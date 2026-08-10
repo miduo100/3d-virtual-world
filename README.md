@@ -366,10 +366,10 @@ A subscription license **must** be obtained if any of the following operations a
 | Item | Fee |
 |------|------|
 | First subscription (includes 2 months free) | ¥60 / $9.18 |
-| Monthly renewal (per world) | ¥3/month |
-| Annual renewal | ¥36/year |
-| 10-year renewal | ¥360 |
-| 100-year renewal | ¥3,600 |
+| Monthly renewal (per world) | ¥3/month / $0.46 |
+| Annual renewal | ¥36/year / $5.51 |
+| 10-year renewal | ¥360 / $55.08 |
+| 100-year renewal | ¥3,600 / $550.80 |
 
 > For full license agreement, see [EULA.md](./EULA.md) and [LICENSE](./LICENSE).
 
@@ -463,4 +463,4 @@ If this project helps you, please give it a Star ⭐
 ---
 
 Copyright © 2026 Jining Miduo Information Technology Co., Ltd. All Rights Reserved.
-VWFP is a trademark of Jining Miduo Information Technology Co., Ltd.
+VWFP is a protocol developed by Jining Miduo Information Technology Co., Ltd.
