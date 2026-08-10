@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+
+# Environment files (keep .example files, ignore real configs)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.world2
+
+# Build output
+dist/
+build/
+public/dist/
+coverage/
+
+# Uploaded content (user data, not source code)
+uploads/
+public/uploads/
+public/gallery_content/
+public/models/uploaded/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+.codebuddy/
+.playwright-cli/
+
+# Video files
+*.mp4
+*.webm
+*.avi
+*.mov
+*.mkv
+*.wmv
+*.flv
+*.m4v
+
+# Audio files
+*.mp3
+*.wav
+
+# Archives
+*.zip
+*.tar.gz
+*.tar
+*.rar
+*.7z
+
+# Backups
+*.bak
+
+# Misc
+$null
+_extracted_script.js
