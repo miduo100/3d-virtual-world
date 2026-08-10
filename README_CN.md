@@ -8,6 +8,8 @@
 [![Three.js](https://img.shields.io/badge/Three.js-0.183-black.svg)](https://threejs.org)
 [![在线演示](https://img.shields.io/badge/在线演示-miduo100.com-orange.svg)](https://miduo100.com/)
 
+![演示视频](./Screenshot/shipin.gif)
+
 > 基于 Three.js + Express.js + PostgreSQL 构建的沉浸式 3D 多人虚拟世界系统。  
 > 支持多世界联邦互联、角色定制、3D 建筑搭建和实时多人交互。  
 > **VWFP v2.1 协议** | Copyright © 2026 济宁米多信息科技有限公司

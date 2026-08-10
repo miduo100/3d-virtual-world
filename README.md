@@ -8,6 +8,8 @@
 [![Three.js](https://img.shields.io/badge/Three.js-0.183-black.svg)](https://threejs.org)
 [![Live Demo](https://img.shields.io/badge/Live_Demo-miduo100.com-orange.svg)](https://miduo100.com/)
 
+![Demo](./Screenshot/shipin.gif)
+
 > An immersive 3D multiplayer virtual world system built on Three.js + Express.js + PostgreSQL.
 > Supports multi-world federation interconnection, character customization, 3D building construction and real-time multiplayer interaction.
 > **VWFP v2.1 Protocol** | Copyright © 2026 Jining Miduo Information Technology Co., Ltd.
