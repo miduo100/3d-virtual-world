@@ -378,7 +378,7 @@ A subscription license **must** be obtained if any of the following operations a
 - **Company**: Jining Miduo Information Technology Co., Ltd.
 - **Unified Social Credit Code**: 913708003104166341
 - **Email**: 888@miduo100.com
-- **Phone**: 15660440944
+
 - **Website**: https://miduo100.com
 
 ---
@@ -452,7 +452,7 @@ Check if Nginx has WebSocket proxy configured (see Nginx config above).
 If you need technical support or have any questions, please contact via:
 
 - Email: 888@miduo100.com
-- Phone: 15660440944
+
 
 ---
 
