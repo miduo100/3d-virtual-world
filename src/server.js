@@ -399,6 +399,18 @@ async function autoFixWorldUrl() {
       return;
     }
 
+    // 检查 url_source 标记：管理员手动设置过的，跳过自动修正
+    const urlCheck = await query(
+      `SELECT value FROM world_config WHERE key = 'federation_config'`
+    );
+    if (urlCheck.rows.length > 0) {
+      const fedCfg = JSON.parse(urlCheck.rows[0].value);
+      if (fedCfg.url_source === 'manual') {
+        console.log(`\n🔧 [自检] world_url 由管理员手动设置为 "${currentUrl}"，跳过自动修正\n`);
+        return;
+      }
+    }
+
     // 修正：指向外部域名 → 自动改为本机IP
     const port = process.env.PORT || 3002;
     let serverIp = '127.0.0.1';

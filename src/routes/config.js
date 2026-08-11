@@ -145,8 +145,9 @@ router.put('/world-settings', async (req, res) => {
       );
       if (existing.rows.length > 0) {
         const fedConfig = JSON.parse(existing.rows[0].value);
-        fedConfig.worldName = world_name;
-        fedConfig.worldUrl  = world_url;
+        fedConfig.worldName  = world_name;
+        fedConfig.worldUrl   = world_url;
+        fedConfig.url_source = 'manual';  // 标记：管理员手工设置，重启时 autoFixWorldUrl 跳过覆盖
         await query(
           'UPDATE world_config SET value = $1, updated_at = NOW() WHERE key = $2',
           [JSON.stringify(fedConfig), 'federation_config']
