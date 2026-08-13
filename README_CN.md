@@ -166,7 +166,7 @@
 | 用户首页（3D 世界） | `http://localhost:3002/` |
 | 管理后台 | `http://localhost:3002/admin.html` |
 | 管理员登录页 | `http://localhost:3002/admin_login.html` |
-| 默认管理员账号 | `admin / admin123`（**请立即修改！**） |
+| 默认管理员账号 | `admin / admin123456`（**请立即修改！**） |
 
 ---
 

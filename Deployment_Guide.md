@@ -60,7 +60,7 @@ pm2 startup
 **Direct access**：
 - User Portal: http://<your-server-ip>:3002/
 - Admin Panel: http://<your-server-ip>:3002/admin.html
-- Default admin account: admin / admin123 (change immediately)
+- Default admin account: admin / admin123456 (change immediately)
 
 **Via Nginx reverse proxy with domain**：
 - Point your domain to the server IP via DNS

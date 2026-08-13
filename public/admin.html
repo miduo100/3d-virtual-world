@@ -521,7 +521,7 @@
         <button class="sub-tab" onclick="switchSubTab('world','world-rules',this);loadWorldRules()" data-i18n="adminWorld.subtabWorldRules">🌍 世界规则</button>
         <button class="sub-tab" onclick="switchSubTab('world','weather',this);loadWeatherConfig()" data-i18n="adminWorld.subtabWeather">🌤️ 天气控制</button>
         <button class="sub-tab" onclick="switchSubTab('world','custom-npc',this);loadCustomNPCList()" data-i18n="adminWorld.subtabCustomNPC">🤖 定制NPC</button>
-        <button class="sub-tab" onclick="switchSubTab('world','model-guard',this);loadModelGuardConfig()">🛡️ 模型守卫</button>
+        <button class="sub-tab" onclick="switchSubTab('world','model-guard',this);loadModelGuardConfig()" data-i18n="adminWorld.subtabModelGuard">🛡️ 模型守卫</button>
       </div>
 
       <div id="world-sub-monsters" class="sub-page">
@@ -719,8 +719,8 @@
       <div id="world-sub-model-guard" class="sub-page" style="display:none">
         <div class="card">
           <div class="card-header">
-            <div class="card-title">🛡️ 远程模型守卫配置</div>
-            <div style="font-size:12px;color:var(--muted)">
+            <div class="card-title" data-i18n="adminWorld.mgTitle">🛡️ 远程模型守卫配置</div>
+            <div style="font-size:12px;color:var(--muted)" data-i18n="adminWorld.mgDesc">
               控制跨世界访问时远端玩家模型的加载策略。超限模型将自动降级为占位符。
             </div>
           </div>
@@ -728,8 +728,8 @@
           <!-- 启用开关 -->
           <div style="background:rgba(0,255,0,0.05);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between">
             <div>
-              <label style="font-size:14px;font-weight:600">启用模型守卫</label>
-              <p style="font-size:11px;color:var(--muted);margin-top:4px">关闭后将加载所有远端模型（可能导致性能问题）</p>
+              <label style="font-size:14px;font-weight:600" data-i18n="adminWorld.mgEnable">启用模型守卫</label>
+              <p style="font-size:11px;color:var(--muted);margin-top:4px" data-i18n="adminWorld.mgEnableHint">关闭后将加载所有远端模型（可能导致性能问题）</p>
             </div>
             <label style="position:relative;width:48px;height:26px;cursor:pointer">
               <input type="checkbox" id="mg-enabled" checked onchange="onMgEnabledChange()" style="display:none">
@@ -742,7 +742,7 @@
           <div id="mg-slots-container">
             <div class="form-row" style="margin-bottom:16px">
               <div class="form-group" style="flex:1">
-                <label>📦 最大文件大小: <strong id="mg-file-size-val" style="color:var(--blue)">10 MB</strong></label>
+                <label><span data-i18n="adminWorld.mgMaxFileSize">📦 最大文件大小</span>: <strong id="mg-file-size-val" style="color:var(--blue)">10 MB</strong></label>
                 <input type="range" id="mg-max-file-size" min="1" max="200" value="10" step="1"
                   oninput="document.getElementById('mg-file-size-val').textContent=this.value+' MB'"
                   style="width:100%;accent-color:var(--blue)">
@@ -754,28 +754,28 @@
 
             <div class="form-row" style="margin-bottom:16px">
               <div class="form-group" style="flex:1">
-                <label>△ 最大三角形: <strong id="mg-tri-val" style="color:var(--green)">50,000</strong></label>
+                <label><span data-i18n="adminWorld.mgMaxTriangles">△ 最大三角形</span>: <strong id="mg-tri-val" style="color:var(--green)">50,000</strong></label>
                 <input type="range" id="mg-max-tri" min="1000" max="500000" value="50000" step="1000"
                   oninput="document.getElementById('mg-tri-val').textContent=Number(this.value).toLocaleString()"
                   style="width:100%;accent-color:var(--green)">
                 <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">
-                  <span>1K</span><span>10W</span><span>30W</span><span>50W</span>
+                  <span>1K</span><span data-i18n="adminWorld.mgTickTri2">10W</span><span data-i18n="adminWorld.mgTickTri3">30W</span><span data-i18n="adminWorld.mgTickTri4">50W</span>
                 </div>
               </div>
               <div class="form-group" style="flex:1">
-                <label>○ 最大顶点: <strong id="mg-vert-val" style="color:var(--purple)">30,000</strong></label>
+                <label><span data-i18n="adminWorld.mgMaxVertices">○ 最大顶点</span>: <strong id="mg-vert-val" style="color:var(--purple)">30,000</strong></label>
                 <input type="range" id="mg-max-vert" min="500" max="300000" value="30000" step="500"
                   oninput="document.getElementById('mg-vert-val').textContent=Number(this.value).toLocaleString()"
                   style="width:100%;accent-color:var(--purple)">
                 <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">
-                  <span>500</span><span>5W</span><span>15W</span><span>30W</span>
+                  <span>500</span><span data-i18n="adminWorld.mgTickVert2">5W</span><span data-i18n="adminWorld.mgTickVert3">15W</span><span data-i18n="adminWorld.mgTickVert4">30W</span>
                 </div>
               </div>
             </div>
 
             <div class="form-row" style="margin-bottom:16px">
               <div class="form-group" style="flex:1">
-                <label>🔷 最大Mesh数: <strong id="mg-mesh-val" style="color:var(--orange)">20</strong></label>
+                <label><span data-i18n="adminWorld.mgMaxMeshes">🔷 最大Mesh数</span>: <strong id="mg-mesh-val" style="color:var(--orange)">20</strong></label>
                 <input type="range" id="mg-max-mesh" min="1" max="200" value="20" step="1"
                   oninput="document.getElementById('mg-mesh-val').textContent=this.value"
                   style="width:100%;accent-color:var(--orange)">
@@ -784,43 +784,42 @@
                 </div>
               </div>
               <div class="form-group" style="flex:1">
-                <label>🎨 占位符风格</label>
+                <label data-i18n="adminWorld.mgPlaceholderStyle">🎨 占位符风格</label>
                 <select id="mg-placeholder-style" style="width:100%;padding:8px;background:var(--card-bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
-                  <option value="stickman">🧍 木棍人</option>
-                  <option value="block">📦 方块人</option>
-                  <option value="sphere">⚪ 球体</option>
+                  <option value="stickman" data-i18n="adminWorld.mgStyleStickman">🧍 木棍人</option>
+                  <option value="block" data-i18n="adminWorld.mgStyleBlock">📦 方块人</option>
+                  <option value="sphere" data-i18n="adminWorld.mgStyleSphere">⚪ 球体</option>
                 </select>
               </div>
             </div>
 
             <div style="background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:var(--muted)">
-              💡 <strong style="color:var(--yellow)">提示：</strong>
-              这些限制<strong>只影响其他世界来访的远端玩家模型</strong>。自己世界的本地模型不受任何限制。
+              💡 <strong style="color:var(--yellow)" data-i18n="adminWorld.mgHintLabel">提示：</strong><span data-i18n="adminWorld.mgHintPre">这些限制</span><strong data-i18n="adminWorld.mgHintStrong">只影响其他世界来访的远端玩家模型</strong><span data-i18n="adminWorld.mgHintPost">。自己世界的本地模型不受任何限制。</span>
             </div>
 
             <!-- 动画守卫/自包含角色包配置扩展容器 -->
             <div id="mg-anim-guard-container"></div>
 
-            <button class="btn" onclick="saveModelGuardConfig()">💾 保存配置（立即生效）</button>
+            <button class="btn" onclick="saveModelGuardConfig()" data-i18n="adminWorld.mgSave">💾 保存配置（立即生效）</button>
             <span id="mg-save-status" style="margin-left:12px;font-size:13px"></span>
           </div>
         </div>
 
         <!-- 统计卡片 -->
         <div class="card">
-          <div class="card-title" style="font-size:13px;margin-bottom:14px">📊 实时统计（本次会话）</div>
+          <div class="card-title" style="font-size:13px;margin-bottom:14px" data-i18n="adminWorld.mgStatsTitle">📊 实时统计（本次会话）</div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
             <div style="background:rgba(0,255,0,0.06);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center">
               <div style="font-size:22px;font-weight:700;color:var(--green)" id="mg-stat-blocked">0</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:4px">被拦截的模型</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:4px" data-i18n="adminWorld.mgStatBlocked">被拦截的模型</div>
             </div>
             <div style="background:rgba(88,166,255,0.06);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center">
               <div style="font-size:22px;font-weight:700;color:var(--blue)" id="mg-stat-passed">0</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:4px">正常加载的模型</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:4px" data-i18n="adminWorld.mgStatPassed">正常加载的模型</div>
             </div>
             <div style="background:rgba(255,215,0,0.06);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center">
               <div style="font-size:22px;font-weight:700;color:var(--yellow)" id="mg-stat-avg-size">-</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:4px">平均模型大小</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:4px" data-i18n="adminWorld.mgStatAvgSize">平均模型大小</div>
             </div>
           </div>
         </div>
@@ -5629,7 +5628,7 @@
       console.log('[Admin] ModelGuard 配置已加载:', c);
     } catch (e) {
       console.error('[Admin] 加载 ModelGuard 配置失败:', e);
-      showToast('❌ 加载配置失败: ' + e.message, 'error');
+      showToast(window.i18n.tp('adminWorld.mgLoadFailed', { message: e.message }), 'error');
     }
   }
 
@@ -5662,7 +5661,7 @@
 
   async function saveModelGuardConfig() {
     var statusEl = document.getElementById('mg-save-status');
-    statusEl.textContent = '⏳ 保存中...';
+    statusEl.textContent = window.i18n.t('adminWorld.mgSaving');
     statusEl.style.color = 'var(--yellow)';
 
     var config = {
@@ -5676,7 +5675,7 @@
 
     try {
       var token = localStorage.getItem('adminToken');
-      if (!token) throw new Error('未登录');
+      if (!token) throw new Error(window.i18n.t('adminWorld.mgNotLoggedIn'));
 
       var resp = await fetch('/api/admin/model-guard/config', {
         method: 'PUT',
@@ -5687,21 +5686,21 @@
       var data = await resp.json();
 
       if (data.success) {
-        statusEl.textContent = '✅ 已保存';
+        statusEl.textContent = window.i18n.t('adminWorld.mgSaved');
         statusEl.style.color = 'var(--green)';
-        showToast('✅ 模型守卫配置已保存，立即生效');
+        showToast(window.i18n.t('adminWorld.mgToastSaved'));
 
         // 刷新前端模块缓存
         if (window.RemoteModelGuard && window.RemoteModelGuard.forceRefreshConfig) {
           window.RemoteModelGuard.forceRefreshConfig();
         }
       } else {
-        throw new Error(data.error || '保存失败');
+        throw new Error(data.error || window.i18n.t('adminWorld.mgSaveFailedGeneric'));
       }
     } catch (e) {
-      statusEl.textContent = '❌ 失败';
+      statusEl.textContent = window.i18n.t('adminWorld.mgFailed');
       statusEl.style.color = 'var(--red)';
-      showToast('❌ 保存失败: ' + e.message, 'error');
+      showToast(window.i18n.tp('adminWorld.mgSaveFailed', { message: e.message }), 'error');
       console.error('[Admin] 保存 ModelGuard 失败:', e);
     }
   }

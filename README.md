@@ -166,7 +166,7 @@ Have you noticed that the current internet is bound by layers of constraints? Af
 | User Home (3D World) | `http://localhost:3002/` |
 | Admin Console | `http://localhost:3002/admin.html` |
 | Admin Login Page | `http://localhost:3002/admin_login.html` |
-| Default Admin Account | `admin / admin123` (**Please change immediately!**) |
+| Default Admin Account | `admin / admin123456` (**Please change immediately!**) |
 
 ---
 

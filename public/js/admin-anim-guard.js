@@ -22,13 +22,35 @@
   var BUNDLE_CARD_ID = 'mg-bundle-mode-card';
 
   var FIELDS = [
-    { key: 'anim_max_file_size', label: '📦 单动画文件大小', unit: 'MB', min: 1, max: 500, step: 1 },
-    { key: 'anim_max_tracks', label: '🎼 单动画轨道数', unit: '条', min: 10, max: 5000, step: 10 },
-    { key: 'anim_max_keyframes', label: '⏱️ 单动画关键帧数', unit: '个', min: 100, max: 1000000, step: 100 },
-    { key: 'anim_max_duration', label: '⏳ 单动画时长', unit: '秒', min: 1, max: 600, step: 1 },
-    { key: 'anim_max_meshes', label: '🔷 动画GLB内嵌网格数', unit: '个', min: 0, max: 500, step: 1 },
-    { key: 'anim_total_max_size', label: '📊 单角色动画累计预算', unit: 'MB', min: 1, max: 500, step: 1 }
+    { key: 'anim_max_file_size', labelKey: 'adminWorld.agFieldFileSize', label: '📦 单动画文件大小', unit: 'MB', min: 1, max: 500, step: 1 },
+    { key: 'anim_max_tracks', labelKey: 'adminWorld.agFieldTracks', label: '🎼 单动画轨道数', unitKey: 'adminWorld.agUnitTracks', unit: '条', min: 10, max: 5000, step: 10 },
+    { key: 'anim_max_keyframes', labelKey: 'adminWorld.agFieldKeyframes', label: '⏱️ 单动画关键帧数', unitKey: 'adminWorld.agUnitKeyframes', unit: '个', min: 100, max: 1000000, step: 100 },
+    { key: 'anim_max_duration', labelKey: 'adminWorld.agFieldDuration', label: '⏳ 单动画时长', unitKey: 'adminWorld.agUnitDuration', unit: '秒', min: 1, max: 600, step: 1 },
+    { key: 'anim_max_meshes', labelKey: 'adminWorld.agFieldMeshes', label: '🔷 动画GLB内嵌网格数', unitKey: 'adminWorld.agUnitMeshes', unit: '个', min: 0, max: 500, step: 1 },
+    { key: 'anim_total_max_size', labelKey: 'adminWorld.agFieldTotalSize', label: '📊 单角色动画累计预算', unit: 'MB', min: 1, max: 500, step: 1 }
   ];
+
+  // i18n 辅助：语言包未就绪或缺键时回退中文（空字符串翻译视为有效，如英文单位留空）
+  function _t(key, zh) {
+    if (window.i18n && window.i18n.initialized) {
+      var v = window.i18n.t(key);
+      if (typeof v === 'string' && v !== key) return v;
+    }
+    return zh;
+  }
+
+  function _tp(key, params, zh) {
+    var text = _t(key, zh);
+    if (params) {
+      Object.keys(params).forEach(function(p) {
+        text = text.replace('{{' + p + '}}', params[p]);
+      });
+    }
+    return text;
+  }
+
+  function _label(f) { return _t(f.labelKey, f.label); }
+  function _unit(f) { return f.unitKey ? _t(f.unitKey, f.unit) : f.unit; }
 
   function _id(key, suffix) {
     return 'mg-ag-' + key + (suffix ? '-' + suffix : '');
@@ -57,23 +79,23 @@
     card.id = BUNDLE_CARD_ID;
 
     var html = '<div class="card-header">';
-    html += '<div class="card-title">🎭 角色动画模式</div>';
+    html += '<div class="card-title">' + _t('adminWorld.agBundleTitle', '🎭 角色动画模式') + '</div>';
     html += '<div style="font-size:12px;color:var(--muted);margin-top:4px">';
-    html += '控制跨世界来访角色动画的播放方式。此设置<strong>独立于模型守卫与动画守卫开关</strong>，关闭守卫后仍然生效。';
+    html += _t('adminWorld.agBundleDesc', '控制跨世界来访角色动画的播放方式。此设置<strong>独立于模型守卫与动画守卫开关</strong>，关闭守卫后仍然生效。');
     html += '</div>';
     html += '</div>';
 
     html += '<div style="display:flex;gap:12px;margin-bottom:14px">';
     html += '<div id="' + _id('bundle-card-retarget') + '" class="mg-bundle-card" data-mode="retarget" style="flex:1;border:2px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:.2s;background:var(--card-bg);position:relative">';
     html += '<div style="font-size:22px;margin-bottom:8px">🔄</div>';
-    html += '<div style="font-weight:600;font-size:14px;margin-bottom:6px">重定向模式</div>';
-    html += '<div style="font-size:12px;color:var(--muted);line-height:1.45">省资源，跨世界角色动画按骨骼映射重定向。</div>';
+    html += '<div style="font-weight:600;font-size:14px;margin-bottom:6px">' + _t('adminWorld.agModeRetarget', '重定向模式') + '</div>';
+    html += '<div style="font-size:12px;color:var(--muted);line-height:1.45">' + _t('adminWorld.agModeRetargetDesc', '省资源，跨世界角色动画按骨骼映射重定向。') + '</div>';
     html += '<div class="mg-bundle-check" style="position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;color:#000;font-size:12px;opacity:0.4">✓</div>';
     html += '</div>';
     html += '<div id="' + _id('bundle-card-self_contained') + '" class="mg-bundle-card" data-mode="self_contained" style="flex:1;border:2px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:.2s;background:var(--card-bg);position:relative">';
     html += '<div style="font-size:22px;margin-bottom:8px">📦</div>';
-    html += '<div style="font-weight:600;font-size:14px;margin-bottom:6px">自包含模式</div>';
-    html += '<div style="font-size:12px;color:var(--muted);line-height:1.45">高保真原样播放跨世界自定义角色，需要较好的性能。</div>';
+    html += '<div style="font-weight:600;font-size:14px;margin-bottom:6px">' + _t('adminWorld.agModeSelfContained', '自包含模式') + '</div>';
+    html += '<div style="font-size:12px;color:var(--muted);line-height:1.45">' + _t('adminWorld.agModeSelfContainedDesc', '高保真原样播放跨世界自定义角色，需要较好的性能。') + '</div>';
     html += '<div class="mg-bundle-check" style="position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;color:#000;font-size:12px;opacity:0.4">✓</div>';
     html += '</div>';
     html += '</div>';
@@ -81,11 +103,11 @@
     html += '<input type="hidden" id="' + _id('bundle-mode') + '" value="retarget">';
 
     html += '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">';
-    html += '<button id="' + _id('save-bundle') + '" type="button" style="padding:8px 16px;background:var(--blue);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500">💾 保存当前模式</button>';
+    html += '<button id="' + _id('save-bundle') + '" type="button" style="padding:8px 16px;background:var(--blue);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500">' + _t('adminWorld.agSaveBundle', '💾 保存当前模式') + '</button>';
     html += '<span id="' + _id('bundle-status') + '" style="font-size:12px;min-height:18px"></span>';
     html += '</div>';
 
-    html += '<div style="font-size:11px;color:var(--muted)">💡 点击卡片选中模式，再点「保存当前模式」立即生效。</div>';
+    html += '<div style="font-size:11px;color:var(--muted)">' + _t('adminWorld.agBundleHint', '💡 点击卡片选中模式，再点「保存当前模式」立即生效。') + '</div>';
 
     card.innerHTML = html;
     subPage.insertBefore(card, firstCard);
@@ -114,8 +136,8 @@
     // ===== 动画守卫总开关 =====
     html += '<div style="background:rgba(0,170,255,0.05);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between">';
     html += '<div>';
-    html += '<label style="font-size:14px;font-weight:600">🎬 启用动画守卫</label>';
-    html += '<p style="font-size:11px;color:var(--muted);margin-top:4px">拦截来自其他世界的大文件/特效烘焙动画，保护当前世界客户端性能</p>';
+    html += '<label style="font-size:14px;font-weight:600">' + _t('adminWorld.agEnable', '🎬 启用动画守卫') + '</label>';
+    html += '<p style="font-size:11px;color:var(--muted);margin-top:4px">' + _t('adminWorld.agEnableHint', '拦截来自其他世界的大文件/特效烘焙动画，保护当前世界客户端性能') + '</p>';
     html += '</div>';
     html += '<label style="position:relative;width:48px;height:26px;cursor:pointer">';
     html += '<input type="checkbox" id="' + _id('enabled') + '" checked style="display:none">';
@@ -127,20 +149,21 @@
     // 仅拦跨域开关
     html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;font-size:13px">';
     html += '<input type="checkbox" id="' + _id('remote-only') + '" checked style="accent-color:var(--blue);width:16px;height:16px">';
-    html += '<label for="' + _id('remote-only') + '" style="cursor:pointer">只拦截跨世界（远端）动画，本世界上传动画放行</label>';
+    html += '<label for="' + _id('remote-only') + '" style="cursor:pointer">' + _t('adminWorld.agRemoteOnly', '只拦截跨世界（远端）动画，本世界上传动画放行') + '</label>';
     html += '</div>';
 
     // ===== 动画守卫阈值滑块 =====
     html += '<div id="' + _id('slots') + '">';
     FIELDS.forEach(function(f) {
+      var unit = _unit(f);
       html += '<div class="form-row" style="margin-bottom:14px">';
       html += '<div class="form-group" style="flex:1">';
-      html += '<label>' + f.label + ': <strong id="' + _id(f.key, 'val') + '" style="color:var(--blue)"></strong></label>';
+      html += '<label>' + _label(f) + ': <strong id="' + _id(f.key, 'val') + '" style="color:var(--blue)"></strong></label>';
       html += '<input type="range" id="' + _id(f.key) + '" min="' + f.min + '" max="' + f.max + '" step="' + f.step + '" value="' + _defaultValue(f.key) + '"';
-      html += ' oninput="document.getElementById(\'' + _id(f.key, 'val') + '\').textContent=this.value+' + "'" + f.unit + "'" + '"';
+      html += ' oninput="document.getElementById(\'' + _id(f.key, 'val') + '\').textContent=this.value+' + "'" + unit + "'" + '"';
       html += ' style="width:100%;accent-color:var(--blue)">';
       html += '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">';
-      html += '<span>' + f.min + f.unit + '</span><span>' + f.max + f.unit + '</span>';
+      html += '<span>' + f.min + unit + '</span><span>' + f.max + unit + '</span>';
       html += '</div>';
       html += '</div>';
       html += '</div>';
@@ -149,7 +172,7 @@
 
     // 提示
     html += '<div style="background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:var(--muted)">';
-    html += '💡 <strong style="color:var(--yellow)">提示：</strong>动画守卫只影响其他世界来访的远端玩家动画。被拦截的动画会跳过播放，不会导致角色消失。';
+    html += '💡 <strong style="color:var(--yellow)">' + _t('adminWorld.agHintLabel', '提示：') + '</strong>' + _t('adminWorld.agHint', '动画守卫只影响其他世界来访的远端玩家动画。被拦截的动画会跳过播放，不会导致角色消失。');
     html += '</div>';
 
     html += '</div>';
@@ -222,13 +245,13 @@
     var mode = hidden ? hidden.value : 'retarget';
     var statusEl = _el(_id('bundle-status'));
     if (statusEl) {
-      statusEl.textContent = '⏳ 保存中...';
+      statusEl.textContent = _t('adminWorld.mgSaving', '⏳ 保存中...');
       statusEl.style.color = 'var(--yellow)';
     }
 
     try {
       var token = localStorage.getItem('adminToken');
-      if (!token) throw new Error('未登录');
+      if (!token) throw new Error(_t('adminWorld.mgNotLoggedIn', '未登录'));
 
       var cfg = {};
       try {
@@ -251,24 +274,27 @@
 
       if (data.success) {
         if (statusEl) {
-          statusEl.textContent = '✅ 已保存';
+          statusEl.textContent = _t('adminWorld.mgSaved', '✅ 已保存');
           statusEl.style.color = 'var(--green)';
         }
         if (typeof window.showToast === 'function') {
-          window.showToast('✅ 角色动画模式已保存为：' + (mode === 'self_contained' ? '自包含模式' : '重定向模式'));
+          var modeName = mode === 'self_contained'
+            ? _t('adminWorld.agModeSelfContained', '自包含模式')
+            : _t('adminWorld.agModeRetarget', '重定向模式');
+          window.showToast(_tp('adminWorld.agBundleSaved', { mode: modeName }, '✅ 角色动画模式已保存为：' + modeName));
         }
         if (window.SelfContainedChar && window.SelfContainedChar.refreshWorldMode) {
           window.SelfContainedChar.refreshWorldMode();
         }
       } else {
-        throw new Error(data.error || '保存失败');
+        throw new Error(data.error || _t('adminWorld.mgSaveFailedGeneric', '保存失败'));
       }
     } catch (e) {
       if (statusEl) {
-        statusEl.textContent = '❌ 失败';
+        statusEl.textContent = _t('adminWorld.mgFailed', '❌ 失败');
         statusEl.style.color = 'var(--red)';
       }
-      if (typeof window.showToast === 'function') window.showToast('❌ 保存失败: ' + e.message, 'error');
+      if (typeof window.showToast === 'function') window.showToast(_tp('adminWorld.mgSaveFailed', { message: e.message }, '❌ 保存失败: ' + e.message), 'error');
       console.error('[AdminAnimGuard] 保存模式失败:', e);
     }
   }
@@ -300,7 +326,7 @@
       var v = config[f.key];
       if (v === undefined || v === null || v === '') v = _defaultValue(f.key);
       input.value = v;
-      if (valLabel) valLabel.textContent = v + f.unit;
+      if (valLabel) valLabel.textContent = v + _unit(f);
     });
   }
 
@@ -361,12 +387,12 @@
         collectValues(baseConfig);
 
         var statusEl = document.getElementById('mg-save-status');
-        statusEl.textContent = '⏳ 保存中...';
+        statusEl.textContent = _t('adminWorld.mgSaving', '⏳ 保存中...');
         statusEl.style.color = 'var(--yellow)';
 
         try {
           var token = localStorage.getItem('adminToken');
-          if (!token) throw new Error('未登录');
+          if (!token) throw new Error(_t('adminWorld.mgNotLoggedIn', '未登录'));
 
           var resp = await fetch('/api/admin/model-guard/config', {
             method: 'PUT',
@@ -377,9 +403,9 @@
           var data = await resp.json();
 
           if (data.success) {
-            statusEl.textContent = '✅ 已保存';
+            statusEl.textContent = _t('adminWorld.mgSaved', '✅ 已保存');
             statusEl.style.color = 'var(--green)';
-            if (typeof window.showToast === 'function') window.showToast('✅ 模型守卫配置已保存，立即生效');
+            if (typeof window.showToast === 'function') window.showToast(_t('adminWorld.mgToastSaved', '✅ 模型守卫配置已保存，立即生效'));
 
             if (window.RemoteModelGuard && window.RemoteModelGuard.forceRefreshConfig) {
               window.RemoteModelGuard.forceRefreshConfig();
@@ -391,29 +417,75 @@
               window.SelfContainedChar.refreshWorldMode();
             }
           } else {
-            throw new Error(data.error || '保存失败');
+            throw new Error(data.error || _t('adminWorld.mgSaveFailedGeneric', '保存失败'));
           }
         } catch (e) {
-          statusEl.textContent = '❌ 失败';
+          statusEl.textContent = _t('adminWorld.mgFailed', '❌ 失败');
           statusEl.style.color = 'var(--red)';
-          if (typeof window.showToast === 'function') window.showToast('❌ 保存失败: ' + e.message, 'error');
+          if (typeof window.showToast === 'function') window.showToast(_tp('adminWorld.mgSaveFailed', { message: e.message }, '❌ 保存失败: ' + e.message), 'error');
           console.error('[AdminAnimGuard] 保存失败:', e);
         }
       };
     }
   }
 
-  // 如果页面已经加载完成，立即执行；否则等待 DOMContentLoaded
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
-      injectBundleModeUI();
-      injectUI();
-      wrapFunctions();
-    });
-  } else {
+  // 语言切换时重建注入的 UI：暂存当前界面值 → 移除 → 重新注入（新语言）→ 恢复值
+  function reInjectForLocale() {
+    var container = _el(CONTAINER_ID);
+    var bundleCard = _el(BUNDLE_CARD_ID);
+    if (!container && !bundleCard) return;
+
+    // 暂存当前界面值（避免切语言丢失未保存的修改）
+    var snapshot = null;
+    if (bundleCard || (container && container.dataset.injected === 'true')) {
+      snapshot = collectValues({});
+    }
+
+    if (bundleCard) bundleCard.remove();
+    if (container) {
+      container.innerHTML = '';
+      delete container.dataset.injected;
+    }
+
+    injectBundleModeUI();
+    injectUI();
+
+    if (snapshot) loadValues(snapshot);
+  }
+
+  function start() {
     injectBundleModeUI();
     injectUI();
     wrapFunctions();
+
+    // 注册语言切换回调，切换语言时重建注入的 UI
+    if (window.i18n && typeof window.i18n.onLocaleChange === 'function') {
+      window.i18n.onLocaleChange(function() {
+        try { reInjectForLocale(); } catch (e) { console.error('[AdminAnimGuard] 语言切换重建UI失败:', e); }
+      });
+    }
+  }
+
+  // 等待 i18n 初始化完成后再注入，确保英文模式首屏即为英文
+  function startWhenI18nReady() {
+    if (window.i18n && typeof window.i18n.init === 'function' && !window.i18n.initialized) {
+      var p = window.i18n.init();
+      if (p && typeof p.then === 'function') {
+        p.then(start).catch(function(e) {
+          console.warn('[AdminAnimGuard] i18n 初始化失败，按中文注入:', e);
+          start();
+        });
+        return;
+      }
+    }
+    start();
+  }
+
+  // 如果页面已经加载完成，立即执行；否则等待 DOMContentLoaded
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startWhenI18nReady);
+  } else {
+    startWhenI18nReady();
   }
 
   window.AdminAnimGuard = {

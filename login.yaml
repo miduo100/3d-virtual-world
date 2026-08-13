@@ -1,0 +1,29 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - button "中文" [ref=e4] [cursor=pointer]
+    - button "English" [ref=e5] [cursor=pointer]
+  - generic [ref=e6]:
+    - heading "🎮 管理后台登录" [level=1] [ref=e7]
+    - paragraph [ref=e8]: 创世虚拟世界CRM系统
+  - generic [ref=e9]:
+    - text: "ℹ️ 默认账号:"
+    - strong [ref=e10]: admin
+    - text: "默认密码:"
+    - strong [ref=e11]: admin123456
+    - text: 首次登录后请立即修改密码
+  - generic [ref=e12]:
+    - generic [ref=e13]:
+      - generic [ref=e14]: 👤 管理员账号
+      - textbox "👤 管理员账号" [ref=e15]:
+        - /placeholder: 请输入管理员账号
+    - generic [ref=e16]:
+      - generic [ref=e17]: 🔒 密码
+      - textbox "🔒 密码" [ref=e18]:
+        - /placeholder: 请输入密码
+    - button "登录" [ref=e19] [cursor=pointer]
+  - link "🌍 返回虚拟世界" [ref=e22] [cursor=pointer]:
+    - /url: /index.html
+  - generic [ref=e23]: ❓ 忘记密码？
+  - generic [ref=e24]:
+    - text: © 2026 创世虚拟世界CRM系统
+    - text: 独立管理员账号系统
