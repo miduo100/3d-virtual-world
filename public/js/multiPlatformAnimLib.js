@@ -10,6 +10,34 @@
 
 const MultiPlatformAnimLib = (() => {
   const API_BASE = '/api/character-templates';
+
+  // i18n 辅助函数（兼容无 i18n 环境，翻译缺失时回退中文原文）
+  function _mplT(key, fb) {
+    try {
+      if (window.i18n && typeof window.i18n.t === 'function') {
+        const t = window.i18n.t(key);
+        if (t && t !== key) return t;
+      }
+    } catch (e) { /* ignore */ }
+    return fb;
+  }
+  function _mplTp(key, params, fb) {
+    try {
+      if (window.i18n && typeof window.i18n.tp === 'function') {
+        const t = window.i18n.tp(key, params);
+        if (t && t !== key) return t;
+      }
+    } catch (e) { /* ignore */ }
+    let text = fb;
+    if (params) {
+      Object.keys(params).forEach(p => { text = text.split('{{' + p + '}}').join(params[p]); });
+    }
+    return text;
+  }
+  // 平台/动作 key → 首字母大写的 camelCase（用于拼接 i18n 键名）
+  function _mplKeyToCamel(key) {
+    return key.split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
+  }
   
   const ANIM_KEY_LABELS = {
     idle: '🧍 待机',
@@ -107,10 +135,10 @@ const MultiPlatformAnimLib = (() => {
     div.innerHTML = `
       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
         <div style="font-size: 12px; font-weight: 700; color: var(--green);">
-          🎬 动作配置模式选择
+          ${_mplT('adminCharacters.mplModeTitle', '🎬 动作配置模式选择')}
         </div>
         <button class="btn btn-sm btn-secondary" onclick="MultiPlatformAnimLib.refresh()" style="font-size: 10px; padding: 3px 8px;">
-          🔄 刷新
+          ${_mplT('adminCharacters.mplRefresh', '🔄 刷新')}
         </button>
       </div>
       
@@ -118,36 +146,36 @@ const MultiPlatformAnimLib = (() => {
       <div style="display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;">
         <button id="mpl-mode-platform" class="btn btn-sm" onclick="MultiPlatformAnimLib.setMode('platform')" 
                 style="flex: 1; min-width: 140px; padding: 8px 12px; font-size: 11px;">
-          📚 使用动作库平台
+          ${_mplT('adminCharacters.mplModePlatform', '📚 使用动作库平台')}
         </button>
         <button id="mpl-mode-custom" class="btn btn-sm" onclick="MultiPlatformAnimLib.setMode('custom')" 
                 style="flex: 1; min-width: 140px; padding: 8px 12px; font-size: 11px;">
-          📤 自定义上传动作
+          ${_mplT('adminCharacters.mplModeCustom', '📤 自定义上传动作')}
         </button>
       </div>
       
       <!-- 平台选择区域（选中"使用平台"时显示） -->
       <div id="mpl-platform-area" style="display: none;">
-        <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px;">选择平台：</div>
+        <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px;">${_mplT('adminCharacters.mplSelectPlatform', '选择平台：')}</div>
         <div id="mpl-platform-buttons" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
           ${PLATFORMS.map(p => `
             <button class="btn btn-sm ${_currentPlatform === p.key ? 'btn-active' : ''}" 
                     onclick="MultiPlatformAnimLib.switchPlatform('${p.key}', this)"
-                    title="${p.desc}"
+                    title="${_mplT('adminCharacters.mplPlat' + _mplKeyToCamel(p.key) + 'Desc', p.desc)}"
                     style="font-size: 11px; padding: 5px 12px;">
-              ${p.name}
+              ${_mplT('adminCharacters.mplPlat' + _mplKeyToCamel(p.key), p.name)}
             </button>
           `).join('')}
         </div>
         
         <div id="mpl-anim-preview" style="font-size: 11px; color: var(--muted);">
-          加载中...
+          ${_mplT('adminCharacters.mplLoading', '加载中...')}
         </div>
         
         <div style="margin-top: 12px;">
           <button id="mpl-confirm-btn" class="btn btn-sm" onclick="MultiPlatformAnimLib.confirmPlatformAnims()"
                   style="background: var(--green); color: #000; font-weight: 600;">
-            ✅ 确认使用平台动作
+            ${_mplT('adminCharacters.mplConfirmBtn', '✅ 确认使用平台动作')}
           </button>
         </div>
       </div>
@@ -155,13 +183,13 @@ const MultiPlatformAnimLib = (() => {
       <!-- 自定义上传提示区域（选中"自定义"时显示） -->
       <div id="mpl-custom-area" style="display: none;">
         <div style="padding: 12px; background: rgba(0, 255, 0, 0.05); border: 1px solid rgba(0, 255, 0, 0.15); border-radius: 6px; text-align: center;">
-          <div style="font-size: 12px; color: var(--green); margin-bottom: 6px;">📤 自定义上传模式</div>
+          <div style="font-size: 12px; color: var(--green); margin-bottom: 6px;">${_mplT('adminCharacters.mplCustomModeTitle', '📤 自定义上传模式')}</div>
           <div style="font-size: 10px; color: var(--muted); line-height: 1.5;">
-            请在下方「上传动作」按钮上传动作文件。<br>
-            ⚠️ <strong style="color: var(--orange);">必须上传至少 1 个动作才能保存</strong>
+            ${_mplT('adminCharacters.mplCustomTip1', '请在下方「上传动作」按钮上传动作文件。')}<br>
+            ⚠️ <strong style="color: var(--orange);">${_mplT('adminCharacters.mplCustomTip2', '必须上传至少 1 个动作才能保存')}</strong>
           </div>
           <div id="mpl-custom-count" style="margin-top: 8px; font-size: 11px; color: var(--muted);">
-            已上传：0 个动作
+            ${_mplT('adminCharacters.mplUploadedPrefix', '已上传：')}0 ${_mplT('adminCharacters.mplAnimCountSuffix', '个动作')}
           </div>
         </div>
       </div>
@@ -218,9 +246,9 @@ const MultiPlatformAnimLib = (() => {
     _customAnimCount = count;
     const countEl = document.getElementById('mpl-custom-count');
     if (countEl) {
-      countEl.innerHTML = `已上传：<strong style="color: ${count > 0 ? 'var(--green)' : 'var(--orange)'}">${count}</strong> 个动作`;
+      countEl.innerHTML = _mplT('adminCharacters.mplUploadedPrefix', '已上传：') + '<strong style="color: ' + (count > 0 ? 'var(--green)' : 'var(--orange)') + '">' + count + '</strong> ' + _mplT('adminCharacters.mplAnimCountSuffix', '个动作');
       if (count === 0) {
-        countEl.innerHTML += ' <span style="color: var(--orange);">⚠️ 必须上传至少1个</span>';
+        countEl.innerHTML += ' <span style="color: var(--orange);">' + _mplT('adminCharacters.mplMinOneRequired', '⚠️ 必须上传至少1个') + '</span>';
       }
     }
     notifySaveState();
@@ -231,7 +259,7 @@ const MultiPlatformAnimLib = (() => {
    */
   function confirmPlatformAnims() {
     if (_animLibCache.length === 0) {
-      showToast('该平台暂无动作，请先在「动作库」上传动作', 'error');
+      showToast(_mplT('adminCharacters.mplNoAnimsWithHint', '该平台暂无动作，请先在「动作库」上传动作'), 'error');
       return;
     }
     
@@ -242,13 +270,10 @@ const MultiPlatformAnimLib = (() => {
       statusEl.style.background = 'rgba(0, 255, 0, 0.1)';
       statusEl.style.border = '1px solid rgba(0, 255, 0, 0.3)';
       statusEl.style.color = 'var(--green)';
-      statusEl.innerHTML = `
-        ✅ 已选择 <strong>${PLATFORMS.find(p => p.key === _currentPlatform)?.name || _currentPlatform}</strong> 平台，共 ${_animLibCache.length} 个动作
-        <button onclick="MultiPlatformAnimLib.cancelPlatformChoice()" 
-                style="margin-left: 10px; padding: 2px 8px; font-size: 10px; background: rgba(255,60,60,0.15); color: #ff6b6b; border: 1px solid rgba(255,60,60,0.3); border-radius: 4px; cursor: pointer;">
-          ✕ 取消选择
-        </button>
-      `;
+      const platName = PLATFORMS.find(p => p.key === _currentPlatform)?.name || _currentPlatform;
+      statusEl.innerHTML = _mplTp('adminCharacters.mplSelectedStatus', { platform: platName, count: _animLibCache.length }, '✅ 已选择 <strong>' + platName + '</strong> 平台，共 ' + _animLibCache.length + ' 个动作') +
+        '<button onclick="MultiPlatformAnimLib.cancelPlatformChoice()" style="margin-left: 10px; padding: 2px 8px; font-size: 10px; background: rgba(255,60,60,0.15); color: #ff6b6b; border: 1px solid rgba(255,60,60,0.3); border-radius: 4px; cursor: pointer;">' +
+        _mplT('adminCharacters.mplCancelChoice', '✕ 取消选择') + '</button>';
     }
     
     // 禁用确认按钮
@@ -256,7 +281,7 @@ const MultiPlatformAnimLib = (() => {
     if (confirmBtn) {
       confirmBtn.disabled = true;
       confirmBtn.style.opacity = '0.6';
-      confirmBtn.textContent = '✅ 已确认';
+      confirmBtn.textContent = _mplT('adminCharacters.mplConfirmed', '✅ 已确认');
     }
     
     // 自动持久化到数据库
@@ -275,7 +300,7 @@ const MultiPlatformAnimLib = (() => {
       console.log('[confirmPlatformAnims] ⚠️ 无模板ID，跳过自动保存（新建模板需先保存基本信息）');
     }
     
-    showToast(`已确认使用平台动作，共 ${_animLibCache.length} 个`);
+    showToast(_mplTp('adminCharacters.mplConfirmedToast', { count: _animLibCache.length }, '已确认使用平台动作，共 ' + _animLibCache.length + ' 个'));
     notifySaveState();
   }
   
@@ -297,7 +322,7 @@ const MultiPlatformAnimLib = (() => {
     if (_mode === 'platform') {
       // 平台模式：检查是否已确认
       const confirmBtn = document.getElementById('mpl-confirm-btn');
-      return confirmBtn && confirmBtn.disabled && confirmBtn.textContent.includes('已确认');
+      return confirmBtn && confirmBtn.disabled && confirmBtn.textContent.includes(_mplT('adminCharacters.mplConfirmed', '✅ 已确认'));
     } else if (_mode === 'custom') {
       // 自定义模式：检查是否至少上传了1个动作
       return _customAnimCount >= 1;
@@ -311,20 +336,21 @@ const MultiPlatformAnimLib = (() => {
   function getSaveStatus() {
     if (_mode === 'platform') {
       if (_animLibCache.length === 0) {
-        return { canSave: false, message: '该平台暂无动作' };
+        return { canSave: false, message: _mplT('adminCharacters.mplNoAnimsShort', '该平台暂无动作') };
       }
       const confirmBtn = document.getElementById('mpl-confirm-btn');
       if (confirmBtn && confirmBtn.disabled) {
-        return { canSave: true, message: `使用 ${PLATFORMS.find(p => p.key === _currentPlatform)?.name} 平台动作 (${_animLibCache.length}个)` };
+        const platName = PLATFORMS.find(p => p.key === _currentPlatform)?.name || _currentPlatform;
+        return { canSave: true, message: _mplTp('adminCharacters.mplUsingPlatform', { platform: platName, count: _animLibCache.length }, '使用 ' + platName + ' 平台动作 (' + _animLibCache.length + '个)') };
       }
-      return { canSave: false, message: '请点击"确认使用平台动作"' };
+      return { canSave: false, message: _mplT('adminCharacters.mplClickConfirm', '请点击"确认使用平台动作"') };
     } else if (_mode === 'custom') {
       if (_customAnimCount >= 1) {
-        return { canSave: true, message: `自定义动作 (${_customAnimCount}个)` };
+        return { canSave: true, message: _mplTp('adminCharacters.mplCustomStatus', { count: _customAnimCount }, '自定义动作 (' + _customAnimCount + '个)') };
       }
-      return { canSave: false, message: `请上传至少1个动作 (还需${1 - _customAnimCount}个)` };
+      return { canSave: false, message: _mplTp('adminCharacters.mplNeedAtLeastOne', { need: 1 - _customAnimCount }, '请上传至少1个动作 (还需' + (1 - _customAnimCount) + '个)') };
     }
-    return { canSave: false, message: '请选择动作配置模式' };
+    return { canSave: false, message: _mplT('adminCharacters.mplSelectMode', '请选择动作配置模式') };
   }
   
   /**
@@ -346,7 +372,7 @@ const MultiPlatformAnimLib = (() => {
     if (confirmBtn) {
       confirmBtn.disabled = false;
       confirmBtn.style.opacity = '1';
-      confirmBtn.textContent = '✅ 确认使用平台动作';
+      confirmBtn.textContent = _mplT('adminCharacters.mplConfirmBtn', '✅ 确认使用平台动作');
     }
     
     // 加载该平台的动作
@@ -367,7 +393,7 @@ const MultiPlatformAnimLib = (() => {
     const container = document.getElementById('mpl-anim-preview');
     if (!container) return;
     
-    container.innerHTML = '<span style="color: var(--muted);">⏳ 加载中...</span>';
+    container.innerHTML = '<span style="color: var(--muted);">' + _mplT('adminCharacters.mplLoading', '⏳ 加载中...') + '</span>';
     
     const token = localStorage.getItem('adminToken');
     
@@ -377,7 +403,7 @@ const MultiPlatformAnimLib = (() => {
       });
       
       if (!r.ok) {
-        throw new Error('获取数据失败');
+        throw new Error(_mplT('adminCharacters.mplFetchFailed', '获取数据失败'));
       }
       
       const data = await r.json();
@@ -387,7 +413,7 @@ const MultiPlatformAnimLib = (() => {
       renderAnimPreview();
     } catch (e) {
       console.error('加载平台动作失败:', e);
-      container.innerHTML = '<span style="color: #ff6b6b;">❌ 加载失败: ' + e.message + '</span>';
+      container.innerHTML = '<span style="color: #ff6b6b;">' + _mplT('adminCharacters.mplLoadFailedPrefix', '❌ 加载失败: ') + e.message + '</span>';
     }
   }
   
@@ -402,8 +428,8 @@ const MultiPlatformAnimLib = (() => {
       container.innerHTML = `
         <div style="padding: 12px; text-align: center; color: var(--muted); background: rgba(0,0,0,0.2); border-radius: 6px;">
           <div style="font-size: 20px; margin-bottom: 6px;">📭</div>
-          <div style="font-size: 11px;">该平台暂无动作</div>
-          <div style="font-size: 10px; margin-top: 4px;">请先在「动作库」菜单中上传动作</div>
+          <div style="font-size: 11px;">${_mplT('adminCharacters.mplNoAnimsShort', '该平台暂无动作')}</div>
+          <div style="font-size: 10px; margin-top: 4px;">${_mplT('adminCharacters.mplNoAnimsHint2', '请先在「动作库」菜单中上传动作')}</div>
         </div>
       `;
       return;
@@ -419,16 +445,16 @@ const MultiPlatformAnimLib = (() => {
     container.innerHTML = `
       <div style="margin-bottom: 10px; padding: 8px; background: rgba(0, 255, 0, 0.05); border: 1px solid rgba(0, 255, 0, 0.15); border-radius: 6px;">
         <div style="font-size: 11px; color: var(--green); margin-bottom: 8px;">
-          ✅ 该平台有 ${_animLibCache.length} 个动作：
+          ${_mplTp('adminCharacters.mplHasAnims', { count: _animLibCache.length }, '✅ 该平台有 ' + _animLibCache.length + ' 个动作：')}
         </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 6px;">
           ${Object.entries(grouped).map(([key, anims]) => `
             <div style="padding: 6px 8px; background: rgba(0, 255, 0, 0.05); border: 1px solid rgba(0, 255, 0, 0.15); border-radius: 4px; text-align: center;">
               <div style="font-size: 10px; color: var(--green); font-weight: 600;">
-                ${ANIM_KEY_LABELS[key] || key}
+                ${_mplT('adminCharacters.mplAnim' + _mplKeyToCamel(key), ANIM_KEY_LABELS[key] || key)}
               </div>
               <div style="font-size: 9px; color: var(--muted); margin-top: 2px;">
-                ${anims.length} 个版本 ${anims[0].sound_url ? '🔊' : ''}
+                ${_mplTp('adminCharacters.mplVersions', { count: anims.length }, anims.length + ' 个版本')} ${anims[0].sound_url ? '🔊' : ''}
               </div>
             </div>
           `).join('')}
@@ -436,7 +462,7 @@ const MultiPlatformAnimLib = (() => {
       </div>
       
       <div style="font-size: 10px; color: var(--muted); line-height: 1.5;">
-        💡 点击「确认使用平台动作」将以上动作绑定到角色
+        ${_mplT('adminCharacters.mplBindTip', '💡 点击「确认使用平台动作」将以上动作绑定到角色')}
       </div>
     `;
   }
@@ -476,15 +502,15 @@ const MultiPlatformAnimLib = (() => {
       
       if (data.success) {
         const platformName = PLATFORMS.find(p => p.key === _currentPlatform)?.name || _currentPlatform;
-        showToast('✅ 已关联 ' + platformName + ' 的 ' + data.attached_count + ' 个动作');
+        showToast(_mplTp('adminCharacters.mplAttachedToast', { platform: platformName, count: data.attached_count }, '✅ 已关联 ' + platformName + ' 的 ' + data.attached_count + ' 个动作'));
         return true;
       } else {
-        showToast('❌ 关联失败: ' + (data.error || '未知错误'), 'error');
+        showToast(_mplT('adminCharacters.mplAttachFailedPrefix', '❌ 关联失败: ') + (data.error || _mplT('adminCharacters.unknownError', '未知错误')), 'error');
         return false;
       }
     } catch (e) {
       console.error('关联动作库失败:', e);
-      showToast('❌ 关联失败: ' + e.message, 'error');
+      showToast(_mplT('adminCharacters.mplAttachFailedPrefix', '❌ 关联失败: ') + e.message, 'error');
       return false;
     }
   }
@@ -528,7 +554,7 @@ const MultiPlatformAnimLib = (() => {
     // 取消平台选择后，自动切换到自定义上传模式
     setMode('custom');
 
-    showToast('已取消平台动作，已切换到自定义上传模式');
+    showToast(_mplT('adminCharacters.mplCanceledToast', '已取消平台动作，已切换到自定义上传模式'));
 
     // 持久化清除数据库中的平台绑定
     const tmplId = (typeof _currentTmplId !== 'undefined') ? _currentTmplId :
@@ -576,9 +602,9 @@ const MultiPlatformAnimLib = (() => {
     if (confirmBtn) {
       confirmBtn.disabled = false;
       confirmBtn.style.opacity = '1';
-      confirmBtn.textContent = '✅ 确认使用平台动作';
+      confirmBtn.textContent = _mplT('adminCharacters.mplConfirmBtn', '✅ 确认使用平台动作');
     }
-    if (countEl) countEl.textContent = '已上传：0 个动作';
+    if (countEl) countEl.textContent = _mplT('adminCharacters.mplUploadedPrefix', '已上传：') + '0 ' + _mplT('adminCharacters.mplAnimCountSuffix', '个动作');
   }
 
   /**
@@ -634,18 +660,15 @@ const MultiPlatformAnimLib = (() => {
         statusEl.style.background = 'rgba(0, 255, 0, 0.1)';
         statusEl.style.border = '1px solid rgba(0, 255, 0, 0.3)';
         statusEl.style.color = 'var(--green)';
-        statusEl.innerHTML = `
-          ✅ 已选择 <strong>${PLATFORMS.find(p => p.key === platform)?.name || platform}</strong> 平台，共 ${_animLibCache.length} 个动作
-          <button onclick="MultiPlatformAnimLib.cancelPlatformChoice()"
-                  style="margin-left: 10px; padding: 2px 8px; font-size: 10px; background: rgba(255,60,60,0.15); color: #ff6b6b; border: 1px solid rgba(255,60,60,0.3); border-radius: 4px; cursor: pointer;">
-            ✕ 取消选择
-          </button>
-        `;
+        const platName = PLATFORMS.find(p => p.key === platform)?.name || platform;
+        statusEl.innerHTML = _mplTp('adminCharacters.mplSelectedStatus', { platform: platName, count: _animLibCache.length }, '✅ 已选择 <strong>' + platName + '</strong> 平台，共 ' + _animLibCache.length + ' 个动作') +
+          '<button onclick="MultiPlatformAnimLib.cancelPlatformChoice()" style="margin-left: 10px; padding: 2px 8px; font-size: 10px; background: rgba(255,60,60,0.15); color: #ff6b6b; border: 1px solid rgba(255,60,60,0.3); border-radius: 4px; cursor: pointer;">' +
+          _mplT('adminCharacters.mplCancelChoice', '✕ 取消选择') + '</button>';
       }
       if (confirmBtn) {
         confirmBtn.disabled = true;
         confirmBtn.style.opacity = '0.5';
-        confirmBtn.textContent = '✅ 已确认使用平台动作';
+        confirmBtn.textContent = _mplT('adminCharacters.mplConfirmedRestore', '✅ 已确认使用平台动作');
       }
       
       // 加载平台动作
@@ -655,6 +678,45 @@ const MultiPlatformAnimLib = (() => {
     } else {
       // 自定义模式
       switchToCustomMode();
+    }
+  }
+  
+  /**
+   * 重新渲染平台选择区域（语言切换后调用，保留当前模式与已确认状态）
+   */
+  function reRender() {
+    const wasPlatform = _mode === 'platform';
+    const wasConfirmed = wasPlatform && canSave();
+    const wasCount = _customAnimCount;
+    const oldSection = document.getElementById('mpl-platform-section');
+    if (oldSection) oldSection.remove();
+    _isInitialized = false;
+    initInTemplateModal();
+    if (wasPlatform) {
+      setMode('platform');
+      loadAnimLibByPlatform(_currentPlatform);
+      if (wasConfirmed) {
+        const statusEl = document.getElementById('mpl-status');
+        const confirmBtn = document.getElementById('mpl-confirm-btn');
+        const platName = PLATFORMS.find(p => p.key === _currentPlatform)?.name || _currentPlatform;
+        if (statusEl) {
+          statusEl.style.display = 'block';
+          statusEl.style.background = 'rgba(0, 255, 0, 0.1)';
+          statusEl.style.border = '1px solid rgba(0, 255, 0, 0.3)';
+          statusEl.style.color = 'var(--green)';
+          statusEl.innerHTML = _mplTp('adminCharacters.mplSelectedStatus', { platform: platName, count: _animLibCache.length }, '✅ 已选择 <strong>' + platName + '</strong> 平台，共 ' + _animLibCache.length + ' 个动作') +
+            '<button onclick="MultiPlatformAnimLib.cancelPlatformChoice()" style="margin-left: 10px; padding: 2px 8px; font-size: 10px; background: rgba(255,60,60,0.15); color: #ff6b6b; border: 1px solid rgba(255,60,60,0.3); border-radius: 4px; cursor: pointer;">' +
+            _mplT('adminCharacters.mplCancelChoice', '✕ 取消选择') + '</button>';
+        }
+        if (confirmBtn) {
+          confirmBtn.disabled = true;
+          confirmBtn.style.opacity = '0.6';
+          confirmBtn.textContent = _mplT('adminCharacters.mplConfirmed', '✅ 已确认');
+        }
+      }
+    } else if (_mode === 'custom') {
+      switchToCustomMode();
+      updateCustomAnimCount(wasCount);
     }
   }
   
@@ -683,7 +745,8 @@ const MultiPlatformAnimLib = (() => {
     getSaveStatus,
     canSave,
     reset,
-    _restoreState  // 内部方法：恢复模板状态
+    _restoreState,  // 内部方法：恢复模板状态
+    reRender  // 重新渲染（语言切换后调用）
   };
 })();
 

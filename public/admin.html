@@ -830,81 +830,81 @@
     <!-- ===== 4. 3D资产 ===== -->
     <div id="page-assets" class="page">
       <div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:0;flex-wrap:wrap;">
-        <button class="sub-tab active" onclick="switchSubTab('assets','geometry',this)">🔨 几何体建筑</button>
-        <button class="sub-tab" onclick="switchSubTab('assets','uploaded',this)">📦 上传模型</button>
-        <button class="sub-tab" onclick="switchSubTab('assets','tags',this)">🏷️ 标签管理</button>
+        <button class="sub-tab active" onclick="switchSubTab('assets','geometry',this)" data-i18n="adminAssets.subTabGeometry">🔨 几何体建筑</button>
+        <button class="sub-tab" onclick="switchSubTab('assets','uploaded',this)" data-i18n="adminAssets.subTabUploaded">📦 上传模型</button>
+        <button class="sub-tab" onclick="switchSubTab('assets','tags',this)" data-i18n="adminAssets.subTabTags">🏷️ 标签管理</button>
       </div>
 
       <div id="assets-sub-geometry" class="sub-page">
         <div class="card">
           <div class="card-header">
-            <div class="card-title">🔨 几何体建筑模板</div>
+            <div class="card-title" data-i18n="adminAssets.geometryTemplatesTitle">🔨 几何体建筑模板</div>
           </div>
           <div class="template-grid" id="geometry-templates">
-            <div class="loading">加载中...</div>
+            <div class="loading" data-i18n="adminAssets.loading">加载中...</div>
           </div>
         </div>
         <div class="card">
           <div class="card-header">
-            <div class="card-title">📋 已生成的几何体建筑</div>
-            <button class="btn btn-sm" onclick="refreshGeometryBuildings()">🔄 刷新</button>
+            <div class="card-title" data-i18n="adminAssets.generatedGeometryTitle">📋 已生成的几何体建筑</div>
+            <button class="btn btn-sm" onclick="refreshGeometryBuildings()" data-i18n="adminAssets.refresh">🔄 刷新</button>
           </div>
-          <div id="geometry-buildings-list" class="loading">加载中...</div>
+          <div id="geometry-buildings-list" class="loading" data-i18n="adminAssets.loading">加载中...</div>
         </div>
       </div>
 
       <div id="assets-sub-uploaded" class="sub-page" style="display:none">
         <div class="card">
           <div class="card-header">
-            <div class="card-title">📦 上传模型库</div>
+            <div class="card-title" data-i18n="adminAssets.uploadedLibraryTitle">📦 上传模型库</div>
             <div class="btn-group">
-              <button class="btn btn-sm btn-blue" onclick="showUploadModelModal()">➕ 上传模型</button>
-              <button class="btn btn-sm btn-purple" onclick="batchTagUploadedModels()">🏷️ 批量打标签</button>
-              <button class="btn btn-sm" onclick="loadUploadedModels()">🔄 刷新</button>
+              <button class="btn btn-sm btn-blue" onclick="showUploadModelModal()" data-i18n="adminAssets.uploadModel">➕ 上传模型</button>
+              <button class="btn btn-sm btn-purple" onclick="batchTagUploadedModels()" data-i18n="adminAssets.batchTag">🏷️ 批量打标签</button>
+              <button class="btn btn-sm" onclick="loadUploadedModels()" data-i18n="adminAssets.refresh">🔄 刷新</button>
             </div>
           </div>
           <div class="search-bar">
-            <input type="text" id="uploaded-search" placeholder="搜索模型名称..." oninput="filterUploadedModels()">
+            <input type="text" id="uploaded-search" placeholder="搜索模型名称..." oninput="filterUploadedModels()" data-i18n-placeholder="adminAssets.searchModelPlaceholder">
             <select id="uploaded-type-filter" onchange="filterUploadedModels()">
-              <option value="">全部类型</option>
+              <option value="" data-i18n="adminAssets.allTypes">全部类型</option>
               <option value="glb">GLB</option>
               <option value="gltf">GLTF</option>
               <option value="obj">OBJ</option>
             </select>
             <select id="uploaded-sort" onchange="sortUploadedModels()">
-              <option value="date-desc">最新上传</option>
-              <option value="date-asc">最早上传</option>
-              <option value="name-asc">名称升序</option>
-              <option value="name-desc">名称降序</option>
+              <option value="date-desc" data-i18n="adminAssets.sortNewest">最新上传</option>
+              <option value="date-asc" data-i18n="adminAssets.sortOldest">最早上传</option>
+              <option value="name-asc" data-i18n="adminAssets.sortNameAsc">名称升序</option>
+              <option value="name-desc" data-i18n="adminAssets.sortNameDesc">名称降序</option>
             </select>
           </div>
-          <div id="uploaded-models-content" class="loading">加载中...</div>
+          <div id="uploaded-models-content" class="loading" data-i18n="adminAssets.loading">加载中...</div>
         </div>
         <!-- 上传模型模态框 -->
         <div id="upload-model-modal" class="modal">
           <div class="modal-box">
             <div class="modal-header">
-              <h2>➕ 上传模型</h2>
+              <h2 data-i18n="adminAssets.uploadModel">➕ 上传模型</h2>
               <button class="close-btn" onclick="closeUploadModelModal()">✕</button>
             </div>
             <div class="form-group">
-              <label>模型文件 *</label>
+              <label data-i18n="adminAssets.modelFile">模型文件 *</label>
               <input type="file" id="upload-model-file" accept=".glb,.gltf,.obj" multiple>
-              <div style="margin-top: 8px; font-size: 12px; color: #888;">
+              <div style="margin-top: 8px; font-size: 12px; color: #888;" data-i18n="adminAssets.modelFileHint">
                 支持 GLB、GLTF、OBJ，单个文件 ≤100MB
               </div>
             </div>
             <div class="form-group">
-              <label>模型名称 *</label>
-              <input type="text" id="upload-model-name" placeholder="输入模型显示名称，如：现代办公楼">
+              <label data-i18n="adminAssets.modelName">模型名称 *</label>
+              <input type="text" id="upload-model-name" placeholder="输入模型显示名称，如：现代办公楼" data-i18n-placeholder="adminAssets.modelNamePlaceholder">
             </div>
             <div class="form-group">
-              <label>标签（可选，用逗号分隔）</label>
-              <input type="text" id="upload-model-tags" placeholder="例如：建筑,现代,高楼">
+              <label data-i18n="adminAssets.tagsOptional">标签（可选，用逗号分隔）</label>
+              <input type="text" id="upload-model-tags" placeholder="例如：建筑,现代,高楼" data-i18n-placeholder="adminAssets.tagsPlaceholder">
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-              <button class="btn btn-secondary" onclick="closeUploadModelModal()">取消</button>
-              <button class="btn" onclick="uploadModel()">上传</button>
+              <button class="btn btn-secondary" onclick="closeUploadModelModal()" data-i18n="adminAssets.cancel">取消</button>
+              <button class="btn" onclick="uploadModel()" data-i18n="adminAssets.upload">上传</button>
             </div>
           </div>
         </div>
@@ -912,7 +912,7 @@
         <div id="model-preview-modal" class="modal">
           <div class="modal-box" style="max-width:800px">
             <div class="modal-header">
-              <h2>👁️ 模型预览</h2>
+              <h2 data-i18n="adminAssets.previewTitle">👁️ 模型预览</h2>
               <button class="close-btn" onclick="closeModelPreviewModal()">✕</button>
             </div>
             <div style="display:flex;gap:20px">
@@ -921,15 +921,15 @@
               </div>
               <div style="width:250px">
                 <div class="form-group">
-                  <label>模型信息</label>
+                  <label data-i18n="adminAssets.modelInfo">模型信息</label>
                   <div id="model-preview-info" style="font-size:13px;line-height:1.5"></div>
                 </div>
                 <div class="form-group">
-                  <label>标签</label>
+                  <label data-i18n="adminAssets.colTags">标签</label>
                   <div id="model-preview-tags" style="font-size:12px"></div>
                 </div>
                 <div style="margin-top:16px">
-                  <button class="btn btn-sm" onclick="editModelTags()">✏️ 编辑标签</button>
+                  <button class="btn btn-sm" onclick="editModelTags()" data-i18n="adminAssets.editTagsBtn">✏️ 编辑标签</button>
                 </div>
               </div>
             </div>
@@ -939,20 +939,20 @@
         <div id="edit-tags-modal" class="modal">
           <div class="modal-box">
             <div class="modal-header">
-              <h2>🏷️ 编辑标签</h2>
+              <h2 data-i18n="adminAssets.editTagsTitle">🏷️ 编辑标签</h2>
               <button class="close-btn" onclick="closeEditTagsModal()">✕</button>
             </div>
             <div class="form-group">
-              <label>模型名称</label>
+              <label data-i18n="adminAssets.colModelName">模型名称</label>
               <input type="text" id="edit-tags-model-name" readonly>
             </div>
             <div class="form-group">
-              <label>标签（用逗号分隔）</label>
-              <input type="text" id="edit-tags-input" placeholder="例如：建筑,现代,高楼">
+              <label data-i18n="adminAssets.tagsComma">标签（用逗号分隔）</label>
+              <input type="text" id="edit-tags-input" placeholder="例如：建筑,现代,高楼" data-i18n-placeholder="adminAssets.tagsPlaceholder">
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-              <button class="btn btn-secondary" onclick="closeEditTagsModal()">取消</button>
-              <button class="btn" onclick="saveModelTags()">保存</button>
+              <button class="btn btn-secondary" onclick="closeEditTagsModal()" data-i18n="adminAssets.cancel">取消</button>
+              <button class="btn" onclick="saveModelTags()" data-i18n="adminAssets.save">保存</button>
             </div>
           </div>
         </div>
@@ -960,67 +960,67 @@
 
       <div id="assets-sub-tags" class="sub-page" style="display:none">
         <div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr))">
-          <div class="stat-card"><div class="label">标签总数</div><div class="value" id="tag-total-count">0</div></div>
-          <div class="stat-card"><div class="label">几何体已标签</div><div class="value" style="color:var(--blue)" id="tag-geometry-count">0</div></div>
-          <div class="stat-card"><div class="label">上传模型已标签</div><div class="value" style="color:var(--purple)" id="tag-uploaded-count">0</div></div>
-          <div class="stat-card"><div class="label">AI建筑已标签</div><div class="value" style="color:var(--orange)" id="tag-building-count">0</div></div>
+          <div class="stat-card"><div class="label" data-i18n="adminAssets.statTotalTags">标签总数</div><div class="value" id="tag-total-count">0</div></div>
+          <div class="stat-card"><div class="label" data-i18n="adminAssets.statGeometryTagged">几何体已标签</div><div class="value" style="color:var(--blue)" id="tag-geometry-count">0</div></div>
+          <div class="stat-card"><div class="label" data-i18n="adminAssets.statUploadedTagged">上传模型已标签</div><div class="value" style="color:var(--purple)" id="tag-uploaded-count">0</div></div>
+          <div class="stat-card"><div class="label" data-i18n="adminAssets.statBuildingTagged">AI建筑已标签</div><div class="value" style="color:var(--orange)" id="tag-building-count">0</div></div>
         </div>
         <div class="card">
           <div class="card-header">
-            <div class="card-title">🏷️ 标签库</div>
+            <div class="card-title" data-i18n="adminAssets.tagLibraryTitle">🏷️ 标签库</div>
             <div class="btn-group">
-              <button class="btn btn-sm btn-blue" onclick="showAddTagModal()">➕ 新建标签</button>
-              <button class="btn btn-sm btn-purple" onclick="autoTagAllModels()">🤖 AI自动标签全部</button>
-              <button class="btn btn-sm" onclick="refreshTagLibrary()">🔄 刷新</button>
+              <button class="btn btn-sm btn-blue" onclick="showAddTagModal()" data-i18n="adminAssets.newTag">➕ 新建标签</button>
+              <button class="btn btn-sm btn-purple" onclick="autoTagAllModels()" data-i18n="adminAssets.aiAutoTag">🤖 AI自动标签全部</button>
+              <button class="btn btn-sm" onclick="refreshTagLibrary()" data-i18n="adminAssets.refresh">🔄 刷新</button>
             </div>
           </div>
           <div class="search-bar">
-            <input type="text" id="tag-search" placeholder="搜索标签..." oninput="filterTags()">
+            <input type="text" id="tag-search" placeholder="搜索标签..." oninput="filterTags()" data-i18n-placeholder="adminAssets.searchTagPlaceholder">
             <select id="tag-category-filter" onchange="filterTags()">
-              <option value="">全部分类</option>
-              <option value="type">类型</option>
-              <option value="style">风格</option>
-              <option value="size">尺寸</option>
-              <option value="theme">主题</option>
-              <option value="function">功能</option>
-              <option value="attribute">特殊属性</option>
+              <option value="" data-i18n="adminAssets.allCategories">全部分类</option>
+              <option value="type" data-i18n="adminAssets.catType">类型</option>
+              <option value="style" data-i18n="adminAssets.catStyle">风格</option>
+              <option value="size" data-i18n="adminAssets.catSize">尺寸</option>
+              <option value="theme" data-i18n="adminAssets.catTheme">主题</option>
+              <option value="function" data-i18n="adminAssets.catFunction">功能</option>
+              <option value="attribute" data-i18n="adminAssets.catAttribute">特殊属性</option>
             </select>
           </div>
-          <div id="tag-library-content" class="loading">加载中...</div>
+          <div id="tag-library-content" class="loading" data-i18n="adminAssets.loading">加载中...</div>
         </div>
         <div class="card">
-          <div class="card-header"><div class="card-title">🆕 最近打标签的模型</div></div>
-          <div id="recent-tagged-models" class="loading">加载中...</div>
+          <div class="card-header"><div class="card-title" data-i18n="adminAssets.recentTaggedTitle">🆕 最近打标签的模型</div></div>
+          <div id="recent-tagged-models" class="loading" data-i18n="adminAssets.loading">加载中...</div>
         </div>
         <!-- 新建标签模态框 -->
         <div id="add-tag-modal" class="modal">
           <div class="modal-box">
             <div class="modal-header">
-              <h2>➕ 新建标签</h2>
+              <h2 data-i18n="adminAssets.addTagTitle">➕ 新建标签</h2>
               <button class="close-btn" onclick="closeAddTagModal()">✕</button>
             </div>
             <div class="form-group">
-              <label>标签名称 *</label>
-              <input type="text" id="tag-name" placeholder="输入标签名称">
+              <label data-i18n="adminAssets.tagName">标签名称 *</label>
+              <input type="text" id="tag-name" placeholder="输入标签名称" data-i18n-placeholder="adminAssets.tagNamePlaceholder">
             </div>
             <div class="form-group">
-              <label>分类 *</label>
+              <label data-i18n="adminAssets.category">分类 *</label>
               <select id="tag-category">
-                <option value="type">类型</option>
-                <option value="style">风格</option>
-                <option value="size">尺寸</option>
-                <option value="theme">主题</option>
-                <option value="function">功能</option>
-                <option value="attribute">特殊属性</option>
+                <option value="type" data-i18n="adminAssets.catType">类型</option>
+                <option value="style" data-i18n="adminAssets.catStyle">风格</option>
+                <option value="size" data-i18n="adminAssets.catSize">尺寸</option>
+                <option value="theme" data-i18n="adminAssets.catTheme">主题</option>
+                <option value="function" data-i18n="adminAssets.catFunction">功能</option>
+                <option value="attribute" data-i18n="adminAssets.catAttribute">特殊属性</option>
               </select>
             </div>
             <div class="form-group">
-              <label>描述（可选）</label>
-              <textarea id="tag-description" placeholder="输入标签描述"></textarea>
+              <label data-i18n="adminAssets.description">描述（可选）</label>
+              <textarea id="tag-description" placeholder="输入标签描述" data-i18n-placeholder="adminAssets.descriptionPlaceholder"></textarea>
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-              <button class="btn btn-secondary" onclick="closeAddTagModal()">取消</button>
-              <button class="btn" onclick="createTag()">创建</button>
+              <button class="btn btn-secondary" onclick="closeAddTagModal()" data-i18n="adminAssets.cancel">取消</button>
+              <button class="btn" onclick="createTag()" data-i18n="adminAssets.create">创建</button>
             </div>
           </div>
         </div>
@@ -1036,31 +1036,31 @@
     <!-- ===== 8. 角色管理 ===== -->
     <div id="page-characters" class="page">
       <div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:0;flex-wrap:wrap;">
-        <button class="sub-tab active" onclick="switchSubTab('characters','char-templates',this);loadTemplates()">🎭 角色模板</button>
+        <button class="sub-tab active" onclick="switchSubTab('characters','char-templates',this);loadTemplates()" data-i18n="adminCharacters.subTabTemplates">🎭 角色模板</button>
       </div>
 
       <!-- 角色模板 -->
       <div id="characters-sub-char-templates" class="sub-page">
         <div class="card">
           <div class="card-header">
-            <div class="card-title">🎭 角色模板库</div>
-            <button class="btn btn-sm" onclick="openTemplateModal()">➕ 新建模板</button>
+            <div class="card-title" data-i18n="adminCharacters.title">🎭 角色模板库</div>
+            <button class="btn btn-sm" onclick="openTemplateModal()" data-i18n="adminCharacters.newTemplate">➕ 新建模板</button>
           </div>
           <div class="search-bar">
             <select id="tpl-filter-access" onchange="loadTemplates()">
-              <option value="">全部权限</option>
-              <option value="public">公开（所有用户）</option>
-              <option value="admin">管理员</option>
-              <option value="creator_only">创世者专属</option>
+              <option value="" data-i18n="adminCharacters.filterAccessAll">全部权限</option>
+              <option value="public" data-i18n="adminCharacters.filterAccessPublic">公开（所有用户）</option>
+              <option value="admin" data-i18n="adminCharacters.filterAccessAdmin">管理员</option>
+              <option value="creator_only" data-i18n="adminCharacters.filterAccessCreatorOnly">创世者专属</option>
             </select>
             <select id="tpl-filter-role" onchange="loadTemplates()">
-              <option value="">全部身份</option>
-              <option value="player">普通玩家</option>
-              <option value="admin">管理员</option>
-              <option value="creator">创世者</option>
+              <option value="" data-i18n="adminCharacters.filterRoleAll">全部身份</option>
+              <option value="player" data-i18n="adminCharacters.filterRolePlayer">普通玩家</option>
+              <option value="admin" data-i18n="adminCharacters.filterRoleAdmin">管理员</option>
+              <option value="creator" data-i18n="adminCharacters.filterRoleCreator">创世者</option>
             </select>
           </div>
-          <div id="templates-content" class="loading">加载中...</div>
+          <div id="templates-content" class="loading" data-i18n="common.loading">加载中...</div>
         </div>
       </div>
 
@@ -1074,7 +1074,7 @@
 
     <!-- ===== 动作库页面 ===== -->
     <div id="page-anim-library" class="page">
-      <div id="anim-library-content" class="loading">加载中...</div>
+      <div id="anim-library-content" class="loading" data-i18n="adminAnimLib.loading">加载中...</div>
     </div>
 
     <!-- ===== 5. Economy System ===== -->
@@ -1598,31 +1598,31 @@
     <div id="page-3dgs" class="page">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
         <div>
-          <h2 style="font-size:16px;font-weight:700;color:var(--text);">✨ 高斯场景库（3DGS）</h2>
-          <p style="font-size:12px;color:var(--muted);margin-top:3px;">管理 .RAD / .PLY / .splat 场景文件，支持 Spark 2.0 流式渲染</p>
+          <h2 data-i18n="admin3dgs.pageTitle" style="font-size:16px;font-weight:700;color:var(--text);">✨ 高斯场景库（3DGS）</h2>
+          <p data-i18n="admin3dgs.pageDesc" style="font-size:12px;color:var(--muted);margin-top:3px;">管理 .RAD / .PLY / .splat 场景文件，支持 Spark 2.0 流式渲染</p>
         </div>
         <div style="display:flex;gap:8px;">
-          <button class="btn-primary" onclick="show3dgsUploadModal()" style="padding:7px 16px;font-size:13px;">+ 上传场景</button>
-          <button onclick="show3dgsScanModal()" style="padding:7px 16px;font-size:13px;background:rgba(88,166,255,0.12);color:var(--blue);border:1px solid rgba(88,166,255,0.3);border-radius:6px;cursor:pointer;font-weight:700;">📂 扫描目录</button>
+          <button class="btn-primary" data-i18n="admin3dgs.uploadScene" onclick="show3dgsUploadModal()" style="padding:7px 16px;font-size:13px;">+ 上传场景</button>
+          <button data-i18n="admin3dgs.scanDir" onclick="show3dgsScanModal()" style="padding:7px 16px;font-size:13px;background:rgba(88,166,255,0.12);color:var(--blue);border:1px solid rgba(88,166,255,0.3);border-radius:6px;cursor:pointer;font-weight:700;">📂 扫描目录</button>
         </div>
       </div>
 
       <!-- 搜索 & 筛选 -->
       <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
-        <input id="3dgs-search" type="text" placeholder="搜索场景名称..." style="flex:1;min-width:180px;padding:7px 12px;background:var(--card-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;" oninput="load3dgsScenes()">
+        <input id="3dgs-search" type="text" placeholder="搜索场景名称..." data-i18n-placeholder="admin3dgs.searchPlaceholder" style="flex:1;min-width:180px;padding:7px 12px;background:var(--card-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;" oninput="load3dgsScenes()">
         <select id="3dgs-source-filter" onchange="load3dgsScenes()" style="padding:7px 10px;background:var(--card-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
-          <option value="">全部来源</option>
-          <option value="upload">手动上传</option>
-          <option value="local">本地文件</option>
-          <option value="ai_generated">AI 生成</option>
+          <option value="" data-i18n="admin3dgs.allSources">全部来源</option>
+          <option value="upload" data-i18n="admin3dgs.sourceUpload">手动上传</option>
+          <option value="local" data-i18n="admin3dgs.sourceLocal">本地文件</option>
+          <option value="ai_generated" data-i18n="admin3dgs.sourceAI">AI 生成</option>
         </select>
         <select id="3dgs-type-filter" onchange="load3dgsScenes()" style="padding:7px 10px;background:var(--card-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
-          <option value="">全部类型</option>
-          <option value="outdoor">室外</option>
-          <option value="indoor">室内</option>
+          <option value="" data-i18n="admin3dgs.allTypes">全部类型</option>
+          <option value="outdoor" data-i18n="admin3dgs.typeOutdoor">室外</option>
+          <option value="indoor" data-i18n="admin3dgs.typeIndoor">室内</option>
           <option value="studio">Studio</option>
         </select>
-        <button onclick="load3dgsScenes()" style="padding:7px 12px;background:var(--green-dim);color:var(--green);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;">刷新</button>
+        <button data-i18n="admin3dgs.refresh" onclick="load3dgsScenes()" style="padding:7px 12px;background:var(--green-dim);color:var(--green);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;">刷新</button>
       </div>
 
       <!-- 场景列表 -->
@@ -1631,18 +1631,18 @@
           <thead>
             <tr style="border-bottom:1px solid var(--border);">
               <th style="padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;">ID</th>
-              <th style="padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;">场景名称</th>
-              <th style="padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;">类型</th>
-              <th style="padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;">来源</th>
-              <th style="padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;">文件大小</th>
-              <th style="padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;">高斯球数</th>
-              <th style="padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;">公开</th>
-              <th style="padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;">创建时间</th>
-              <th style="padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;">操作</th>
+              <th data-i18n="admin3dgs.colName" style="padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;">场景名称</th>
+              <th data-i18n="admin3dgs.colType" style="padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;">类型</th>
+              <th data-i18n="admin3dgs.colSource" style="padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;">来源</th>
+              <th data-i18n="admin3dgs.colSize" style="padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;">文件大小</th>
+              <th data-i18n="admin3dgs.colSplats" style="padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;">高斯球数</th>
+              <th data-i18n="admin3dgs.colPublic" style="padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;">公开</th>
+              <th data-i18n="admin3dgs.colCreated" style="padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;">创建时间</th>
+              <th data-i18n="admin3dgs.colActions" style="padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;">操作</th>
             </tr>
           </thead>
           <tbody id="3dgs-tbody">
-            <tr><td colspan="9" style="padding:30px;text-align:center;color:var(--muted);">加载中...</td></tr>
+            <tr><td colspan="9" data-i18n="common.loading" style="padding:30px;text-align:center;color:var(--muted);">加载中...</td></tr>
           </tbody>
         </table>
       </div>
@@ -1654,63 +1654,63 @@
     <div id="modal-3dgs" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:none;align-items:center;justify-content:center;">
       <div style="background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:28px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-          <h3 style="font-size:15px;font-weight:700;">上传 3DGS 场景</h3>
+          <h3 data-i18n="admin3dgs.uploadTitle" style="font-size:15px;font-weight:700;">上传 3DGS 场景</h3>
           <span onclick="close3dgsModal()" style="cursor:pointer;color:var(--muted);font-size:18px;line-height:1;">×</span>
         </div>
         <div style="display:flex;flex-direction:column;gap:14px;">
           <div>
-            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">场景名称 *</label>
-            <input id="3dgs-name" type="text" placeholder="输入场景名称" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
+            <label data-i18n="admin3dgs.nameLabel" style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">场景名称 *</label>
+            <input id="3dgs-name" type="text" placeholder="输入场景名称" data-i18n-placeholder="admin3dgs.namePlaceholder" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
           </div>
           <div style="display:flex;gap:10px;">
             <div style="flex:1;">
-              <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">场景类型</label>
+              <label data-i18n="admin3dgs.typeLabel" style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">场景类型</label>
               <select id="3dgs-scene-type" style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
-                <option value="outdoor">室外</option>
-                <option value="indoor">室内</option>
+                <option value="outdoor" data-i18n="admin3dgs.typeOutdoor">室外</option>
+                <option value="indoor" data-i18n="admin3dgs.typeIndoor">室内</option>
                 <option value="studio">Studio</option>
               </select>
             </div>
             <div style="flex:1;">
-              <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">来源</label>
+              <label data-i18n="admin3dgs.sourceLabel" style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">来源</label>
               <select id="3dgs-source-type" style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
-                <option value="upload">手动上传</option>
-                <option value="ai_generated">AI 生成</option>
+                <option value="upload" data-i18n="admin3dgs.sourceUpload">手动上传</option>
+                <option value="ai_generated" data-i18n="admin3dgs.sourceAI">AI 生成</option>
               </select>
             </div>
           </div>
           <div>
-            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">选择文件（.rad .ply .spz .splat）</label>
+            <label data-i18n="admin3dgs.fileLabel" style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">选择文件（.rad .ply .spz .splat）</label>
             <input id="3dgs-file" type="file" accept=".rad,.ply,.spz,.splat" style="width:100%;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
           </div>
           <div style="display:flex;gap:10px;">
             <div style="flex:1;">
-              <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">高斯球数量（可选）</label>
+              <label data-i18n="admin3dgs.splatCountLabel" style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">高斯球数量（可选）</label>
               <input id="3dgs-splat-count" type="number" min="0" placeholder="0" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
             </div>
             <div style="flex:1;">
-              <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">LoD 层级</label>
+              <label data-i18n="admin3dgs.lodLabel" style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">LoD 层级</label>
               <input id="3dgs-lod" type="number" min="1" max="16" value="8" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
             </div>
           </div>
           <div>
-            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">标签（逗号分隔）</label>
-            <input id="3dgs-tags" type="text" placeholder="自然,城市,室外..." style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
+            <label data-i18n="admin3dgs.tagsLabel" style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">标签（逗号分隔）</label>
+            <input id="3dgs-tags" type="text" placeholder="自然,城市,室外..." data-i18n-placeholder="admin3dgs.tagsPlaceholder" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
           </div>
           <div>
-            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">描述</label>
-            <textarea id="3dgs-desc" rows="3" placeholder="场景描述..." style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;resize:vertical;"></textarea>
+            <label data-i18n="admin3dgs.descLabel" style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">描述</label>
+            <textarea id="3dgs-desc" rows="3" placeholder="场景描述..." data-i18n-placeholder="admin3dgs.descPlaceholder" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;resize:vertical;"></textarea>
           </div>
           <!-- 进度条 -->
           <div id="3dgs-progress-wrap" style="display:none;">
-            <div style="font-size:12px;color:var(--muted);margin-bottom:5px;">上传进度：<span id="3dgs-progress-text">0%</span></div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:5px;"><span data-i18n="admin3dgs.uploadProgress">上传进度：</span><span id="3dgs-progress-text">0%</span></div>
             <div style="background:var(--bg);border-radius:4px;height:8px;overflow:hidden;border:1px solid var(--border);">
               <div id="3dgs-progress-bar" style="height:100%;width:0%;background:var(--green);transition:width 0.2s;"></div>
             </div>
           </div>
           <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px;">
-            <button onclick="close3dgsModal()" style="padding:8px 18px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;">取消</button>
-            <button id="3dgs-submit-btn" onclick="submit3dgsUpload()" class="btn-primary" style="padding:8px 18px;font-size:13px;">上传</button>
+            <button data-i18n="common.cancel" onclick="close3dgsModal()" style="padding:8px 18px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;">取消</button>
+            <button id="3dgs-submit-btn" data-i18n="common.upload" onclick="submit3dgsUpload()" class="btn-primary" style="padding:8px 18px;font-size:13px;">上传</button>
           </div>
         </div>
       </div>
@@ -1722,70 +1722,70 @@
         <!-- 标题栏 -->
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
           <div>
-            <h3 style="font-size:15px;font-weight:700;color:var(--text);">📂 扫描本地目录注册场景</h3>
-            <p style="font-size:11px;color:var(--muted);margin-top:3px;">将大文件直接放入 <code style="background:rgba(0,255,0,0.08);padding:1px 5px;border-radius:3px;color:var(--green);">public/scenes/3dgs/</code> 目录后点击扫描</p>
+            <h3 data-i18n="admin3dgs.scanTitle" style="font-size:15px;font-weight:700;color:var(--text);">📂 扫描本地目录注册场景</h3>
+            <p style="font-size:11px;color:var(--muted);margin-top:3px;"><span data-i18n="admin3dgs.scanDesc1">将大文件直接放入</span> <code style="background:rgba(0,255,0,0.08);padding:1px 5px;border-radius:3px;color:var(--green);">public/scenes/3dgs/</code> <span data-i18n="admin3dgs.scanDesc2">目录后点击扫描</span></p>
           </div>
           <span onclick="close3dgsScanModal()" style="cursor:pointer;color:var(--muted);font-size:20px;line-height:1;padding:4px 8px;">×</span>
         </div>
 
         <!-- 工具栏 -->
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
-          <button id="scan-btn" onclick="doScan3dgsDir()" style="padding:7px 16px;background:var(--green);color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;">🔍 扫描目录</button>
-          <button onclick="select3dgsAll(true)" style="padding:6px 12px;background:var(--green-dim);color:var(--green);border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;">全选未注册</button>
-          <button onclick="select3dgsAll(false)" style="padding:6px 12px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;">取消全选</button>
+          <button id="scan-btn" data-i18n="admin3dgs.scanBtn" onclick="doScan3dgsDir()" style="padding:7px 16px;background:var(--green);color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;">🔍 扫描目录</button>
+          <button data-i18n="admin3dgs.selectAllUnregistered" onclick="select3dgsAll(true)" style="padding:6px 12px;background:var(--green-dim);color:var(--green);border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;">全选未注册</button>
+          <button data-i18n="admin3dgs.deselectAll" onclick="select3dgsAll(false)" style="padding:6px 12px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;">取消全选</button>
           <span id="scan-selected-count" style="font-size:12px;color:var(--muted);">已选 0 个</span>
           <div style="flex:1;"></div>
-          <button id="scan-register-btn" onclick="showBatchRegisterPanel()" style="padding:7px 16px;background:rgba(88,166,255,0.12);color:var(--blue);border:1px solid rgba(88,166,255,0.3);border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;display:none;">批量注册选中文件 →</button>
+          <button id="scan-register-btn" data-i18n="admin3dgs.batchRegisterSelected" onclick="showBatchRegisterPanel()" style="padding:7px 16px;background:rgba(88,166,255,0.12);color:var(--blue);border:1px solid rgba(88,166,255,0.3);border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;display:none;">批量注册选中文件 →</button>
         </div>
 
         <!-- 文件列表区 -->
         <div id="scan-file-list" style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;background:rgba(0,0,0,0.2);">
-          <div style="padding:30px;text-align:center;color:var(--muted);font-size:13px;">点击「扫描目录」按钮开始扫描...</div>
+          <div data-i18n="admin3dgs.scanHint" style="padding:30px;text-align:center;color:var(--muted);font-size:13px;">点击「扫描目录」按钮开始扫描...</div>
         </div>
 
         <!-- 批量注册配置面板 -->
         <div id="batch-register-panel" style="display:none;margin-top:18px;border:1px solid rgba(88,166,255,0.3);border-radius:10px;padding:18px;background:rgba(88,166,255,0.04);">
-          <div style="font-size:14px;font-weight:700;color:var(--blue);margin-bottom:14px;">⚙️ 批量注册配置</div>
+          <div data-i18n="admin3dgs.batchTitle" style="font-size:14px;font-weight:700;color:var(--blue);margin-bottom:14px;">⚙️ 批量注册配置</div>
 
           <!-- 公共设置 -->
           <div style="background:rgba(0,0,0,0.3);border-radius:8px;padding:14px;margin-bottom:14px;">
-            <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">公共设置（应用到所有文件）</div>
+            <div data-i18n="admin3dgs.commonSettings" style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">公共设置（应用到所有文件）</div>
             <div style="display:flex;gap:12px;flex-wrap:wrap;">
               <div style="flex:1;min-width:120px;">
-                <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">场景类型</label>
+                <label data-i18n="admin3dgs.typeLabel" style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">场景类型</label>
                 <select id="batch-scene-type" style="width:100%;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;">
-                  <option value="outdoor">室外</option>
-                  <option value="indoor">室内</option>
+                  <option value="outdoor" data-i18n="admin3dgs.typeOutdoor">室外</option>
+                  <option value="indoor" data-i18n="admin3dgs.typeIndoor">室内</option>
                   <option value="studio">Studio</option>
                 </select>
               </div>
               <div style="flex:1;min-width:100px;">
-                <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">来源</label>
+                <label data-i18n="admin3dgs.sourceLabel" style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">来源</label>
                 <select id="batch-source-type" style="width:100%;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;">
-                  <option value="local">本地文件</option>
-                  <option value="upload">手动上传</option>
-                  <option value="ai_generated">AI 生成</option>
+                  <option value="local" data-i18n="admin3dgs.sourceLocal">本地文件</option>
+                  <option value="upload" data-i18n="admin3dgs.sourceUpload">手动上传</option>
+                  <option value="ai_generated" data-i18n="admin3dgs.sourceAI">AI 生成</option>
                 </select>
               </div>
               <div style="flex:2;min-width:160px;">
-                <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">公共标签（逗号分隔）</label>
-                <input id="batch-tags" type="text" placeholder="自然,城市..." style="width:100%;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;">
+                <label data-i18n="admin3dgs.commonTagsLabel" style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">公共标签（逗号分隔）</label>
+                <input id="batch-tags" type="text" placeholder="自然,城市..." data-i18n-placeholder="admin3dgs.commonTagsPlaceholder" style="width:100%;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;">
               </div>
               <div style="display:flex;align-items:flex-end;gap:4px;">
                 <label style="cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);padding-bottom:6px;">
-                  <input type="checkbox" id="batch-is-public" checked> 公开
+                  <input type="checkbox" id="batch-is-public" checked> <span data-i18n="admin3dgs.isPublic">公开</span>
                 </label>
               </div>
             </div>
           </div>
 
           <!-- 逐文件配置 -->
-          <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">逐文件配置</div>
+          <div data-i18n="admin3dgs.perFileConfig" style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">逐文件配置</div>
           <div id="batch-items-container" style="display:flex;flex-direction:column;gap:10px;max-height:360px;overflow-y:auto;padding-right:4px;"></div>
 
           <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
-            <button onclick="hideBatchRegisterPanel()" style="padding:8px 18px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;">取消</button>
-            <button id="batch-confirm-btn" onclick="submitBatchRegister()" style="padding:8px 20px;background:var(--blue);color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;opacity:0.9;">确认注册</button>
+            <button data-i18n="common.cancel" onclick="hideBatchRegisterPanel()" style="padding:8px 18px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;">取消</button>
+            <button id="batch-confirm-btn" data-i18n="admin3dgs.confirmRegister" onclick="submitBatchRegister()" style="padding:8px 20px;background:var(--blue);color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;opacity:0.9;">确认注册</button>
           </div>
         </div>
       </div>
@@ -1795,53 +1795,53 @@
     <div id="page-threejs-blocks" class="page">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
         <div>
-          <h2 style="font-size:16px;font-weight:700;color:var(--text);">🧩 Three.js 代码库</h2>
-          <p style="font-size:12px;color:var(--muted);margin-top:3px;">粘贴 / 导入任意 Three.js 源代码，右侧实时预览，确认后保存为可复用"代码块"，再到统一编辑器拖入世界。</p>
+          <h2 style="font-size:16px;font-weight:700;color:var(--text);" data-i18n="adminThreejs.pageTitle">🧩 Three.js 代码库</h2>
+          <p style="font-size:12px;color:var(--muted);margin-top:3px;" data-i18n="adminThreejs.pageDesc">粘贴 / 导入任意 Three.js 源代码，右侧实时预览，确认后保存为可复用"代码块"，再到统一编辑器拖入世界。</p>
         </div>
-        <button class="btn btn-sm" style="background:var(--blue);color:#000;font-weight:700;" onclick="openThreejsBlockEditor()">➕ 新增代码块</button>
+        <button class="btn btn-sm" style="background:var(--blue);color:#000;font-weight:700;" onclick="openThreejsBlockEditor()" data-i18n="adminThreejs.newBlock">➕ 新增代码块</button>
       </div>
 
       <!-- 列表视图 -->
       <div id="threejs-blocks-list" class="card" style="padding:16px;">
-        <div class="loading" style="padding:30px;text-align:center;color:var(--muted);">加载中...</div>
+        <div class="loading" style="padding:30px;text-align:center;color:var(--muted);" data-i18n="common.loading">加载中...</div>
       </div>
 
       <!-- 编辑/新增视图（默认隐藏） -->
       <div id="threejs-block-editor" class="card" style="padding:16px;margin-top:16px;display:none;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
           <div style="font-size:14px;font-weight:700;color:var(--text);" id="threejs-editor-title">新增代码块</div>
-          <button class="btn btn-sm" onclick="hideThreejsBlockEditor()">✕ 关闭</button>
+          <button class="btn btn-sm" onclick="hideThreejsBlockEditor()" data-i18n="common.close">✕ 关闭</button>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
           <div>
-            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">名称 *</label>
-            <input id="threejs-name" type="text" placeholder="例如：发光蘑菇" style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:13px;">
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;" data-i18n="adminThreejs.nameLabel">名称 *</label>
+            <input id="threejs-name" type="text" placeholder="例如：发光蘑菇" data-i18n-placeholder="adminThreejs.namePlaceholder" style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:13px;">
           </div>
           <div>
-            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">标签（逗号分隔）</label>
-            <input id="threejs-tags" type="text" placeholder="shader,动画,城市" style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:13px;">
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;" data-i18n="adminThreejs.tagsLabel">标签（逗号分隔）</label>
+            <input id="threejs-tags" type="text" placeholder="shader,动画,城市" data-i18n-placeholder="adminThreejs.tagsPlaceholder" style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:13px;">
           </div>
         </div>
         <div style="margin-bottom:14px;">
-          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">描述</label>
-          <input id="threejs-desc" type="text" placeholder="简短说明这个代码块是什么" style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:13px;">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;" data-i18n="adminThreejs.descLabel">描述</label>
+          <input id="threejs-desc" type="text" placeholder="简短说明这个代码块是什么" data-i18n-placeholder="adminThreejs.descPlaceholder" style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:13px;">
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
           <!-- 左：源码 -->
           <div>
-            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">源代码（支持粘贴 / 上传HTML / 粘贴链接）</label>
-            <textarea id="threejs-code" spellcheck="false" placeholder="在此粘贴 Three.js 代码（支持完整HTML、Markdown代码块、纯JavaScript、或URL链接）..."
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;" data-i18n="adminThreejs.codeLabel">源代码（支持粘贴 / 上传HTML / 粘贴链接）</label>
+            <textarea id="threejs-code" spellcheck="false" placeholder="在此粘贴 Three.js 代码（支持完整HTML、Markdown代码块、纯JavaScript、或URL链接）..." data-i18n-placeholder="adminThreejs.codePlaceholder"
               style="width:100%;height:320px;background:#0a0e14;border:1px solid var(--border);border-radius:6px;color:#c9d1d9;font-family:Consolas,Monaco,monospace;font-size:12px;line-height:1.5;padding:10px;resize:vertical;"></textarea>
             <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center;">
               <input type="file" id="threejs-file-input" accept=".html,.htm,.js,.txt" style="display:none;" onchange="onThreejsFileSelected(event)">
-              <button class="btn btn-sm" onclick="document.getElementById('threejs-file-input').click()">📁 上传文件</button>
-              <input id="threejs-url-input" type="text" placeholder="或粘贴URL链接（如GitHub链接）" style="flex:1;min-width:140px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px;">
-              <button class="btn btn-sm" onclick="fetchThreejsFromUrl()">🔗 导入</button>
+              <button class="btn btn-sm" onclick="document.getElementById('threejs-file-input').click()" data-i18n="adminThreejs.uploadFile">📁 上传文件</button>
+              <input id="threejs-url-input" type="text" placeholder="或粘贴URL链接（如GitHub链接）" data-i18n-placeholder="adminThreejs.urlPlaceholder" style="flex:1;min-width:140px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px;">
+              <button class="btn btn-sm" onclick="fetchThreejsFromUrl()" data-i18n="adminThreejs.importBtn">🔗 导入</button>
             </div>
             <div style="margin-top:12px;display:flex;gap:10px;">
-              <button class="btn btn-sm" onclick="previewThreejsBlock()">▶ 预览</button>
+              <button class="btn btn-sm" onclick="previewThreejsBlock()" data-i18n="adminThreejs.previewBtn">▶ 预览</button>
               <button id="threejs-save-btn" class="btn btn-sm" style="background:var(--green);color:#000;font-weight:700;" onclick="saveThreejsBlock()">✅ 确定添加</button>
             </div>
             <div id="threejs-editor-msg" style="font-size:12px;margin-top:10px;color:var(--muted);"></div>
@@ -1849,9 +1849,9 @@
           </div>
           <!-- 右：预览 -->
           <div>
-            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">预览（实时渲染）</label>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;" data-i18n="adminThreejs.previewLabel">预览（实时渲染）</label>
             <div id="threejs-preview" style="width:100%;height:380px;background:#000;border:1px solid var(--border);border-radius:6px;overflow:hidden;position:relative;">
-              <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;pointer-events:none;" id="threejs-preview-tip">点击「预览」查看效果</div>
+              <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;pointer-events:none;" id="threejs-preview-tip" data-i18n="adminThreejs.previewTip">点击「预览」查看效果</div>
             </div>
           </div>
         </div>
@@ -1887,6 +1887,8 @@
       // ===== Three.js 代码库 前端逻辑 =====
       let _threejsEditId = null;     // 编辑中的代码块 id（null=新增）
       let _threejsPreviewRAF = null;
+      const _tj3t = (k) => (window.i18n && window.i18n.t) ? window.i18n.t(k) : k;
+      const _tj3tp = (k, p) => (window.i18n && window.i18n.tp) ? window.i18n.tp(k, p) : k;
 
       async function loadThreejsBlocks() {
         const box = document.getElementById('threejs-blocks-list');
@@ -1894,28 +1896,32 @@
         try {
           const res = await fetch('/api/threejs-blocks');
           const data = await res.json();
-          if (!data.success) { box.innerHTML = '<div style="color:var(--red);padding:20px;">加载失败: ' + data.error + '</div>'; return; }
+          if (!data.success) { box.innerHTML = '<div style="color:var(--red);padding:20px;">' + _tj3tp('adminThreejs.loadFailed', { message: tjsEscapeHtml(data.error || '') }) + '</div>'; return; }
           if (!data.blocks.length) {
-            box.innerHTML = '<div style="color:var(--muted);padding:20px;text-align:center;">还没有代码块，点击右上角「➕ 新增代码块」添加第一个吧。</div>';
+            box.innerHTML = '<div style="color:var(--muted);padding:20px;text-align:center;">' + _tj3t('adminThreejs.noBlocks') + '</div>';
             return;
           }
+          const noDescTxt = _tj3t('adminThreejs.noDesc');
+          const viewTxt = _tj3t('adminThreejs.viewBtn');
+          const editTxt = _tj3t('adminThreejs.editBtn');
+          const delTxt = _tj3t('adminThreejs.deleteBtn');
           box.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;">' +
             data.blocks.map(b => `
               <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:rgba(0,0,0,0.25);">
                 <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px;word-break:break-all;">${tjsEscapeHtml(b.name)}</div>
-                <div style="font-size:11px;color:var(--muted);min-height:32px;line-height:1.5;">${tjsEscapeHtml(b.description || '（无描述）')}</div>
+                <div style="font-size:11px;color:var(--muted);min-height:32px;line-height:1.5;">${tjsEscapeHtml(b.description || noDescTxt)}</div>
                 <div style="margin:8px 0;display:flex;flex-wrap:wrap;gap:4px;">
                   ${(b.tags || []).map(t => `<span style="font-size:10px;background:var(--green-dim);color:var(--green);padding:2px 6px;border-radius:4px;">${tjsEscapeHtml(t)}</span>`).join('')}
                 </div>
-                <div style="font-size:10px;color:var(--muted);margin-bottom:10px;">代码 ${b.code_length} 字符</div>
+                <div style="font-size:10px;color:var(--muted);margin-bottom:10px;">${_tj3tp('adminThreejs.codeLength', { count: b.code_length })}</div>
                 <div style="display:flex;gap:8px;">
-                  <button class="btn btn-sm" onclick="previewThreejsBlockFromList(${b.id})">👁 预览</button>
-                  <button class="btn btn-sm" onclick="openThreejsBlockEditor(${b.id})">✏️ 编辑</button>
-                  <button class="btn btn-sm" style="color:var(--red);border-color:var(--red);" onclick="deleteThreejsBlock(${b.id})">🗑 删除</button>
+                  <button class="btn btn-sm" onclick="previewThreejsBlockFromList(${b.id})">${viewTxt}</button>
+                  <button class="btn btn-sm" onclick="openThreejsBlockEditor(${b.id})">${editTxt}</button>
+                  <button class="btn btn-sm" style="color:var(--red);border-color:var(--red);" onclick="deleteThreejsBlock(${b.id})">${delTxt}</button>
                 </div>
               </div>`).join('') + '</div>';
         } catch (e) {
-          box.innerHTML = '<div style="color:var(--red);padding:20px;">网络错误: ' + e.message + '</div>';
+          box.innerHTML = '<div style="color:var(--red);padding:20px;">' + _tj3tp('adminThreejs.networkError', { message: tjsEscapeHtml(e.message || '') }) + '</div>';
         }
       }
 
@@ -1933,8 +1939,8 @@
         _threejsEditId = (typeof id === 'number') ? id : null;
         document.getElementById('threejs-blocks-list').style.display = 'none';
         document.getElementById('threejs-block-editor').style.display = 'block';
-        document.getElementById('threejs-editor-title').textContent = _threejsEditId ? '编辑代码块' : '新增代码块';
-        document.getElementById('threejs-save-btn').textContent = _threejsEditId ? '💾 更新' : '✅ 确定添加';
+        document.getElementById('threejs-editor-title').textContent = _threejsEditId ? _tj3t('adminThreejs.editorTitleEdit') : _tj3t('adminThreejs.editorTitleNew');
+        document.getElementById('threejs-save-btn').textContent = _threejsEditId ? _tj3t('adminThreejs.saveUpdate') : _tj3t('adminThreejs.confirmAdd');
         document.getElementById('threejs-editor-msg').textContent = '';
         if (_threejsEditId) {
           try {
@@ -2017,9 +2023,9 @@
         const container = document.getElementById('threejs-preview');
         const diag = document.getElementById('threejs-diagnostics');
         if (diag) diag.style.display = 'none';
-        if (!rawInput.trim()) { if (tip) { tip.style.display = 'flex'; tip.textContent = '请先粘贴代码'; } return; }
-        if (!window.ThreeJSCodeRunner) { alert('运行器未加载，请刷新页面'); return; }
-        if (!window.ThreeJSInputAdapter) { alert('适配器未加载，请刷新页面'); return; }
+        if (!rawInput.trim()) { if (tip) { tip.style.display = 'flex'; tip.textContent = _tj3t('adminThreejs.pasteCodeFirst'); } return; }
+        if (!window.ThreeJSCodeRunner) { alert(_tj3t('adminThreejs.runnerNotLoaded')); return; }
+        if (!window.ThreeJSInputAdapter) { alert(_tj3t('adminThreejs.adapterNotLoaded')); return; }
 
         if (tip) tip.style.display = 'none';
 
@@ -2084,17 +2090,17 @@
           const result = window.ThreeJSCodeRunner.runThreeJSCode(extractedCode, { mode: 'preview', container: container, THREE: THREE });
           if (result.error) {
             var errHtml = diag.innerHTML || '';
-            errHtml += '<div style="color:#ff6666;">❌ 预览错误: ' + tjsEscapeHtml(result.error.message || String(result.error)) + '</div>';
+            errHtml += '<div style="color:#ff6666;">' + _tj3tp('adminThreejs.previewError', { message: tjsEscapeHtml(result.error.message || String(result.error)) }) + '</div>';
             diag.innerHTML = errHtml; diag.style.display = 'block';
-            tip.style.display = 'flex'; tip.textContent = '⚠ 代码运行出错: ' + (result.error.message || '');
+            tip.style.display = 'flex'; tip.textContent = _tj3tp('adminThreejs.runError', { message: result.error.message || '' });
           } else if (!validated) {
             var warnHtml = diag.innerHTML || '';
-            warnHtml += '<div style="color:#ffcc66;">⚠️ World模式验证未检测到对象（可能依赖异步加载或仅预览可用）</div>';
+            warnHtml += '<div style="color:#ffcc66;">' + _tj3t('adminThreejs.worldValidationWarn') + '</div>';
             diag.innerHTML = warnHtml; diag.style.display = 'block';
           }
         } catch (e) {
           tip.style.display = 'flex';
-          tip.textContent = '⚠ 预览失败: ' + (e && e.message ? e.message : String(e));
+          tip.textContent = _tj3tp('adminThreejs.previewFailed', { message: (e && e.message ? e.message : String(e)) });
         }
       }
 
@@ -2107,9 +2113,9 @@
           html += '<div style="color:#66ccff;">📋 ' + tjsEscapeHtml(det.meta.message) + '</div>';
         }
         if (rescue.usedLabel && rescue.usedLabel !== 'none') {
-          html += '<div style="color:#66ff66;">✅ 成功: ' + tjsEscapeHtml(rescue.usedLabel) + '</div>';
+          html += '<div style="color:#66ff66;">' + _tj3tp('adminThreejs.successLabel', { message: tjsEscapeHtml(rescue.usedLabel) }) + '</div>';
         } else if (rescue.attempts && rescue.attempts.length > 0) {
-          html += '<div style="color:#ff6666;">❌ 所有尝试均失败:</div>';
+          html += '<div style="color:#ff6666;">' + _tj3t('adminThreejs.allAttemptsFailed') + '</div>';
           rescue.attempts.forEach(function (a) {
             html += '<div style="color:#ff9999;margin-left:12px;">• ' + tjsEscapeHtml(a.label) + ': ' + tjsEscapeHtml(a.error || '') + '</div>';
           });
@@ -2134,9 +2140,9 @@
         const name = document.getElementById('threejs-name').value.trim();
         const rawInput = document.getElementById('threejs-code').value;
         const msg = document.getElementById('threejs-editor-msg');
-        if (!name) { msg.style.color = 'var(--red)'; msg.textContent = '⚠ 请填写名称'; return; }
-        if (!rawInput.trim()) { msg.style.color = 'var(--red)'; msg.textContent = '⚠ 请粘贴代码'; return; }
-        if (!window.ThreeJSCodeRunner) { alert('运行器未加载'); return; }
+        if (!name) { msg.style.color = 'var(--red)'; msg.textContent = _tj3t('adminThreejs.nameRequired'); return; }
+        if (!rawInput.trim()) { msg.style.color = 'var(--red)'; msg.textContent = _tj3t('adminThreejs.pasteCodeRequired'); return; }
+        if (!window.ThreeJSCodeRunner) { alert(_tj3t('adminThreejs.runnerNotLoadedShort')); return; }
 
         // 入口适配：形态识别 + 代码提取
         var extractedCode = rawInput;
@@ -2173,7 +2179,7 @@
             }
           });
           if (highRisk) {
-            if (!confirm('⚠️ 检测到代码中包含高风险操作（如 fetch/XHR/localStorage），保存后所有进入该世界的玩家都将执行此代码。确定继续吗？')) {
+            if (!confirm(_tj3t('adminThreejs.highRiskConfirm'))) {
               return;
             }
           }
@@ -2190,7 +2196,7 @@
           auto_fixes: autoFixes,
           import_status: 'ok'
         };
-        msg.style.color = 'var(--muted)'; msg.textContent = '保存中...';
+        msg.style.color = 'var(--muted)'; msg.textContent = _tj3t('adminThreejs.saving');
         try {
           const url = _threejsEditId ? ('/api/threejs-blocks/' + _threejsEditId) : '/api/threejs-blocks';
           const method = _threejsEditId ? 'PUT' : 'POST';
@@ -2201,15 +2207,15 @@
           if (data.success) {
             msg.style.color = 'var(--green)';
             var diagInfo = '';
-            if (sourceType !== 'js') diagInfo += ' 已自动识别:' + sourceType;
-            if (autoFixes.length > 0) diagInfo += ' 自动修复:' + autoFixes.length + '项';
-            msg.textContent = '✅ 已保存！' + diagInfo + ' 可在统一编辑器拖入世界。';
+            if (sourceType !== 'js') diagInfo += ' ' + _tj3t('adminThreejs.autoDetected') + sourceType;
+            if (autoFixes.length > 0) diagInfo += ' ' + _tj3tp('adminThreejs.autoFixed', { count: autoFixes.length });
+            msg.textContent = _tj3t('adminThreejs.saved') + diagInfo + ' ' + _tj3t('adminThreejs.canDragIntoWorld');
             setTimeout(() => { hideThreejsBlockEditor(); loadThreejsBlocks(); }, 1200);
           } else {
-            msg.style.color = 'var(--red)'; msg.textContent = '❌ ' + (data.error || '保存失败');
+            msg.style.color = 'var(--red)'; msg.textContent = '❌ ' + (data.error || _tj3t('adminThreejs.saveFailed'));
           }
         } catch (e) {
-          msg.style.color = 'var(--red)'; msg.textContent = '❌ 网络错误: ' + e.message;
+          msg.style.color = 'var(--red)'; msg.textContent = '❌ ' + _tj3tp('adminThreejs.networkError', { message: e.message });
         }
       }
 
@@ -2218,7 +2224,7 @@
         const file = event.target.files && event.target.files[0];
         if (!file) return;
         if (file.size > 2 * 1024 * 1024) {
-          document.getElementById('threejs-editor-msg').textContent = '⚠ 文件不能超过 2MB';
+          document.getElementById('threejs-editor-msg').textContent = _tj3t('adminThreejs.fileTooLarge');
           return;
         }
         const reader = new FileReader();
@@ -2232,19 +2238,19 @@
           }
           if (invalidCount > sample.length * 0.1) {
             document.getElementById('threejs-editor-msg').style.color = '#ffcc66';
-            document.getElementById('threejs-editor-msg').textContent = '⚠ 文件编码可能不是 UTF-8（检测到乱码），请用记事本打开后另存为 UTF-8';
+            document.getElementById('threejs-editor-msg').textContent = _tj3t('adminThreejs.fileEncodingError');
           }
           document.getElementById('threejs-code').value = String(content);
           if (!document.getElementById('threejs-name').value) {
             document.getElementById('threejs-name').value = file.name.replace(/\.(html?|js|txt)$/i, '');
           }
           document.getElementById('threejs-editor-msg').style.color = 'var(--muted)';
-          document.getElementById('threejs-editor-msg').textContent = '📁 已加载文件: ' + file.name + ' (' + (file.size / 1024).toFixed(1) + 'KB)';
+          document.getElementById('threejs-editor-msg').textContent = _tj3tp('adminThreejs.fileLoaded', { name: file.name, size: (file.size / 1024).toFixed(1) });
           // 自动预览
           previewThreejsBlock();
         };
         reader.onerror = function () {
-          document.getElementById('threejs-editor-msg').textContent = '⚠ 文件读取失败';
+          document.getElementById('threejs-editor-msg').textContent = _tj3t('adminThreejs.fileReadFailed');
         };
         reader.readAsText(file, 'UTF-8');
         event.target.value = ''; // 重置以允许重复选择同一文件
@@ -2255,9 +2261,9 @@
         const urlInput = document.getElementById('threejs-url-input');
         const url = urlInput.value.trim();
         const msg = document.getElementById('threejs-editor-msg');
-        if (!url) { msg.textContent = '⚠ 请输入 URL'; return; }
-        if (!/^https?:\/\//i.test(url)) { msg.textContent = '⚠ 请输入有效的 http/https 链接'; return; }
-        msg.style.color = 'var(--muted)'; msg.textContent = '🔗 正在抓取...';
+        if (!url) { msg.textContent = _tj3t('adminThreejs.urlRequired'); return; }
+        if (!/^https?:\/\//i.test(url)) { msg.textContent = _tj3t('adminThreejs.urlInvalid'); return; }
+        msg.style.color = 'var(--muted)'; msg.textContent = _tj3t('adminThreejs.fetching');
         try {
           const res = await fetch('/api/threejs-blocks/import-url', {
             method: 'POST',
@@ -2269,28 +2275,28 @@
             document.getElementById('threejs-code').value = data.content;
             if (!document.getElementById('threejs-name').value) {
               var urlName = url.split('/').pop().replace(/\.(html?|js|txt)$/i, '').slice(0, 40);
-              document.getElementById('threejs-name').value = urlName || 'URL导入';
+              document.getElementById('threejs-name').value = urlName || _tj3t('adminThreejs.urlImportDefault');
             }
-            msg.style.color = 'var(--green)'; msg.textContent = '✅ 已导入 (' + (data.content.length || 0) + ' 字符)';
+            msg.style.color = 'var(--green)'; msg.textContent = _tj3tp('adminThreejs.imported', { count: (data.content.length || 0) });
             urlInput.value = '';
             previewThreejsBlock();
           } else {
             msg.style.color = 'var(--red)';
-            msg.textContent = '❌ 导入失败: ' + (data.error || '未知错误') + (data.hint ? ' (' + data.hint + ')' : '');
+            msg.textContent = '❌ ' + _tj3tp('adminThreejs.importFailed', { message: (data.error || _tj3t('adminThreejs.unknownError')) }) + (data.hint ? ' (' + data.hint + ')' : '');
           }
         } catch (e) {
-          msg.style.color = 'var(--red)'; msg.textContent = '❌ 网络错误: ' + e.message;
+          msg.style.color = 'var(--red)'; msg.textContent = '❌ ' + _tj3tp('adminThreejs.networkError', { message: e.message });
         }
       }
 
       async function deleteThreejsBlock(id) {
-        if (!confirm('确定删除该代码块？此操作不可恢复。')) return;
+        if (!confirm(_tj3t('adminThreejs.deleteConfirm'))) return;
         try {
           const res = await fetch('/api/threejs-blocks/' + id, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('adminToken') || '') } });
           const data = await res.json();
           if (data.success) loadThreejsBlocks();
-          else alert('删除失败: ' + (data.error || ''));
-        } catch (e) { alert('网络错误: ' + e.message); }
+          else alert(_tj3tp('adminThreejs.deleteFailed', { message: (data.error || '') }));
+        } catch (e) { alert(_tj3tp('adminThreejs.networkError', { message: e.message })); }
       }
     </script>
 
@@ -2913,58 +2919,58 @@
 
     <!-- 子标签 -->
     <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:0;flex-wrap:wrap;">
-      <button class="sub-tab active" id="tmpl-sub-btn-info">📋 基本信息</button>
-      <button class="sub-tab" id="tmpl-sub-btn-anims">🎬 动作配置</button>
-      <button class="sub-tab" id="tmpl-sub-btn-sounds">🔊 声音配置</button>
-      <button class="sub-tab" id="tmpl-sub-btn-bones">🦴 骨骼绑定</button>
-      <button class="sub-tab" id="tmpl-sub-btn-calibration">📏 模型校准</button>
+      <button class="sub-tab active" id="tmpl-sub-btn-info" data-i18n="adminCharacters.subTabInfo">📋 基本信息</button>
+      <button class="sub-tab" id="tmpl-sub-btn-anims" data-i18n="adminCharacters.subTabAnims">🎬 动作配置</button>
+      <button class="sub-tab" id="tmpl-sub-btn-sounds" data-i18n="adminCharacters.subTabSounds">🔊 声音配置</button>
+      <button class="sub-tab" id="tmpl-sub-btn-bones" data-i18n="adminCharacters.subTabBones">🦴 骨骼绑定</button>
+      <button class="sub-tab" id="tmpl-sub-btn-calibration" data-i18n="adminCharacters.subTabCalib">📏 模型校准</button>
     </div>
 
     <!-- 基本信息 -->
     <div id="tmpl-sub-info">
       <div class="form-row">
         <div class="form-group">
-          <label>模板名称 *</label>
-          <input type="text" id="tmpl-name" placeholder="例：创世者-龙骑士">
+          <label data-i18n="adminCharacters.infoNameLabel">模板名称 *</label>
+          <input type="text" id="tmpl-name" placeholder="例：创世者-龙骑士" data-i18n-placeholder="adminCharacters.infoNamePlaceholder">
         </div>
         <div class="form-group">
-          <label>描述</label>
-          <input type="text" id="tmpl-desc" placeholder="简短描述">
+          <label data-i18n="adminCharacters.infoDescLabel">描述</label>
+          <input type="text" id="tmpl-desc" placeholder="简短描述" data-i18n-placeholder="adminCharacters.infoDescPlaceholder">
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>权限级别</label>
+          <label data-i18n="adminCharacters.infoAccessLabel">权限级别</label>
           <select id="tmpl-access-level">
-            <option value="public">🌐 公开（所有注册用户可选）</option>
-            <option value="admin">🔑 管理员（仅管理员可用）</option>
-            <option value="creator_only">👑 创世者专属</option>
+            <option value="public" data-i18n="adminCharacters.infoAccessPublic">🌐 公开（所有注册用户可选）</option>
+            <option value="admin" data-i18n="adminCharacters.infoAccessAdmin">🔑 管理员（仅管理员可用）</option>
+            <option value="creator_only" data-i18n="adminCharacters.infoAccessCreator">👑 创世者专属</option>
           </select>
         </div>
         <div class="form-group">
-          <label>角色身份</label>
+          <label data-i18n="adminCharacters.infoRoleLabel">角色身份</label>
           <select id="tmpl-character-role">
-            <option value="player">👤 普通玩家</option>
-            <option value="admin">🔑 管理员</option>
-            <option value="creator">👑 创世者</option>
+            <option value="player" data-i18n="adminCharacters.infoRolePlayer">👤 普通玩家</option>
+            <option value="admin" data-i18n="adminCharacters.infoRoleAdmin">🔑 管理员</option>
+            <option value="creator" data-i18n="adminCharacters.infoRoleCreator">👑 创世者</option>
           </select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>GLB 角色皮肤（.glb / .gltf）</label>
+          <label data-i18n="adminCharacters.infoGlbLabel">GLB 角色皮肤（.glb / .gltf）</label>
           <!-- 平台选择器：自动适配骨骼映射 -->
           <div id="tmpl-platform-selector" style="margin-bottom:8px"></div>
           <input type="file" id="tmpl-glb-file" accept=".glb,.gltf" style="padding:6px">
           <div style="font-size:11px;color:#888;margin-top:4px;line-height:1.5">
-            📌 T-pose 基础模型，只负责角色外形/皮肤，不含动作。动作在「动作配置」标签页中单独上传配置。
-            <br>            💡 选择正确的来源平台可自动适配骨骼映射。
-            <br>🔗 FBX转GLB用这个：<a href="https://metool.online/zh/3d/modelConvert/" target="_blank" style="color:#4a90d9;">点击进入 metool.online</a>
+            <span data-i18n="adminCharacters.infoGlbTip1">📌 T-pose 基础模型，只负责角色外形/皮肤，不含动作。动作在「动作配置」标签页中单独上传配置。</span>
+            <br><span data-i18n="adminCharacters.infoGlbTip2">💡 选择正确的来源平台可自动适配骨骼映射。</span>
+            <br><span data-i18n="adminCharacters.infoGlbTip3Prefix">🔗 FBX转GLB用这个：</span><a href="https://metool.online/zh/3d/modelConvert/" target="_blank" style="color:#4a90d9;" data-i18n="adminCharacters.infoGlbTip3Link">点击进入 metool.online</a>
           </div>
           <div id="tmpl-glb-current" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
         </div>
         <div class="form-group">
-          <label>预览图（可选）</label>
+          <label data-i18n="adminCharacters.infoThumbLabel">预览图（可选）</label>
           <input type="file" id="tmpl-thumbnail" accept="image/*" style="padding:6px">
           <div id="tmpl-thumb-preview" style="margin-top:6px"></div>
         </div>
@@ -2972,36 +2978,36 @@
       <div class="form-row">
         <div class="form-group">
           <label style="display:flex;align-items:center;gap:8px">
-            <input type="checkbox" id="tmpl-is-default"> 设为新用户默认模板
+            <input type="checkbox" id="tmpl-is-default"> <span data-i18n="adminCharacters.infoDefaultLabel">设为新用户默认模板</span>
           </label>
         </div>
         <div class="form-group">
-          <label>排序权重（越小越前）</label>
+          <label data-i18n="adminCharacters.infoSortLabel">排序权重（越小越前）</label>
           <input type="number" id="tmpl-sort-order" value="0" min="0">
         </div>
       </div>
       <!-- 装备槽 -->
       <div style="margin-top:4px;padding:12px;border:1px solid rgba(255,140,0,0.2);border-radius:8px;background:rgba(255,140,0,0.03)">
-        <div style="font-size:12px;font-weight:700;color:var(--orange);margin-bottom:10px">⚔️ 装备槽（可选）</div>
+        <div style="font-size:12px;font-weight:700;color:var(--orange);margin-bottom:10px" data-i18n="adminCharacters.infoEquipSlot">⚔️ 装备槽（可选）</div>
         <div class="form-row">
           <div class="form-group">
-            <label>绑定武器</label>
+            <label data-i18n="adminCharacters.infoWeaponLabel">绑定武器</label>
             <div style="display:flex;gap:6px;align-items:center">
               <select id="tmpl-weapon-id" style="flex:1">
-                <option value="">— 无武器 —</option>
+                <option value="" data-i18n="adminCharacters.infoNoWeapon">— 无武器 —</option>
               </select>
-              <button type="button" class="btn btn-sm" onclick="_loadWeaponSelectOptions(document.getElementById('tmpl-weapon-id').value||null)" title="重新加载武器列表" style="padding:4px 8px;white-space:nowrap">🔄 刷新</button>
+              <button type="button" class="btn btn-sm" onclick="_loadWeaponSelectOptions(document.getElementById('tmpl-weapon-id').value||null)" title="重新加载武器列表" data-i18n="adminCharacters.infoRefresh" data-i18n-title="adminCharacters.infoRefreshTitle" style="padding:4px 8px;white-space:nowrap">🔄 刷新</button>
             </div>
-            <div style="font-size:11px;color:var(--muted);margin-top:4px">武器外观在「武器库」页面统一管理，这里只需选择使用哪把武器。</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px" data-i18n="adminCharacters.infoWeaponTip">武器外观在「武器库」页面统一管理，这里只需选择使用哪把武器。</div>
           </div>
           <div class="form-group" style="display:flex;align-items:flex-end">
-            <a onclick="showPage('weapons');loadWeapons()" style="font-size:12px;color:var(--orange);cursor:pointer;text-decoration:underline">⚔️ 前往武器库管理 →</a>
+            <a onclick="showPage('weapons');loadWeapons()" style="font-size:12px;color:var(--orange);cursor:pointer;text-decoration:underline" data-i18n="adminCharacters.infoGoWeapons">⚔️ 前往武器库管理 →</a>
           </div>
         </div>
       </div>
       <div class="btn-group">
-        <button class="btn" onclick="saveTemplate()">💾 保存基本信息</button>
-        <button class="btn btn-secondary" onclick="closeTemplateModal()">取消</button>
+        <button class="btn" onclick="saveTemplate()" data-i18n="adminCharacters.infoSaveBtn">💾 保存基本信息</button>
+        <button class="btn btn-secondary" onclick="closeTemplateModal()" data-i18n="common.cancel">取消</button>
       </div>
     </div>
 
@@ -3013,18 +3019,18 @@
       </div>
 
       <!-- 动作分组 -->
-      <div style="font-size:11px;font-weight:700;color:var(--green);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)">🚶 基础移动动作</div>
+      <div style="font-size:11px;font-weight:700;color:var(--green);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)" data-i18n="adminCharacters.animGroupBasic">🚶 基础移动动作</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px" id="tmpl-anim-basic"></div>
 
       <div style="font-size:11px;font-weight:700;color:var(--orange);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)">⚔️ 战斗动作</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px" id="tmpl-anim-combat"></div>
 
-      <div style="font-size:11px;font-weight:700;color:var(--purple);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)">🔄 其他动作</div>
+      <div style="font-size:11px;font-weight:700;color:var(--purple);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)" data-i18n="adminCharacters.animGroupExtra">🔄 其他动作</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px" id="tmpl-anim-extra"></div>
 
       <div class="btn-group" style="margin-top:4px">
-        <button class="btn" onclick="saveAnimFiles()">💾 保存动作</button>
-        <button class="btn btn-secondary" onclick="closeTemplateModal()">取消</button>
+        <button class="btn" onclick="saveAnimFiles()" data-i18n="adminCharacters.animSaveBtn">💾 保存动作</button>
+        <button class="btn btn-secondary" onclick="closeTemplateModal()" data-i18n="common.cancel">取消</button>
       </div>
     </div>
 
@@ -3032,136 +3038,136 @@
 
     <!-- 声音配置 Tab -->
     <div id="tmpl-sub-sounds" style="display:none">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6;background:rgba(0,255,0,0.05);border:1px solid rgba(0,255,0,0.15);border-radius:7px;padding:10px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6;background:rgba(0,255,0,0.05);border:1px solid rgba(0,255,0,0.15);border-radius:7px;padding:10px" data-i18n="adminCharacters.soundTip">
         🔊 为每个动作和武器绑定对应音效，技能激发音效在技能配置中单独设置。
       </div>
 
       <!-- 动作音效 -->
       <div style="margin-bottom:20px">
-        <div style="font-size:13px;color:var(--green);font-weight:700;margin-bottom:10px;border-bottom:1px solid rgba(0,255,0,0.2);padding-bottom:6px">🎬 动作音效</div>
+        <div style="font-size:13px;color:var(--green);font-weight:700;margin-bottom:10px;border-bottom:1px solid rgba(0,255,0,0.2);padding-bottom:6px" data-i18n="adminCharacters.soundAnimTitle">🎬 动作音效</div>
         <div id="tmpl-anim-sounds-list" style="display:flex;flex-direction:column;gap:8px"></div>
-        <button class="btn btn-secondary" style="margin-top:10px;font-size:12px" onclick="saveTmplAnimSounds()">💾 保存动作音效</button>
+        <button class="btn btn-secondary" style="margin-top:10px;font-size:12px" onclick="saveTmplAnimSounds()" data-i18n="adminCharacters.soundSaveAnimBtn">💾 保存动作音效</button>
       </div>
 
       <!-- 武器常态音效 -->
       <div style="margin-bottom:20px">
-        <div style="font-size:13px;color:var(--orange);font-weight:700;margin-bottom:10px;border-bottom:1px solid rgba(255,140,0,0.2);padding-bottom:6px">⚔️ 武器常态音效</div>
+        <div style="font-size:13px;color:var(--orange);font-weight:700;margin-bottom:10px;border-bottom:1px solid rgba(255,140,0,0.2);padding-bottom:6px" data-i18n="adminCharacters.soundWeaponTitle">⚔️ 武器常态音效</div>
         <div id="tmpl-weapon-sounds-list" style="display:flex;flex-direction:column;gap:8px"></div>
-        <button class="btn btn-secondary" style="margin-top:10px;font-size:12px" onclick="saveTmplWeaponSounds()">💾 保存武器音效</button>
+        <button class="btn btn-secondary" style="margin-top:10px;font-size:12px" onclick="saveTmplWeaponSounds()" data-i18n="adminCharacters.soundSaveWeaponBtn">💾 保存武器音效</button>
       </div>
     </div>
 
     <!-- 骨骼绑定 Tab -->
     <div id="tmpl-sub-bones" style="display:none">
       <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6;background:rgba(0,255,0,0.05);border:1px solid rgba(0,255,0,0.15);border-radius:7px;padding:10px">
-        🦴 在 3D 预览中<b>点击骨骼节点（彩色小球）</b>，然后在右侧选择它代表的部位。<br>
-        标记 <b>根骨骼</b>（脚底贴地用）和 <b>右手骨骼</b>（武器挂载用）即可，其余可跳过。
+        <span data-i18n="adminCharacters.boneTip1">🦴 在 3D 预览中点击骨骼节点（彩色小球），然后在右侧选择它代表的部位。</span><br>
+        <span data-i18n="adminCharacters.boneTip2">标记 根骨骼（脚底贴地用）和 右手骨骼（武器挂载用）即可，其余可跳过。</span>
       </div>
-      <div id="bone-no-glb-tip" style="display:none;color:var(--muted);font-size:13px;padding:20px;text-align:center">
+      <div id="bone-no-glb-tip" style="display:none;color:var(--muted);font-size:13px;padding:20px;text-align:center" data-i18n="adminCharacters.boneNoGlbTip">
         ⚠️ 请先在「基本信息」Tab 上传角色 GLB，保存后再来绑定骨骼。
       </div>
       <div id="bone-editor-wrap" style="display:none;display:flex;gap:14px">
         <!-- 左侧：3D 预览 -->
         <div style="flex:1;min-width:0">
-          <div style="font-size:11px;color:var(--muted);margin-bottom:6px">点击骨骼节点标记部位（橙色=未标记 / 绿色=已标记 / 蓝色=选中）</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px" data-i18n="adminCharacters.boneCanvasHint">点击骨骼节点标记部位（橙色=未标记 / 绿色=已标记 / 蓝色=选中）</div>
           <div id="bone-canvas-wrap" style="position:relative;width:100%;height:340px;background:#0a0f16;border:1px solid var(--border);border-radius:8px;overflow:hidden">
             <canvas id="bone-canvas" style="width:100%;height:100%;display:block"></canvas>
             <!-- 点击后弹出的气泡菜单 -->
             <div id="bone-popup" style="display:none;position:absolute;background:#161b22;border:1px solid var(--green);border-radius:8px;padding:10px 12px;min-width:170px;z-index:10;box-shadow:0 4px 20px rgba(0,255,0,0.15)">
-              <div style="font-size:12px;color:var(--muted);margin-bottom:6px">点击的骨骼：<span id="bone-popup-name" style="color:var(--text);font-weight:600"></span></div>
-              <div style="font-size:12px;color:var(--green);margin-bottom:6px">标记为：</div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:6px"><span data-i18n="adminCharacters.bonePopupClicked">点击的骨骼：</span><span id="bone-popup-name" style="color:var(--text);font-weight:600"></span></div>
+              <div style="font-size:12px;color:var(--green);margin-bottom:6px" data-i18n="adminCharacters.bonePopupMarkAs">标记为：</div>
               <div style="display:flex;flex-direction:column;gap:5px">
-                <button class="bone-assign-btn" onclick="assignBone('root')">🟢 根骨骼（贴地/重心）</button>
-                <button class="bone-assign-btn" onclick="assignBone('rightHand')">✋ 右手骨（武器挂载）</button>
-                <button class="bone-assign-btn" onclick="assignBone('camera')">📷 摄像机（视角跟随）</button>
-                <button class="bone-assign-btn" onclick="assignBone(null)">🚫 清除标记</button>
-                <button class="bone-assign-btn btn-secondary" onclick="closeBonePopup()">取消</button>
+                <button class="bone-assign-btn" onclick="assignBone('root')" data-i18n="adminCharacters.boneAssignRoot">🟢 根骨骼（贴地/重心）</button>
+                <button class="bone-assign-btn" onclick="assignBone('rightHand')" data-i18n="adminCharacters.boneAssignRightHand">✋ 右手骨（武器挂载）</button>
+                <button class="bone-assign-btn" onclick="assignBone('camera')" data-i18n="adminCharacters.boneAssignCamera">📷 摄像机（视角跟随）</button>
+                <button class="bone-assign-btn" onclick="assignBone(null)" data-i18n="adminCharacters.boneAssignClear">🚫 清除标记</button>
+                <button class="bone-assign-btn btn-secondary" onclick="closeBonePopup()" data-i18n="adminCharacters.boneAssignCancel">取消</button>
               </div>
             </div>
           </div>
-          <div style="font-size:11px;color:var(--muted);margin-top:6px">🖱️ 左键拖动旋转 / 滚轮缩放</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px" data-i18n="adminCharacters.boneOrbitHint">🖱️ 左键拖动旋转 / 滚轮缩放</div>
         </div>
         <!-- 右侧：标记状态 -->
         <div style="width:190px;flex-shrink:0">
-          <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:10px">标记状态</div>
+          <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:10px" data-i18n="adminCharacters.boneStatusTitle">标记状态</div>
           <div style="display:flex;flex-direction:column;gap:8px">
             <div class="bone-status-row" id="bone-status-root">
               <span class="bone-status-dot" id="bone-dot-root">⬜</span>
               <div>
-                <div style="font-size:12px;font-weight:600">根骨骼</div>
-                <div id="bone-label-root" style="font-size:11px;color:var(--muted)">未标记</div>
+                <div style="font-size:12px;font-weight:600" data-i18n="adminCharacters.boneRoleRoot">根骨骼</div>
+                <div id="bone-label-root" style="font-size:11px;color:var(--muted)" data-i18n="adminCharacters.boneUnmarked">未标记</div>
               </div>
             </div>
             <div class="bone-status-row" id="bone-status-rightHand">
               <span class="bone-status-dot" id="bone-dot-rightHand">⬜</span>
               <div>
-                <div style="font-size:12px;font-weight:600">右手骨</div>
-                <div id="bone-label-rightHand" style="font-size:11px;color:var(--muted)">未标记</div>
+                <div style="font-size:12px;font-weight:600" data-i18n="adminCharacters.boneRoleRightHand">右手骨</div>
+                <div id="bone-label-rightHand" style="font-size:11px;color:var(--muted)" data-i18n="adminCharacters.boneUnmarked">未标记</div>
               </div>
             </div>
             <div class="bone-status-row" id="bone-status-camera">
               <span class="bone-status-dot" id="bone-dot-camera">⬜</span>
               <div>
-                <div style="font-size:12px;font-weight:600">摄像机</div>
-                <div id="bone-label-camera" style="font-size:11px;color:var(--muted)">未标记</div>
+                <div style="font-size:12px;font-weight:600" data-i18n="adminCharacters.boneRoleCamera">摄像机</div>
+                <div id="bone-label-camera" style="font-size:11px;color:var(--muted)" data-i18n="adminCharacters.boneUnmarked">未标记</div>
               </div>
             </div>
           </div>
           <div style="margin-top:14px;padding:10px;border:1px solid rgba(255,140,0,0.2);border-radius:7px;background:rgba(255,140,0,0.04)">
-            <div style="font-size:11px;color:var(--muted);margin-bottom:6px">自动识别建议：</div>
-            <div id="bone-auto-suggestions" style="font-size:11px;color:var(--orange)">加载中...</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px" data-i18n="adminCharacters.boneAutoTitle">自动识别建议：</div>
+            <div id="bone-auto-suggestions" style="font-size:11px;color:var(--orange)" data-i18n="adminCharacters.boneAutoLoading">加载中...</div>
           </div>
           <div style="margin-top:12px">
-            <div style="font-size:11px;color:var(--muted);margin-bottom:5px">全部骨骼列表</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:5px" data-i18n="adminCharacters.boneAllListTitle">全部骨骼列表</div>
             <div id="bone-list-panel" style="max-height:140px;overflow-y:auto;font-size:11px;color:var(--muted)">-</div>
           </div>
         </div>
       </div>
       <div class="btn-group" style="margin-top:14px">
-        <button class="btn" onclick="saveBoneMap()">💾 保存骨骼绑定</button>
-        <button class="btn btn-secondary" onclick="switchTmplTab('info',document.getElementById('tmpl-sub-btn-info'))">返回基本信息</button>
+        <button class="btn" onclick="saveBoneMap()" data-i18n="adminCharacters.boneSaveBtn">💾 保存骨骼绑定</button>
+        <button class="btn btn-secondary" onclick="switchTmplTab('info',document.getElementById('tmpl-sub-btn-info'))" data-i18n="adminCharacters.boneBackBtn">返回基本信息</button>
       </div>
     </div>
 
     <!-- 模型校准 -->
     <div id="tmpl-sub-calibration" style="display:none">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;background:rgba(0,255,0,0.05);border:1px solid rgba(0,255,0,0.15);border-radius:7px;padding:10px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;background:rgba(0,255,0,0.05);border:1px solid rgba(0,255,0,0.15);border-radius:7px;padding:10px" data-i18n="adminCharacters.calibTip1">
         📏 校准流程：1. 选择右手骨骼并调整武器插槽 → 2. 校准模型中心点 → 3. 标记地面接触点 → 4. 完成校准
       </div>
 
       <!-- 3D预览区域 -->
       <div style="display:flex;gap:20px;margin-bottom:20px">
         <div style="flex:3">
-          <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:8px">3D 预览</div>
+          <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:8px" data-i18n="adminCharacters.calibPreviewTitle">3D 预览</div>
           <div id="calibration-preview" style="width:100%;height:400px;background:var(--bg);border:1px solid var(--border);border-radius:8px;position:relative;">
-            <div style="position:absolute;top:10px;left:10px;font-size:11px;color:var(--muted)">加载中...</div>
+            <div style="position:absolute;top:10px;left:10px;font-size:11px;color:var(--muted)" data-i18n="adminCharacters.calibLoading">加载中...</div>
           </div>
           <div style="display:flex;gap:8px;justify-content:center;margin-top:10px">
-            <button class="btn btn-sm" onclick="resetCalibrationView()">🔄 重置视角</button>
-            <button class="btn btn-sm" onclick="toggleSkeleton()">🦴 显示/隐藏皮肤</button>
+            <button class="btn btn-sm" onclick="resetCalibrationView()" data-i18n="adminCharacters.calibResetView">🔄 重置视角</button>
+            <button class="btn btn-sm" onclick="toggleSkeleton()" data-i18n="adminCharacters.calibToggleSkin">🦴 显示/隐藏皮肤</button>
           </div>
         </div>
         <div style="flex:1">
-          <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:8px">校准步骤</div>
+          <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:8px" data-i18n="adminCharacters.calibStepsTitle">校准步骤</div>
           <div style="display:flex;flex-direction:column;gap:8px">
             <div class="calibration-step" data-step="1">
-              <div style="font-size:12px;font-weight:600;color:var(--green)">1. 右手骨骼选择</div>
+              <div style="font-size:12px;font-weight:600;color:var(--green)" data-i18n="adminCharacters.calibStep1Title">1. 右手骨骼选择</div>
               <div style="font-size:11px;color:var(--muted);margin-top:4px">
-                <span id="bone-from-bind-hint" style="display:none;color:var(--green);font-weight:600">✅ 已从骨骼绑定自动选择</span>
-                <span id="bone-manual-hint" style="display:inline">选择模型的右手骨骼，系统将自动创建武器插槽</span>
+                <span id="bone-from-bind-hint" style="display:none;color:var(--green);font-weight:600" data-i18n="adminCharacters.calibStep1AutoSel">✅ 已从骨骼绑定自动选择</span>
+                <span id="bone-manual-hint" style="display:inline" data-i18n="adminCharacters.calibStep1Hint">选择模型的右手骨骼，系统将自动创建武器插槽</span>
               </div>
               <select id="right-hand-bone" style="width:100%;margin-top:8px;padding:6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)" onchange="selectRightHandBone()">
-                <option value="">-- 选择右手骨骼 --</option>
+                <option value="" data-i18n="adminCharacters.calibSelectRightHand">-- 选择右手骨骼 --</option>
               </select>
             </div>
             <div class="calibration-step" data-step="2">
-              <div style="font-size:12px;font-weight:600;color:var(--green)">2. 武器插槽调整</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:4px">调整武器的位置偏移和旋转角度</div>
+              <div style="font-size:12px;font-weight:600;color:var(--green)" data-i18n="adminCharacters.calibStep2Title">2. 武器插槽调整</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:4px" data-i18n="adminCharacters.calibStep2Hint">调整武器的位置偏移和旋转角度</div>
               <div style="display:flex;gap:6px;margin-top:8px">
-                <button class="btn btn-sm" id="socket-mode-translate" onclick="setSocketMode('translate')" style="background:var(--green);color:#000">📦 平移</button>
-                <button class="btn btn-sm" id="socket-mode-rotate" onclick="setSocketMode('rotate')">🔄 旋转</button>
+                <button class="btn btn-sm" id="socket-mode-translate" onclick="setSocketMode('translate')" style="background:var(--green);color:#000" data-i18n="adminCharacters.calibMoveTitle">📦 平移</button>
+                <button class="btn btn-sm" id="socket-mode-rotate" onclick="setSocketMode('rotate')" data-i18n="adminCharacters.calibRotateTitle">🔄 旋转</button>
               </div>
-              <div style="margin-top:10px;font-size:11px;color:var(--muted)">旋转角度（°）</div>
+              <div style="margin-top:10px;font-size:11px;color:var(--muted)" data-i18n="adminCharacters.calibRotateAngle">旋转角度（°）</div>
               <div style="margin-top:4px">
                 <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
                   <span style="font-size:11px;color:var(--text);width:14px">X</span>
@@ -3185,20 +3191,20 @@
                   <span style="font-size:11px;color:var(--green);width:36px;text-align:right" id="socketRotZV">90°</span>
                 </div>
               </div>
-              <button class="btn btn-sm" style="margin-top:8px" onclick="confirmWeaponSocket()">✅ 确认插槽</button>
+              <button class="btn btn-sm" style="margin-top:8px" onclick="confirmWeaponSocket()" data-i18n="adminCharacters.calibConfirmSocket">✅ 确认插槽</button>
             </div>
             <div class="calibration-step" data-step="3">
-              <div style="font-size:12px;font-weight:600;color:var(--green)">3. 中心点校准</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:4px">拖动模型，将躯干正下方对准地面十字中心</div>
-              <button class="btn btn-sm" style="margin-top:8px" onclick="lockCenterPoint()">🔒 锁定中心点</button>
+              <div style="font-size:12px;font-weight:600;color:var(--green)" data-i18n="adminCharacters.calibStep3Title">3. 中心点校准</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:4px" data-i18n="adminCharacters.calibStep3Hint">拖动模型，将躯干正下方对准地面十字中心</div>
+              <button class="btn btn-sm" style="margin-top:8px" onclick="lockCenterPoint()" data-i18n="adminCharacters.calibLockCenter">🔒 锁定中心点</button>
             </div>
             <div class="calibration-step" data-step="4">
-              <div style="font-size:12px;font-weight:600;color:var(--green)">4. 地面接触点</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:4px">点击模型双脚的鞋底最低点（点击已标记的红点可删除）</div>
-              <div style="font-size:11px;color:var(--blue);margin-top:4px" id="foot-contact-status">未标记</div>
+              <div style="font-size:12px;font-weight:600;color:var(--green)" data-i18n="adminCharacters.calibStep4Title">4. 地面接触点</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:4px" data-i18n="adminCharacters.calibStep4Hint">点击模型双脚的鞋底最低点（点击已标记的红点可删除）</div>
+              <div style="font-size:11px;color:var(--blue);margin-top:4px" id="foot-contact-status" data-i18n="adminCharacters.calibFootUnmarked">未标记</div>
               <div style="display:flex;gap:8px;margin-top:8px">
-                <button class="btn btn-sm" onclick="clearAllContactPoints()">🗑️ 清除所有</button>
-                <button class="btn btn-sm" onclick="completeCalibration()">🎯 完成模型校准</button>
+                <button class="btn btn-sm" onclick="clearAllContactPoints()" data-i18n="adminCharacters.calibClearAll">🗑️ 清除所有</button>
+                <button class="btn btn-sm" onclick="completeCalibration()" data-i18n="adminCharacters.calibComplete">🎯 完成模型校准</button>
               </div>
             </div>
           </div>
@@ -3207,17 +3213,17 @@
 
       <!-- 校准参数显示 -->
       <div style="padding:12px;border:1px solid var(--border);border-radius:8px;background:rgba(0,0,0,0.2);margin-bottom:16px">
-        <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:8px">校准参数</div>
+        <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:8px" data-i18n="adminCharacters.calibParamsTitle">校准参数</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:11px">
-          <div><span style="color:var(--muted)">中心点:</span> <span id="center-point-value">0, 0, 0</span></div>
-          <div><span style="color:var(--muted)">地面高度:</span> <span id="ground-height-value">0</span></div>
-          <div><span style="color:var(--muted)">校准状态:</span> <span id="calibration-status">未校准</span></div>
+          <div><span style="color:var(--muted)" data-i18n="adminCharacters.calibCenterPoint">中心点:</span> <span id="center-point-value">0, 0, 0</span></div>
+          <div><span style="color:var(--muted)" data-i18n="adminCharacters.calibGroundHeight">地面高度:</span> <span id="ground-height-value">0</span></div>
+          <div><span style="color:var(--muted)" data-i18n="adminCharacters.calibStatus">校准状态:</span> <span id="calibration-status">未校准</span></div>
         </div>
       </div>
 
       <div class="btn-group">
-        <button class="btn" onclick="saveCalibration()">💾 保存校准配置</button>
-        <button class="btn btn-secondary" onclick="closeTemplateModal()">取消</button>
+        <button class="btn" onclick="saveCalibration()" data-i18n="adminCharacters.calibSaveBtn">💾 保存校准配置</button>
+        <button class="btn btn-secondary" onclick="closeTemplateModal()" data-i18n="adminCharacters.calibCancelBtn">取消</button>
       </div>
     </div>
 
@@ -5045,14 +5051,14 @@
   // ===== AI 生成建筑 =====
   let currentBuildingId = null;
   async function loadUploadedModels() {
-    document.getElementById('uploaded-models-content').innerHTML = '<div class="loading">加载中...</div>';
+    document.getElementById('uploaded-models-content').innerHTML = '<div class="loading">' + window.i18n.t('adminAssets.loading') + '</div>';
     try {
       const r = await fetch('/api/uploaded-models');
       const data = await r.json();
       allUploadedModels = data.models || [];
       renderUploadedModels(allUploadedModels);
     } catch(e) {
-      document.getElementById('uploaded-models-content').innerHTML = `<div class="empty">加载失败: ${e.message}</div>`;
+      document.getElementById('uploaded-models-content').innerHTML = `<div class="empty">${window.i18n.tp('adminAssets.loadFailed', { message: e.message })}</div>`;
     }
   }
 
@@ -5069,28 +5075,28 @@
 
   function renderUploadedModels(models) {
     const el = document.getElementById('uploaded-models-content');
-    if (!models.length) { el.innerHTML = '<div class="empty">暂无上传模型</div>'; return; }
+    if (!models.length) { el.innerHTML = '<div class="empty">' + window.i18n.t('adminAssets.noUploadedModels') + '</div>'; return; }
     el.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th>文件名</th><th>类型</th><th>大小</th><th>标签</th><th>上传时间</th><th>操作</th></tr></thead>
+      <thead><tr><th>${window.i18n.t('adminAssets.colFileName')}</th><th>${window.i18n.t('adminAssets.colType')}</th><th>${window.i18n.t('adminAssets.colSize')}</th><th>${window.i18n.t('adminAssets.colTags')}</th><th>${window.i18n.t('adminAssets.colUploadTime')}</th><th>${window.i18n.t('adminAssets.colActions')}</th></tr></thead>
       <tbody>${models.map(m => `<tr>
         <td>${m.file_name}</td>
         <td><span class="badge badge-blue">${m.file_type || '-'}</span></td>
         <td style="color:var(--muted)">${m.file_size ? Math.round(m.file_size/1024) + ' KB' : '-'}</td>
         <td style="font-size:11px;color:var(--muted)">${(m.tags||[]).slice(0,3).join(', ') || '-'}</td>
         <td style="color:var(--muted)">${m.created_at ? new Date(m.created_at).toLocaleDateString('zh-CN') : '-'}</td>
-        <td><button class="btn btn-sm btn-danger" onclick="deleteUploadedModel('${m.id}')">删除</button></td>
+        <td><button class="btn btn-sm btn-danger" onclick="deleteUploadedModel('${m.id}')">${window.i18n.t('adminAssets.delete')}</button></td>
       </tr>`).join('')}</tbody>
     </table></div>`;
   }
 
   async function deleteUploadedModel(id) {
-    if (!confirm('确定删除该模型？')) return;
+    if (!confirm(window.i18n.t('adminAssets.confirmDeleteModel'))) return;
     try {
       const r = await fetch(`/api/uploaded-models/${id}`, { method: 'DELETE' });
       const data = await r.json();
-      if (data.success) { showToast('模型已删除'); loadUploadedModels(); }
-      else showToast('删除失败: ' + data.error, 'error');
-    } catch(e) { showToast('删除失败', 'error'); }
+      if (data.success) { showToast(window.i18n.t('adminAssets.modelDeleted')); loadUploadedModels(); }
+      else showToast(window.i18n.t('adminAssets.deleteFailed') + ': ' + data.error, 'error');
+    } catch(e) { showToast(window.i18n.t('adminAssets.deleteFailed'), 'error'); }
   }
 
   // 上传模型相关函数
@@ -5114,11 +5120,11 @@
     const files = fileInput.files;
 
     if (!files || files.length === 0) {
-      showToast('请选择模型文件', 'error');
+      showToast(window.i18n.t('adminAssets.selectFile'), 'error');
       return;
     }
     if (!nameInput) {
-      showToast('请输入模型名称', 'error');
+      showToast(window.i18n.t('adminAssets.enterName'), 'error');
       return;
     }
 
@@ -5142,14 +5148,14 @@
 
       const data = await response.json();
       if (data.success) {
-        showToast(`成功上传 ${data.successCount || data.uploadedCount || 0} 个模型`);
+        showToast(window.i18n.tp('adminAssets.uploadSuccess', { count: data.successCount || data.uploadedCount || 0 }));
         closeUploadModelModal();
         loadUploadedModels();
       } else {
-        showToast('上传失败: ' + (data.error || '未知错误'), 'error');
+        showToast(window.i18n.t('adminAssets.uploadFailed') + ': ' + (data.error || window.i18n.t('adminAssets.unknownError')), 'error');
       }
     } catch (error) {
-      showToast('上传失败: ' + error.message, 'error');
+      showToast(window.i18n.t('adminAssets.uploadFailed') + ': ' + error.message, 'error');
     }
   }
 
@@ -5158,16 +5164,16 @@
     const model = allUploadedModels.find(m => m.id === modelId);
     if (!model) return;
     document.getElementById('model-preview-info').innerHTML = `
-      <div><strong>模型名称:</strong> ${model.display_name || model.file_name}</div>
-      <div><strong>文件名:</strong> ${model.file_name}</div>
-      <div><strong>类型:</strong> ${model.file_type || '-'}</div>
-      <div><strong>大小:</strong> ${model.file_size ? Math.round(model.file_size/1024) + ' KB' : '-'}</div>
-      <div><strong>上传时间:</strong> ${model.created_at ? new Date(model.created_at).toLocaleString('zh-CN') : '-'}</div>
-      <div><strong>文件路径:</strong> ${model.file_path || '-'}</div>
+      <div><strong>${window.i18n.t('adminAssets.colModelName')}:</strong> ${model.display_name || model.file_name}</div>
+      <div><strong>${window.i18n.t('adminAssets.colFileName')}:</strong> ${model.file_name}</div>
+      <div><strong>${window.i18n.t('adminAssets.colType')}:</strong> ${model.file_type || '-'}</div>
+      <div><strong>${window.i18n.t('adminAssets.colSize')}:</strong> ${model.file_size ? Math.round(model.file_size/1024) + ' KB' : '-'}</div>
+      <div><strong>${window.i18n.t('adminAssets.colUploadTime')}:</strong> ${model.created_at ? new Date(model.created_at).toLocaleString('zh-CN') : '-'}</div>
+      <div><strong>${window.i18n.t('adminAssets.filePath')}:</strong> ${model.file_path || '-'}</div>
     `;
     document.getElementById('model-preview-tags').innerHTML = (model.tags || []).length ?
       (model.tags || []).map(tag => `<span class="tag-chip">${tag}</span>`).join('') :
-      '<span style="color:var(--muted)">暂无标签</span>';
+      '<span style="color:var(--muted)">' + window.i18n.t('adminAssets.noTags') + '</span>';
     document.getElementById('model-preview-modal').classList.add('active');
     // 这里可以添加 Three.js 模型预览代码
   }
@@ -5204,26 +5210,26 @@
 
       const data = await response.json();
       if (data.success) {
-        showToast('标签更新成功');
+        showToast(window.i18n.t('adminAssets.tagsUpdated'));
         closeEditTagsModal();
         closeModelPreviewModal();
         loadUploadedModels();
       } else {
-        showToast('更新失败: ' + data.error, 'error');
+        showToast(window.i18n.t('adminAssets.updateFailed') + ': ' + data.error, 'error');
       }
     } catch (error) {
-      showToast('更新失败: ' + error.message, 'error');
+      showToast(window.i18n.t('adminAssets.updateFailed') + ': ' + error.message, 'error');
     }
   }
 
   async function batchTagUploadedModels() {
     const modelIds = allUploadedModels.filter(m => !m.tags || m.tags.length === 0).map(m => m.id);
     if (modelIds.length === 0) {
-      showToast('所有模型都已打标签', 'info');
+      showToast(window.i18n.t('adminAssets.allTagged'), 'info');
       return;
     }
 
-    if (!confirm(`确定为 ${modelIds.length} 个未打标签的模型自动生成标签？`)) return;
+    if (!confirm(window.i18n.tp('adminAssets.batchTagConfirm', { count: modelIds.length }))) return;
 
     try {
       const response = await fetch('/api/tags/auto-tag-batch', {
@@ -5234,13 +5240,13 @@
 
       const data = await response.json();
       if (data.success) {
-        showToast(`批量标签完成: 成功 ${data.result?.success || 0}, 失败 ${data.result?.failed || 0}`);
+        showToast(window.i18n.tp('adminAssets.batchTagDone', { success: data.result?.success || 0, failed: data.result?.failed || 0 }));
         loadUploadedModels();
       } else {
-        showToast('批量标签失败: ' + data.error, 'error');
+        showToast(window.i18n.t('adminAssets.batchTagFailed') + ': ' + data.error, 'error');
       }
     } catch (error) {
-      showToast('批量标签失败: ' + error.message, 'error');
+      showToast(window.i18n.t('adminAssets.batchTagFailed') + ': ' + error.message, 'error');
     }
   }
 
@@ -5268,9 +5274,9 @@
 
   function renderUploadedModels(models) {
     const el = document.getElementById('uploaded-models-content');
-    if (!models.length) { el.innerHTML = '<div class="empty">暂无上传模型</div>'; return; }
+    if (!models.length) { el.innerHTML = '<div class="empty">' + window.i18n.t('adminAssets.noUploadedModels') + '</div>'; return; }
     el.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th>模型名称</th><th>文件名</th><th>类型</th><th>大小</th><th>标签</th><th>上传时间</th><th>操作</th></tr></thead>
+      <thead><tr><th>${window.i18n.t('adminAssets.colModelName')}</th><th>${window.i18n.t('adminAssets.colFileName')}</th><th>${window.i18n.t('adminAssets.colType')}</th><th>${window.i18n.t('adminAssets.colSize')}</th><th>${window.i18n.t('adminAssets.colTags')}</th><th>${window.i18n.t('adminAssets.colUploadTime')}</th><th>${window.i18n.t('adminAssets.colActions')}</th></tr></thead>
       <tbody>${models.map(m => `<tr>
         <td><button class="btn btn-sm" onclick="showModelPreviewModal('${m.id}')" title="${m.file_name}">${m.display_name || m.file_name}</button></td>
         <td style="font-size:11px;color:var(--muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${m.file_name}">${m.file_name}</td>
@@ -5280,8 +5286,8 @@
         <td style="color:var(--muted)">${m.created_at ? new Date(m.created_at).toLocaleDateString('zh-CN') : '-'}</td>
         <td>
           <div class="action-btns">
-            <button class="btn btn-sm" onclick="editModelTags()" data-id="${m.id}">✏️ 标签</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteUploadedModel('${m.id}')">删除</button>
+            <button class="btn btn-sm" onclick="editModelTags()" data-id="${m.id}">✏️ ${window.i18n.t('adminAssets.editTags')}</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteUploadedModel('${m.id}')">${window.i18n.t('adminAssets.delete')}</button>
           </div>
         </td>
       </tr>`).join('')}</tbody>
@@ -5738,30 +5744,39 @@
       const r = await fetch('/api/geometry-building/templates');
       const data = await r.json();
       if (data.success) {
-        document.getElementById('geometry-templates').innerHTML = data.templates.map(t => `
-          <div class="template-card" onclick="generateFromTemplate('${t.id}','${t.name}')">
+        document.getElementById('geometry-templates').innerHTML = data.templates.map(t => {
+          // 模板名称/简介翻译：按模板id查 i18n，缺失时回退后端中文
+          const nameKey = 'adminAssets.templates.' + t.id + '.name';
+          const descKey = 'adminAssets.templates.' + t.id + '.desc';
+          const tName = window.i18n.t(nameKey);
+          const tDesc = window.i18n.t(descKey);
+          const name = tName === nameKey ? (t.name || t.id) : tName;
+          const desc = tDesc === descKey ? (t.description || '') : tDesc;
+          return `
+          <div class="template-card" onclick="generateFromTemplate('${t.id}','${name}')">
             <div class="tc-icon">🏗️</div>
-            <div class="tc-name">${t.name}</div>
-            <div class="tc-desc">${t.description||''}</div>
-            <button class="btn btn-sm" style="width:100%">⚡ 即时生成</button>
-          </div>`).join('');
+            <div class="tc-name">${name}</div>
+            <div class="tc-desc">${desc}</div>
+            <button class="btn btn-sm" style="width:100%">⚡ ${window.i18n.t('adminAssets.generateNow')}</button>
+          </div>`;
+        }).join('');
       }
-    } catch(e) { document.getElementById('geometry-templates').innerHTML = '<div class="empty">加载模板失败</div>'; }
+    } catch(e) { document.getElementById('geometry-templates').innerHTML = '<div class="empty">' + window.i18n.t('adminAssets.loadTemplatesFailed') + '</div>'; }
   }
 
 
 
   async function generateFromTemplate(templateId, templateName) {
-    const name = prompt(`为 "${templateName}" 输入名称:`, templateName);
+    const name = prompt(window.i18n.tp('adminAssets.inputNamePrompt', { templateName }), templateName);
     if (!name) return;
     const options = {};
     // 长方体模板：收集自定义尺寸
     if (templateId === 'box_primitive') {
-      const w = prompt('宽度 (米，默认2):', '2');
+      const w = prompt(window.i18n.t('adminAssets.inputWidth'), '2');
       if (w === null) return;
-      const h = prompt('高度 (米，默认2):', '2');
+      const h = prompt(window.i18n.t('adminAssets.inputHeight'), '2');
       if (h === null) return;
-      const d = prompt('深度 (米，默认2):', '2');
+      const d = prompt(window.i18n.t('adminAssets.inputDepth'), '2');
       if (d === null) return;
       options.width = parseFloat(w) || 2;
       options.height = parseFloat(h) || 2;
@@ -5774,43 +5789,43 @@
       });
       const data = await r.json();
       if (data.success) { showToast(data.message); refreshGeometryBuildings(); }
-      else showToast('生成失败: ' + data.error, 'error');
-    } catch(e) { showToast('生成失败: ' + e.message, 'error'); }
+      else showToast(window.i18n.t('adminAssets.generateFailed') + ': ' + data.error, 'error');
+    } catch(e) { showToast(window.i18n.t('adminAssets.generateFailed') + ': ' + e.message, 'error'); }
   }
 
   async function refreshGeometryBuildings() {
     const el = document.getElementById('geometry-buildings-list');
-    el.innerHTML = '<div class="loading">加载中...</div>';
+    el.innerHTML = '<div class="loading">' + window.i18n.t('adminAssets.loading') + '</div>';
     try {
       const r = await fetch('/api/geometry-building/list');
       const data = await r.json();
       if (data.success) {
         const buildings = data.buildings || [];
-        if (!buildings.length) { el.innerHTML = '<div class="empty">暂无建筑，请选择模板生成</div>'; return; }
+        if (!buildings.length) { el.innerHTML = '<div class="empty">' + window.i18n.t('adminAssets.noBuildings') + '</div>'; return; }
         el.innerHTML = `<div class="table-wrap"><table>
-          <thead><tr><th>ID</th><th>名称</th><th>模板</th><th>创建时间</th><th>操作</th></tr></thead>
+          <thead><tr><th>${window.i18n.t('adminAssets.colId')}</th><th>${window.i18n.t('adminAssets.colName')}</th><th>${window.i18n.t('adminAssets.colTemplate')}</th><th>${window.i18n.t('adminAssets.colCreated')}</th><th>${window.i18n.t('adminAssets.colActions')}</th></tr></thead>
           <tbody>${buildings.map(b => `<tr>
             <td style="color:var(--muted)">${b.id}</td>
             <td>${b.name}</td>
             <td style="color:var(--muted)">${b.templateId}</td>
             <td style="color:var(--muted)">${new Date(b.createdAt).toLocaleString('zh-CN')}</td>
             <td><div class="btn-group">
-              <button class="btn btn-sm btn-blue" onclick="placeGeometryBuilding(${b.id})">🌍 放置</button>
-              <button class="btn btn-sm btn-danger" onclick="deleteGeometryBuilding(${b.id})">删除</button>
+              <button class="btn btn-sm btn-blue" onclick="placeGeometryBuilding(${b.id})">🌍 ${window.i18n.t('adminAssets.place')}</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteGeometryBuilding(${b.id})">${window.i18n.t('adminAssets.delete')}</button>
             </div></td>
           </tr>`).join('')}</tbody>
         </table></div>`;
-      } else el.innerHTML = `<div class="empty">加载失败: ${data.error}</div>`;
-    } catch(e) { el.innerHTML = `<div class="empty">加载失败: ${e.message}</div>`; }
+      } else el.innerHTML = `<div class="empty">${window.i18n.tp('adminAssets.loadFailed', { message: data.error })}</div>`;
+    } catch(e) { el.innerHTML = `<div class="empty">${window.i18n.tp('adminAssets.loadFailed', { message: e.message })}</div>`; }
   }
 
   async function placeGeometryBuilding(buildingId) {
-    const coordsInput = prompt('输入坐标 (格式: X:0 Y:0 Z:0):', 'X:0 Y:0 Z:0');
+    const coordsInput = prompt(window.i18n.t('adminAssets.inputCoords'), 'X:0 Y:0 Z:0');
     if (!coordsInput) return;
     const xM = coordsInput.match(/X:\s*(-?\d+\.?\d*)/i);
     const yM = coordsInput.match(/Y:\s*(-?\d+\.?\d*)/i);
     const zM = coordsInput.match(/Z:\s*(-?\d+\.?\d*)/i);
-    if (!xM || !yM || !zM) { showToast('坐标格式错误', 'error'); return; }
+    if (!xM || !yM || !zM) { showToast(window.i18n.t('adminAssets.coordsFormatError'), 'error'); return; }
     try {
       const r = await fetch(`/api/geometry-building/${buildingId}/place`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -5818,18 +5833,18 @@
       });
       const data = await r.json();
       if (data.success) showToast(data.message);
-      else showToast('放置失败: ' + data.error, 'error');
-    } catch(e) { showToast('放置失败', 'error'); }
+      else showToast(window.i18n.t('adminAssets.placeFailed') + ': ' + data.error, 'error');
+    } catch(e) { showToast(window.i18n.t('adminAssets.placeFailed'), 'error'); }
   }
 
   async function deleteGeometryBuilding(buildingId) {
-    if (!confirm('确定删除该建筑？')) return;
+    if (!confirm(window.i18n.t('adminAssets.confirmDeleteBuilding'))) return;
     try {
       const r = await fetch(`/api/geometry-building/${buildingId}`, { method: 'DELETE' });
       const data = await r.json();
       if (data.success) { showToast(data.message); refreshGeometryBuildings(); }
-      else showToast('删除失败: ' + data.error, 'error');
-    } catch(e) { showToast('删除失败', 'error'); }
+      else showToast(window.i18n.t('adminAssets.deleteFailed') + ': ' + data.error, 'error');
+    } catch(e) { showToast(window.i18n.t('adminAssets.deleteFailed'), 'error'); }
   }
 
   // ===== 标签管理 =====
@@ -5846,12 +5861,12 @@
       const tagsR = await fetch('/api/tags/library');
       const tagsData = await tagsR.json();
       if (tagsData.success) {
-        const catNames = { type:'🏷️ 类型', style:'🎨 风格', size:'📏 尺寸', theme:'🌍 主题', function:'⚙️ 功能', attribute:'✨ 特殊属性' };
+        const catNames = { type:window.i18n.t('adminAssets.catType'), style:window.i18n.t('adminAssets.catStyle'), size:window.i18n.t('adminAssets.catSize'), theme:window.i18n.t('adminAssets.catTheme'), function:window.i18n.t('adminAssets.catFunction'), attribute:window.i18n.t('adminAssets.catAttribute') };
         document.getElementById('tag-library-content').innerHTML = Object.entries(tagsData.tags).map(([cat, tags]) => `
           <div style="margin-bottom:20px">
             <div style="color:var(--green);font-weight:700;font-size:13px;margin-bottom:8px">${catNames[cat]||cat}</div>
             <div>${tags.map(t => `<span class="tag-chip">${t.name}<span class="count">${t.usage_count}</span></span>`).join('')}</div>
-          </div>`).join('') || '<div class="empty">暂无标签</div>';
+          </div>`).join('') || '<div class="empty">' + window.i18n.t('adminAssets.noTags') + '</div>';
       }
       const recentR = await fetch('/api/tags/recent-models');
       const recentData = await recentR.json();
@@ -5864,21 +5879,21 @@
               <div style="color:var(--muted);font-size:11px;margin-bottom:8px">${m.source}</div>
               <div>${(m.tags||[]).map(t => `<span class="tag-chip">${t}</span>`).join('')}</div>
             </div>`).join('')}
-          </div>` : '<div class="empty">暂无数据</div>';
+          </div>` : '<div class="empty">' + window.i18n.t('adminAssets.noData') + '</div>';
       }
-    } catch(e) { showToast('刷新标签库失败', 'error'); }
+    } catch(e) { showToast(window.i18n.t('adminAssets.tagRefreshFailed'), 'error'); }
   }
 
   async function autoTagAllModels() {
-    if (!confirm('确定为所有未打标签的模型自动生成标签？可能需要几分钟。')) return;
+    if (!confirm(window.i18n.t('adminAssets.autoTagConfirm'))) return;
     try {
       const r = await fetch('/api/tags/auto-tag-all', { method: 'POST' });
       const data = await r.json();
       if (data.success) {
-        showToast(`标签完成: 几何体${data.results?.geometry?.success||0} 上传${data.results?.uploaded?.success||0} AI建筑${data.results?.building?.success||0}`);
+        showToast(window.i18n.tp('adminAssets.autoTagDone', { g: data.results?.geometry?.success||0, u: data.results?.uploaded?.success||0, b: data.results?.building?.success||0 }));
         refreshTagLibrary();
-      } else showToast('自动标签失败: ' + data.error, 'error');
-    } catch(e) { showToast('失败: ' + e.message, 'error'); }
+      } else showToast(window.i18n.t('adminAssets.autoTagFailed') + ': ' + data.error, 'error');
+    } catch(e) { showToast(window.i18n.t('adminAssets.failed') + ': ' + e.message, 'error'); }
   }
 
   // 标签管理相关函数
@@ -5901,7 +5916,7 @@
     const description = document.getElementById('tag-description').value.trim();
 
     if (!name) {
-      showToast('请输入标签名称', 'error');
+      showToast(window.i18n.t('adminAssets.enterTagName'), 'error');
       return;
     }
 
@@ -5914,14 +5929,14 @@
 
       const data = await response.json();
       if (data.success) {
-        showToast('标签创建成功');
+        showToast(window.i18n.t('adminAssets.tagCreated'));
         closeAddTagModal();
         refreshTagLibrary();
       } else {
-        showToast('创建失败: ' + data.error, 'error');
+        showToast(window.i18n.t('adminAssets.createFailed') + ': ' + data.error, 'error');
       }
     } catch (error) {
-      showToast('创建失败: ' + error.message, 'error');
+      showToast(window.i18n.t('adminAssets.createFailed') + ': ' + error.message, 'error');
     }
   }
 
@@ -5945,12 +5960,12 @@
       }
     });
 
-    const catNames = { type:'🏷️ 类型', style:'🎨 风格', size:'📏 尺寸', theme:'🌍 主题', function:'⚙️ 功能', attribute:'✨ 特殊属性' };
+    const catNames = { type:window.i18n.t('adminAssets.catType'), style:window.i18n.t('adminAssets.catStyle'), size:window.i18n.t('adminAssets.catSize'), theme:window.i18n.t('adminAssets.catTheme'), function:window.i18n.t('adminAssets.catFunction'), attribute:window.i18n.t('adminAssets.catAttribute') };
     content.innerHTML = Object.entries(filteredTags).map(([cat, tags]) => `
       <div style="margin-bottom:20px">
         <div style="color:var(--green);font-weight:700;font-size:13px;margin-bottom:8px">${catNames[cat]||cat}</div>
         <div>${tags.map(t => `<span class="tag-chip">${t.name}<span class="count">${t.usage_count}</span></span>`).join('')}</div>
-      </div>`).join('') || '<div class="empty">暂无标签</div>';
+      </div>`).join('') || '<div class="empty">' + window.i18n.t('adminAssets.noTags') + '</div>';
   }
 
   async function refreshTagLibrary() {
@@ -5980,9 +5995,9 @@
               <div style="color:var(--muted);font-size:11px;margin-bottom:8px">${m.source}</div>
               <div>${(m.tags||[]).map(t => `<span class="tag-chip">${t}</span>`).join('')}</div>
             </div>`).join('')}
-          </div>` : '<div class="empty">暂无数据</div>';
+          </div>` : '<div class="empty">' + window.i18n.t('adminAssets.noData') + '</div>';
       }
-    } catch(e) { showToast('刷新标签库失败', 'error'); }
+    } catch(e) { showToast(window.i18n.t('adminAssets.tagRefreshFailed'), 'error'); }
   }
 
   // ===== 初始化 =====
@@ -6353,6 +6368,16 @@
     { key:'attack3',     label:'⚔️ 连击3', group:'extra' },
   ];
 
+  // 动作 key → i18n 标签键（camelCase，如 attack_stab → animLabelAttackStab）
+  function animI18nKey(key) {
+    return 'animLabel' + key.split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
+  }
+
+  // 声音 key → i18n 标签键（如 attack_slash → sndAnimLabelAttackSlash，equip_hum → sndWeaponLabelEquipHum）
+  function soundI18nKey(prefix, key) {
+    return prefix + key.split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
+  }
+
   console.log('✅ 角色模板变量已加载');
   console.log('  - ANIM_SOUND_KEYS:', ANIM_SOUND_KEYS);
   console.log('  - WEAPON_SOUND_KEYS:', WEAPON_SOUND_KEYS);
@@ -6379,21 +6404,25 @@
   let _currentBoneMapping = {}; // 骨骼映射配置缓存
   let _currentModelSourcePlatform = 'auto'; // 当前模型的来源平台
 
+  // 角色模板列表页 i18n 辅助函数
+  const _tchT = (k) => (window.i18n && window.i18n.t) ? window.i18n.t(k) : k;
+  const _tchTp = (k, p) => (window.i18n && window.i18n.tp) ? window.i18n.tp(k, p) : k;
+
   const ACCESS_LABELS = {
-    public: '<span class="badge badge-green">🌐 公开</span>',
-    admin: '<span class="badge badge-blue">🔑 管理员</span>',
-    creator_only: '<span class="badge badge-yellow">👑 创世者</span>',
+    public: () => '<span class="badge badge-green">' + _tchT('adminCharacters.accessPublic') + '</span>',
+    admin: () => '<span class="badge badge-blue">' + _tchT('adminCharacters.accessAdmin') + '</span>',
+    creator_only: () => '<span class="badge badge-yellow">' + _tchT('adminCharacters.accessCreator') + '</span>',
   };
   const ROLE_LABELS = {
-    player: '<span class="badge badge-gray">👤 玩家</span>',
-    admin: '<span class="badge badge-blue">🔑 管理员</span>',
-    creator: '<span class="badge badge-yellow">👑 创世者</span>',
+    player: () => '<span class="badge badge-gray">' + _tchT('adminCharacters.rolePlayer') + '</span>',
+    admin: () => '<span class="badge badge-blue">' + _tchT('adminCharacters.roleAdmin') + '</span>',
+    creator: () => '<span class="badge badge-yellow">' + _tchT('adminCharacters.roleCreator') + '</span>',
   };
 
   async function loadTemplates() {
     const el = document.getElementById('templates-content');
     if (!el) return;
-    el.innerHTML = '<div class="loading">加载中...</div>';
+    el.innerHTML = '<div class="loading">' + _tchT('common.loading') + '</div>';
     const token = localStorage.getItem('adminToken');
     const access_level = document.getElementById('tpl-filter-access')?.value || '';
     const character_role = document.getElementById('tpl-filter-role')?.value || '';
@@ -6406,9 +6435,9 @@
       });
       const data = await r.json();
       const templates = data.templates || [];
-      if (!templates.length) { el.innerHTML = '<div class="empty">暂无模板，点击「新建模板」创建</div>'; return; }
+      if (!templates.length) { el.innerHTML = '<div class="empty">' + _tchT('adminCharacters.empty') + '</div>'; return; }
       el.innerHTML = `<div class="table-wrap"><table>
-        <thead><tr><th>预览</th><th>名称</th><th>权限</th><th>身份</th><th>技能数</th><th>默认</th><th>状态</th><th>操作</th></tr></thead>
+        <thead><tr><th>${_tchT('adminCharacters.colPreview')}</th><th>${_tchT('adminCharacters.colName')}</th><th>${_tchT('adminCharacters.colAccess')}</th><th>${_tchT('adminCharacters.colRole')}</th><th>${_tchT('adminCharacters.colSkills')}</th><th>${_tchT('adminCharacters.colDefault')}</th><th>${_tchT('adminCharacters.colStatus')}</th><th>${_tchT('adminCharacters.colActions')}</th></tr></thead>
         <tbody>${templates.map(t => `<tr>
           <td>${t.thumbnail_url
             ? `<img src="${t.thumbnail_url}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">`
@@ -6416,28 +6445,28 @@
           <td>
             <div style="font-weight:700">${t.name}</div>
             <div style="font-size:11px;color:var(--muted)">${t.description || ''}</div>
-            ${t.glb_url ? `<div style="font-size:10px;color:var(--blue);margin-top:2px">📦 GLB: ${t.glb_url.split('/').pop()}</div>` : '<div style="font-size:10px;color:var(--red)">⚠️ 未上传 GLB</div>'}
+            ${t.glb_url ? `<div style="font-size:10px;color:var(--blue);margin-top:2px">${_tchT('adminCharacters.glbPrefix')}${t.glb_url.split('/').pop()}</div>` : '<div style="font-size:10px;color:var(--red)">' + _tchT('adminCharacters.noGlb') + '</div>'}
           </td>
-          <td>${ACCESS_LABELS[t.access_level] || t.access_level}</td>
-          <td>${ROLE_LABELS[t.character_role] || t.character_role}</td>
+          <td>${(ACCESS_LABELS[t.access_level] ? ACCESS_LABELS[t.access_level]() : t.access_level)}</td>
+          <td>${(ROLE_LABELS[t.character_role] ? ROLE_LABELS[t.character_role]() : t.character_role)}</td>
           <td style="color:var(--yellow);font-weight:700">${t.skill_count}</td>
-          <td>${t.is_default ? '<span class="badge badge-green">✅ 默认</span>' : '-'}</td>
-          <td>${t.is_active ? '<span class="badge badge-green">启用</span>' : '<span class="badge badge-red">禁用</span>'}</td>
+          <td>${t.is_default ? '<span class="badge badge-green">' + _tchT('adminCharacters.defaultBadge') + '</span>' : '-'}</td>
+          <td>${t.is_active ? '<span class="badge badge-green">' + _tchT('adminCharacters.enabled') + '</span>' : '<span class="badge badge-red">' + _tchT('adminCharacters.disabled') + '</span>'}</td>
           <td><div class="btn-group">
-            <button class="btn btn-sm btn-blue" onclick="openTemplateModal('${t.id}')">编辑</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteTemplate('${t.id}','${t.name}')">删除</button>
+            <button class="btn btn-sm btn-blue" onclick="openTemplateModal('${t.id}')">${_tchT('adminCharacters.edit')}</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteTemplate('${t.id}','${t.name}')">${_tchT('adminCharacters.delete')}</button>
           </div></td>
         </tr>`).join('')}</tbody>
       </table></div>`;
     } catch(e) {
-      el.innerHTML = `<div class="empty">加载失败: ${e.message}</div>`;
+      el.innerHTML = `<div class="empty">${_tchTp('adminCharacters.loadFailed', { message: e.message })}</div>`;
     }
   }
 
   async function openTemplateModal(tmplId = null) {
     _currentTmplId = tmplId;
     _clearFields = new Set(); // 重置待清空字段集合
-    document.getElementById('tmplModalTitle').textContent = tmplId ? '🎭 编辑角色模板' : '🎭 新建角色模板';
+    document.getElementById('tmplModalTitle').textContent = _tchT(tmplId ? 'adminCharacters.modalTitleEdit' : 'adminCharacters.modalTitleNew');
     document.getElementById('tmpl-id').value = tmplId || '';
     // 重置表单
     ['tmpl-name','tmpl-desc','tmpl-sort-order'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
@@ -6551,7 +6580,7 @@
         document.getElementById('ground-height-value').textContent = 
           calibrationConfig.groundHeight.toFixed(2);
         document.getElementById('calibration-status').textContent = 
-          calibrationConfig.isCalibrated ? '已校准' : '未校准';
+          calibrationConfig.isCalibrated ? _tchT('adminCharacters.calibStatusCalibrated') : _tchT('adminCharacters.calibStatusNotCalibrated');
         // 填充武器槽
         await _loadWeaponSelectOptions(t.weapon_id);
 
@@ -6566,7 +6595,7 @@
         }
       } catch(e) { 
         console.error('[openTemplateModal] 加载模板数据失败:', e);
-        showToast('加载模板失败: ' + (e.message || e), 'error');
+        showToast(_tchTp('adminCharacters.loadTemplateFailed', { message: e.message || e }), 'error');
         await _loadWeaponSelectOptions(null);
       }
     } else {
@@ -6796,20 +6825,27 @@
       return;
     }
     container.innerHTML = '';
+    const sndNotUploaded = _tchT('adminCharacters.sndNotUploaded');
+    const sndUploadBtn = _tchT('adminCharacters.sndUploadBtn');
+    const sndPreviewBtn = _tchT('adminCharacters.sndPreviewBtn');
     keys.forEach(({ key, label, emoji }) => {
       const existingUrl = currentSounds[key] || '';
       const filename = existingUrl ? existingUrl.split('/').pop() : '';
+      const i18nLabelKey = soundI18nKey(type === 'anim' ? 'sndAnimLabel' : 'sndWeaponLabel', key);
+      const tLabel = _tchT('adminCharacters.' + i18nLabelKey);
+      const labelText = (tLabel && tLabel !== 'adminCharacters.' + i18nLabelKey) ? tLabel : label;
+      const previewBtnHtml = existingUrl ? `<button class="btn" style="font-size:11px;padding:4px 8px;flex-shrink:0;background:rgba(0,100,255,0.2);border-color:#3366ff" onclick="previewTmplSound('${existingUrl}')">${sndPreviewBtn}</button>` : '';
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:6px;';
       row.innerHTML = `
         <span style="font-size:16px;width:20px;flex-shrink:0">${emoji}</span>
-        <span style="font-size:12px;color:var(--text);width:80px;flex-shrink:0">${label}</span>
+        <span style="font-size:12px;color:var(--text);width:80px;flex-shrink:0">${labelText}</span>
         <span id="snd-${type}-${key}-name" style="font-size:11px;color:${existingUrl ? '#00ff00' : 'var(--muted)'};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${existingUrl}">
-          ${filename || '未上传'}
+          ${filename || sndNotUploaded}
         </span>
         <input type="file" id="snd-${type}-${key}-input" accept="audio/mp3,audio/ogg,audio/wav,audio/mpeg,audio/*" style="display:none" onchange="uploadTmplSound('${type}','${key}',this)">
-        <button class="btn btn-secondary" style="font-size:11px;padding:4px 8px;flex-shrink:0" onclick="document.getElementById('snd-${type}-${key}-input').click()">上传</button>
-        ${existingUrl ? `<button class="btn" style="font-size:11px;padding:4px 8px;flex-shrink:0;background:rgba(0,100,255,0.2);border-color:#3366ff" onclick="previewTmplSound('${existingUrl}')">▶ 试听</button>` : ''}
+        <button class="btn btn-secondary" style="font-size:11px;padding:4px 8px;flex-shrink:0" onclick="document.getElementById('snd-${type}-${key}-input').click()">${sndUploadBtn}</button>
+        ${previewBtnHtml}
         ${existingUrl ? `<button class="btn" style="font-size:11px;padding:4px 8px;flex-shrink:0;background:rgba(255,0,0,0.15);border-color:#ff4444" onclick="removeTmplSound('${type}','${key}')">✕</button>` : ''}
       `;
       container.appendChild(row);
@@ -6823,7 +6859,7 @@
     const formData = new FormData();
     formData.append('sound_file', file);
     try {
-      showToast('⏳ 上传音频中...', 'info');
+      showToast(_tchT('adminCharacters.sndUploading'), 'info');
       const token = localStorage.getItem('adminToken');
       const res = await fetch('/api/character-templates/upload-sound', {
         method: 'POST',
@@ -6831,15 +6867,15 @@
         body: formData,
       });
       const data = await res.json();
-      if (!res.ok || !data.url) throw new Error(data.error || '上传失败');
+      if (!res.ok || !data.url) throw new Error(data.error || _tchT('adminCharacters.sndUploadFailed'));
       // 更新缓存
       if (type === 'anim')   _tmplAnimSounds[key]   = data.url;
       if (type === 'weapon') _tmplWeaponSounds[key] = data.url;
       // 刷新列表
       renderTmplSoundConfig();
-      showToast(`✅ ${file.name} 上传成功`, 'success');
+      showToast(_tchTp('adminCharacters.sndUploadSuccess', { name: file.name }), 'success');
     } catch (e) {
-      showToast('❌ 上传失败: ' + e.message, 'error');
+      showToast('❌ ' + _tchT('adminCharacters.sndUploadFailed') + ': ' + e.message, 'error');
     }
     input.value = '';
   }
@@ -6855,11 +6891,11 @@
     if (_previewAudio) { _previewAudio.pause(); _previewAudio = null; }
     _previewAudio = new Audio(url);
     _previewAudio.volume = 0.7;
-    _previewAudio.play().catch(e => showToast('播放失败: ' + e.message, 'error'));
+    _previewAudio.play().catch(e => showToast(_tchT('adminCharacters.sndPlayFailed') + ': ' + e.message, 'error'));
   }
 
   async function saveTmplAnimSounds() {
-    if (!_currentTmplId) { showToast('请先保存模板基本信息', 'error'); return; }
+    if (!_currentTmplId) { showToast(_tchT('adminCharacters.saveFirstBasic'), 'error'); return; }
     const token = localStorage.getItem('adminToken');
     try {
       const res = await fetch(`/api/character-templates/${_currentTmplId}/anim-sounds`, {
@@ -6868,15 +6904,15 @@
         body: JSON.stringify({ anim_sounds: _tmplAnimSounds }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '保存失败');
-      showToast('✅ 动作音效已保存', 'success');
+      if (!res.ok) throw new Error(data.error || _tchT('adminCharacters.sndSaveFailed'));
+      showToast(_tchT('adminCharacters.sndAnimSaved'), 'success');
     } catch (e) {
       showToast('❌ ' + e.message, 'error');
     }
   }
 
   async function saveTmplWeaponSounds() {
-    if (!_currentTmplId) { showToast('请先保存模板基本信息', 'error'); return; }
+    if (!_currentTmplId) { showToast(_tchT('adminCharacters.saveFirstBasic'), 'error'); return; }
     const token = localStorage.getItem('adminToken');
     try {
       const res = await fetch(`/api/character-templates/${_currentTmplId}/weapon-sounds`, {
@@ -6885,8 +6921,8 @@
         body: JSON.stringify({ weapon_sounds: _tmplWeaponSounds }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '保存失败');
-      showToast('✅ 武器音效已保存', 'success');
+      if (!res.ok) throw new Error(data.error || _tchT('adminCharacters.sndSaveFailed'));
+      showToast(_tchT('adminCharacters.sndWeaponSaved'), 'success');
     } catch (e) {
       showToast('❌ ' + e.message, 'error');
     }
@@ -6911,7 +6947,7 @@
   async function saveTemplate() {
     const token = localStorage.getItem('adminToken');
     const name = document.getElementById('tmpl-name').value.trim();
-    if (!name) { showToast('请填写模板名称', 'error'); return; }
+    if (!name) { showToast(_tchT('adminCharacters.saveNameRequired'), 'error'); return; }
 
     const formData = new FormData();
     formData.append('name', name);
@@ -6974,7 +7010,7 @@
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
       `;
       progressDiv.innerHTML = `
-        <div style="font-size: 13px; font-weight: 600; color: var(--green); margin-bottom: 8px;">上传中...</div>
+        <div style="font-size: 13px; font-weight: 600; color: var(--green); margin-bottom: 8px;">${_tchT('adminCharacters.uploading')}</div>
         <div style="width: 100%; height: 4px; background: rgba(255, 255, 255, 0.1); border-radius: 2px; overflow: hidden;">
           <div id="progress-bar" style="width: 0%; height: 100%; background: var(--green); transition: width 0.3s ease;"></div>
         </div>
@@ -6987,7 +7023,7 @@
       const timeoutId = setTimeout(() => {
         xhr.abort();
         document.body.removeChild(progressDiv);
-        showToast('上传超时，请重试', 'error');
+        showToast(_tchT('adminCharacters.saveTimeout'), 'error');
       }, 4 * 60 * 1000);
 
       xhr.upload.addEventListener('progress', (event) => {
@@ -7006,17 +7042,17 @@
         try { data = xhr.responseText ? JSON.parse(xhr.responseText) : {}; } catch { data = { error: xhr.responseText }; }
 
         if (xhr.status === 401 || xhr.status === 403) {
-          showToast('管理员登录已失效，请重新登录', 'error');
+          showToast(_tchT('adminCharacters.saveAuthExpired'), 'error');
           localStorage.removeItem('adminToken'); localStorage.removeItem('adminUser');
           setTimeout(() => { window.location.href = '/admin_login.html'; }, 800);
           return;
         }
         if (xhr.status !== 200) {
-          showToast(`保存失败(${xhr.status}): ` + (data.error || data.details || xhr.responseText || '未知错误'), 'error');
+          showToast(_tchTp('adminCharacters.saveFailedStatus', { status: xhr.status, message: data.error || data.details || xhr.responseText || _tchT('adminCharacters.unknownError') }), 'error');
           return;
         }
         if (data.success) {
-          showToast(_currentTmplId ? '模板已更新' : '模板已创建');
+          showToast(_tchT(_currentTmplId ? 'adminCharacters.saveSuccessUpdate' : 'adminCharacters.saveSuccessNew'));
           _currentTmplId = data.template.id;
           _clearFields = new Set();
           _animClearFields = new Set();
@@ -7037,11 +7073,11 @@
             .then(async (r) => {
               if (!r.ok) {
                 const data = await r.json();
-                showToast('武器绑定失败: ' + (data.error || '未知错误'), 'error');
+                showToast(_tchTp('adminCharacters.weaponBindFailed', { message: data.error || _tchT('adminCharacters.unknownError') }), 'error');
               }
             })
             .catch((e) => {
-              showToast('武器绑定失败: ' + e.message, 'error');
+              showToast(_tchTp('adminCharacters.weaponBindFailed', { message: e.message }), 'error');
             });
           }
           
@@ -7060,13 +7096,13 @@
           
           loadTemplates();
 
-        } else showToast('保存失败: ' + (data.error || data.details || '未知错误'), 'error');
+        } else showToast(_tchTp('adminCharacters.saveFailedPlain', { message: data.error || data.details || _tchT('adminCharacters.unknownError') }), 'error');
       });
 
       xhr.addEventListener('error', () => {
         clearTimeout(timeoutId);
         document.body.removeChild(progressDiv);
-        showToast('上传失败，请检查网络连接', 'error');
+        showToast(_tchT('adminCharacters.uploadFailedNetwork'), 'error');
       });
 
       xhr.addEventListener('abort', () => {
@@ -7081,23 +7117,23 @@
       xhr.send(formData);
     } catch(e) {
       const msg = (e.name === 'AbortError' || e.message === 'Failed to fetch')
-        ? '连接超时或中断，请重试（若多次失败请刷新页面重新登录后再保存）'
-        : ('保存失败: ' + e.message);
+        ? _tchT('adminCharacters.saveTimeoutMsg')
+        : _tchTp('adminCharacters.saveFailedPlain', { message: e.message });
       showToast(msg, 'error');
     }
   }
 
   async function deleteTemplate(id, name) {
-    if (!confirm(`确定删除模板「${name}」？相关技能也会一起删除。`)) return;
+    if (!confirm(_tchTp('adminCharacters.deleteConfirm', { name: name }))) return;
     const token = localStorage.getItem('adminToken');
     try {
       const r = await fetch(`/api/character-templates/${id}`, {
         method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await r.json();
-      if (data.success) { showToast('模板已删除'); loadTemplates(); }
-      else showToast('删除失败: ' + (data.error || ''), 'error');
-    } catch(e) { showToast('删除失败', 'error'); }
+      if (data.success) { showToast(_tchT('adminCharacters.deleted')); loadTemplates(); }
+      else showToast(_tchTp('adminCharacters.deleteFailed', { message: data.error || '' }), 'error');
+    } catch(e) { showToast(_tchT('adminCharacters.deleteFailedShort'), 'error'); }
   }
 
 
@@ -7107,32 +7143,39 @@
   // ===================================================================
   const ANIM_KEY_LABELS = {
     idle:'🧍 待机', walk:'🚶 走路', run:'🏃 奔跑', jump:'🦘 跳跃',
-    attack1:'⚔️ 普攻',
+    attack1:'👊 拳击',
     attack_stab:'🗡️ 刺', attack_slash:'⚔️ 砍', attack_swing:'🌀 挥', attack_uppercut:'⬆️ 挑',
     hit:'💢 受击', death:'💀 死亡',
-    draw_sword:'🧍 持剑状态', sheath:'🔙 收剑',
+    draw_sword:'🗡️ 拔剑', sheath:'🔙 收剑',
   };
+  // 动作标签翻译（复用 adminCharacters.mplAnim*，无 i18n 时回退 ANIM_KEY_LABELS）
+  function animLabelOld(key) {
+    const camel = key.replace(/_(\w)/g, (_, c) => c.toUpperCase());
+    const i18nKey = 'adminCharacters.mplAnim' + camel.charAt(0).toUpperCase() + camel.slice(1);
+    const t = _tchT(i18nKey);
+    return (t && t !== i18nKey) ? t : (ANIM_KEY_LABELS[key] || key);
+  }
 
   let _animLibCache = []; // 动作库缓存
 
   async function loadAnimLibrary() {
     const token = localStorage.getItem('adminToken');
     const list = document.getElementById('anim-library-list');
-    list.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px">加载中...</div>';
+    list.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px">' + _tchT('adminAnimLib.loading') + '</div>';
     try {
       const r = await fetch('/api/character-templates/anim-library', { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await r.json();
       _animLibCache = data.animations || [];
       renderAnimLibrary(_animLibCache);
     } catch(e) {
-      list.innerHTML = '<div style="color:var(--red)">加载失败: ' + e.message + '</div>';
+      list.innerHTML = '<div style="color:var(--red)">' + _tchTp('adminAnimLib.loadFailed', { msg: e.message }) + '</div>';
     }
   }
 
   function renderAnimLibrary(anims) {
     const list = document.getElementById('anim-library-list');
     if (!anims.length) {
-      list.innerHTML = '<div style="color:var(--muted);text-align:center;padding:30px;grid-column:1/-1">动作库为空，请上传动作GLB</div>';
+      list.innerHTML = '<div style="color:var(--muted);text-align:center;padding:30px;grid-column:1/-1">' + _tchT('adminAnimLib.emptyOld') + '</div>';
       return;
     }
     // 按 anim_key 分组
@@ -7140,7 +7183,7 @@
     anims.forEach(a => { if (!groups[a.anim_key]) groups[a.anim_key] = []; groups[a.anim_key].push(a); });
     list.innerHTML = Object.entries(groups).map(([key, items]) => `
       <div style="background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;padding:12px">
-        <div style="font-size:12px;color:var(--green);font-weight:700;margin-bottom:8px">${ANIM_KEY_LABELS[key]||key}</div>
+        <div style="font-size:12px;color:var(--green);font-weight:700;margin-bottom:8px">${animLabelOld(key)}</div>
         ${items.map(a => `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-top:1px solid rgba(255,255,255,0.06)">
             <div>
@@ -7148,7 +7191,7 @@
               <div style="font-size:10px;color:var(--muted)">${a.glb_url.split('/').pop()}</div>
             </div>
             <button class="btn btn-sm" style="background:rgba(255,60,60,0.15);color:#ff6b6b;border-color:rgba(255,60,60,0.3)"
-              onclick="deleteAnimFromLibrary('${a.id}','${a.name.replace(/'/g,'\\x27')}')">删除</button>
+              onclick="deleteAnimFromLibrary('${a.id}','${a.name.replace(/'/g,'\\x27')}')">${_tchT('adminAnimLib.delete')}</button>
           </div>
         `).join('')}
       </div>
@@ -7160,10 +7203,10 @@
     const key = document.getElementById('anim-lib-key').value;
     const name = document.getElementById('anim-lib-name').value.trim();
     const file = document.getElementById('anim-lib-file').files[0];
-    if (!key) { showToast('请选择动作类型', 'error'); return; }
-    if (!file) { showToast('请选择GLB文件', 'error'); return; }
+    if (!key) { showToast(_tchT('adminAnimLib.selectTypeFirst'), 'error'); return; }
+    if (!file) { showToast(_tchT('adminAnimLib.selectFileFirst'), 'error'); return; }
     const status = document.getElementById('anim-lib-upload-status');
-    status.style.display = 'block'; status.textContent = '⏳ 上传中...'; status.style.color = 'var(--muted)';
+    status.style.display = 'block'; status.textContent = _tchT('adminAnimLib.uploading'); status.style.color = 'var(--muted)';
     
     // 清除之前的定时器
     if (window.animUploadTimeout) {
@@ -7173,27 +7216,27 @@
     try {
       const fd = new FormData();
       fd.append('anim_key', key);
-      fd.append('name', name || ANIM_KEY_LABELS[key] || key);
+      fd.append('name', name || animLabelOld(key));
       fd.append('glb_file', file);
       const r = await fetch('/api/character-templates/anim-library', { method:'POST', headers:{'Authorization':`Bearer ${token}`}, body:fd });
       const data = await r.json();
       if (data.success) {
-        let msg = '✅ 上传成功：' + data.animation.name;
+        let msg = '✅ ' + _tchT('adminAnimLib.uploadSuccess') + '：' + data.animation.name;
         if (data.compress) {
           const c = data.compress;
           if (c.ratio < 100) {
-            msg += ` | 压缩: ${c.original_kb}KB → ${c.compressed_kb}KB (节省${c.saved_kb}KB, ${100-c.ratio}%↓)`;
+            msg += ' | ' + _tchTp('adminAnimLib.compressResult', { from: c.original_kb, to: c.compressed_kb, saved: c.saved_kb, pct: 100 - c.ratio });
           } else {
-            msg += ` | ${c.original_kb}KB（已是最优，无需压缩）`;
+            msg += ' | ' + _tchTp('adminAnimLib.compressOptimal', { kb: c.original_kb });
           }
         }
         // 显示骨骼匹配结果
         if (data.boneMatching) {
           const bm = data.boneMatching;
           const matchRate = Math.round(bm.matchRate * 100);
-          msg += ` | 骨骼匹配: ${bm.matchCount}/${bm.totalBones} (${matchRate}%)`;
+          msg += ' | ' + _tchTp('adminAnimLib.boneMatching', { matched: bm.matchCount, total: bm.totalBones, pct: matchRate });
           if (matchRate < 80) {
-            msg += ' ⚠️ 匹配率较低，建议手动映射';
+            msg += _tchT('adminAnimLib.matchLow');
           }
         }
         status.textContent = msg;
@@ -7207,7 +7250,7 @@
           status.style.display = 'none';
         }, 3000);
       } else {
-        status.textContent = '❌ ' + (data.error || '上传失败'); status.style.color = 'var(--red)';
+        status.textContent = '❌ ' + (data.error || _tchT('adminAnimLib.uploadFailed')); status.style.color = 'var(--red)';
         // 5秒后自动清除错误消息
         window.animUploadTimeout = setTimeout(() => {
           status.style.display = 'none';
@@ -7223,14 +7266,14 @@
   }
 
   async function deleteAnimFromLibrary(id, name) {
-    if (!confirm(`确定删除动作「${name}」？已绑定该动作的角色模板将丢失此动作配置。`)) return;
+    if (!confirm(_tchTp('adminAnimLib.deleteConfirm', { name: name }))) return;
     const token = localStorage.getItem('adminToken');
     try {
       const r = await fetch(`/api/character-templates/anim-library/${id}`, { method:'DELETE', headers:{'Authorization':`Bearer ${token}`} });
       const data = await r.json();
-      if (data.success) { showToast('已删除'); loadAnimLibrary(); }
-      else showToast('删除失败', 'error');
-    } catch(e) { showToast('删除失败: ' + e.message, 'error'); }
+      if (data.success) { showToast(_tchT('adminAnimLib.deleted')); loadAnimLibrary(); }
+      else showToast(_tchT('adminAnimLib.deleteFailed'), 'error');
+    } catch(e) { showToast(_tchT('adminAnimLib.deleteFailed') + ': ' + e.message, 'error'); }
   }
 
   // ===================================================================
@@ -7250,9 +7293,11 @@
       const existingUrl = _tmplAnimData[urlField] || null;
       const isPending = _animClearFields.has(key);
       const fileName = existingUrl ? existingUrl.split('/').pop() : null;
+      const tLabel = _tchT('adminCharacters.' + animI18nKey(key));
+      const labelText = (tLabel && tLabel !== 'adminCharacters.' + animI18nKey(key)) ? tLabel : label;
       return `
         <div style="background:rgba(0,0,0,0.28);border:1px solid var(--border);border-radius:7px;padding:10px">
-          <div style="font-size:11px;color:var(--green);font-weight:700;margin-bottom:7px">${label}</div>
+          <div style="font-size:11px;color:var(--green);font-weight:700;margin-bottom:7px">${labelText}</div>
           ${existingUrl && !isPending
             ? `<div style="font-size:10px;color:var(--blue);margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${existingUrl}">
                 ✅ ${fileName}
@@ -7260,10 +7305,10 @@
                   style="margin-left:5px;background:#c0392b;border:none;color:#fff;border-radius:3px;padding:1px 5px;cursor:pointer;font-size:10px">✕</button>
                </div>`
             : isPending
-            ? `<div style="font-size:10px;color:#e74c3c;margin-bottom:5px">⚠️ 将在保存时删除</div>`
-            : `<div style="font-size:10px;color:var(--muted);margin-bottom:5px">未配置</div>`}
+            ? `<div style="font-size:10px;color:#e74c3c;margin-bottom:5px">${_tchT('adminCharacters.animWillDelete')}</div>`
+            : `<div style="font-size:10px;color:var(--muted);margin-bottom:5px">${_tchT('adminCharacters.animNotConfigured')}</div>`}
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-            <span class="btn btn-sm btn-blue" style="font-size:10px;padding:3px 8px;white-space:nowrap">📤 ${existingUrl && !isPending ? '替换' : '上传'} GLB</span>
+            <span class="btn btn-sm btn-blue" style="font-size:10px;padding:3px 8px;white-space:nowrap">📤 ${_tchT(existingUrl && !isPending ? 'adminCharacters.animReplace' : 'adminCharacters.animUpload')} GLB</span>
             <input type="file" id="anim-input-${key}" accept=".glb,.gltf" style="display:none"
               onchange="_onAnimFileSelect('${key}', this)">
             <span id="anim-pending-${key}" style="font-size:10px;color:var(--yellow);display:none"></span>
@@ -7349,7 +7394,7 @@
 
   // 保存动作（PUT 接口，multipart 同时传所有选中的动作文件）
   async function saveAnimFiles() {
-    if (!_currentTmplId) { showToast('请先保存基本信息', 'error'); return; }
+    if (!_currentTmplId) { showToast(_tchT('adminCharacters.saveFirstBasic'), 'error'); return; }
     
     // 检查多平台动作库模式状态
     if (typeof MultiPlatformAnimLib !== 'undefined') {
@@ -7364,7 +7409,7 @@
         // 平台模式：检查是否已确认
         const confirmBtn = document.getElementById('mpl-confirm-btn');
         if (!confirmBtn || !confirmBtn.disabled) {
-          showToast('请先点击"确认使用平台动作"', 'error');
+          showToast(_tchT('adminCharacters.saveConfirmPlatform'), 'error');
           return;
         }
       }
@@ -7395,18 +7440,18 @@
     // 自定义模式下，必须至少有一个动作文件
     if (typeof MultiPlatformAnimLib !== 'undefined' && MultiPlatformAnimLib.getMode() === 'custom') {
       if (fileCount === 0 && _animClearFields.size === 0) {
-        showToast('没有需要保存的更改', 'warn'); return;
+        showToast(_tchT('adminCharacters.noChangesToSave'), 'warn'); return;
       }
     } else {
       if (fileCount === 0 && _animClearFields.size === 0) {
-        showToast('没有需要保存的更改', 'warn'); return;
+        showToast(_tchT('adminCharacters.noChangesToSave'), 'warn'); return;
       }
     }
 
     // 需要 name 字段（PUT 接口会检查）
     formData.append('name', _tmplAnimData.name || document.getElementById('tmpl-name').value.trim());
 
-    showToast('⏳ 上传中，请稍候...');
+    showToast(_tchT('adminCharacters.animUploading'));
     try {
       const ctrl = new AbortController();
       const timeoutId = setTimeout(() => ctrl.abort(), 4 * 60 * 1000);
@@ -7419,7 +7464,7 @@
       clearTimeout(timeoutId);
       const data = await r.json().catch(() => ({}));
       if (data.success) {
-        showToast('✅ 动作已保存');
+        showToast(_tchT('adminCharacters.animSaved'));
         _tmplAnimData = data.template; // 更新缓存
         _animClearFields = new Set();
         renderTmplAnimUploads(); // 刷新显示
@@ -7431,10 +7476,10 @@
         
         loadTemplates();
       } else {
-        showToast('保存失败: ' + (data.error || '未知错误'), 'error');
+        showToast(_tchTp('adminCharacters.saveFailedPlain', { message: data.error || _tchT('adminCharacters.unknownError') }), 'error');
       }
     } catch(e) {
-      showToast((e.name === 'AbortError' ? '上传超时，请重试' : '保存失败: ' + e.message), 'error');
+      showToast((e.name === 'AbortError' ? _tchT('adminCharacters.saveTimeout') : _tchTp('adminCharacters.saveFailedPlain', { message: e.message })), 'error');
     }
   }
   
@@ -7709,7 +7754,7 @@
       console.error('[_loadWeaponSelectOptions] 加载武器列表异常:', e);
     }
     console.log('[_loadWeaponSelectOptions] 武器数量:', _weaponsList.length, _weaponsList);
-    sel.innerHTML = '<option value="">— 无武器 —</option>' +
+    sel.innerHTML = `<option value="">${_tchT('adminCharacters.infoNoWeapon')}</option>` +
       _weaponsList.map(w => `<option value="${w.id}" ${w.id === selectedId ? 'selected' : ''}>${w.name}</option>`).join('');
   }
 
@@ -8359,9 +8404,10 @@ async function initBoneEditor() {
           // 构建骨骼列表面板
           const listPanel = document.getElementById('bone-list-panel');
           if (listPanel) {
+            const noBonesHtml = '<div style="color:var(--red)">' + _tchT('adminCharacters.boneNoBones') + '</div>';
             listPanel.innerHTML = bones.map(b =>
               `<div style="padding:2px 0;cursor:pointer;color:var(--muted)" onclick="_focusBoneByName('${b.name}')" title="${b.name}">• ${b.name}</div>`
-            ).join('') || '<div style="color:var(--red)">未检测到骨骼</div>';
+            ).join('') || noBonesHtml;
           }
 
           // 为每个骨骼创建可点击小球
@@ -8545,16 +8591,17 @@ async function initBoneEditor() {
     });
     if (!suggestions.length) {
       panel.innerHTML = bones.length
-        ? '<span style="color:var(--muted)">未自动匹配，请手动点击标记</span>'
-        : '<span style="color:var(--red)">未检测到骨骼节点</span>';
+        ? '<span style="color:var(--muted)">' + _tchT('adminCharacters.boneAutoNone') + '</span>'
+        : '<span style="color:var(--red)">' + _tchT('adminCharacters.boneAutoNoBone') + '</span>';
       return;
     }
+    const applyBtn = _tchT('adminCharacters.boneAutoApply');
     panel.innerHTML = suggestions.map(s =>
       `<div style="margin-bottom:4px">
-        <span style="color:var(--text)">${BONE_ROLES[s.role]?.label || s.role}</span>:
+        <span style="color:var(--text)">${_tchT('adminCharacters.boneRole' + s.role[0].toUpperCase() + s.role.slice(1))}</span>:
         <b style="color:var(--orange)">${s.boneName}</b>
         <button onclick="_applyAutoSuggest('${s.role}','${s.boneName}')"
-          style="margin-left:6px;font-size:10px;padding:1px 6px;background:rgba(0,255,0,0.1);border:1px solid var(--green);border-radius:4px;color:var(--green);cursor:pointer">采用</button>
+          style="margin-left:6px;font-size:10px;padding:1px 6px;background:rgba(0,255,0,0.1);border:1px solid var(--green);border-radius:4px;color:var(--green);cursor:pointer">${applyBtn}</button>
       </div>`
     ).join('');
   }
@@ -8562,7 +8609,8 @@ async function initBoneEditor() {
   function _applyAutoSuggest(role, boneName) {
     _currentBoneMap[role] = boneName;
     _refreshBoneStatusUI();
-    showToast(`✅ 已标记「${BONE_ROLES[role]?.label}」= ${boneName}`);
+    const roleLabel = _tchT('adminCharacters.boneRole' + role[0].toUpperCase() + role.slice(1));
+    showToast(_tchTp('adminCharacters.boneMarkedToast', { label: roleLabel, bone: boneName }));
     _buildAutoSuggestions(_boneEditor?.allBones || []);
   }
 
@@ -8594,8 +8642,12 @@ async function initBoneEditor() {
     closeBonePopup();
     _refreshBoneStatusUI();
     _selectedBoneNode = null;
-    const roleLabel = role ? (BONE_ROLES[role]?.label || role) : '标记';
-    showToast(role ? `✅ 已标记「${roleLabel}」= ${boneName}` : `已清除 ${boneName} 的标记`);
+    if (role) {
+      const roleLabel = _tchT('adminCharacters.boneRole' + role[0].toUpperCase() + role.slice(1));
+      showToast(_tchTp('adminCharacters.boneMarkedToast', { label: roleLabel, bone: boneName }));
+    } else {
+      showToast(_tchTp('adminCharacters.boneClearedToast', { bone: boneName }));
+    }
   }
 
   function closeBonePopup() {
@@ -8605,12 +8657,13 @@ async function initBoneEditor() {
   }
 
   function _refreshBoneStatusUI() {
+    const unmarkedText = _tchT('adminCharacters.boneUnmarked');
     Object.keys(BONE_ROLES).forEach(role => {
       const boneName = _currentBoneMap[role];
       const dot = document.getElementById('bone-dot-' + role);
       const lbl = document.getElementById('bone-label-' + role);
       if (dot) dot.textContent = boneName ? '✅' : '⬜';
-      if (lbl) lbl.textContent = boneName || '未标记';
+      if (lbl) lbl.textContent = boneName || unmarkedText;
     });
   }
 
@@ -8637,7 +8690,7 @@ async function initBoneEditor() {
   }
 
   async function saveBoneMap() {
-    if (!_currentTmplId) { showToast('请先保存模板基本信息', 'error'); return; }
+    if (!_currentTmplId) { showToast(_tchT('adminCharacters.saveFirstBasic'), 'error'); return; }
     const token = localStorage.getItem('adminToken');
     try {
       const r = await fetch(`/api/character-templates/${_currentTmplId}/bone-map`, {
@@ -8647,11 +8700,11 @@ async function initBoneEditor() {
       });
       const data = await r.json();
       if (data.success) {
-        showToast('✅ 骨骼绑定已保存');
+        showToast(_tchT('adminCharacters.boneSavedToast'));
         // 同步回缓存
         if (_tmplAnimData) _tmplAnimData.bone_map = _currentBoneMap;
-      } else showToast('保存失败: ' + (data.error || ''), 'error');
-    } catch(e) { showToast('保存失败: ' + e.message, 'error'); }
+      } else showToast(_tchT('adminCharacters.boneSaveFailed') + ': ' + (data.error || ''), 'error');
+    } catch(e) { showToast(_tchT('adminCharacters.boneSaveFailed') + ': ' + e.message, 'error'); }
   }
 
   // 巡逻模式切换事件
@@ -8691,7 +8744,9 @@ async function initBoneEditor() {
     const scene_type = document.getElementById('3dgs-type-filter')?.value || '';
     const tbody = document.getElementById('3dgs-tbody');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="9" style="padding:30px;text-align:center;color:var(--muted);">加载中...</td></tr>';
+    const _t3 = (k) => (window.i18n && window.i18n.t) ? window.i18n.t(k) : k;
+    const _tp3 = (k, p) => (window.i18n && window.i18n.tp) ? window.i18n.tp(k, p) : k;
+    tbody.innerHTML = '<tr><td colspan="9" style="padding:30px;text-align:center;color:var(--muted);">' + _t3('common.loading') + '</td></tr>';
     try {
       const token = localStorage.getItem('adminToken');
       const params = new URLSearchParams({ page: _3dgsPage, limit: _3dgsLimit, search, source_type, scene_type });
@@ -8699,40 +8754,49 @@ async function initBoneEditor() {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const { scenes, total } = await r.json();
       if (!scenes.length) {
-        tbody.innerHTML = '<tr><td colspan="9" style="padding:30px;text-align:center;color:var(--muted);">暂无场景</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="padding:30px;text-align:center;color:var(--muted);">' + _t3('admin3dgs.noScenes') + '</td></tr>';
       } else {
-        tbody.innerHTML = scenes.map(s => `
-          <tr style="border-bottom:1px solid var(--border);">
-            <td style="padding:9px 10px;color:var(--muted);">${s.id}</td>
-            <td style="padding:9px 10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${s.scene_name}">${s.scene_name}</td>
-            <td style="padding:9px 10px;">${{outdoor:'室外',indoor:'室内',studio:'Studio'}[s.scene_type]||s.scene_type}</td>
-            <td style="padding:9px 10px;">${s.source_type==='ai_generated'?'<span style="color:var(--purple);">AI生成</span>':s.source_type==='local'?'<span style="color:var(--blue);">本地文件</span>':'手动上传'}</td>
-            <td style="padding:9px 10px;">${fmt3dgsSize(s.file_size)}</td>
-            <td style="padding:9px 10px;">${s.splat_count>0?s.splat_count.toLocaleString():'-'}</td>
-            <td style="padding:9px 10px;">
-              <label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
-                <input type="checkbox" ${s.is_public?'checked':''} onchange="toggle3dgsPublic(${s.id},this.checked)" style="cursor:pointer;">
-                <span style="font-size:12px;color:var(--muted);">${s.is_public?'公开':'私有'}</span>
-              </label>
-            </td>
-            <td style="padding:9px 10px;color:var(--muted);font-size:12px;">${new Date(s.created_at).toLocaleDateString('zh-CN')}</td>
-            <td style="padding:9px 10px;">
-              ${s.rad_file_url?`<a href="${s.rad_file_url}" target="_blank" style="color:var(--blue);font-size:12px;margin-right:8px;">下载</a>`:''}
-              <span onclick="delete3dgsScene(${s.id},'${s.scene_name.replace(/'/g,'&#39;')}')" style="color:var(--red);cursor:pointer;font-size:12px;">删除</span>
-            </td>
-          </tr>`).join('');
+        const typeMap = { outdoor: _t3('admin3dgs.typeOutdoor'), indoor: _t3('admin3dgs.typeIndoor'), studio: 'Studio' };
+        const aiBadge = '<span style="color:var(--purple);">' + _t3('admin3dgs.sourceAI') + '</span>';
+        const localBadge = '<span style="color:var(--blue);">' + _t3('admin3dgs.sourceLocal') + '</span>';
+        const uploadLabel = _t3('admin3dgs.sourceUpload');
+        const publicLabel = _t3('admin3dgs.isPublic');
+        const privateLabel = _t3('admin3dgs.isPrivate');
+        const downloadLabel = _t3('admin3dgs.download');
+        const deleteLabel = _t3('common.delete');
+        tbody.innerHTML = scenes.map(s => {
+          const dlHtml = s.rad_file_url ? '<a href="' + s.rad_file_url + '" target="_blank" style="color:var(--blue);font-size:12px;margin-right:8px;">' + downloadLabel + '</a>' : '';
+          return '<tr style="border-bottom:1px solid var(--border);">' +
+            '<td style="padding:9px 10px;color:var(--muted);">' + s.id + '</td>' +
+            '<td style="padding:9px 10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + s.scene_name + '">' + s.scene_name + '</td>' +
+            '<td style="padding:9px 10px;">' + (typeMap[s.scene_type] || s.scene_type) + '</td>' +
+            '<td style="padding:9px 10px;">' + (s.source_type === 'ai_generated' ? aiBadge : (s.source_type === 'local' ? localBadge : uploadLabel)) + '</td>' +
+            '<td style="padding:9px 10px;">' + fmt3dgsSize(s.file_size) + '</td>' +
+            '<td style="padding:9px 10px;">' + (s.splat_count > 0 ? s.splat_count.toLocaleString() : '-') + '</td>' +
+            '<td style="padding:9px 10px;">' +
+              '<label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;">' +
+                '<input type="checkbox" ' + (s.is_public ? 'checked' : '') + ' onchange="toggle3dgsPublic(' + s.id + ',this.checked)" style="cursor:pointer;">' +
+                '<span style="font-size:12px;color:var(--muted);">' + (s.is_public ? publicLabel : privateLabel) + '</span>' +
+              '</label>' +
+            '</td>' +
+            '<td style="padding:9px 10px;color:var(--muted);font-size:12px;">' + new Date(s.created_at).toLocaleDateString('zh-CN') + '</td>' +
+            '<td style="padding:9px 10px;">' +
+              dlHtml +
+              '<span onclick="delete3dgsScene(' + s.id + ',\'' + s.scene_name.replace(/'/g, '&#39;') + '\')" style="color:var(--red);cursor:pointer;font-size:12px;">' + deleteLabel + '</span>' +
+            '</td>' +
+          '</tr>';
+        }).join('');
       }
       // 分页
       const totalPages = Math.ceil(total / _3dgsLimit);
       const pg = document.getElementById('3dgs-pagination');
       if (pg) {
-        pg.innerHTML = `共 ${total} 条 &nbsp;` +
-          (_3dgsPage > 1 ? `<button onclick="load3dgsScenes(${_3dgsPage-1})" style="padding:3px 8px;background:var(--card-bg);border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--text);">上一页</button>` : '') +
-          `&nbsp;<span>第 ${_3dgsPage} / ${totalPages||1} 页</span>&nbsp;` +
-          (_3dgsPage < totalPages ? `<button onclick="load3dgsScenes(${_3dgsPage+1})" style="padding:3px 8px;background:var(--card-bg);border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--text);">下一页</button>` : '');
+        const prevBtn = _3dgsPage > 1 ? '<button onclick="load3dgsScenes(' + (_3dgsPage - 1) + ')" style="padding:3px 8px;background:var(--card-bg);border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--text);">' + _t3('admin3dgs.prevPage') + '</button>' : '';
+        const nextBtn = _3dgsPage < totalPages ? '<button onclick="load3dgsScenes(' + (_3dgsPage + 1) + ')" style="padding:3px 8px;background:var(--card-bg);border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--text);">' + _t3('admin3dgs.nextPage') + '</button>' : '';
+        pg.innerHTML = _tp3('admin3dgs.totalCount', { total: total }) + ' &nbsp;' + prevBtn + '&nbsp;<span>' + _tp3('admin3dgs.pageInfo', { page: _3dgsPage, total: (totalPages || 1) }) + '</span>&nbsp;' + nextBtn;
       }
     } catch(e) {
-      tbody.innerHTML = `<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--red);">加载失败: ${e.message}</td></tr>`;
+      tbody.innerHTML = '<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--red);">' + _tp3('admin3dgs.loadFailed', { message: e.message }) + '</td></tr>';
     }
   };
 
@@ -8758,8 +8822,10 @@ async function initBoneEditor() {
   };
 
   window.submit3dgsUpload = function() {
+    const _t3 = (k) => (window.i18n && window.i18n.t) ? window.i18n.t(k) : k;
+    const _tp3 = (k, p) => (window.i18n && window.i18n.tp) ? window.i18n.tp(k, p) : k;
     const name = document.getElementById('3dgs-name').value.trim();
-    if (!name) { alert('请输入场景名称'); return; }
+    if (!name) { alert(_t3('admin3dgs.nameRequired')); return; }
     const file = document.getElementById('3dgs-file').files[0];
     const fd = new FormData();
     fd.append('scene_name', name);
@@ -8790,12 +8856,12 @@ async function initBoneEditor() {
           close3dgsModal();
           load3dgsScenes(1);
         } else {
-          alert('上传失败: ' + (data.error || '未知错误'));
+          alert(_tp3('admin3dgs.uploadFailed', { message: (data.error || _t3('admin3dgs.unknownError')) }));
           document.getElementById('3dgs-submit-btn').disabled = false;
         }
-      } catch(e) { alert('响应解析失败'); document.getElementById('3dgs-submit-btn').disabled = false; }
+      } catch(e) { alert(_t3('admin3dgs.parseFailed')); document.getElementById('3dgs-submit-btn').disabled = false; }
     };
-    xhr.onerror = () => { alert('网络错误'); document.getElementById('3dgs-submit-btn').disabled = false; };
+    xhr.onerror = () => { alert(_t3('admin3dgs.networkError')); document.getElementById('3dgs-submit-btn').disabled = false; };
     xhr.send(fd);
   };
 
@@ -8807,18 +8873,22 @@ async function initBoneEditor() {
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_public: val })
       });
-    } catch(e) { alert('操作失败: ' + e.message); load3dgsScenes(); }
+    } catch(e) {
+      const _tp3 = (k, p) => (window.i18n && window.i18n.tp) ? window.i18n.tp(k, p) : k;
+      alert(_tp3('admin3dgs.opFailed', { message: e.message })); load3dgsScenes();
+    }
   };
 
   window.delete3dgsScene = async function(id, name) {
-    if (!confirm(`确定删除场景「${name}」？此操作不可恢复。`)) return;
+    const _tp3 = (k, p) => (window.i18n && window.i18n.tp) ? window.i18n.tp(k, p) : k;
+    if (!confirm(_tp3('admin3dgs.deleteConfirm', { name: name }))) return;
     try {
       const token = localStorage.getItem('adminToken');
       const r = await fetch(`/api/admin/3dgs/scenes/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
       const data = await r.json();
       if (data.success) load3dgsScenes();
-      else alert('删除失败: ' + (data.error || ''));
-    } catch(e) { alert('删除失败: ' + e.message); }
+      else alert(_tp3('admin3dgs.deleteFailed', { message: data.error || '' }));
+    } catch(e) { alert(_tp3('admin3dgs.deleteFailed', { message: e.message })); }
   };
 
   function fmt3dgsSize(bytes) {
@@ -8854,9 +8924,11 @@ async function initBoneEditor() {
   window.doScan3dgsDir = async function() {
     const btn = document.getElementById('scan-btn');
     const listEl = document.getElementById('scan-file-list');
+    const _t3 = (k) => (window.i18n && window.i18n.t) ? window.i18n.t(k) : k;
+    const _tp3 = (k, p) => (window.i18n && window.i18n.tp) ? window.i18n.tp(k, p) : k;
     btn.disabled = true;
-    btn.textContent = '扫描中...';
-    listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px;">正在扫描...</div>';
+    btn.textContent = _t3('admin3dgs.scanning');
+    listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px;">' + _t3('admin3dgs.scanning') + '</div>';
     hideBatchRegisterPanel();
     try {
       const token = localStorage.getItem('adminToken');
@@ -8866,23 +8938,29 @@ async function initBoneEditor() {
       _scanFiles = data.files || [];
       render3dgsScanList(_scanFiles);
     } catch (e) {
-      listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--red);font-size:13px;">扫描失败: ${e.message}</div>`;
+      listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--red);font-size:13px;">' + _tp3('admin3dgs.scanFailed', { message: e.message }) + '</div>';
     } finally {
       btn.disabled = false;
-      btn.textContent = '🔍 扫描目录';
+      btn.textContent = _t3('admin3dgs.scanBtn');
     }
   };
 
   function render3dgsScanList(files) {
+    const _t3 = (k) => (window.i18n && window.i18n.t) ? window.i18n.t(k) : k;
+    const _tp3 = (k, p) => (window.i18n && window.i18n.tp) ? window.i18n.tp(k, p) : k;
     const listEl = document.getElementById('scan-file-list');
     if (!files.length) {
-      listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted);font-size:13px;">目录下没有找到 .rad .ply .spz .splat 文件</div>';
+      listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted);font-size:13px;">' + _t3('admin3dgs.noFiles') + '</div>';
       return;
     }
     // 按目录分组
     const groups = {};
+    const rootLabel = _t3('admin3dgs.rootDir');
+    const regPrefix = _t3('admin3dgs.registered');
+    const unregLabel = _t3('admin3dgs.unregistered');
+    const thumbLabel = _t3('admin3dgs.hasThumbnail');
     for (const f of files) {
-      const g = f.dir || '(根目录)';
+      const g = f.dir || rootLabel;
       if (!groups[g]) groups[g] = [];
       groups[g].push(f);
     }
@@ -8892,21 +8970,27 @@ async function initBoneEditor() {
       for (const f of items) {
         const thumbSrc = f.auto_thumbnail ? f.auto_thumbnail : get3dgsSvgThumb(f.ext);
         const regBadge = f.registered
-          ? `<span style="font-size:10px;padding:2px 6px;background:rgba(0,255,0,0.1);color:var(--green);border:1px solid rgba(0,255,0,0.3);border-radius:10px;">已注册 #${f.scene_id}</span>`
-          : `<span style="font-size:10px;padding:2px 6px;background:rgba(255,140,0,0.1);color:var(--orange);border:1px solid rgba(255,140,0,0.3);border-radius:10px;">未注册</span>`;
+          ? '<span style="font-size:10px;padding:2px 6px;background:rgba(0,255,0,0.1);color:var(--green);border:1px solid rgba(0,255,0,0.3);border-radius:10px;">' + regPrefix + ' #' + f.scene_id + '</span>'
+          : '<span style="font-size:10px;padding:2px 6px;background:rgba(255,140,0,0.1);color:var(--orange);border:1px solid rgba(255,140,0,0.3);border-radius:10px;">' + unregLabel + '</span>';
         const checkDisabled = f.registered ? 'disabled style="opacity:0.35;cursor:not-allowed;"' : '';
+        const thumbBadge = f.auto_thumbnail ? '<span style="font-size:10px;color:var(--green);">' + thumbLabel + '</span>' : '';
+        const borderClr = f.registered ? 'rgba(0,255,0,0.15)' : 'var(--border)';
+        const bgClr = f.registered ? 'rgba(0,255,0,0.03)' : 'rgba(0,0,0,0.2)';
+        const checkStyle = f.registered ? 'opacity:0.35;cursor:not-allowed;' : 'cursor:pointer;';
+        const mtimeTxt = f.mtime ? new Date(f.mtime).toLocaleDateString('zh-CN') : '-';
+        const fallbackThumb = get3dgsSvgThumb(f.ext);
         html += `
-        <div class="scan-file-card" data-path="${f.relative_path}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid ${f.registered?'rgba(0,255,0,0.15)':'var(--border)'};border-radius:7px;margin-bottom:6px;background:${f.registered?'rgba(0,255,0,0.03)':'rgba(0,0,0,0.2)'};transition:border-color 0.2s;">
+        <div class="scan-file-card" data-path="${f.relative_path}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid ${borderClr};border-radius:7px;margin-bottom:6px;background:${bgClr};transition:border-color 0.2s;">
           <input type="checkbox" class="scan-file-check" data-path="${f.relative_path}" ${f.registered?'disabled':''}
-            onchange="updateScanSelection()" style="width:16px;height:16px;cursor:pointer;${f.registered?'opacity:0.35;cursor:not-allowed;':''}">
-          <img src="${thumbSrc}" style="width:52px;height:52px;object-fit:cover;border-radius:5px;border:1px solid var(--border);flex-shrink:0;" onerror="this.src='${get3dgsSvgThumb(f.ext)}'">
+            onchange="updateScanSelection()" style="width:16px;height:16px;${checkStyle}">
+          <img src="${thumbSrc}" style="width:52px;height:52px;object-fit:cover;border-radius:5px;border:1px solid var(--border);flex-shrink:0;" onerror="this.src='${fallbackThumb}'">
           <div style="flex:1;min-width:0;">
             <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${f.filename}">${f.filename}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px;">${f.relative_path} &nbsp;·&nbsp; ${fmt3dgsSize(f.size)} &nbsp;·&nbsp; ${f.mtime?new Date(f.mtime).toLocaleDateString('zh-CN'):'-'}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;">${f.relative_path} &nbsp;·&nbsp; ${fmt3dgsSize(f.size)} &nbsp;·&nbsp; ${mtimeTxt}</div>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
             ${regBadge}
-            ${f.auto_thumbnail?`<span style="font-size:10px;color:var(--green);">🖼 有缩略图</span>`:''}
+            ${thumbBadge}
           </div>
         </div>`;
       }
@@ -8916,11 +9000,12 @@ async function initBoneEditor() {
   }
 
   window.updateScanSelection = function() {
+    const _tp3 = (k, p) => (window.i18n && window.i18n.tp) ? window.i18n.tp(k, p) : k;
     const checks = document.querySelectorAll('.scan-file-check:not(:disabled)');
     const checked = [...checks].filter(c => c.checked);
     const countEl = document.getElementById('scan-selected-count');
     const regBtn = document.getElementById('scan-register-btn');
-    if (countEl) countEl.textContent = `已选 ${checked.length} 个`;
+    if (countEl) countEl.textContent = _tp3('admin3dgs.selectedCount', { count: checked.length });
     if (regBtn) regBtn.style.display = checked.length > 0 ? 'inline-block' : 'none';
   };
 
@@ -8931,10 +9016,18 @@ async function initBoneEditor() {
   };
 
   window.showBatchRegisterPanel = function() {
+    const _t3 = (k) => (window.i18n && window.i18n.t) ? window.i18n.t(k) : k;
+    const _tp3 = (k, p) => (window.i18n && window.i18n.tp) ? window.i18n.tp(k, p) : k;
     const checks = document.querySelectorAll('.scan-file-check:not(:disabled):checked');
     const selectedPaths = [...checks].map(c => c.dataset.path);
-    if (!selectedPaths.length) { alert('请先勾选要注册的文件'); return; }
+    if (!selectedPaths.length) { alert(_t3('admin3dgs.selectFirst')); return; }
 
+    const nameLabel = _t3('admin3dgs.nameLabel');
+    const namePh = _t3('admin3dgs.namePlaceholder');
+    const descLabel = _t3('admin3dgs.descOptional');
+    const descPh = _t3('admin3dgs.descPlaceholder');
+    const thumbLabel = _t3('admin3dgs.thumbnail');
+    const thumbDetected = '<span style="color:var(--green);margin-left:4px;">' + _t3('admin3dgs.thumbnailDetected') + '</span>';
     const container = document.getElementById('batch-items-container');
     container.innerHTML = '';
     for (let i = 0; i < selectedPaths.length; i++) {
@@ -8943,27 +9036,29 @@ async function initBoneEditor() {
       if (!file) continue;
       const defaultName = file.filename.replace(/\.[^.]+$/, '');
       const thumbSrc = file.auto_thumbnail ? file.auto_thumbnail : get3dgsSvgThumb(file.ext);
+      const fallbackThumb = get3dgsSvgThumb(file.ext);
+      const autoThumbBadge = file.auto_thumbnail ? thumbDetected : '';
       container.innerHTML += `
       <div style="background:rgba(0,0,0,0.3);border-radius:8px;padding:12px;border:1px solid var(--border);">
         <div style="display:flex;gap:10px;align-items:flex-start;">
-          <img src="${thumbSrc}" style="width:48px;height:48px;object-fit:cover;border-radius:5px;border:1px solid var(--border);flex-shrink:0;" onerror="this.src='${get3dgsSvgThumb(file.ext)}'">
+          <img src="${thumbSrc}" style="width:48px;height:48px;object-fit:cover;border-radius:5px;border:1px solid var(--border);flex-shrink:0;" onerror="this.src='${fallbackThumb}'">
           <div style="flex:1;min-width:0;">
             <div style="font-size:11px;color:var(--muted);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${path}">${path}</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <div style="flex:2;min-width:140px;">
-                <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:3px;">场景名称 *</label>
-                <input type="text" id="bitem-name-${i}" value="${defaultName}" placeholder="场景名称"
+                <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:3px;">${nameLabel}</label>
+                <input type="text" id="bitem-name-${i}" value="${defaultName}" placeholder="${namePh}"
                   style="width:100%;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;">
               </div>
               <div style="flex:2;min-width:140px;">
-                <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:3px;">描述（可选）</label>
-                <input type="text" id="bitem-desc-${i}" placeholder="场景描述..."
+                <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:3px;">${descLabel}</label>
+                <input type="text" id="bitem-desc-${i}" placeholder="${descPh}"
                   style="width:100%;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;">
               </div>
               <div style="flex:1;min-width:130px;">
                 <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:3px;">
-                  缩略图
-                  ${file.auto_thumbnail?'<span style="color:var(--green);margin-left:4px;">✅ 已检测到同名图片</span>':''}
+                  ${thumbLabel}
+                  ${autoThumbBadge}
                 </label>
                 <input type="file" id="bitem-thumb-${i}" accept="image/*"
                   style="width:100%;padding:4px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;">
@@ -8976,7 +9071,7 @@ async function initBoneEditor() {
       </div>`;
     }
     // 更新按钮文字
-    document.getElementById('batch-confirm-btn').textContent = `确认注册 (${selectedPaths.length} 个)`;
+    document.getElementById('batch-confirm-btn').textContent = _tp3('admin3dgs.confirmRegisterCount', { count: selectedPaths.length });
     document.getElementById('batch-register-panel').style.display = 'block';
     document.getElementById('batch-register-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -8987,13 +9082,15 @@ async function initBoneEditor() {
   };
 
   window.submitBatchRegister = async function() {
+    const _t3 = (k) => (window.i18n && window.i18n.t) ? window.i18n.t(k) : k;
+    const _tp3 = (k, p) => (window.i18n && window.i18n.tp) ? window.i18n.tp(k, p) : k;
     const container = document.getElementById('batch-items-container');
     const itemDivs = container.querySelectorAll('input[id^="bitem-path-"]');
     if (!itemDivs.length) return;
 
     const confirmBtn = document.getElementById('batch-confirm-btn');
     confirmBtn.disabled = true;
-    confirmBtn.textContent = '注册中...';
+    confirmBtn.textContent = _t3('admin3dgs.registering');
 
     try {
       const token = localStorage.getItem('adminToken');
@@ -9040,22 +9137,22 @@ async function initBoneEditor() {
       if (data.success) {
         const successItems = data.results.filter(r => r.ok);
         const failItems = data.results.filter(r => !r.ok);
-        let msg = `✅ 成功注册 ${successItems.length} 个场景！`;
+        let msg = _tp3('admin3dgs.registerSuccess', { count: successItems.length });
         if (failItems.length) {
-          msg += `\n❌ ${failItems.length} 个失败：\n` + failItems.map(f => `· ${f.relative_path}: ${f.error}`).join('\n');
+          msg += '\n' + _tp3('admin3dgs.registerFail', { count: failItems.length }) + '\n' + failItems.map(f => '· ' + f.relative_path + ': ' + f.error).join('\n');
         }
         alert(msg);
         close3dgsScanModal();
         load3dgsScenes(1);
       } else {
-        alert('注册失败: ' + (data.error || '未知错误'));
+        alert(_tp3('admin3dgs.registerFailed', { message: (data.error || _t3('admin3dgs.unknownError')) }));
         confirmBtn.disabled = false;
-        confirmBtn.textContent = '确认注册';
+        confirmBtn.textContent = _t3('admin3dgs.confirmRegister');
       }
     } catch (e) {
-      alert('操作失败: ' + e.message);
+      alert(_tp3('admin3dgs.opFailed', { message: e.message }));
       confirmBtn.disabled = false;
-      confirmBtn.textContent = '确认注册';
+      confirmBtn.textContent = _t3('admin3dgs.confirmRegister');
     }
   };
 </script>
@@ -9718,7 +9815,7 @@ async function initBoneEditor() {
       // 填充骨骼列表
       function populateBoneList() {
         const select = document.getElementById('right-hand-bone');
-        select.innerHTML = '<option value="">-- 选择右手骨骼 --</option>';
+        select.innerHTML = '<option value="">' + _tchT('adminCharacters.calibSelectRightHand') + '</option>';
 
         if (!calibrationModel) return;
 
@@ -9977,7 +10074,7 @@ async function initBoneEditor() {
           };
         }
         weaponSocketConfig.rightHand.confirmed = true;
-        alert('武器插槽已确认！');
+        alert(_tchT('adminCharacters.calibSocketConfirmed'));
       }
 
       // 锁定中心点
@@ -9992,15 +10089,15 @@ async function initBoneEditor() {
           z: center.z
         };
         document.getElementById('center-point-value').textContent = `${center.x.toFixed(2)}, ${center.y.toFixed(2)}, ${center.z.toFixed(2)}`;
-        alert('中心点已锁定！');
+        alert(_tchT('adminCharacters.calibCenterLocked'));
       }
 
       // 完成校准
       function completeCalibration() {
         calibrationConfig.isCalibrated = true;
-        document.getElementById('calibration-status').textContent = '已校准';
+        document.getElementById('calibration-status').textContent = _tchT('adminCharacters.calibStatusCalibrated');
         document.getElementById('calibration-status').style.color = 'var(--green)';
-        alert('模型校准完成！');
+        alert(_tchT('adminCharacters.calibCompleteAlert'));
       }
 
       // 处理校准场景的点击事件
@@ -10220,13 +10317,13 @@ async function initBoneEditor() {
         const count = calibrationConfig.footContactPoints.length;
         
         if (count === 0) {
-          statusElement.textContent = '未标记';
+          statusElement.textContent = _tchT('adminCharacters.calibFootUnmarked');
           statusElement.style.color = 'var(--muted)';
         } else if (count === 1) {
-          statusElement.textContent = `已标记 ${count} 个接触点`;
+          statusElement.textContent = _tchTp('adminCharacters.calibFootMarkedCount', { count });
           statusElement.style.color = 'var(--yellow)';
         } else {
-          statusElement.textContent = `已标记 ${count} 个接触点`;
+          statusElement.textContent = _tchTp('adminCharacters.calibFootMarkedCount', { count });
           statusElement.style.color = 'var(--green)';
         }
       }
@@ -10235,7 +10332,7 @@ async function initBoneEditor() {
       async function saveCalibration() {
         const templateId = document.getElementById('tmpl-id').value;
         if (!templateId) {
-          alert('请先保存模板基本信息');
+          alert(_tchT('adminCharacters.saveFirstBasic'));
           return;
         }
 
@@ -10260,20 +10357,20 @@ async function initBoneEditor() {
           console.log('[saveCalibration] 响应状态:', response.status);
           
           if (response.ok) {
-            alert('校准配置保存成功！');
+            alert(_tchT('adminCharacters.calibSavedAlert'));
           } else {
-            let errorMsg = '保存失败';
+            let errorMsg = _tchT('adminCharacters.calibSaveFailed');
             try {
               const error = await response.json();
               errorMsg = error.error || errorMsg;
             } catch (e) {
-              errorMsg = `保存失败 (${response.status})`;
+              errorMsg = _tchT('adminCharacters.calibSaveFailed') + ' (' + response.status + ')';
             }
             alert(errorMsg);
           }
         } catch (error) {
           console.error('保存校准配置失败:', error);
-          alert('保存失败: ' + error.message);
+          alert(_tchT('adminCharacters.calibSaveFailed') + ': ' + error.message);
         }
       }
 
@@ -10512,6 +10609,14 @@ async function initBoneEditor() {
             el.setAttribute('placeholder', i18n.t(key));
           }
         });
+
+        // 处理 title 翻译
+        document.querySelectorAll('[data-i18n-title]').forEach(el => {
+          const key = el.getAttribute('data-i18n-title');
+          if (key) {
+            el.setAttribute('title', i18n.t(key));
+          }
+        });
         
         // 联系方式栏翻译
         var ctTitle = document.getElementById('contact-bar-title');
@@ -10606,6 +10711,68 @@ async function initBoneEditor() {
             loadWeatherConfig();
           }
           applyAdminTranslations(document.getElementById('page-world'));
+        }
+        else if (name === 'assets') {
+          const activeSubTab = document.querySelector('.sub-tab.active');
+          if (activeSubTab) {
+            activeSubTab.click();
+          } else {
+            // 默认重新加载所有子页面内容
+            loadGeometryTemplates();
+            refreshGeometryBuildings();
+            loadUploadedModels();
+            refreshTagLibrary();
+          }
+          applyAdminTranslations(document.getElementById('page-assets'));
+        }
+        else if (name === '3dgs') {
+          load3dgsScenes();
+          applyAdminTranslations(document.getElementById('page-3dgs'));
+        }
+        else if (name === 'threejs-blocks') {
+          loadThreejsBlocks();
+          applyAdminTranslations(document.getElementById('page-threejs-blocks'));
+          // 编辑器打开时同步更新标题与保存按钮文本
+          var _tbEditor = document.getElementById('threejs-block-editor');
+          if (_tbEditor && _tbEditor.style.display !== 'none') {
+            document.getElementById('threejs-editor-title').textContent = _threejsEditId ? _tj3t('adminThreejs.editorTitleEdit') : _tj3t('adminThreejs.editorTitleNew');
+            document.getElementById('threejs-save-btn').textContent = _threejsEditId ? _tj3t('adminThreejs.saveUpdate') : _tj3t('adminThreejs.confirmAdd');
+          }
+        }
+        else if (name === 'characters') {
+          loadTemplates();
+          applyAdminTranslations(document.getElementById('page-characters'));
+          // 弹窗打开时同步刷新标题/武器下拉/平台选择器翻译
+          const tmplModal = document.getElementById('templateModal');
+          if (tmplModal && tmplModal.classList.contains('active')) {
+            document.getElementById('tmplModalTitle').textContent = _tchT(_currentTmplId ? 'adminCharacters.modalTitleEdit' : 'adminCharacters.modalTitleNew');
+            const ws = document.getElementById('tmpl-weapon-id');
+            if (ws) _loadWeaponSelectOptions(ws.value || null);
+            const psInst = window['_platformSelector_tmpl-platform-selector'];
+            if (psInst && typeof psInst.reRender === 'function') psInst.reRender();
+            // 刷新动作配置区域（多平台动作选择器 + 上传卡片）
+            const mplInst = window.MultiPlatformAnimLib;
+            if (mplInst && typeof mplInst.reRender === 'function') mplInst.reRender();
+            if (typeof renderTmplAnimUploads === 'function') renderTmplAnimUploads();
+            if (typeof renderTmplSoundConfig === 'function') renderTmplSoundConfig();
+            // 刷新骨骼绑定区域（自动识别建议 + 标记状态）
+            if (typeof _buildAutoSuggestions === 'function') _buildAutoSuggestions(_boneEditor?.allBones || []);
+            if (typeof _refreshBoneStatusUI === 'function') _refreshBoneStatusUI();
+            // 刷新模型校准区域（接触点计数 + 校准状态）
+            if (typeof updateFootContactStatus === 'function' && document.getElementById('foot-contact-status')) updateFootContactStatus();
+            const _calibStatusEl = document.getElementById('calibration-status');
+            if (_calibStatusEl && typeof calibrationConfig !== 'undefined' && calibrationConfig) {
+              _calibStatusEl.textContent = calibrationConfig.isCalibrated
+                ? _tchT('adminCharacters.calibStatusCalibrated')
+                : _tchT('adminCharacters.calibStatusNotCalibrated');
+            }
+          }
+        }
+        else if (name === 'anim-library') {
+          if (window.AnimLibMenu && typeof window.AnimLibMenu.loadPage === 'function') {
+            window.AnimLibMenu.loadPage();
+          }
+          applyAdminTranslations(document.getElementById('page-anim-library'));
         }
       }
 

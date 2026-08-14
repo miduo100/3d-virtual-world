@@ -30,6 +30,56 @@
     combo_3: '3️⃣ 连招3'
   };
 
+  // i18n 辅助函数（兼容无 i18n 环境，翻译缺失时回退中文原文或 key）
+  function _alT(key, fb) {
+    try {
+      if (window.i18n && typeof window.i18n.t === 'function') {
+        const t = window.i18n.t(key);
+        if (t && t !== key) return t;
+      }
+    } catch (e) { /* ignore */ }
+    return (fb !== undefined && fb !== null) ? fb : key;
+  }
+  function _alTp(key, params, fb) {
+    try {
+      if (window.i18n && typeof window.i18n.tp === 'function') {
+        const t = window.i18n.tp(key, params);
+        if (t && t !== key) return t;
+      }
+    } catch (e) { /* ignore */ }
+    let text = (fb !== undefined && fb !== null) ? fb : key;
+    if (params) {
+      Object.keys(params).forEach(p => { text = String(text).split('{{' + p + '}}').join(params[p]); });
+    }
+    return text;
+  }
+  // 动作 key → i18n key（复用 adminCharacters.mplAnim* 系列）
+  const ANIM_KEY_TRANSLATIONS = {
+    idle: 'adminCharacters.mplAnimIdle',
+    walk: 'adminCharacters.mplAnimWalk',
+    run: 'adminCharacters.mplAnimRun',
+    jump: 'adminCharacters.mplAnimJump',
+    turn_left: 'adminCharacters.mplAnimTurnLeft',
+    turn_right: 'adminCharacters.mplAnimTurnRight',
+    attack1: 'adminCharacters.mplAnimAttack1',
+    attack_stab: 'adminCharacters.mplAnimAttackStab',
+    attack_slash: 'adminCharacters.mplAnimAttackSlash',
+    attack_swing: 'adminCharacters.mplAnimAttackSwing',
+    attack_uppercut: 'adminCharacters.mplAnimAttackUppercut',
+    draw_sword: 'adminCharacters.mplAnimDrawSword',
+    sheath: 'adminCharacters.mplAnimSheath',
+    hit: 'adminCharacters.mplAnimHit',
+    death: 'adminCharacters.mplAnimDeath',
+    combo_2: 'adminCharacters.mplAnimCombo2',
+    combo_3: 'adminCharacters.mplAnimCombo3'
+  };
+  // 渲染动作标签：i18n 翻译 → 回退 ANIM_KEY_LABELS 原文 → key
+  function animLabel(key) {
+    const i18nKey = ANIM_KEY_TRANSLATIONS[key];
+    if (i18nKey) return _alT(i18nKey, ANIM_KEY_LABELS[key] || key);
+    return ANIM_KEY_LABELS[key] || key;
+  }
+
   /**
    * 初始化：现在使用 admin.html 中静态添加的菜单项
    * 此函数保留但不再动态插入菜单
@@ -56,38 +106,40 @@
    * 渲染动作库页面
    */
   function renderPage(container) {
+    // 动态渲染后由 _alT 直接输出翻译，移除静态 data-i18n 防止 applyAdminTranslations 清空内容
+    if (container && container.hasAttribute('data-i18n')) container.removeAttribute('data-i18n');
     // 设置页面标题
     const pageTitle = document.getElementById('pageTitle');
-    if (pageTitle) pageTitle.textContent = '动作库管理';
+    if (pageTitle) pageTitle.textContent = _alT('adminAnimLib.pageTitle');
 
     const pageSubtitle = document.getElementById('pageSubtitle');
-    if (pageSubtitle) pageSubtitle.textContent = '管理多平台动作库（Mixamo、混元3D等）';
+    if (pageSubtitle) pageSubtitle.textContent = _alT('adminAnimLib.pageSubtitle');
 
     // 渲染页面内容
     container.innerHTML = `
       <div class="card">
         <div class="card-header">
-          <div class="card-title">🎬 动作库</div>
+          <div class="card-title">${_alT('adminAnimLib.cardTitle')}</div>
           <div class="btn-group">
-            <button class="btn" onclick="AnimLibMenu.showUploadModal()">➕ 上传动作</button>
-            <button class="btn btn-secondary" onclick="AnimLibMenu.loadPage()">🔄 刷新</button>
+            <button class="btn" onclick="AnimLibMenu.showUploadModal()">${_alT('adminAnimLib.uploadBtn')}</button>
+            <button class="btn btn-secondary" onclick="AnimLibMenu.loadPage()">${_alT('adminAnimLib.refreshBtn')}</button>
           </div>
         </div>
         
         <!-- 平台筛选 -->
         <div style="margin-bottom: 16px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px;">
-          <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px;">🎯 选择平台：</div>
+          <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px;">${_alT('adminAnimLib.selectPlatform')}</div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="anim-lib-platform-filters">
-            <button class="btn btn-sm btn-active" onclick="AnimLibMenu.filterByPlatform('mixamo', this)" data-platform="mixamo">🎬 Mixamo</button>
-            <button class="btn btn-sm" onclick="AnimLibMenu.filterByPlatform('hunyuan3d', this)" data-platform="hunyuan3d">🤖 混元3D</button>
-            <button class="btn btn-sm" onclick="AnimLibMenu.filterByPlatform('makehuman', this)" data-platform="makehuman">🎭 MakeHuman</button>
-            <button class="btn btn-sm" onclick="AnimLibMenu.filterByPlatform('other', this)" data-platform="other">➕ 其他</button>
-            <button class="btn btn-sm" onclick="AnimLibMenu.filterByPlatform('all', this)" data-platform="all">📋 全部</button>
+            <button class="btn btn-sm btn-active" onclick="AnimLibMenu.filterByPlatform('mixamo', this)" data-platform="mixamo">${_alT('adminAnimLib.platMixamo')}</button>
+            <button class="btn btn-sm" onclick="AnimLibMenu.filterByPlatform('hunyuan3d', this)" data-platform="hunyuan3d">${_alT('adminAnimLib.platHunyuan3d')}</button>
+            <button class="btn btn-sm" onclick="AnimLibMenu.filterByPlatform('makehuman', this)" data-platform="makehuman">${_alT('adminAnimLib.platMakehuman')}</button>
+            <button class="btn btn-sm" onclick="AnimLibMenu.filterByPlatform('other', this)" data-platform="other">${_alT('adminAnimLib.platOther')}</button>
+            <button class="btn btn-sm" onclick="AnimLibMenu.filterByPlatform('all', this)" data-platform="all">${_alT('adminAnimLib.platAll')}</button>
           </div>
         </div>
         
         <!-- 动作列表 -->
-        <div id="anim-library-list" class="loading">加载中...</div>
+        <div id="anim-library-list" class="loading">${_alT('adminAnimLib.loading')}</div>
       </div>
     `;
 
@@ -130,7 +182,7 @@
       });
       
       if (!response.ok) {
-        throw new Error('获取数据失败');
+        throw new Error(_alT('adminAnimLib.fetchError'));
       }
       
       const data = await response.json();
@@ -142,8 +194,8 @@
         container.innerHTML = `
           <div style="text-align: center; padding: 40px; color: var(--red);">
             <div style="font-size: 24px; margin-bottom: 8px;">❌</div>
-            <div>加载失败：${error.message}</div>
-            <button class="btn btn-sm" style="margin-top: 12px;" onclick="AnimLibMenu.loadPage()">重试</button>
+            <div>${_alTp('adminAnimLib.loadFailed', { msg: error.message })}</div>
+            <button class="btn btn-sm" style="margin-top: 12px;" onclick="AnimLibMenu.loadPage()">${_alT('adminAnimLib.retry')}</button>
           </div>
         `;
       }
@@ -161,8 +213,8 @@
       container.innerHTML = `
         <div style="text-align: center; padding: 40px; color: var(--muted);">
           <div style="font-size: 48px; margin-bottom: 12px;">📭</div>
-          <div>该平台暂无动作</div>
-          <div style="font-size: 11px; margin-top: 8px;">请点击上方"上传动作"添加</div>
+          <div>${_alT('adminAnimLib.empty')}</div>
+          <div style="font-size: 11px; margin-top: 8px;">${_alT('adminAnimLib.emptyHint')}</div>
         </div>
       `;
       return;
@@ -191,10 +243,10 @@
     });
 
     const platformNames = {
-      mixamo: '🎬 Mixamo',
-      hunyuan3d: '🤖 腾讯混元3D',
-      makehuman: '🎭 MakeHuman',
-      other: '➕ 其他平台'
+      mixamo: _alT('adminAnimLib.platMixamo'),
+      hunyuan3d: _alT('adminAnimLib.platHunyuan3d'),
+      makehuman: _alT('adminAnimLib.platMakehuman'),
+      other: _alT('adminAnimLib.platOther')
     };
 
     let html = '<div style="display: grid; gap: 20px;">';
@@ -203,7 +255,7 @@
       html += `
         <div style="border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
           <div style="padding: 10px 14px; background: rgba(0,255,0,0.05); border-bottom: 1px solid var(--border); font-weight: 700; font-size: 12px; color: var(--green);">
-            ${platformNames[platform] || platform} (${Object.keys(group).length} 种动作)
+            ${platformNames[platform] || platform} (${_alTp('adminAnimLib.animCount', { count: Object.keys(group).length })})
           </div>
           <div style="padding: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px;">
       `;
@@ -214,22 +266,22 @@
         // 判断是否有音效
         const hasSound = anim.sound_url;
         const soundStatus = hasSound 
-          ? `<span style="color: var(--green);" title="${anim.sound_name || '已配置音效'}">🔊</span>` 
-          : `<span style="color: #ffb400; font-size: 9px;">⚠️无音效</span>`;
+          ? `<span style="color: var(--green);" title="${anim.sound_name || _alT('adminAnimLib.soundConfigured')}">🔊</span>` 
+          : `<span style="color: #ffb400; font-size: 9px;">${_alT('adminAnimLib.noSound')}</span>`;
         
         html += `
           <div style="padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 6px; position: relative;">
             <div style="font-size: 10px; color: var(--muted); margin-bottom: 4px;">${key}</div>
             <div style="font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 4px;">
-              ${anim.name || ANIM_KEY_LABELS[key] || key}
+              ${anim.name || animLabel(key)}
             </div>
             <div style="font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 6px;">
-              <span>${anims.length} 个版本</span>
+              <span>${_alTp('adminAnimLib.versionCount', { count: anims.length })}</span>
               ${soundStatus}
             </div>
             <div style="position: absolute; top: 8px; right: 8px; display: flex; gap: 4px;">
-              <button class="btn btn-sm" style="padding: 2px 6px; font-size: 9px;" onclick="AnimLibMenu.showEditModal('${anim.id}')">编辑</button>
-              <button class="btn btn-sm" style="padding: 2px 6px; font-size: 9px; background: rgba(255,60,60,0.15); color: #ff6b6b;" onclick="AnimLibMenu.deleteAnim('${anim.id}', '${(anim.name || key).replace(/'/g, "\\'")}')">删除</button>
+              <button class="btn btn-sm" style="padding: 2px 6px; font-size: 9px;" onclick="AnimLibMenu.showEditModal('${anim.id}')">${_alT('adminAnimLib.edit')}</button>
+              <button class="btn btn-sm" style="padding: 2px 6px; font-size: 9px; background: rgba(255,60,60,0.15); color: #ff6b6b;" onclick="AnimLibMenu.deleteAnim('${anim.id}', '${(anim.name || key).replace(/'/g, "\\'")}')">${_alT('adminAnimLib.delete')}</button>
             </div>
           </div>
         `;
@@ -253,14 +305,14 @@
     }
 
     const platformOptions = `
-      <option value="mixamo">🎬 Mixamo</option>
-      <option value="hunyuan3d">🤖 腾讯混元3D</option>
-      <option value="makehuman">🎭 MakeHuman</option>
-      <option value="other">➕ 其他平台</option>
+      <option value="mixamo">${_alT('adminAnimLib.platMixamo')}</option>
+      <option value="hunyuan3d">${_alT('adminAnimLib.platHunyuan3d')}</option>
+      <option value="makehuman">${_alT('adminAnimLib.platMakehuman')}</option>
+      <option value="other">${_alT('adminAnimLib.platOther')}</option>
     `;
 
-    const animKeyOptions = Object.entries(ANIM_KEY_LABELS).map(([key, label]) => 
-      `<option value="${key}">${label}</option>`
+    const animKeyOptions = Object.entries(ANIM_KEY_LABELS).map(([key]) => 
+      `<option value="${key}">${animLabel(key)}</option>`
     ).join('');
 
     // 创建模态框
@@ -270,46 +322,46 @@
     modal.innerHTML = `
       <div class="modal-box" style="max-width: 500px;">
         <div class="modal-header">
-          <h2>📤 上传动作到动作库</h2>
+          <h2>${_alT('adminAnimLib.uploadModalTitle')}</h2>
           <button class="close-btn" onclick="AnimLibMenu.closeUploadModal()">✕</button>
         </div>
         <div style="padding: 20px;">
           <div class="form-group">
-            <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">动作平台 *</label>
+            <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">${_alT('adminAnimLib.upPlatform')}</label>
             <select id="anim-upload-platform" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text);">
               ${platformOptions}
             </select>
           </div>
           <div class="form-group">
-            <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">动作类型 *</label>
+            <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">${_alT('adminAnimLib.upType')}</label>
             <select id="anim-upload-key" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text);">
-              <option value="">-- 选择动作类型 --</option>
+              <option value="">${_alT('adminAnimLib.upTypePlaceholder')}</option>
               ${animKeyOptions}
             </select>
           </div>
           <div class="form-group">
-            <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">动作名称（可选）</label>
-            <input type="text" id="anim-upload-name" placeholder="留空则使用默认名称" 
+            <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">${_alT('adminAnimLib.upName')}</label>
+            <input type="text" id="anim-upload-name" placeholder="${_alT('adminAnimLib.upNamePlaceholder')}" 
                    style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text);">
           </div>
           <div class="form-group">
-            <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">动作文件（GLB） *</label>
+            <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">${_alT('adminAnimLib.upFile')}</label>
             <input type="file" id="anim-upload-file" accept=".glb,.gltf,.fbx" 
                    style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text);">
             <div style="font-size: 10px; color: var(--muted); margin-top: 4px; line-height: 1.5;">
-              💡 推荐上传 Without Skin 的 FBX/GLB 文件（只包含骨骼动画，不含模型）<br>
-              📌 Mixamo 导出时选择 "Without Skin" 可大幅减小文件大小
+              ${_alT('adminAnimLib.withoutSkinTip1')}<br>
+              ${_alT('adminAnimLib.withoutSkinTip2')}
             </div>
           </div>
           <div class="form-group">
-            <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">动作音效（可选）</label>
+            <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">${_alT('adminAnimLib.upSound')}</label>
             <input type="file" id="anim-upload-sound" accept=".mp3,.ogg,.wav" 
                    style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text);">
           </div>
           <div id="anim-upload-status" style="display: none; margin-top: 12px; padding: 10px; border-radius: 6px; font-size: 11px;"></div>
           <div class="btn-group" style="margin-top: 16px;">
-            <button class="btn btn-secondary" onclick="AnimLibMenu.closeUploadModal()">取消</button>
-            <button class="btn" id="anim-upload-btn" onclick="AnimLibMenu.uploadAnim()">📤 上传到动作库</button>
+            <button class="btn btn-secondary" onclick="AnimLibMenu.closeUploadModal()">${_alT('adminAnimLib.cancel')}</button>
+            <button class="btn" id="anim-upload-btn" onclick="AnimLibMenu.uploadAnim()">${_alT('adminAnimLib.uploadToLib')}</button>
           </div>
         </div>
       </div>
@@ -342,17 +394,17 @@
     const btn = document.getElementById('anim-upload-btn');
 
     if (!animKey) {
-      showStatus('❌ 请选择动作类型', 'error');
+      showStatus(_alT('adminAnimLib.selectTypeFirst'), 'error');
       return;
     }
 
     if (!animFile) {
-      showStatus('❌ 请选择动作文件', 'error');
+      showStatus(_alT('adminAnimLib.selectFileFirst'), 'error');
       return;
     }
 
     // 显示上传中状态
-    showStatus('⏳ 上传中...', 'loading');
+    showStatus(_alT('adminAnimLib.uploading'), 'loading');
     btn.disabled = true;
 
     const formData = new FormData();
@@ -376,7 +428,7 @@
       const data = await response.json();
 
       if (data.success) {
-        showStatus(`✅ ${data.message || '上传成功'}`, 'success');
+        showStatus('✅ ' + (data.message || _alT('adminAnimLib.uploadSuccess')), 'success');
         
         // 延迟关闭并刷新
         setTimeout(() => {
@@ -384,7 +436,7 @@
           loadPage();
         }, 1500);
       } else {
-        showStatus('❌ ' + (data.error || '上传失败'), 'error');
+        showStatus('❌ ' + (data.error || _alT('adminAnimLib.uploadFailed')), 'error');
         btn.disabled = false;
       }
     } catch (error) {
@@ -420,7 +472,7 @@
    * 删除动作
    */
   async function deleteAnim(id, name) {
-    if (!confirm(`确定删除动作「${name}」？\n\n已绑定该动作的角色模板将丢失此动作配置。`)) {
+    if (!confirm(_alTp('adminAnimLib.deleteConfirm', { name: name }))) {
       return;
     }
 
@@ -435,14 +487,14 @@
       const data = await response.json();
       
       if (data.success) {
-        showToast('✅ 删除成功');
+        showToast(_alT('adminAnimLib.deleted'));
         loadPage();
       } else {
-        showToast('❌ ' + (data.error || '删除失败'), 'error');
+        showToast('❌ ' + (data.error || _alT('adminAnimLib.deleteFailed')), 'error');
       }
     } catch (error) {
       console.error('删除失败:', error);
-      showToast('❌ 删除失败', 'error');
+      showToast('❌ ' + _alT('adminAnimLib.deleteFailed'), 'error');
     }
   }
 
@@ -459,7 +511,7 @@
       });
       
       if (!response.ok) {
-        throw new Error('获取动作详情失败');
+        throw new Error(_alT('adminAnimLib.fetchDetailError'));
       }
       
       const data = await response.json();
@@ -472,14 +524,14 @@
       }
 
       const platformOptions = `
-        <option value="mixamo" ${anim.platform === 'mixamo' ? 'selected' : ''}>🎬 Mixamo</option>
-        <option value="hunyuan3d" ${anim.platform === 'hunyuan3d' ? 'selected' : ''}>🤖 腾讯混元3D</option>
-        <option value="makehuman" ${anim.platform === 'makehuman' ? 'selected' : ''}>🎭 MakeHuman</option>
-        <option value="other" ${anim.platform === 'other' ? 'selected' : ''}>➕ 其他平台</option>
+        <option value="mixamo" ${anim.platform === 'mixamo' ? 'selected' : ''}>${_alT('adminAnimLib.platMixamo')}</option>
+        <option value="hunyuan3d" ${anim.platform === 'hunyuan3d' ? 'selected' : ''}>${_alT('adminAnimLib.platHunyuan3d')}</option>
+        <option value="makehuman" ${anim.platform === 'makehuman' ? 'selected' : ''}>${_alT('adminAnimLib.platMakehuman')}</option>
+        <option value="other" ${anim.platform === 'other' ? 'selected' : ''}>${_alT('adminAnimLib.platOther')}</option>
       `;
 
-      const animKeyOptions = Object.entries(ANIM_KEY_LABELS).map(([key, label]) => 
-        `<option value="${key}" ${anim.anim_key === key ? 'selected' : ''}>${label}</option>`
+      const animKeyOptions = Object.entries(ANIM_KEY_LABELS).map(([key]) => 
+        `<option value="${key}" ${anim.anim_key === key ? 'selected' : ''}>${animLabel(key)}</option>`
       ).join('');
 
       // 创建模态框
@@ -489,33 +541,33 @@
       modal.innerHTML = `
         <div class="modal-box" style="max-width: 520px;">
           <div class="modal-header">
-            <h2>✏️ 编辑动作</h2>
+            <h2>${_alT('adminAnimLib.editModalTitle')}</h2>
             <button class="close-btn" onclick="AnimLibMenu.closeEditModal()">✕</button>
           </div>
           <div style="padding: 20px;">
             <!-- 动作基本信息 -->
             <div style="background: rgba(0,255,0,0.05); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-              <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px;">📋 当前信息</div>
+              <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px;">${_alT('adminAnimLib.currentInfo')}</div>
               <div style="font-size: 12px; color: var(--text);">
-                动作ID: <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">${anim.id}</code>
+                ${_alT('adminAnimLib.animId')}<code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">${anim.id}</code>
               </div>
             </div>
             
             <div class="form-group">
-              <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">动作名称</label>
-              <input type="text" id="anim-edit-name" value="${anim.name || ''}" placeholder="输入动作名称" 
+              <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">${_alT('adminAnimLib.animName')}</label>
+              <input type="text" id="anim-edit-name" value="${anim.name || ''}" placeholder="${_alT('adminAnimLib.animNamePlaceholder')}" 
                      style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text);">
             </div>
             
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div class="form-group">
-                <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">动作平台</label>
+                <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">${_alT('adminAnimLib.animPlatform')}</label>
                 <select id="anim-edit-platform" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text);">
                   ${platformOptions}
                 </select>
               </div>
               <div class="form-group">
-                <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">动作类型</label>
+                <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">${_alT('adminAnimLib.animType')}</label>
                 <select id="anim-edit-key" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text);">
                   ${animKeyOptions}
                 </select>
@@ -524,34 +576,34 @@
             
             <!-- 动作文件 -->
             <div class="form-group">
-              <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">🔄 更换动作文件（可选）</label>
+              <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">${_alT('adminAnimLib.replaceFile')}</label>
               <div style="margin-bottom: 6px; font-size: 11px; color: var(--green);">
-                📄 当前文件: <code style="background: rgba(0,255,0,0.1); padding: 2px 6px; border-radius: 4px;">${getFileNameFromUrl(anim.glb_url)}</code>
+                ${_alT('adminAnimLib.currentFile')}<code style="background: rgba(0,255,0,0.1); padding: 2px 6px; border-radius: 4px;">${getFileNameFromUrl(anim.glb_url)}</code>
               </div>
               <input type="file" id="anim-edit-file" accept=".glb,.gltf,.fbx" 
                      style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text);">
               <div style="font-size: 10px; color: var(--muted); margin-top: 4px;">
-                💡 如不选择新文件，将保留当前动作文件
+                ${_alT('adminAnimLib.keepFileTip')}
               </div>
             </div>
             
             <!-- 音效文件 -->
             <div class="form-group">
-              <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">🔊 音效文件</label>
+              <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">${_alT('adminAnimLib.soundFile')}</label>
               ${anim.sound_url ? `
                 <div style="background: rgba(0,255,0,0.08); border: 1px solid rgba(0,255,0,0.2); border-radius: 6px; padding: 10px; margin-bottom: 8px;">
                   <div style="display: flex; align-items: center; justify-content: space-between;">
                     <div style="display: flex; align-items: center; gap: 8px;">
                       <span style="font-size: 16px;">🔊</span>
                       <div>
-                        <div style="font-size: 11px; color: var(--green); font-weight: 600;">已配置音效</div>
+                        <div style="font-size: 11px; color: var(--green); font-weight: 600;">${_alT('adminAnimLib.soundConfigured')}</div>
                         <div style="font-size: 10px; color: var(--muted); margin-top: 2px;" title="${anim.sound_name || anim.sound_url}">
                           ${anim.sound_name || getFileNameFromUrl(anim.sound_url)}
                         </div>
                       </div>
                     </div>
                     <button class="btn btn-sm" style="padding: 4px 10px; font-size: 10px; background: rgba(255,60,60,0.15); color: #ff6b6b;" onclick="AnimLibMenu.deleteSound('${anim.id}')">
-                      🗑️ 删除音效
+                      ${_alT('adminAnimLib.deleteSoundBtn')}
                     </button>
                   </div>
                 </div>
@@ -560,26 +612,26 @@
                   <div style="display: flex; align-items: center; gap: 8px;">
                     <span style="font-size: 16px;">⚠️</span>
                     <div>
-                      <div style="font-size: 11px; color: #ffb400; font-weight: 600;">暂无音效</div>
-                      <div style="font-size: 10px; color: var(--muted); margin-top: 2px;">请上传 MP3/OGG/WAV 文件</div>
+                      <div style="font-size: 11px; color: #ffb400; font-weight: 600;">${_alT('adminAnimLib.soundMissing')}</div>
+                      <div style="font-size: 10px; color: var(--muted); margin-top: 2px;">${_alT('adminAnimLib.soundUploadTip')}</div>
                     </div>
                   </div>
                 </div>
               `}
               <div class="form-group">
-                <label style="font-size: 11px; color: var(--muted); margin-bottom: 4px; display: block;">${anim.sound_url ? '🔄 更换音效（可选）' : '➕ 上传音效文件'}</label>
+                <label style="font-size: 11px; color: var(--muted); margin-bottom: 4px; display: block;">${anim.sound_url ? _alT('adminAnimLib.soundReplace') : _alT('adminAnimLib.soundUploadLabel')}</label>
                 <input type="file" id="anim-edit-sound" accept=".mp3,.ogg,.wav" 
                        style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text);">
                 <div style="font-size: 10px; color: var(--muted); margin-top: 4px;">
-                  💡 支持 MP3、OGG、WAV 格式
+                  ${_alT('adminAnimLib.soundFormats')}
                 </div>
               </div>
             </div>
             
             <div id="anim-edit-status" style="display: none; margin-top: 12px; padding: 10px; border-radius: 6px; font-size: 11px;"></div>
             <div class="btn-group" style="margin-top: 16px;">
-              <button class="btn btn-secondary" onclick="AnimLibMenu.closeEditModal()">取消</button>
-              <button class="btn" id="anim-edit-btn" onclick="AnimLibMenu.editAnim('${anim.id}')">💾 保存修改</button>
+              <button class="btn btn-secondary" onclick="AnimLibMenu.closeEditModal()">${_alT('adminAnimLib.cancel')}</button>
+              <button class="btn" id="anim-edit-btn" onclick="AnimLibMenu.editAnim('${anim.id}')">${_alT('adminAnimLib.saveBtn')}</button>
             </div>
           </div>
         </div>
@@ -588,7 +640,7 @@
       document.body.appendChild(modal);
     } catch (error) {
       console.error('加载编辑模态框失败:', error);
-      showToast('❌ 加载失败: ' + error.message, 'error');
+      showToast('❌ ' + _alTp('adminAnimLib.loadFailed', { msg: error.message }), 'error');
     }
   }
 
@@ -596,7 +648,7 @@
    * 从 URL 获取文件名
    */
   function getFileNameFromUrl(url) {
-    if (!url) return '未知文件';
+    if (!url) return _alT('adminAnimLib.unknownFile');
     const parts = url.split('/');
     return parts[parts.length - 1];
   }
@@ -641,7 +693,7 @@
       }
     };
 
-    showStatus('⏳ 保存中...', 'loading');
+    showStatus(_alT('adminAnimLib.saving'), 'loading');
     btn.disabled = true;
 
     const formData = new FormData();
@@ -663,14 +715,14 @@
       const data = await response.json();
 
       if (data.success) {
-        showStatus('✅ 保存成功', 'success');
+        showStatus(_alT('adminAnimLib.saveSuccess'), 'success');
         
         setTimeout(() => {
           closeEditModal();
           loadPage();
         }, 1500);
       } else {
-        showStatus('❌ ' + (data.error || '保存失败'), 'error');
+        showStatus('❌ ' + (data.error || _alT('adminAnimLib.saveFailed')), 'error');
         btn.disabled = false;
       }
     } catch (error) {
@@ -684,7 +736,7 @@
    * 删除音效
    */
   async function deleteSound(id) {
-    if (!confirm('确定删除该动作的音效文件？')) {
+    if (!confirm(_alT('adminAnimLib.soundDeleteConfirm'))) {
       return;
     }
 
@@ -699,16 +751,16 @@
       const data = await response.json();
       
       if (data.success) {
-        showToast('✅ 音效已删除');
+        showToast(_alT('adminAnimLib.soundDeleted'));
         // 刷新编辑模态框
         closeEditModal();
         showEditModal(id);
       } else {
-        showToast('❌ ' + (data.error || '删除失败'), 'error');
+        showToast('❌ ' + (data.error || _alT('adminAnimLib.deleteFailed')), 'error');
       }
     } catch (error) {
       console.error('删除音效失败:', error);
-      showToast('❌ 删除失败', 'error');
+      showToast('❌ ' + _alT('adminAnimLib.deleteFailed'), 'error');
     }
   }
 

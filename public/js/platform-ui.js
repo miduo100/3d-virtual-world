@@ -9,6 +9,25 @@
  * 与 ai-factory.js 通过事件解耦调用
  */
 
+/**
+ * i18n 辅助函数：有 i18n 环境时取翻译，否则回退中文原文（兼容未加载 i18n 的页面）
+ */
+function _puiT(key, zh) {
+  if (window.i18n && window.i18n.t) {
+    var v = window.i18n.t('adminCharacters.' + key);
+    if (v && v !== 'adminCharacters.' + key) return v;
+  }
+  return zh;
+}
+
+function _puiTp(key, params, zh) {
+  if (window.i18n && window.i18n.tp) {
+    var v = window.i18n.tp('adminCharacters.' + key, params);
+    if (v && v !== 'adminCharacters.' + key) return v;
+  }
+  return zh;
+}
+
 var PlatformSelector = {
   
   _containerId: null,
@@ -62,9 +81,9 @@ var PlatformSelector = {
     var html = '<div class="platform-selector-container">';
     
     html += '<div class="form-group">';
-    html += '<label>📍 模型来源平台</label>';
+    html += '<label>' + _puiT('platformLabel', '📍 模型来源平台') + '</label>';
     html += '<select id="' + this._selectId + '" class="form-control" onchange="PlatformSelector._handlePlatformChange(this.value)">';
-    html += '<option value="">-- 请选择 / 自动检测 --</option>';
+    html += '<option value="">' + _puiT('platformAutoOption', '-- 请选择 / 自动检测 --') + '</option>';
     
     var popular = platforms.filter(function(p) { return p.popular; });
     var others = platforms.filter(function(p) { return !p.popular; });
@@ -74,7 +93,7 @@ var PlatformSelector = {
     });
     
     if (others.length > 0) {
-      html += '<optgroup label="──── 更多平台 ────">';
+      html += '<optgroup label="' + _puiT('platformMoreGroup', '──── 更多平台 ────') + '">';
       others.forEach(function(p) {
         html += '<option value="' + p.id + '">' + p.icon + ' ' + p.name + '</option>';
       });
@@ -85,7 +104,7 @@ var PlatformSelector = {
 
     html += '<button type="button" id="' + this._btnId + '" class="btn btn-sm btn-default" ';
     html += 'style="margin-top:8px;width:100%;" onclick="PlatformSelector._handleAutoDetect()">';
-    html += '🔍 自动检测平台来源</button>';
+    html += _puiT('platformDetectBtn', '🔍 自动检测平台来源') + '</button>';
 
     html += '<div id="' + this._resultId + '" style="display:none;margin-top:10px;padding:10px;border-radius:6px;font-size:12px;"></div>';
 
@@ -97,6 +116,17 @@ var PlatformSelector = {
     html += '</div></div>';
 
     container.innerHTML = html;
+  },
+
+  // 语言切换后重新渲染并恢复当前选中平台
+  reRender: function() {
+    var cur = this._currentPlatform;
+    this._render();
+    if (cur) {
+      var sel = document.getElementById(this._selectId);
+      if (sel) sel.value = cur;
+      if (cur !== 'auto') this._handlePlatformChange(cur);
+    }
   },
 
   _getPlatforms: function() {
@@ -147,20 +177,20 @@ var PlatformSelector = {
         var system = config && (config._system || config.systemBones);
         if (defaults) {
           details += '<span style="background:rgba(0,100,255,0.15);padding:3px 8px;border-radius:3px;">';
-          details += '缩放: <strong>' + (defaults.scale || '?') + '</strong> (' + (defaults.unit || '?') + ')</span> ';
+          details += _puiT('platformScale', '缩放') + ': <strong>' + (defaults.scale || '?') + '</strong> (' + (defaults.unit || '?') + ')</span> ';
           details += '<span style="background:rgba(0,100,255,0.15);padding:3px 8px;border-radius:3px;">';
-          details += '姿势: <strong>' + (defaults.poseType || '?') + '</strong></span>';
+          details += _puiT('platformPose', '姿势') + ': <strong>' + (defaults.poseType || '?') + '</strong></span>';
         }
         if (system) {
           details += '<span style="background:rgba(0,100,255,0.15);padding:3px 8px;border-radius:3px;">';
-          details += '右手骨骼: <strong>' + (system.rightHand || '(未设置)') + '</strong></span>';
+          details += _puiT('platformRightHand', '右手骨骼') + ': <strong>' + (system.rightHand || _puiT('platformNotSet', '(未设置)')) + '</strong></span>';
         }
         detailsEl.innerHTML = details;
       }
       
       if (tipEl && defaults && defaults.needsManualCalibration) {
         tipEl.style.display = 'block';
-        tipEl.textContent = '⚠️ 该平台模型可能需要手动校准，建议上传后在"校准"Tab中微调';
+        tipEl.textContent = _puiT('platformCalibTip', '⚠️ 该平台模型可能需要手动校准，建议上传后在"校准"Tab中微调');
       } else if (tipEl) {
         tipEl.style.display = 'none';
       }
@@ -181,29 +211,29 @@ var PlatformSelector = {
     }
 
     if (!this._glbFile) {
-      this._showResult(resultDiv, '❌ 请先上传GLB模型文件', 'error');
+      this._showResult(resultDiv, _puiT('platformNoGlb', '❌ 请先上传GLB模型文件'), 'error');
       return;
     }
 
     if (!this._glbFile.name.toLowerCase().endsWith('.glb')) {
-      this._showResult(resultDiv, '⚠️ 自动检测仅支持 .glb 文件', 'warning');
+      this._showResult(resultDiv, _puiT('platformGlbOnly', '⚠️ 自动检测仅支持 .glb 文件'), 'warning');
       return;
     }
 
     btn.disabled = true;
-    btn.textContent = '⏳ 检测中...';
-    this._showResult(resultDiv, '<div style="color:#ffaa00;">正在分析模型骨骼结构...</div>', 'loading');
+    btn.textContent = _puiT('platformDetecting', '⏳ 检测中...');
+    this._showResult(resultDiv, '<div style="color:#ffaa00;">' + _puiT('platformAnalyzing', '正在分析模型骨骼结构...') + '</div>', 'loading');
 
     var reader = new FileReader();
     reader.onload = function(e) {
       try {
         self._parseGlbAndDetect(e.target.result, function(detections) {
           btn.disabled = false;
-          btn.textContent = '🔍 自动检测平台来源';
+          btn.textContent = _puiT('platformDetectBtn', '🔍 自动检测平台来源');
 
           if (!detections || detections.length === 0 || detections[0].platform === 'unknown') {
             self._showResult(resultDiv, 
-              '❓ 无法识别平台<br><span style="color:#aaa;">该模型骨骼命名不在已知的平台范围内。请手动选择平台，或选择"⚙️ 完全手动配置"。</span>', 
+              _puiT('platformUnrecognized', '❓ 无法识别平台') + '<br><span style="color:#aaa;">' + _puiT('platformUnrecognizedDetail', '该模型骨骼命名不在已知的平台范围内。请手动选择平台，或选择"⚙️ 完全手动配置"。') + '</span>', 
               'warning');
             return;
           }
@@ -215,29 +245,29 @@ var PlatformSelector = {
           }
 
           var confPercent = Math.round(best.confidence * 100);
-          var html = '<div style="color:#00ff00;">✅ 检测成功!</div>';
-          html += '<div style="margin-top:6px;"><strong>' + (config && config.icon ? config.icon + ' ' : '') + (config && config.name ? config.name : best.platform) + '</strong> (置信度 ' + confPercent + '%)</div>';
+          var html = '<div style="color:#00ff00;">' + _puiT('platformDetectSuccess', '✅ 检测成功!') + '</div>';
+          html += '<div style="margin-top:6px;"><strong>' + (config && config.icon ? config.icon + ' ' : '') + (config && config.name ? config.name : best.platform) + '</strong> (' + _puiTp('platformConfidence', { percent: confPercent }, '置信度 ' + confPercent + '%') + ')</div>';
           
           if (best.tip) {
-            html += '<div style="margin-top:4px;font-size:11px;color:#888;">识别依据: ' + best.tip + '</div>';
+            html += '<div style="margin-top:4px;font-size:11px;color:#888;">' + _puiT('platformBasis', '识别依据') + ': ' + best.tip + '</div>';
           }
           
-          html += '<div style="margin-top:8px;color:#aaa;">已自动选中该平台，如不正确请手动切换</div>';
+          html += '<div style="margin-top:8px;color:#aaa;">' + _puiT('platformAutoSelected', '已自动选中该平台，如不正确请手动切换') + '</div>';
 
           self._showResult(resultDiv, html, 'success');
           self.setPlatform(best.platform);
         });
       } catch (err) {
         btn.disabled = false;
-        btn.textContent = '🔍 自动检测平台来源';
-        self._showResult(resultDiv, '<div style="color:#ff4444;">❌ 检测失败: ' + err.message + '</div>', 'error');
+        btn.textContent = _puiT('platformDetectBtn', '🔍 自动检测平台来源');
+        self._showResult(resultDiv, '<div style="color:#ff4444;">' + _puiTp('platformDetectFailed', { message: err.message }, '❌ 检测失败: ' + err.message) + '</div>', 'error');
       }
     };
 
     reader.onerror = function() {
       btn.disabled = false;
-      btn.textContent = '🔍 自动检测平台来源';
-      self._showResult(resultDiv, '<div style="color:#ff4444;">❌ 文件读取失败</div>', 'error');
+      btn.textContent = _puiT('platformDetectBtn', '🔍 自动检测平台来源');
+      self._showResult(resultDiv, '<div style="color:#ff4444;">' + _puiT('platformReadFailed', '❌ 文件读取失败') + '</div>', 'error');
     };
 
     reader.readAsArrayBuffer(this._glbFile);
@@ -297,7 +327,7 @@ var PlatformSelector = {
     }
 
     if (boneNames.length === 0) {
-      return [{ platform: 'unknown', confidence: 0, tip: '模型中未检测到骨骼结构' }];
+      return [{ platform: 'unknown', confidence: 0, tip: _puiT('platformNoBones', '模型中未检测到骨骼结构') }];
     }
 
     return this._detectBySignatures(boneNames);
@@ -306,7 +336,7 @@ var PlatformSelector = {
   _detectBySignatures: function(boneNames) {
     var signatures = window.PLATFORM_SIGNATURES;
     if (!signatures) {
-      return [{ platform: 'unknown', confidence: 0, tip: '平台特征库未加载' }];
+      return [{ platform: 'unknown', confidence: 0, tip: _puiT('platformNoSignatures', '平台特征库未加载') }];
     }
 
     var results = [];
@@ -327,7 +357,7 @@ var PlatformSelector = {
 
     results.sort(function(a, b) { return b.confidence - a.confidence; });
     if (results.length === 0) {
-      results.push({ platform: 'unknown', confidence: 0, tip: '无法识别该平台的骨骼命名格式' });
+      results.push({ platform: 'unknown', confidence: 0, tip: _puiT('platformUnknownFormat', '无法识别该平台的骨骼命名格式') });
     }
 
     console.log('[PlatformSelector] 骨骼列表:', boneNames.slice(0, 15).join(', '));
