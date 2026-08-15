@@ -1870,28 +1870,28 @@
         <!-- 导航项 -->
         <div class="nav-item active" id="nav-models" onclick="switchPanel('models')">
             📦
-            <span class="nav-text">模型</span>
-            <span class="nav-tooltip">📦 模型库</span>
+            <span class="nav-text" data-i18n="worldEditor.nav.models">模型</span>
+            <span class="nav-tooltip" data-i18n="worldEditor.nav.modelsTooltip">📦 模型库</span>
         </div>
         <div class="nav-item" id="nav-threejs-code" onclick="switchPanel('threejs-code')">
             🧩
-            <span class="nav-text">代码库</span>
-            <span class="nav-tooltip">🧩 Three.js 代码库</span>
+            <span class="nav-text" data-i18n="worldEditor.nav.codeLib">代码库</span>
+            <span class="nav-tooltip" data-i18n="worldEditor.nav.codeLibTooltip">🧩 Three.js 代码库</span>
         </div>
         <div class="nav-item" id="nav-images" onclick="switchPanel('images')">
             🖼️
-            <span class="nav-text">图片</span>
-            <span class="nav-tooltip">🖼️ 图片</span>
+            <span class="nav-text" data-i18n="worldEditor.nav.images">图片</span>
+            <span class="nav-tooltip" data-i18n="worldEditor.nav.imagesTooltip">🖼️ 图片</span>
         </div>
         <div class="nav-item" id="nav-videos" onclick="switchPanel('videos')">
             🎬
-            <span class="nav-text">视频</span>
-            <span class="nav-tooltip">🎬 视频</span>
+            <span class="nav-text" data-i18n="worldEditor.nav.videos">视频</span>
+            <span class="nav-tooltip" data-i18n="worldEditor.nav.videosTooltip">🎬 视频</span>
         </div>
         <div class="nav-item" id="nav-live" onclick="switchPanel('live')">
             📡
-            <span class="nav-text">直播</span>
-            <span class="nav-tooltip">📡 直播源</span>
+            <span class="nav-text" data-i18n="worldEditor.nav.live">直播</span>
+            <span class="nav-tooltip" data-i18n="worldEditor.nav.liveTooltip">📡 直播源</span>
         </div>
     </div>
 
@@ -1900,30 +1900,30 @@
         
         <!-- 模型库面板 -->
         <div id="panel-models" class="panel-view active">
-            <div class="panel-title">📦 模型库</div>
+            <div class="panel-title" data-i18n="worldEditor.panelModels.title">📦 模型库</div>
             
             <div class="panel-section">
-                <div class="panel-section-title">📤 导入模型</div>
+                <div class="panel-section-title" data-i18n="worldEditor.panelModels.importTitle">📤 导入模型</div>
                 <input type="file" id="model-file-input" accept=".glb,.gltf,.obj,.zip" multiple style="display: none;" onchange="handleModelUpload(event)">
                 <div style="margin-bottom:6px;">
-                  <input type="text" id="upload-model-name" placeholder="输入模型名称（可选，如：办公楼）" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;">
+                  <input type="text" id="upload-model-name" placeholder="输入模型名称（可选，如：办公楼）" data-i18n-placeholder="worldEditor.panelModels.importNamePlaceholder" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;">
                 </div>
                 <button class="tool-btn" onclick="document.getElementById('model-file-input').click()" style="width: 100%; background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
-                    <span>📁</span> 导入3D模型
+                    <span>📁</span> <span data-i18n="worldEditor.panelModels.importBtn">导入3D模型</span>
                 </button>
                 <div id="upload-status" style="margin-top: 8px; font-size: 11px; color: #666;"></div>
                 <div style="margin-top: 10px; padding: 10px 12px; background: #f8f9fa; border-radius: 6px; font-size: 11px; color: #666; line-height: 1.6;">
-                    <div style="font-weight: 600; color: #333; margin-bottom: 5px;">💡 上传格式说明</div>
-                    <div>• <b>GLB / GLTF</b>：直接上传（推荐）</div>
-                    <div>• <b>OBJ</b>：需将 .obj + .mtl + 纹理图片打包为 ZIP 上传</div>
-                    <div>• 单个文件 ≤100MB</div>
+                    <div style="font-weight: 600; color: #333; margin-bottom: 5px;" data-i18n="worldEditor.panelModels.formatTitle">💡 上传格式说明</div>
+                    <div data-i18n="worldEditor.panelModels.formatGlb">• GLB / GLTF：直接上传（推荐）</div>
+                    <div data-i18n="worldEditor.panelModels.formatObj">• OBJ：需将 .obj + .mtl + 纹理图片打包为 ZIP 上传</div>
+                    <div data-i18n="worldEditor.panelModels.formatSize">• 单个文件 ≤100MB</div>
                 </div>
             </div>
 
             <div class="panel-section">
-                <div class="panel-section-title">📂 已上传模型 (<span id="uploaded-count">0</span>)</div>
+                <div class="panel-section-title"><span data-i18n="worldEditor.panelModels.uploadedTitle">📂 已上传模型</span> (<span id="uploaded-count">0</span>)</div>
                 <div class="object-list" id="uploaded-models-list">
-                    <div style="text-align: center; padding: 15px; color: #999; font-size: 12px;">
+                    <div style="text-align: center; padding: 15px; color: #999; font-size: 12px;" data-i18n="worldEditor.panelModels.emptyModels">
                         暂无上传的模型
                     </div>
                 </div>
@@ -1932,33 +1932,33 @@
 
         <!-- 场景对象面板 -->
         <div id="panel-scene" class="panel-view">
-            <div class="panel-title">🔷 场景对象</div>
+            <div class="panel-title" data-i18n="worldEditor.panelScene.title">🔷 场景对象</div>
             
             <div class="panel-section">
-                <div class="panel-section-title">📦 对象列表 (<span id="object-count">0</span>)</div>
-                <input type="text" class="search-box" placeholder="🔍 搜索对象..." onkeyup="filterObjects(this.value)" style="margin-bottom: 10px;">
+                <div class="panel-section-title"><span data-i18n="worldEditor.panelScene.objectListTitle">📦 对象列表</span> (<span id="object-count">0</span>)</div>
+                <input type="text" class="search-box" placeholder="🔍 搜索对象..." data-i18n-placeholder="worldEditor.panelScene.searchPlaceholder" onkeyup="filterObjects(this.value)" style="margin-bottom: 10px;">
                 <div id="scene-object-list" style="max-height: 320px; overflow-y: auto;">
                     <div class="loading">
                         <div class="loading-spinner"></div>
-                        <div>加载中...</div>
+                        <div data-i18n="worldEditor.common.loading">加载中...</div>
                     </div>
                 </div>
             </div>
 
             <div class="panel-section">
-                <div class="panel-section-title">⚡ 批量操作</div>
+                <div class="panel-section-title" data-i18n="worldEditor.panelScene.batchTitle">⚡ 批量操作</div>
                 <div class="tool-grid">
                     <button class="tool-btn" onclick="selectAll()">
-                        <span>☑️</span> 全选
+                        <span>☑️</span> <span data-i18n="worldEditor.panelScene.selectAll">全选</span>
                     </button>
                     <button class="tool-btn" onclick="deselectAll()">
-                        <span>⬜</span> 取消
+                        <span>⬜</span> <span data-i18n="worldEditor.panelScene.deselect">取消</span>
                     </button>
                     <button class="tool-btn" onclick="deleteAllSelected()" style="background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);">
-                        <span>🗑️</span> 删除
+                        <span>🗑️</span> <span data-i18n="worldEditor.panelScene.delete">删除</span>
                     </button>
                     <button class="tool-btn" onclick="refreshScene()">
-                        <span>🔄</span> 刷新
+                        <span>🔄</span> <span data-i18n="worldEditor.panelScene.refresh">刷新</span>
                     </button>
                 </div>
             </div>
@@ -1966,54 +1966,54 @@
 
         <!-- Three.js 代码库面板 -->
         <div id="panel-threejs-code" class="panel-view">
-            <div class="panel-title">🧩 Three.js 代码库</div>
+            <div class="panel-title" data-i18n="worldEditor.panelCodeLib.title">🧩 Three.js 代码库</div>
             
             <div class="panel-section">
-                <div class="panel-section-title">🔍 搜索代码块</div>
+                <div class="panel-section-title" data-i18n="worldEditor.panelCodeLib.searchTitle">🔍 搜索代码块</div>
                 <div class="url-input-group">
-                    <input type="text" id="threejs-code-search" placeholder="输入名称/描述/标签..." oninput="filterThreejsCodeList(this.value)">
-                    <button onclick="loadThreejsCodeBlocks()">刷新</button>
+                    <input type="text" id="threejs-code-search" placeholder="输入名称/描述/标签..." data-i18n-placeholder="worldEditor.panelCodeLib.searchPlaceholder" oninput="filterThreejsCodeList(this.value)">
+                    <button onclick="loadThreejsCodeBlocks()" data-i18n="worldEditor.panelCodeLib.refreshBtn">刷新</button>
                 </div>
             </div>
 
             <div class="panel-section">
-                <div class="panel-section-title">📚 代码块 (<span id="threejs-code-count">0</span>)</div>
+                <div class="panel-section-title"><span data-i18n="worldEditor.panelCodeLib.codeListTitle">📚 代码块</span> (<span id="threejs-code-count">0</span>)</div>
                 <div class="object-list" id="threejs-code-list">
-                    <div style="text-align: center; padding: 20px; color: #999; font-size: 13px;">加载中...</div>
+                    <div style="text-align: center; padding: 20px; color: #999; font-size: 13px;" data-i18n="worldEditor.common.loading">加载中...</div>
                 </div>
             </div>
         </div>
 
         <!-- 图片面板 -->
         <div id="panel-images" class="panel-view">
-            <div class="panel-title">🖼️ 图片媒体</div>
+            <div class="panel-title" data-i18n="worldEditor.panelImages.title">🖼️ 图片媒体</div>
             
             <div class="panel-section">
-                <div class="panel-section-title">📤 上传图片</div>
+                <div class="panel-section-title" data-i18n="worldEditor.panelImages.uploadTitle">📤 上传图片</div>
                 <div class="media-upload-zone" id="img-upload-zone"
                      onclick="document.getElementById('img-file-input').click()"
                      ondragover="handleImgDragOver(event)"
                      ondragleave="handleImgDragLeave(event)"
                      ondrop="handleImgDrop(event)">
                     <div class="upload-icon">📁</div>
-                    <div style="font-size:12px; font-weight:600; color:#444; margin-bottom:4px;">拖拽/点击上传</div>
-                    <div class="upload-hint">JPG/PNG/GIF/WEBP (≤1MB)</div>
+                    <div style="font-size:12px; font-weight:600; color:#444; margin-bottom:4px;" data-i18n="worldEditor.panelImages.dragUpload">拖拽/点击上传</div>
+                    <div class="upload-hint" data-i18n="worldEditor.panelImages.uploadHint">JPG/PNG/GIF/WEBP (≤1MB)</div>
                 </div>
                 <input type="file" id="img-file-input" accept="image/*" multiple style="display:none" onchange="handleImgFileSelect(event)">
                 <div class="upload-progress-list" id="img-upload-progress"></div>
                 
-                <div style="font-size:11px; color:#888; margin:8px 0 6px; font-weight:600;">或输入图片URL：</div>
+                <div style="font-size:11px; color:#888; margin:8px 0 6px; font-weight:600;" data-i18n="worldEditor.panelImages.urlLabel">或输入图片URL：</div>
                 <div class="url-input-group">
-                    <input type="text" id="img-url-input" placeholder="https://..." oninput="detectImgUrl(this.value)">
-                    <button onclick="addImageFromUrl()">添加</button>
+                    <input type="text" id="img-url-input" placeholder="https://..." data-i18n-placeholder="worldEditor.panelImages.urlPlaceholder" oninput="detectImgUrl(this.value)">
+                    <button onclick="addImageFromUrl()" data-i18n="worldEditor.panelImages.addBtn">添加</button>
                 </div>
                 <div id="img-url-detect" style="display:none" class="url-detect-badge"></div>
             </div>
 
             <div class="panel-section">
-                <div class="panel-section-title">📚 图片库 (<span id="img-count">0</span>)</div>
+                <div class="panel-section-title"><span data-i18n="worldEditor.panelImages.libraryTitle">📚 图片库</span> (<span id="img-count">0</span>)</div>
                 <div class="media-grid" id="img-library-grid">
-                    <div style="grid-column:1/-1; text-align:center; padding:15px; color:#999; font-size:12px;">
+                    <div style="grid-column:1/-1; text-align:center; padding:15px; color:#999; font-size:12px;" data-i18n="worldEditor.panelImages.emptyImages">
                         暂无图片
                     </div>
                 </div>
@@ -2022,19 +2022,19 @@
 
         <!-- 视频面板 -->
         <div id="panel-videos" class="panel-view">
-            <div class="panel-title">🎬 视频媒体</div>
+            <div class="panel-title" data-i18n="worldEditor.panelVideos.title">🎬 视频媒体</div>
             
             <!-- 直接上传（适合小视频） -->
             <div class="panel-section">
-                <div class="panel-section-title">📤 直接上传（≤100MB）</div>
+                <div class="panel-section-title" data-i18n="worldEditor.panelVideos.directUploadTitle">📤 直接上传（≤100MB）</div>
                 <div class="media-upload-zone" id="video-upload-zone"
                      onclick="document.getElementById('video-file-input').click()"
                      ondragover="handleVideoDragOver(event)"
                      ondragleave="handleVideoDragLeave(event)"
                      ondrop="handleVideoDrop(event)">
                     <div class="upload-icon">🎬</div>
-                    <div style="font-size:12px; font-weight:600; color:#444; margin-bottom:4px;">拖拽/点击上传</div>
-                    <div class="upload-hint">MP4/WEBM/MOV (≤100MB)</div>
+                    <div style="font-size:12px; font-weight:600; color:#444; margin-bottom:4px;" data-i18n="worldEditor.panelVideos.dragUpload">拖拽/点击上传</div>
+                    <div class="upload-hint" data-i18n="worldEditor.panelVideos.uploadHint">MP4/WEBM/MOV (≤100MB)</div>
                 </div>
                 <input type="file" id="video-file-input" accept="video/*" style="display:none" onchange="handleVideoFileSelect(event)">
                 <div class="upload-progress-list" id="video-upload-progress"></div>
@@ -2042,40 +2042,40 @@
 
             <!-- 大视频导入 -->
             <div class="panel-section">
-                <div class="panel-section-title">📁 大视频导入（推荐大文件）</div>
+                <div class="panel-section-title" data-i18n="worldEditor.panelVideos.largeUploadTitle">📁 大视频导入（推荐大文件）</div>
                 <div style="font-size:11px; color:#666; margin-bottom:8px; line-height:1.5; background:#fffbe6; padding:8px; border-radius:6px; border:1px dashed #ffc107;">
-                    <b>操作步骤：</b><br>
-                    1. 将视频文件放到服务器目录：<br>
+                    <b data-i18n="worldEditor.panelVideos.stepsTitle">操作步骤：</b><br>
+                    <span data-i18n="worldEditor.panelVideos.step1">1. 将视频文件放到服务器目录：</span><br>
                     &nbsp;&nbsp;&nbsp;<code>public/uploads/media/videos/</code><br>
-                    2. 点击下方「🔄 刷新扫描」按钮<br>
-                    3. 在弹出的列表中点击「✅ 入库」，填写名称和标签
+                    <span data-i18n="worldEditor.panelVideos.step2">2. 点击下方「🔄 刷新扫描」按钮</span><br>
+                    <span data-i18n="worldEditor.panelVideos.step3">3. 在弹出的列表中点击「✅ 入库」，填写名称和标签</span>
                 </div>
                 <button onclick="scanVideoDirectory()" style="width:100%; padding:10px; background:linear-gradient(135deg,#667eea,#764ba2); color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">
-                    🔄 刷新扫描视频目录
+                    <span data-i18n="worldEditor.panelVideos.scanBtn">🔄 刷新扫描视频目录</span>
                 </button>
                 <div id="new-video-scan-result"></div>
             </div>
 
             <!-- 在线链接 -->
             <div class="panel-section">
-                <div class="panel-section-title">🔗 在线视频链接</div>
+                <div class="panel-section-title" data-i18n="worldEditor.panelVideos.onlineTitle">🔗 在线视频链接</div>
                 <div class="url-input-group">
-                    <input type="text" id="video-url-input" placeholder="粘贴腾讯/B站/直链..." oninput="detectVideoUrl(this.value)">
-                    <button onclick="addVideoFromUrl()">添加</button>
+                    <input type="text" id="video-url-input" placeholder="粘贴腾讯/B站/直链..." data-i18n-placeholder="worldEditor.panelVideos.urlPlaceholder" oninput="detectVideoUrl(this.value)">
+                    <button onclick="addVideoFromUrl()" data-i18n="worldEditor.panelVideos.addBtn">添加</button>
                 </div>
                 <div id="video-url-detect" style="display:none" class="url-detect-badge info"></div>
                 <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:8px;">
-                    <span style="font-size:10px; padding:2px 6px; background:#e3f2fd; border-radius:8px; color:#1565c0;">📺 腾讯视频</span>
-                    <span style="font-size:10px; padding:2px 6px; background:#fce4ec; border-radius:8px; color:#880e4f;">📺 B站</span>
-                    <span style="font-size:10px; padding:2px 6px; background:#e8f5e9; border-radius:8px; color:#1b5e20;">🔗 直链</span>
+                    <span style="font-size:10px; padding:2px 6px; background:#e3f2fd; border-radius:8px; color:#1565c0;" data-i18n="worldEditor.panelVideos.tagTencent">📺 腾讯视频</span>
+                    <span style="font-size:10px; padding:2px 6px; background:#fce4ec; border-radius:8px; color:#880e4f;" data-i18n="worldEditor.panelVideos.tagBilibili">📺 B站</span>
+                    <span style="font-size:10px; padding:2px 6px; background:#e8f5e9; border-radius:8px; color:#1b5e20;" data-i18n="worldEditor.panelVideos.tagDirect">🔗 直链</span>
                 </div>
             </div>
 
             <!-- 视频库 -->
             <div class="panel-section">
-                <div class="panel-section-title">📚 我的视频库 (<span id="local-video-count">0</span>)</div>
+                <div class="panel-section-title"><span data-i18n="worldEditor.panelVideos.myVideoTitle">📚 我的视频库</span> (<span id="local-video-count">0</span>)</div>
                 <div class="media-grid" id="local-video-grid">
-                    <div style="grid-column:1/-1; text-align:center; padding:15px; color:#999; font-size:12px;">
+                    <div style="grid-column:1/-1; text-align:center; padding:15px; color:#999; font-size:12px;" data-i18n="worldEditor.panelVideos.emptyVideos">
                         暂无视频，请上传或导入
                     </div>
                 </div>
@@ -2084,15 +2084,15 @@
 
         <!-- 直播源面板（预留） -->
         <div id="panel-live" class="panel-view">
-            <div class="panel-title">📡 直播源</div>
+            <div class="panel-title" data-i18n="worldEditor.panelLive.title">📡 直播源</div>
             
             <div class="panel-section">
                 <div style="text-align:center; padding:40px 20px; color:#999;">
                     <div style="font-size:48px; margin-bottom:15px;">🚧</div>
-                    <div style="font-size:14px; font-weight:600; margin-bottom:8px;">功能开发中</div>
+                    <div style="font-size:14px; font-weight:600; margin-bottom:8px;" data-i18n="worldEditor.panelLive.devTitle">功能开发中</div>
                     <div style="font-size:12px; line-height:1.5;">
-                        直播源功能正在开发中<br>
-                        敬请期待...
+                        <span data-i18n="worldEditor.panelLive.devDesc">直播源功能正在开发中</span><br>
+                        <span data-i18n="worldEditor.panelLive.devComing">敬请期待...</span>
                     </div>
                 </div>
             </div>
@@ -2100,7 +2100,7 @@
 
         <!-- 属性面板 -->
         <div id="panel-props" class="panel-view">
-            <div class="panel-title">⚙️ 对象属性</div>
+            <div class="panel-title" data-i18n="worldEditor.props.title">⚙️ 对象属性</div>
             
             <div id="props-panel-content" style="display: none;">
                 <!-- 对象信息 -->
@@ -2108,12 +2108,12 @@
                     <div class="panel-section-title" id="props-object-title">📝 选中对象</div>
                     
                     <div class="property-group">
-                        <label class="property-label">类型</label>
+                        <label class="property-label" data-i18n="worldEditor.props.typeLabel">类型</label>
                         <div id="prop-type" style="font-size: 12px; color: #667eea; font-weight: 600;">-</div>
                     </div>
 
                     <div class="property-group">
-                        <label class="property-label">名称</label>
+                        <label class="property-label" data-i18n="worldEditor.props.nameLabel">名称</label>
                         <input type="text" class="property-input" id="prop-name" onchange="updateSelectedProperty()">
                     </div>
                 </div>
@@ -2122,20 +2122,20 @@
                 <div class="panel-section">
                     <div class="props-tabs">
                         <button class="props-tab active" onclick="switchPropsTab('transform')" id="tab-transform">
-                            📐 属性
+                            <span data-i18n="worldEditor.props.tabProps">📐 属性</span>
                         </button>
                         <button class="props-tab" onclick="switchPropsTab('video')" id="tab-video">
-                            🎬 视频
+                            <span data-i18n="worldEditor.props.tabVideo">🎬 视频</span>
                         </button>
                         <button class="props-tab" onclick="switchPropsTab('animation')" id="tab-animation">
-                            🎯 轴动画
+                            <span data-i18n="worldEditor.props.tabAnimation">🎯 轴动画</span>
                         </button>
                     </div>
 
                     <!-- 属性标签页 -->
                     <div id="props-tab-transform" class="props-tab-content active">
                         <div class="property-group">
-                            <label class="property-label">位置 (X, Y, Z)</label>
+                            <label class="property-label" data-i18n="worldEditor.props.positionLabel">位置 (X, Y, Z)</label>
                             <div class="property-row">
                                 <input type="number" step="0.1" class="property-input" id="prop-x" onchange="updateSelectedProperty()">
                                 <input type="number" step="0.1" class="property-input" id="prop-y" onchange="updateSelectedProperty()">
@@ -2144,7 +2144,7 @@
                         </div>
 
                         <div class="property-group">
-                            <label class="property-label">旋转 (X, Y, Z)</label>
+                            <label class="property-label" data-i18n="worldEditor.props.rotationLabel">旋转 (X, Y, Z)</label>
                             <div class="property-row">
                                 <input type="number" step="0.1" class="property-input" id="prop-rx" onchange="updateSelectedProperty()">
                                 <input type="number" step="0.1" class="property-input" id="prop-ry" onchange="updateSelectedProperty()">
@@ -2153,7 +2153,7 @@
                         </div>
 
                         <div class="property-group">
-                            <label class="property-label">缩放 (X, Y, Z)</label>
+                            <label class="property-label" data-i18n="worldEditor.props.scaleLabel">缩放 (X, Y, Z)</label>
                             <div class="property-row">
                                 <input type="number" step="0.1" class="property-input" id="prop-sx" onchange="updateSelectedProperty()">
                                 <input type="number" step="0.1" class="property-input" id="prop-sy" onchange="updateSelectedProperty()">
@@ -2164,35 +2164,35 @@
                         <!-- 可见性与渲染开关 -->
                         <div style="margin-top: 12px;">
                             <div class="prop-switch-row">
-                                <span class="prop-switch-label">👁 可见性</span>
+                                <span class="prop-switch-label" data-i18n="worldEditor.props.visibility">👁 可见性</span>
                                 <label class="prop-switch">
                                     <input type="checkbox" id="prop-visible" onchange="updateSelectedProperty()">
                                     <span class="prop-switch-slider"></span>
                                 </label>
                             </div>
                             <div class="prop-switch-row">
-                                <span class="prop-switch-label">🌑 投射阴影</span>
+                                <span class="prop-switch-label" data-i18n="worldEditor.props.castShadow">🌑 投射阴影</span>
                                 <label class="prop-switch">
                                     <input type="checkbox" id="prop-cast-shadow" onchange="updateSelectedProperty()">
                                     <span class="prop-switch-slider"></span>
                                 </label>
                             </div>
                             <div class="prop-switch-row">
-                                <span class="prop-switch-label">⬜ 接收阴影</span>
+                                <span class="prop-switch-label" data-i18n="worldEditor.props.receiveShadow">⬜ 接收阴影</span>
                                 <label class="prop-switch">
                                     <input type="checkbox" id="prop-receive-shadow" onchange="updateSelectedProperty()">
                                     <span class="prop-switch-slider"></span>
                                 </label>
                             </div>
                             <div class="prop-switch-row">
-                                <span class="prop-switch-label">🔲 碰撞检测</span>
+                                <span class="prop-switch-label" data-i18n="worldEditor.props.collision">🔲 碰撞检测</span>
                                 <label class="prop-switch">
                                     <input type="checkbox" id="prop-collision" onchange="updateSelectedProperty()">
                                     <span class="prop-switch-slider"></span>
                                 </label>
                             </div>
                             <div class="prop-switch-row">
-                                <span class="prop-switch-label">📐 视锥体裁剪</span>
+                                <span class="prop-switch-label" data-i18n="worldEditor.props.frustumCulled">📐 视锥体裁剪</span>
                                 <label class="prop-switch">
                                     <input type="checkbox" id="prop-frustum-culled" onchange="updateSelectedProperty()" checked>
                                     <span class="prop-switch-slider"></span>
@@ -2201,7 +2201,7 @@
                         </div>
 
                         <button class="tool-btn" onclick="applyProperties()" style="width: 100%; margin-top: 12px;">
-                            ✅ 应用更改
+                            <span data-i18n="worldEditor.props.applyBtn">✅ 应用更改</span>
                         </button>
                     </div>
 
@@ -2209,28 +2209,28 @@
                     <div id="props-tab-video" class="props-tab-content">
                         <div style="text-align: center; padding: 20px; color: #999;">
                             <div style="font-size: 32px; margin-bottom: 8px;">🎬</div>
-                            <div style="font-size: 12px;">视频播放控制</div>
-                            <div style="font-size: 11px; margin-top: 6px; color: #bbb;">
+                            <div style="font-size: 12px;" data-i18n="worldEditor.props.videoControlTitle">视频播放控制</div>
+                            <div style="font-size: 11px; margin-top: 6px; color: #bbb;" data-i18n="worldEditor.props.videoControlDesc">
                                 选择视频/图片对象后可配置
                             </div>
                         </div>
                         <div id="video-controls" style="display: none;">
                             <div class="prop-switch-row">
-                                <span class="prop-switch-label">🔁 循环播放</span>
+                                <span class="prop-switch-label" data-i18n="worldEditor.props.loopPlay">🔁 循环播放</span>
                                 <label class="prop-switch">
                                     <input type="checkbox" id="prop-video-loop" onchange="updateVideoProperty()">
                                     <span class="prop-switch-slider"></span>
                                 </label>
                             </div>
                             <div class="prop-switch-row">
-                                <span class="prop-switch-label">🔇 初始静音</span>
+                                <span class="prop-switch-label" data-i18n="worldEditor.props.initialMuted">🔇 初始静音</span>
                                 <label class="prop-switch">
                                     <input type="checkbox" id="prop-video-muted" onchange="updateVideoProperty()" checked>
                                     <span class="prop-switch-slider"></span>
                                 </label>
                             </div>
                             <div class="prop-switch-row">
-                                <span class="prop-switch-label">▶️ 自动播放</span>
+                                <span class="prop-switch-label" data-i18n="worldEditor.props.autoPlay">▶️ 自动播放</span>
                                 <label class="prop-switch">
                                     <input type="checkbox" id="prop-video-autoplay" onchange="updateVideoProperty()">
                                     <span class="prop-switch-slider"></span>
@@ -2243,35 +2243,35 @@
                     <div id="props-tab-animation" class="props-tab-content">
                         <div style="text-align: center; padding: 20px; color: #999;">
                             <div style="font-size: 32px; margin-bottom: 8px;">🎯</div>
-                            <div style="font-size: 12px;">轴动画配置</div>
-                            <div style="font-size: 11px; margin-top: 6px; color: #bbb;">
+                            <div style="font-size: 12px;" data-i18n="worldEditor.props.animConfigTitle">轴动画配置</div>
+                            <div style="font-size: 11px; margin-top: 6px; color: #bbb;" data-i18n="worldEditor.props.animConfigDesc">
                                 设置对象沿轴的循环动画
                             </div>
                         </div>
                         <div id="axis-animation-controls" style="display: none;">
                             <div class="property-group">
-                                <label class="property-label">动画轴</label>
+                                <label class="property-label" data-i18n="worldEditor.props.animAxis">动画轴</label>
                                 <select class="property-input" id="prop-anim-axis" onchange="updateAnimProperty()">
-                                    <option value="none">无</option>
-                                    <option value="x">X 轴</option>
-                                    <option value="y">Y 轴</option>
-                                    <option value="z">Z 轴</option>
+                                    <option value="none" data-i18n="worldEditor.props.animNone">无</option>
+                                    <option value="x" data-i18n="worldEditor.props.animAxisX">X 轴</option>
+                                    <option value="y" data-i18n="worldEditor.props.animAxisY">Y 轴</option>
+                                    <option value="z" data-i18n="worldEditor.props.animAxisZ">Z 轴</option>
                                 </select>
                             </div>
                             <div class="property-group">
-                                <label class="property-label">运动类型</label>
+                                <label class="property-label" data-i18n="worldEditor.props.animType">运动类型</label>
                                 <select class="property-input" id="prop-anim-type" onchange="updateAnimProperty()">
-                                    <option value="linear">线性移动</option>
-                                    <option value="sine">正弦摆动</option>
-                                    <option value="bounce">弹跳</option>
+                                    <option value="linear" data-i18n="worldEditor.props.animLinear">线性移动</option>
+                                    <option value="sine" data-i18n="worldEditor.props.animSine">正弦摆动</option>
+                                    <option value="bounce" data-i18n="worldEditor.props.animBounce">弹跳</option>
                                 </select>
                             </div>
                             <div class="property-group">
-                                <label class="property-label">幅度</label>
+                                <label class="property-label" data-i18n="worldEditor.props.animAmplitude">幅度</label>
                                 <input type="number" step="0.1" class="property-input" id="prop-anim-amplitude" value="2" onchange="updateAnimProperty()">
                             </div>
                             <div class="property-group">
-                                <label class="property-label">速度</label>
+                                <label class="property-label" data-i18n="worldEditor.props.animSpeed">速度</label>
                                 <input type="number" step="0.1" class="property-input" id="prop-anim-speed" value="1" onchange="updateAnimProperty()">
                             </div>
                         </div>
@@ -2281,14 +2281,14 @@
 
                 <!-- 交互事件入口 -->
                 <div class="panel-section">
-                    <div class="panel-section-title">🎮 交互事件</div>
+                    <div class="panel-section-title" data-i18n="worldEditor.props.eventTitle">🎮 交互事件</div>
                     <div id="event-list-container" class="event-list" style="margin-bottom: 10px;">
-                        <div style="text-align: center; padding: 15px; color: #999; font-size: 11px;">
+                        <div style="text-align: center; padding: 15px; color: #999; font-size: 11px;" data-i18n="worldEditor.props.eventEmpty">
                             暂无交互事件
                         </div>
                     </div>
                     <button class="interaction-entry-btn" onclick="openInteractionModal()">
-                        <span>➕</span> 配置交互事件
+                        <span>➕</span> <span data-i18n="worldEditor.props.eventConfigBtn">配置交互事件</span>
                     </button>
                 </div>
             </div>
@@ -2296,7 +2296,7 @@
             <div class="panel-section" id="no-selection-hint">
                 <div style="text-align:center; padding:30px 15px; color:#999;">
                     <div style="font-size:36px; margin-bottom:10px;">👆</div>
-                    <div style="font-size:12px;">点击场景中的对象<br>以编辑其属性</div>
+                    <div style="font-size:12px;"><span data-i18n="worldEditor.props.noSelection">点击场景中的对象</span><br><span data-i18n="worldEditor.props.noSelectionSub">以编辑其属性</span></div>
                 </div>
             </div>
         </div>
@@ -2306,68 +2306,68 @@
     <!-- ===== 右侧场景面板 ===== -->
     <div id="right-scene-panel">
         <div class="right-panel-header">
-            <span>🔷 场景</span>
-            <button class="collapse-btn" onclick="toggleRightPanel()" title="收起面板">✕</button>
+            <span data-i18n="worldEditor.rightPanel.title">🔷 场景</span>
+            <button class="collapse-btn" onclick="toggleRightPanel()" title="收起面板" data-i18n-title="worldEditor.rightPanel.collapseTitle">✕</button>
         </div>
 
         <!-- 上半部分：对象列表 -->
         <div class="right-scene-list-section">
             <div class="right-scene-list-header">
-                <span>📦 对象列表 (<span id="right-object-count">0</span>)</span>
+                <span data-i18n="worldEditor.rightPanel.objectListTitle">📦 对象列表</span> (<span id="right-object-count">0</span>)
             </div>
             <div class="right-scene-search">
-                <input type="text" id="right-object-search" placeholder="🔍 搜索对象..." onkeyup="filterRightObjectList(this.value)">
+                <input type="text" id="right-object-search" placeholder="🔍 搜索对象..." data-i18n-placeholder="worldEditor.rightPanel.searchPlaceholder" onkeyup="filterRightObjectList(this.value)">
             </div>
             <div class="right-object-list" id="right-object-list">
                 <div style="text-align: center; padding: 30px 15px; color: rgba(255,255,255,0.5);">
                     <div style="font-size: 32px; margin-bottom: 10px;">📭</div>
-                    <div style="font-size: 12px;">暂无场景对象</div>
+                    <div style="font-size: 12px;" data-i18n="worldEditor.rightPanel.emptyList">暂无场景对象</div>
                 </div>
             </div>
             <div class="right-batch-actions">
-                <button class="right-batch-btn" onclick="selectAllRightPanel()">☑️ 全选</button>
-                <button class="right-batch-btn" onclick="deselectAllRightPanel()">⬜ 取消</button>
-                <button class="right-batch-btn delete-all" onclick="deleteAllSelectedRightPanel()">🗑️ 删除</button>
+                <button class="right-batch-btn" onclick="selectAllRightPanel()" data-i18n="worldEditor.rightPanel.selectAll">☑️ 全选</button>
+                <button class="right-batch-btn" onclick="deselectAllRightPanel()" data-i18n="worldEditor.rightPanel.deselectAll">⬜ 取消</button>
+                <button class="right-batch-btn delete-all" onclick="deleteAllSelectedRightPanel()" data-i18n="worldEditor.rightPanel.deleteAll">🗑️ 删除</button>
             </div>
         </div>
 
         <!-- 下半部分：属性面板 -->
         <div class="right-props-section">
             <div class="right-props-header">
-                <span>⚙️ 属性面板</span>
+                <span data-i18n="worldEditor.rightPanel.propsTitle">⚙️ 属性面板</span>
             </div>
             <div class="right-props-content" id="right-props-content">
                 <div class="right-props-empty" id="right-props-empty">
                     <div class="icon">👆</div>
-                    <div class="text">请选择一个对象<br>以编辑其属性</div>
+                    <div class="text"><span data-i18n="worldEditor.rightPanel.emptyHint1">请选择一个对象</span><br><span data-i18n="worldEditor.rightPanel.emptyHint2">以编辑其属性</span></div>
                 </div>
 
                 <!-- 属性表单（选中对象后显示） -->
                 <div id="right-props-form" style="display: none;">
                     <!-- 对象类型 -->
                     <div class="right-prop-group">
-                        <div class="right-prop-label">类型</div>
+                        <div class="right-prop-label" data-i18n="worldEditor.rightPanel.typeLabel">类型</div>
                         <div id="right-prop-type" style="font-size: 13px; color: #667eea; font-weight: 600;">-</div>
                     </div>
 
                     <!-- 对象名称 -->
                     <div class="right-prop-group">
-                        <div class="right-prop-label">名称</div>
-                        <input type="text" class="right-prop-input" id="right-prop-name" placeholder="输入对象名称...">
+                        <div class="right-prop-label" data-i18n="worldEditor.rightPanel.nameLabel">名称</div>
+                        <input type="text" class="right-prop-input" id="right-prop-name" placeholder="输入对象名称..." data-i18n-placeholder="worldEditor.rightPanel.namePlaceholder">
                     </div>
 
                     <!-- 属性标签页 -->
                     <div class="right-props-tabs">
-                        <button class="right-props-tab active" onclick="switchRightPropsTab('transform')" id="right-tab-transform">📐 属性</button>
-                        <button class="right-props-tab" onclick="switchRightPropsTab('video')" id="right-tab-video">🎬 视频</button>
-                        <button class="right-props-tab" onclick="switchRightPropsTab('animation')" id="right-tab-animation">🎯 动画</button>
-                        <button class="right-props-tab" onclick="switchRightPropsTab('advanced')" id="right-tab-advanced" style="display:none;">⚙️ 高级参数</button>
+                        <button class="right-props-tab active" onclick="switchRightPropsTab('transform')" id="right-tab-transform" data-i18n="worldEditor.rightPanel.tabTransform">📐 属性</button>
+                        <button class="right-props-tab" onclick="switchRightPropsTab('video')" id="right-tab-video" data-i18n="worldEditor.rightPanel.tabVideo">🎬 视频</button>
+                        <button class="right-props-tab" onclick="switchRightPropsTab('animation')" id="right-tab-animation" data-i18n="worldEditor.rightPanel.tabAnimation">🎯 动画</button>
+                        <button class="right-props-tab" onclick="switchRightPropsTab('advanced')" id="right-tab-advanced" style="display:none;" data-i18n="worldEditor.rightPanel.tabAdvanced">⚙️ 高级参数</button>
                     </div>
 
                     <!-- 变换属性 -->
                     <div id="right-props-tab-transform">
                         <div class="right-prop-group">
-                            <div class="right-prop-label">位置 (X, Y, Z)</div>
+                            <div class="right-prop-label" data-i18n="worldEditor.rightPanel.positionLabel">位置 (X, Y, Z)</div>
                             <div class="right-prop-row">
                                 <input type="number" step="0.1" class="right-prop-input" id="right-prop-x" placeholder="X">
                                 <input type="number" step="0.1" class="right-prop-input" id="right-prop-y" placeholder="Y">
@@ -2376,7 +2376,7 @@
                         </div>
 
                         <div class="right-prop-group">
-                            <div class="right-prop-label">旋转 (X, Y, Z)</div>
+                            <div class="right-prop-label" data-i18n="worldEditor.rightPanel.rotationLabel">旋转 (X, Y, Z)</div>
                             <div class="right-prop-row">
                                 <input type="number" step="0.1" class="right-prop-input" id="right-prop-rx" placeholder="X">
                                 <input type="number" step="0.1" class="right-prop-input" id="right-prop-ry" placeholder="Y">
@@ -2385,7 +2385,7 @@
                         </div>
 
                         <div class="right-prop-group">
-                            <div class="right-prop-label">缩放 (X, Y, Z)</div>
+                            <div class="right-prop-label" data-i18n="worldEditor.rightPanel.scaleLabel">缩放 (X, Y, Z)</div>
                             <div class="right-prop-row">
                                 <input type="number" step="0.1" class="right-prop-input" id="right-prop-sx" placeholder="X" min="0.01">
                                 <input type="number" step="0.1" class="right-prop-input" id="right-prop-sy" placeholder="Y" min="0.01">
@@ -2396,28 +2396,28 @@
                         <!-- 开关控件 -->
                         <div style="margin-top: 16px;">
                             <div class="right-prop-switch">
-                                <span class="right-prop-switch-label">👁 可见性</span>
+                                <span class="right-prop-switch-label" data-i18n="worldEditor.rightPanel.visibility">👁 可见性</span>
                                 <label class="right-switch">
                                     <input type="checkbox" id="right-prop-visible" checked>
                                     <span class="right-switch-slider"></span>
                                 </label>
                             </div>
                             <div class="right-prop-switch">
-                                <span class="right-prop-switch-label">🌑 投射阴影</span>
+                                <span class="right-prop-switch-label" data-i18n="worldEditor.rightPanel.castShadow">🌑 投射阴影</span>
                                 <label class="right-switch">
                                     <input type="checkbox" id="right-prop-cast-shadow" checked>
                                     <span class="right-switch-slider"></span>
                                 </label>
                             </div>
                             <div class="right-prop-switch">
-                                <span class="right-prop-switch-label">⬜ 接收阴影</span>
+                                <span class="right-prop-switch-label" data-i18n="worldEditor.rightPanel.receiveShadow">⬜ 接收阴影</span>
                                 <label class="right-switch">
                                     <input type="checkbox" id="right-prop-receive-shadow" checked>
                                     <span class="right-switch-slider"></span>
                                 </label>
                             </div>
                             <div class="right-prop-switch">
-                                <span class="right-prop-switch-label">🔲 碰撞检测</span>
+                                <span class="right-prop-switch-label" data-i18n="worldEditor.rightPanel.collision">🔲 碰撞检测</span>
                                 <label class="right-switch">
                                     <input type="checkbox" id="right-prop-collision">
                                     <span class="right-switch-slider"></span>
@@ -2430,21 +2430,21 @@
                     <div id="right-props-tab-video" style="display: none;">
                         <div class="right-prop-group">
                             <div class="right-prop-switch">
-                                <span class="right-prop-switch-label">🔁 循环播放</span>
+                                <span class="right-prop-switch-label" data-i18n="worldEditor.rightPanel.loopPlay">🔁 循环播放</span>
                                 <label class="right-switch">
                                     <input type="checkbox" id="right-prop-video-loop" checked>
                                     <span class="right-switch-slider"></span>
                                 </label>
                             </div>
                             <div class="right-prop-switch">
-                                <span class="right-prop-switch-label">🔇 初始静音</span>
+                                <span class="right-prop-switch-label" data-i18n="worldEditor.rightPanel.initialMuted">🔇 初始静音</span>
                                 <label class="right-switch">
                                     <input type="checkbox" id="right-prop-video-muted" checked>
                                     <span class="right-switch-slider"></span>
                                 </label>
                             </div>
                             <div class="right-prop-switch">
-                                <span class="right-prop-switch-label">▶️ 自动播放</span>
+                                <span class="right-prop-switch-label" data-i18n="worldEditor.rightPanel.autoPlay">▶️ 自动播放</span>
                                 <label class="right-switch">
                                     <input type="checkbox" id="right-prop-video-autoplay">
                                     <span class="right-switch-slider"></span>
@@ -2456,28 +2456,28 @@
                     <!-- 轴动画 -->
                     <div id="right-props-tab-animation" style="display: none;">
                         <div class="right-prop-group">
-                            <div class="right-prop-label">动画轴</div>
+                            <div class="right-prop-label" data-i18n="worldEditor.rightPanel.animAxis">动画轴</div>
                             <select class="right-prop-input" id="right-prop-anim-axis" style="width: 100%;">
-                                <option value="none">无</option>
-                                <option value="x">X 轴</option>
-                                <option value="y">Y 轴</option>
-                                <option value="z">Z 轴</option>
+                                <option value="none" data-i18n="worldEditor.rightPanel.animNone">无</option>
+                                <option value="x" data-i18n="worldEditor.rightPanel.animAxisX">X 轴</option>
+                                <option value="y" data-i18n="worldEditor.rightPanel.animAxisY">Y 轴</option>
+                                <option value="z" data-i18n="worldEditor.rightPanel.animAxisZ">Z 轴</option>
                             </select>
                         </div>
                         <div class="right-prop-group">
-                            <div class="right-prop-label">运动类型</div>
+                            <div class="right-prop-label" data-i18n="worldEditor.rightPanel.animType">运动类型</div>
                             <select class="right-prop-input" id="right-prop-anim-type" style="width: 100%;">
-                                <option value="linear">线性移动</option>
-                                <option value="sine">正弦摆动</option>
-                                <option value="bounce">弹跳</option>
+                                <option value="linear" data-i18n="worldEditor.rightPanel.animLinear">线性移动</option>
+                                <option value="sine" data-i18n="worldEditor.rightPanel.animSine">正弦摆动</option>
+                                <option value="bounce" data-i18n="worldEditor.rightPanel.animBounce">弹跳</option>
                             </select>
                         </div>
                         <div class="right-prop-group">
-                            <div class="right-prop-label">幅度</div>
+                            <div class="right-prop-label" data-i18n="worldEditor.rightPanel.animAmplitude">幅度</div>
                             <input type="number" step="0.1" class="right-prop-input" id="right-prop-anim-amplitude" value="2" style="width: 100%;">
                         </div>
                         <div class="right-prop-group">
-                            <div class="right-prop-label">速度</div>
+                            <div class="right-prop-label" data-i18n="worldEditor.rightPanel.animSpeed">速度</div>
                             <input type="number" step="0.1" class="right-prop-input" id="right-prop-anim-speed" value="1" style="width: 100%;">
                         </div>
                     </div>
@@ -2487,7 +2487,7 @@
                         <div id="custom-config-panel-body" style="padding-top: 4px;">
                             <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
                                 <div style="font-size: 28px; margin-bottom: 6px;">⚙️</div>
-                                <div>该类型暂无高级参数</div>
+                                <div data-i18n="worldEditor.rightPanel.noAdvancedParams">该类型暂无高级参数</div>
                             </div>
                         </div>
                     </div>
@@ -2495,7 +2495,7 @@
                     <!-- 始终显示的保存按钮（所有标签页共用） -->
                     <button class="right-prop-apply-btn" onclick="applyRightPanelProps()" 
                             style="position: sticky; bottom: 0; width: 100%; margin-top: 12px; padding: 12px; background: linear-gradient(135deg, #11998e, #38ef7d); font-size: 14px; font-weight: bold;">
-                        💾 保存更改
+                        💾 <span data-i18n="worldEditor.rightPanel.saveChanges">保存更改</span>
                     </button>
                 </div>
             </div>
@@ -2506,161 +2506,161 @@
     <div id="interaction-modal">
         <div class="interaction-modal-content">
             <div class="modal-header">
-                <h3>🎮 交互事件配置</h3>
+                <h3 data-i18n="worldEditor.eventModal.title">🎮 交互事件配置</h3>
                 <button class="modal-close" onclick="closeInteractionModal()">✕</button>
             </div>
             <div class="modal-body">
                 <!-- 当前已配置的事件 -->
                 <div style="margin-bottom: 16px;">
                     <div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-                        📋 已配置事件
+                        <span data-i18n="worldEditor.eventModal.configuredEvents">📋 已配置事件</span>
                     </div>
                     <div id="modal-event-list" class="event-list">
                         <div style="text-align: center; padding: 15px; color: #999; font-size: 11px;">
-                            暂无交互事件
+                            <span data-i18n="worldEditor.eventModal.noEvents">暂无交互事件</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- 添加新事件 -->
                 <div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
-                    ➕ 添加新事件
+                    <span data-i18n="worldEditor.eventModal.addEvent">➕ 添加新事件</span>
                 </div>
 
                 <!-- 触发条件 -->
                 <div class="action-config-section">
-                    <h4>🎯 触发条件</h4>
+                    <h4 data-i18n="worldEditor.eventModal.triggerTitle">🎯 触发条件</h4>
                     <div class="event-type-selector">
                         <div class="event-type-card selected" data-trigger="click" onclick="selectTriggerType(this)">
                             <div class="event-icon">👆</div>
-                            <div class="event-label">点击触发</div>
-                            <div class="event-desc">玩家点击对象时</div>
+                            <div class="event-label" data-i18n="worldEditor.eventModal.triggerClick">点击触发</div>
+                            <div class="event-desc" data-i18n="worldEditor.eventModal.triggerClickDesc">玩家点击对象时</div>
                         </div>
                         <div class="event-type-card" data-trigger="proximity" onclick="selectTriggerType(this)">
                             <div class="event-icon">📍</div>
-                            <div class="event-label">接近触发</div>
-                            <div class="event-desc">玩家靠近时自动</div>
+                            <div class="event-label" data-i18n="worldEditor.eventModal.triggerProximity">接近触发</div>
+                            <div class="event-desc" data-i18n="worldEditor.eventModal.triggerProximityDesc">玩家靠近时自动</div>
                         </div>
                         <div class="event-type-card" data-trigger="hover" onclick="selectTriggerType(this)">
                             <div class="event-icon">👀</div>
-                            <div class="event-label">悬停触发</div>
-                            <div class="event-desc">鼠标悬停时</div>
+                            <div class="event-label" data-i18n="worldEditor.eventModal.triggerHover">悬停触发</div>
+                            <div class="event-desc" data-i18n="worldEditor.eventModal.triggerHoverDesc">鼠标悬停时</div>
                         </div>
                         <div class="event-type-card" data-trigger="collision" onclick="selectTriggerType(this)">
                             <div class="event-icon">💥</div>
-                            <div class="event-label">碰撞触发</div>
-                            <div class="event-desc">与其他对象碰撞</div>
+                            <div class="event-label" data-i18n="worldEditor.eventModal.triggerCollision">碰撞触发</div>
+                            <div class="event-desc" data-i18n="worldEditor.eventModal.triggerCollisionDesc">与其他对象碰撞</div>
                         </div>
                     </div>
                 </div>
 
                 <!-- 动作类型 -->
                 <div class="action-config-section">
-                    <h4>⚡ 执行动作</h4>
+                    <h4 data-i18n="worldEditor.eventModal.actionTitle">⚡ 执行动作</h4>
                     <div class="event-type-selector">
                         <div class="event-type-card selected" data-action="link" onclick="selectActionType(this)">
                             <div class="event-icon">🔗</div>
-                            <div class="event-label">链接跳转</div>
-                            <div class="event-desc">打开网页链接</div>
+                            <div class="event-label" data-i18n="worldEditor.eventModal.actionLink">链接跳转</div>
+                            <div class="event-desc" data-i18n="worldEditor.eventModal.actionLinkDesc">打开网页链接</div>
                         </div>
                         <div class="event-type-card" data-action="video" onclick="selectActionType(this)">
                             <div class="event-icon">🎬</div>
-                            <div class="event-label">播放视频</div>
-                            <div class="event-desc">播放关联视频</div>
+                            <div class="event-label" data-i18n="worldEditor.eventModal.actionVideo">播放视频</div>
+                            <div class="event-desc" data-i18n="worldEditor.eventModal.actionVideoDesc">播放关联视频</div>
                         </div>
                         <div class="event-type-card" data-action="animation" onclick="selectActionType(this)">
                             <div class="event-icon">✨</div>
-                            <div class="event-label">触发动画</div>
-                            <div class="event-desc">播放3D动画效果</div>
+                            <div class="event-label" data-i18n="worldEditor.eventModal.actionAnimation">触发动画</div>
+                            <div class="event-desc" data-i18n="worldEditor.eventModal.actionAnimationDesc">播放3D动画效果</div>
                         </div>
                         <div class="event-type-card" data-action="sound" onclick="selectActionType(this)">
                             <div class="event-icon">🔊</div>
-                            <div class="event-label">播放音效</div>
-                            <div class="event-desc">播放提示音</div>
+                            <div class="event-label" data-i18n="worldEditor.eventModal.actionSound">播放音效</div>
+                            <div class="event-desc" data-i18n="worldEditor.eventModal.actionSoundDesc">播放提示音</div>
                         </div>
                     </div>
                 </div>
 
                 <!-- 链接配置 -->
                 <div id="link-config-section" class="action-config-section" style="display: block;">
-                    <h4>🔗 链接配置</h4>
+                    <h4 data-i18n="worldEditor.eventModal.linkConfigTitle">🔗 链接配置</h4>
                     <div class="property-group">
-                        <label class="property-label">跳转链接</label>
+                        <label class="property-label" data-i18n="worldEditor.eventModal.linkUrlLabel">跳转链接</label>
                         <input type="text" class="property-input" id="event-link-url" placeholder="https://example.com" style="margin-bottom: 8px;">
                     </div>
                     <div class="property-group" style="margin-bottom: 0;">
-                        <label class="property-label">打开方式</label>
+                        <label class="property-label" data-i18n="worldEditor.eventModal.linkTargetLabel">打开方式</label>
                         <select class="property-input" id="event-link-target">
-                            <option value="_blank">新窗口打开</option>
-                            <option value="_self">当前窗口跳转</option>
+                            <option value="_blank" data-i18n="worldEditor.eventModal.targetBlank">新窗口打开</option>
+                            <option value="_self" data-i18n="worldEditor.eventModal.targetSelf">当前窗口跳转</option>
                         </select>
                     </div>
                 </div>
 
                 <!-- 视频配置 -->
                 <div id="video-config-section" class="action-config-section" style="display: none;">
-                    <h4>🎬 视频配置</h4>
+                    <h4 data-i18n="worldEditor.eventModal.videoConfigTitle">🎬 视频配置</h4>
                     <div class="property-group" style="margin-bottom: 0;">
-                        <label class="property-label">选择视频</label>
+                        <label class="property-label" data-i18n="worldEditor.eventModal.selectVideoLabel">选择视频</label>
                         <select class="property-input" id="event-video-select">
-                            <option value="">-- 选择视频 --</option>
+                            <option value="" data-i18n="worldEditor.eventModal.selectVideoPlaceholder">-- 选择视频 --</option>
                         </select>
                     </div>
                 </div>
 
                 <!-- 动画配置 -->
                 <div id="animation-config-section" class="action-config-section" style="display: none;">
-                    <h4>✨ 动画配置</h4>
+                    <h4 data-i18n="worldEditor.eventModal.animConfigTitle">✨ 动画配置</h4>
                     <div class="property-group">
-                        <label class="property-label">动画类型</label>
+                        <label class="property-label" data-i18n="worldEditor.eventModal.animTypeLabel">动画类型</label>
                         <select class="property-input" id="event-anim-type">
-                            <option value="scale">缩放动画</option>
-                            <option value="rotate">旋转动画</option>
-                            <option value="color">颜色变化</option>
-                            <option value="dissolve">淡出消失</option>
+                            <option value="scale" data-i18n="worldEditor.eventModal.animScale">缩放动画</option>
+                            <option value="rotate" data-i18n="worldEditor.eventModal.animRotate">旋转动画</option>
+                            <option value="color" data-i18n="worldEditor.eventModal.animColor">颜色变化</option>
+                            <option value="dissolve" data-i18n="worldEditor.eventModal.animDissolve">淡出消失</option>
                         </select>
                     </div>
                     <div class="property-group" style="margin-bottom: 0;">
-                        <label class="property-label">动画时长 (秒)</label>
+                        <label class="property-label" data-i18n="worldEditor.eventModal.animDurationLabel">动画时长 (秒)</label>
                         <input type="number" step="0.1" class="property-input" id="event-anim-duration" value="1">
                     </div>
                 </div>
 
                 <!-- 音效配置 -->
                 <div id="sound-config-section" class="action-config-section" style="display: none;">
-                    <h4>🔊 音效配置</h4>
+                    <h4 data-i18n="worldEditor.eventModal.soundConfigTitle">🔊 音效配置</h4>
                     <div class="property-group" style="margin-bottom: 0;">
-                        <label class="property-label">选择音效</label>
+                        <label class="property-label" data-i18n="worldEditor.eventModal.selectSoundLabel">选择音效</label>
                         <select class="property-input" id="event-sound-select">
-                            <option value="click">点击音效</option>
-                            <option value="success">成功提示</option>
-                            <option value="warning">警告提示</option>
-                            <option value="error">错误提示</option>
-                            <option value="custom">自定义上传</option>
+                            <option value="click" data-i18n="worldEditor.eventModal.soundClick">点击音效</option>
+                            <option value="success" data-i18n="worldEditor.eventModal.soundSuccess">成功提示</option>
+                            <option value="warning" data-i18n="worldEditor.eventModal.soundWarning">警告提示</option>
+                            <option value="error" data-i18n="worldEditor.eventModal.soundError">错误提示</option>
+                            <option value="custom" data-i18n="worldEditor.eventModal.soundCustom">自定义上传</option>
                         </select>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button style="padding: 10px 20px; background: #f0f0f0; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #666;" onclick="closeInteractionModal()">取消</button>
-                <button style="padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: white;" onclick="saveInteractionEvent()">💾 保存事件</button>
+                <button style="padding: 10px 20px; background: #f0f0f0; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #666;" onclick="closeInteractionModal()" data-i18n="worldEditor.eventModal.cancelBtn">取消</button>
+                <button style="padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: white;" onclick="saveInteractionEvent()" data-i18n="worldEditor.eventModal.saveBtn">💾 保存事件</button>
             </div>
         </div>
     </div>
 
     <!-- 媒体放置属性面板（浮动） -->
     <div id="media-place-panel">
-        <h3 id="media-place-title">🖼️ 放置图片</h3>
+        <h3 id="media-place-title" data-i18n="worldEditor.placeMedia.title">🖼️ 放置图片</h3>
 
         <div class="place-prop-group">
-            <span class="place-prop-label">位置</span>
+            <span class="place-prop-label" data-i18n="worldEditor.placeMedia.positionLabel">位置</span>
             <div class="place-prop-row">
                 <div>
                     <span class="place-prop-label" style="font-size:10px;">X</span>
                     <input type="number" step="0.5" class="place-prop-input" id="mp-x" value="0">
                 </div>
                 <div>
-                    <span class="place-prop-label" style="font-size:10px;">Y(高度)</span>
+                    <span class="place-prop-label" style="font-size:10px;" data-i18n="worldEditor.placeMedia.yLabel">Y(高度)</span>
                     <input type="number" step="0.5" class="place-prop-input" id="mp-y" value="3">
                 </div>
                 <div>
@@ -2671,7 +2671,7 @@
         </div>
 
         <div class="place-prop-group">
-            <span class="place-prop-label">朝向（Y轴旋转）</span>
+            <span class="place-prop-label" data-i18n="worldEditor.placeMedia.rotationLabel">朝向（Y轴旋转）</span>
             <div class="rotation-dial-wrap">
                 <div class="rotation-dial" id="rotation-dial" onmousedown="startDialDrag(event)">
                     <div class="rotation-dial-needle" id="dial-needle" style="transform: translateX(-50%) rotate(0deg); transform-origin: bottom center; left:50%; top:5px;"></div>
@@ -2679,44 +2679,44 @@
                 </div>
                 <div style="flex:1;">
                     <input type="number" step="1" min="0" max="360" class="place-prop-input" id="mp-ry" value="0" oninput="updateDialFromInput(this.value)" style="width:100%;">
-                    <div style="font-size:10px; color:#888; margin-top:3px;">0° = 正面朝向玩家</div>
+                    <div style="font-size:10px; color:#888; margin-top:3px;" data-i18n="worldEditor.placeMedia.rotationHint">0° = 正面朝向玩家</div>
                 </div>
             </div>
         </div>
 
         <div class="place-prop-group">
-            <span class="place-prop-label">尺寸</span>
+            <span class="place-prop-label" data-i18n="worldEditor.placeMedia.sizeLabel">尺寸</span>
             <div class="place-prop-row two-col">
                 <div>
-                    <span class="place-prop-label" style="font-size:10px;">宽度</span>
+                    <span class="place-prop-label" style="font-size:10px;" data-i18n="worldEditor.placeMedia.widthLabel">宽度</span>
                     <input type="number" step="0.5" min="0.1" class="place-prop-input" id="mp-w" value="8" oninput="syncAspectRatio('w')">
                 </div>
                 <div>
-                    <span class="place-prop-label" style="font-size:10px;">高度</span>
+                    <span class="place-prop-label" style="font-size:10px;" data-i18n="worldEditor.placeMedia.heightLabel">高度</span>
                     <input type="number" step="0.5" min="0.1" class="place-prop-input" id="mp-h" value="4.5" oninput="syncAspectRatio('h')">
                 </div>
             </div>
             <label style="font-size:11px; color:#666; cursor:pointer; display:flex; align-items:center; gap:4px; margin-top:4px;">
-                <input type="checkbox" id="mp-lock-ratio" checked> 锁定宽高比
+                <input type="checkbox" id="mp-lock-ratio" checked> <span data-i18n="worldEditor.placeMedia.lockRatio">锁定宽高比</span>
             </label>
         </div>
 
         <!-- 视频专有选项 -->
         <div id="video-opts-section" style="display:none;">
             <div class="place-prop-group">
-                <span class="place-prop-label">视频选项</span>
+                <span class="place-prop-label" data-i18n="worldEditor.placeMedia.videoOptionsLabel">视频选项</span>
                 <div class="video-opts">
                     <label class="video-opt-item">
-                        <input type="checkbox" id="mp-loop" checked> 循环播放
+                        <input type="checkbox" id="mp-loop" checked> <span data-i18n="worldEditor.placeMedia.videoLoop">循环播放</span>
                     </label>
                     <label class="video-opt-item">
-                        <input type="checkbox" id="mp-muted" checked> 初始静音
+                        <input type="checkbox" id="mp-muted" checked> <span data-i18n="worldEditor.placeMedia.videoMuted">初始静音</span>
                     </label>
                     <label class="video-opt-item">
-                        <input type="checkbox" id="mp-autoplay"> 自动播放
+                        <input type="checkbox" id="mp-autoplay"> <span data-i18n="worldEditor.placeMedia.videoAutoplay">自动播放</span>
                     </label>
                     <label class="video-opt-item">
-                        <input type="checkbox" id="mp-billboard"> 始终朝向玩家
+                        <input type="checkbox" id="mp-billboard"> <span data-i18n="worldEditor.placeMedia.videoBillboard">始终朝向玩家</span>
                     </label>
                 </div>
                 <div id="video-type-note" style="font-size:11px; color:#888; background:#f5f5f5; padding:6px 8px; border-radius:6px;"></div>
@@ -2724,8 +2724,8 @@
         </div>
 
         <div class="place-btn-group">
-            <button class="place-btn-cancel" onclick="cancelMediaPlace()">❌ 取消</button>
-            <button class="place-btn-save" onclick="saveMediaToWorld()">✅ 保存到世界</button>
+            <button class="place-btn-cancel" onclick="cancelMediaPlace()" data-i18n="worldEditor.placeMedia.cancelBtn">❌ 取消</button>
+            <button class="place-btn-save" onclick="saveMediaToWorld()" data-i18n="worldEditor.placeMedia.saveBtn">✅ 保存到世界</button>
         </div>
     </div>
 
@@ -2736,24 +2736,24 @@
     <div id="canvas-container">
         <!-- 3D顶部工具栏 -->
         <div id="canvas-toolbar">
-            <button class="canvas-tool-btn active" id="ctb-select" onclick="setEditMode('select')" title="选择并移动">
+            <button class="canvas-tool-btn active" id="ctb-select" onclick="setEditMode('select')" title="选择并移动" data-i18n-title="worldEditor.toolbar.move">
                 ✋
             </button>
-            <button class="canvas-tool-btn" id="ctb-rotate" onclick="setEditMode('rotate')" title="旋转">
+            <button class="canvas-tool-btn" id="ctb-rotate" onclick="setEditMode('rotate')" title="旋转" data-i18n-title="worldEditor.toolbar.rotate">
                 🔄
             </button>
-            <button class="canvas-tool-btn" id="ctb-scale" onclick="setEditMode('scale')" title="缩放">
+            <button class="canvas-tool-btn" id="ctb-scale" onclick="setEditMode('scale')" title="缩放" data-i18n-title="worldEditor.toolbar.scale">
                 📏
             </button>
             <div class="canvas-tool-separator"></div>
-            <button class="canvas-tool-btn" id="ctb-copy" onclick="copySelected()" title="复制">
+            <button class="canvas-tool-btn" id="ctb-copy" onclick="copySelected()" title="复制" data-i18n-title="worldEditor.toolbar.copy">
                 📋
             </button>
-            <button class="canvas-tool-btn" id="ctb-delete" onclick="deleteSelected()" title="删除">
+            <button class="canvas-tool-btn" id="ctb-delete" onclick="deleteSelected()" title="删除" data-i18n-title="worldEditor.toolbar.delete">
                 🗑️
             </button>
             <div class="canvas-tool-separator"></div>
-            <button class="canvas-tool-btn" id="ctb-reset-camera" onclick="resetCamera()" title="重置相机">
+            <button class="canvas-tool-btn" id="ctb-reset-camera" onclick="resetCamera()" title="重置相机" data-i18n-title="worldEditor.toolbar.resetCamera">
                 🎥
             </button>
         </div>
@@ -2762,7 +2762,7 @@
         <div class="status-bar">
             <div class="status-item">
                 <span>🎯</span>
-                <span class="status-badge" id="current-mode">选择</span>
+                <span class="status-badge" id="current-mode" data-i18n="worldEditor.status.mode">选择</span>
             </div>
             <div class="status-item">
                 <span>📦</span>
@@ -2772,16 +2772,22 @@
                 <span>🌐</span>
                 <span class="status-badge" id="total-objects">0</span>
             </div>
+            <div class="status-item">
+                <select id="we-lang-select" onchange="changeWorldEditorLanguage(this.value)" title="语言 / Language" style="padding:5px 8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);border-radius:5px;color:#fff;font-size:12px;cursor:pointer;">
+                    <option value="zh-CN">中文</option>
+                    <option value="en-US">English</option>
+                </select>
+            </div>
         </div>
 
         <!-- 控制说明 -->
         <div class="controls-hint">
-            <div><strong>🖱️ 控制说明</strong></div>
-            <div>• 左键拖拽：旋转视角</div>
-            <div>• 右键拖拽：平移视角</div>
-            <div>• 滚轮：缩放视角</div>
-            <div>• 点击对象：选择</div>
-            <div>• Ctrl+点击：多选</div>
+            <div><strong data-i18n="worldEditor.hint.title">🖱️ 控制说明</strong></div>
+            <div data-i18n="worldEditor.hint.rotate">• 左键拖拽：旋转视角</div>
+            <div data-i18n="worldEditor.hint.pan">• 右键拖拽：平移视角</div>
+            <div data-i18n="worldEditor.hint.zoom">• 滚轮：缩放视角</div>
+            <div data-i18n="worldEditor.hint.select">• 点击对象：选择</div>
+            <div data-i18n="worldEditor.hint.multiSelect">• Ctrl+点击：多选</div>
         </div>
 
         <!-- 通知消息 -->
@@ -2796,6 +2802,8 @@
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/MTLLoader.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/controls/TransformControls.js"></script>
+    <!-- 国际化核心库 -->
+    <script src="/i18n/i18n.js"></script>
     <script src="js/geometryTemplates.js"></script>
     <script src="js/geometryRenderer.js"></script>
     <script src="js/threejsCompatibility.js"></script>
@@ -2814,6 +2822,111 @@
         let raycaster, mouse;
 
         const API_BASE = window.location.origin + '/api/world';
+
+        // ===== 世界编辑器 i18n 辅助函数 =====
+        // 仅英文语言下查翻译，否则返回中文原文（fallback）
+        function weT(key, fallback) {
+            if (window.i18n && window.i18n.initialized && window.i18n.getCurrentLocale() === 'en-US') {
+                const full = 'worldEditor.' + key;
+                const text = window.i18n.t(full);
+                return text !== full ? text : (typeof fallback === 'string' ? fallback : key);
+            }
+            return typeof fallback === 'string' ? fallback : key;
+        }
+        // 带 {{param}} 参数替换的翻译
+        function weTp(key, params, fallback) {
+            if (window.i18n && window.i18n.initialized && window.i18n.getCurrentLocale() === 'en-US') {
+                const full = 'worldEditor.' + key;
+                const text = window.i18n.tp(full, params);
+                return text !== full ? text : (typeof fallback === 'string' ? fallback : key);
+            }
+            let text = typeof fallback === 'string' ? fallback : key;
+            if (params) {
+                Object.keys(params).forEach(function(p) { text = String(text).split('{{' + p + '}}').join(params[p]); });
+            }
+            return text;
+        }
+        // 应用翻译到页面：处理 [data-i18n] / [data-i18n-title] / [data-i18n-placeholder]
+        function applyTranslations() {
+            if (!window.i18n || !window.i18n.initialized) return;
+            document.querySelectorAll('[data-i18n]').forEach(function(el) {
+                const key = el.getAttribute('data-i18n');
+                if (!key) return;
+                // #current-mode 由 setEditMode 动态更新，走下方特例
+                if (el.id === 'current-mode') return;
+                const text = window.i18n.t(key);
+                if (el.tagName === 'TITLE') {
+                    document.title = text;
+                } else if (text !== key && el.childElementCount === 0) {
+                    // 有子元素的元素不能直接 textContent（会清掉子元素）
+                    el.textContent = text;
+                }
+            });
+            document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
+                const key = el.getAttribute('data-i18n-title');
+                if (!key) return;
+                const text = window.i18n.t(key);
+                if (text !== key) {
+                    el.setAttribute('title', text);
+                }
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (!key) return;
+                const text = window.i18n.t(key);
+                if (text !== key) {
+                    el.setAttribute('placeholder', text);
+                }
+            });
+            // 特例：#current-mode 由 setEditMode 动态更新，语言切换后按当前编辑模式重设
+            const modeEl = document.getElementById('current-mode');
+            if (modeEl && modeEl.getAttribute('data-i18n')) {
+                const curMode = (typeof editMode !== 'undefined') ? editMode : '';
+                const modeMap = {
+                    'select': { key: 'status.modeSelectMove', zh: '选择/移动' },
+                    'rotate': { key: 'status.modeRotate', zh: '旋转' },
+                    'scale':  { key: 'status.modeScale', zh: '缩放' }
+                };
+                const m = modeMap[curMode];
+                if (m) {
+                    modeEl.textContent = weT(m.key, m.zh);
+                } else {
+                    modeEl.textContent = weT('status.mode', '选择');
+                }
+            }
+            // 同步语言下拉框选中项
+            const sel = document.getElementById('we-lang-select');
+            if (sel) sel.value = window.i18n.getCurrentLocale();
+        }
+        // 语言切换：保存到服务器 → 应用翻译 → 重渲染当前面板
+        async function changeWorldEditorLanguage(locale) {
+            if (!window.i18n) return;
+            if (locale === window.i18n.getCurrentLocale()) return;
+            const success = await window.i18n.setLocaleToServer(locale);
+            if (success) {
+                applyTranslations();
+                // 重渲染现有面板（翻译键由后续批次接入）
+                if (typeof updateObjectList === 'function') updateObjectList();
+                if (typeof updateRightObjectList === 'function') updateRightObjectList();
+                if (typeof updateUploadedModelsList === 'function') updateUploadedModelsList();
+                if (typeof updateRightPropsPanel === 'function' && selectedObjects.length > 0) updateRightPropsPanel(selectedObjects[0]);
+                if (typeof updatePropertiesPanel === 'function') updatePropertiesPanel();
+                if (typeof updateEventList === 'function' && selectedObjects.length === 1) updateEventList();
+                if (typeof updateModalEventList === 'function' && selectedObjects.length === 1) updateModalEventList();
+                if (typeof renderImageLibrary === 'function') renderImageLibrary();
+                if (typeof renderVideoLibrary === 'function') renderVideoLibrary();
+                if (typeof renderMediaGrid === 'function') renderMediaGrid();
+                // 媒体放置面板标题（当前待放置项类型决定图片/视频）
+                const mt = document.getElementById('media-place-title');
+                if (mt && pendingMediaItem) {
+                    mt.textContent = weT(pendingMediaItem.type === 'video' ? 'placeMedia.titleVideo' : 'placeMedia.titleImage', mt.textContent);
+                }
+            } else {
+                console.warn('[world_editor] 语言设置保存失败');
+                const sel = document.getElementById('we-lang-select');
+                if (sel) sel.value = window.i18n.getCurrentLocale();
+            }
+        }
 
         // ===== 初始化Three.js =====
         function initThreeJS() {
@@ -3026,7 +3139,7 @@
         // ===== 加载世界对象 =====
         async function loadWorldObjects() {
             try {
-                showNotification('正在加载世界对象...', 'info');
+                showNotification(weT('sceneLoad.loading', '正在加载世界对象...'), 'info');
                 
                 const response = await fetch(`${API_BASE}/objects`);
                 const data = await response.json();
@@ -3063,13 +3176,13 @@
 
                     updateObjectList();
                     updateStats();
-                    showNotification(`✅ 成功加载 ${worldObjects.length} 个对象`, 'success');
+                    showNotification(weTp('sceneLoad.success', { count: worldObjects.length }, `✅ 成功加载 ${worldObjects.length} 个对象`), 'success');
                 } else {
-                    showNotification('❌ 加载失败: ' + data.error, 'error');
+                    showNotification(weTp('sceneLoad.loadFail', { error: data.error }, '❌ 加载失败: ' + data.error), 'error');
                 }
             } catch (error) {
                 console.error('加载世界对象失败:', error);
-                showNotification('❌ 网络错误', 'error');
+                showNotification(weT('sceneLoad.networkError', '❌ 网络错误'), 'error');
             }
         }
 
@@ -3425,7 +3538,7 @@
         function setEditMode(mode) {
             editMode = mode;
             document.getElementById('current-mode').textContent =
-                {'select': '选择/移动', 'rotate': '旋转', 'scale': '缩放'}[mode] || mode;
+                {'select': weT('status.modeSelectMove', '选择/移动'), 'rotate': weT('status.modeRotate', '旋转'), 'scale': weT('status.modeScale', '缩放')}[mode] || mode;
 
             // 更新左侧面板工具按钮状态
             ['select', 'rotate', 'scale'].forEach(m => {
@@ -3490,7 +3603,7 @@
             const data = obj.data;
 
             // 更新对象信息
-            document.getElementById('props-object-title').innerHTML = `📝 ${escapeHtml(data.name || '对象 #' + obj.id)}`;
+            document.getElementById('props-object-title').innerHTML = `📝 ${escapeHtml(data.name || weT('props.objectPrefix', '对象 #') + obj.id)}`;
             document.getElementById('prop-type').textContent = getObjectIcon(data.type || 'unknown') + ' ' + (data.type || 'unknown').toUpperCase();
             document.getElementById('prop-name').value = data.name || '';
             
@@ -3568,7 +3681,7 @@
             const events = obj.data?.interactions || [];
             
             if (events.length === 0) {
-                container.innerHTML = '<div style="text-align: center; padding: 15px; color: #999; font-size: 11px;">暂无交互事件</div>';
+                container.innerHTML = '<div style="text-align: center; padding: 15px; color: #999; font-size: 11px;">' + weT('event.notify.listEmpty', '暂无交互事件') + '</div>';
                 return;
             }
             
@@ -3585,19 +3698,19 @@
 
         function getTriggerIcon(trigger) {
             const icons = {
-                'click': '👆 点击',
-                'proximity': '📍 接近',
-                'hover': '👀 悬停',
-                'collision': '💥 碰撞'
+                'click': weT('event.trigger.click', '👆 点击'),
+                'proximity': weT('event.trigger.proximity', '📍 接近'),
+                'hover': weT('event.trigger.hover', '👀 悬停'),
+                'collision': weT('event.trigger.collision', '💥 碰撞')
             };
             return icons[trigger] || trigger;
         }
 
         function getActionText(action) {
             const texts = {
-                'video': '🎬 播放视频',
-                'animation': '✨ 触发动画',
-                'sound': '🔊 播放音效'
+                'video': weT('event.action.video', '🎬 播放视频'),
+                'animation': weT('event.action.animation', '✨ 触发动画'),
+                'sound': weT('event.action.sound', '🔊 播放音效')
             };
             return texts[action] || action;
         }
@@ -3608,12 +3721,12 @@
             obj.data.interactions = obj.data.interactions || [];
             obj.data.interactions.splice(index, 1);
             updateEventList();
-            showNotification('✅ 事件已删除', 'success');
+            showNotification(weT('event.notify.deleted', '✅ 事件已删除'), 'success');
         }
 
         function openInteractionModal() {
             if (selectedObjects.length !== 1) {
-                showNotification('请先选择一个对象', 'info');
+                showNotification(weT('event.notify.selectObjectFirst', '请先选择一个对象'), 'info');
                 return;
             }
             document.getElementById('interaction-modal').classList.add('show');
@@ -3630,7 +3743,7 @@
             const container = document.getElementById('modal-event-list');
             
             if (events.length === 0) {
-                container.innerHTML = '<div style="text-align: center; padding: 15px; color: #999; font-size: 11px;">暂无交互事件</div>';
+                container.innerHTML = '<div style="text-align: center; padding: 15px; color: #999; font-size: 11px;">' + weT('event.notify.listEmpty', '暂无交互事件') + '</div>';
                 return;
             }
             
@@ -3679,7 +3792,7 @@
             if (currentActionType === 'link') {
                 const linkUrl = document.getElementById('event-link-url').value.trim();
                 if (!linkUrl) {
-                    showNotification('请输入链接地址', 'error');
+                    showNotification(weT('event.notify.linkUrlRequired', '请输入链接地址'), 'error');
                     return;
                 }
                 eventConfig.linkUrl = linkUrl;
@@ -3699,7 +3812,7 @@
             
             closeInteractionModal();
             updateEventList();
-            showNotification('✅ 交互事件已保存', 'success');
+            showNotification(weT('event.notify.saved', '✅ 交互事件已保存'), 'success');
         }
 
         // 触发交互事件（当用户双击对象时）
@@ -3737,20 +3850,20 @@
                         video.muted = false;
                         video.play();
                         activeAudioMediaId = worldObj.id;
-                        showNotification('▶️🔊 视频播放', 'success');
+                        showNotification(weT('event.notify.videoPlaying', '▶️🔊 视频播放'), 'success');
                     });
                 } else if (video.muted) {
                     // 播放中但静音 → 开启声音
                     unlockAudio().then(() => {
                         video.muted = false;
                         activeAudioMediaId = worldObj.id;
-                        showNotification('🔊 声音已开启', 'success');
+                        showNotification(weT('event.notify.soundOn', '🔊 声音已开启'), 'success');
                     });
                 } else {
                     // 有声音 → 静音
                     video.muted = true;
                     activeAudioMediaId = null;
-                    showNotification('🔇 已静音', 'info');
+                    showNotification(weT('event.notify.muted', '🔇 已静音'), 'info');
                 }
             } catch(e) {
                 console.error('视频控制错误:', e);
@@ -3766,15 +3879,15 @@
                     break;
                 case 'video':
                     // 播放视频逻辑
-                    showNotification('🎬 播放视频: ' + (event.videoId || ''), 'info');
+                    showNotification(weTp('event.notify.actionVideo', {id: event.videoId || ''}, '🎬 播放视频: ' + (event.videoId || '')), 'info');
                     break;
                 case 'animation':
                     // 执行动画逻辑
-                    showNotification('✨ 触发动画', 'info');
+                    showNotification(weT('event.notify.actionAnimation', '✨ 触发动画'), 'info');
                     break;
                 case 'sound':
                     // 播放音效
-                    showNotification('🔊 播放音效', 'info');
+                    showNotification(weT('event.notify.actionSound', '🔊 播放音效'), 'info');
                     break;
             }
         }
@@ -3831,14 +3944,14 @@
                     // 更新数据
                     obj.data = { ...obj.data, ...updates };
                     
-                    showNotification('✅ 属性已更新', 'success');
+                    showNotification(weT('save.propsUpdated', '✅ 属性已更新'), 'success');
                     updateObjectList();
                 } else {
-                    showNotification('❌ 更新失败: ' + data.error, 'error');
+                    showNotification(weTp('save.updateFailed', {error: data.error}, '❌ 更新失败: ' + data.error), 'error');
                 }
             } catch (error) {
                 console.error('更新属性失败:', error);
-                showNotification('❌ 网络错误', 'error');
+                showNotification(weT('save.networkError', '❌ 网络错误'), 'error');
             }
         }
 
@@ -3873,14 +3986,14 @@
                 if (data.success) {
                     obj.data = { ...obj.data, ...updates };
                     console.log('✅ 对象变换已自动保存:', obj.data.name);
-                    showNotification('💾 已自动保存', 'success');
+                    showNotification(weT('save.autoSaved', '💾 已自动保存'), 'success');
                 } else {
                     console.error('❌ 自动保存失败:', data.error);
-                    showNotification('❌ 保存失败: ' + data.error, 'error');
+                    showNotification(weTp('save.saveFailed', {error: data.error}, '❌ 保存失败: ' + data.error), 'error');
                 }
             } catch (error) {
                 console.error('自动保存失败:', error);
-                showNotification('❌ 网络错误', 'error');
+                showNotification(weT('save.networkError', '❌ 网络错误'), 'error');
             }
         }
 
@@ -3961,7 +4074,7 @@
         // ===== 对象操作 =====
         async function copySelected() {
             if (selectedObjects.length === 0) {
-                showNotification('⚠️ 请先选择对象', 'info');
+                showNotification(weT('copy.selectObjectFirst', '⚠️ 请先选择对象'), 'info');
                 return;
             }
 
@@ -3979,21 +4092,21 @@
                     }
                 }
 
-                showNotification(`✅ 已复制 ${selectedObjects.length} 个对象`, 'success');
+                showNotification(weTp('copy.copied', {count: selectedObjects.length}, `✅ 已复制 ${selectedObjects.length} 个对象`), 'success');
                 await loadWorldObjects();
             } catch (error) {
                 console.error('复制失败:', error);
-                showNotification('❌ 复制失败: ' + error.message, 'error');
+                showNotification(weTp('copy.copyFailed', {error: error.message}, '❌ 复制失败: ' + error.message), 'error');
             }
         }
 
         async function deleteSelected() {
             if (selectedObjects.length === 0) {
-                showNotification('⚠️ 请先选择对象', 'info');
+                showNotification(weT('delete.selectObjectFirst', '⚠️ 请先选择对象'), 'info');
                 return;
             }
 
-            if (!confirm(`确定要删除 ${selectedObjects.length} 个对象吗？`)) {
+            if (!confirm(weTp('delete.confirm', {count: selectedObjects.length}, `确定要删除 ${selectedObjects.length} 个对象吗？`))) {
                 return;
             }
 
@@ -4018,14 +4131,14 @@
                     if (index >= 0) worldObjects.splice(index, 1);
                 });
 
-                showNotification(`✅ 已删除 ${selectedObjects.length} 个对象`, 'success');
+                showNotification(weTp('delete.deleted', {count: selectedObjects.length}, `✅ 已删除 ${selectedObjects.length} 个对象`), 'success');
                 selectedObjects = [];
                 updateSelection();
                 updateObjectList();
                 updateStats();
             } catch (error) {
                 console.error('删除失败:', error);
-                showNotification('❌ 删除失败: ' + error.message, 'error');
+                showNotification(weTp('delete.deleteFailed', {error: error.message}, '❌ 删除失败: ' + error.message), 'error');
             }
         }
 
@@ -4035,7 +4148,7 @@
 
         async function addObject(type) {
             // TODO: 实现添加对象功能
-            showNotification('🚧 该功能正在开发中...', 'info');
+            showNotification(weT('add.underDevelopment', '🚧 该功能正在开发中...'), 'info');
         }
 
         // ===== 对象列表 =====
@@ -4176,14 +4289,14 @@
             const listContainer = document.getElementById('scene-object-list');
             
             if (worldObjects.length === 0) {
-                listContainer.innerHTML = '<div class="loading">暂无对象</div>';
+                listContainer.innerHTML = '<div class="loading">' + weT('list.noObjects', '暂无对象') + '</div>';
                 return;
             }
 
             listContainer.innerHTML = worldObjects.map(obj => {
                 const isSelected = selectedObjects.includes(obj);
                 const type = obj.data?.type || 'unknown';
-                const name = obj.data?.name || `对象 #${obj.id}`;
+                const name = obj.data?.name || weT('props.objectPrefix', '对象 #') + obj.id;
                 const icon = getObjectIcon(type);
                 
                 return `
@@ -4198,8 +4311,8 @@
                             </div>
                         </div>
                         <div class="obj-actions">
-                            <button class="action-btn" onclick="downloadObject(${obj.id}); event.stopPropagation();" title="落地">📍</button>
-                            <button class="action-btn delete" onclick="deleteObjectById(${obj.id}); event.stopPropagation();" title="删除">🗑️</button>
+                            <button class="action-btn" onclick="downloadObject(${obj.id}); event.stopPropagation();" title="${weT('list.actionPlace', '落地')}">📍</button>
+                            <button class="action-btn delete" onclick="deleteObjectById(${obj.id}); event.stopPropagation();" title="${weT('list.actionDelete', '删除')}">🗑️</button>
                         </div>
                     </div>
                 `;
@@ -4231,7 +4344,7 @@
                 listContainer.innerHTML = `
                     <div style="text-align: center; padding: 30px 15px; color: rgba(255,255,255,0.5);">
                         <div style="font-size: 32px; margin-bottom: 10px;">📭</div>
-                        <div style="font-size: 12px;">暂无场景对象</div>
+                        <div style="font-size: 12px;">${weT('list.rightEmpty', '暂无场景对象')}</div>
                     </div>
                 `;
                 countEl.textContent = '0';
@@ -4241,7 +4354,7 @@
             listContainer.innerHTML = worldObjects.map(obj => {
                 const isSelected = selectedObjects.includes(obj);
                 const type = obj.data?.type || 'unknown';
-                const name = obj.data?.name || `对象 #${obj.id}`;
+                const name = obj.data?.name || weT('props.objectPrefix', '对象 #') + obj.id;
                 const icon = getObjectIcon(type);
 
                 return `
@@ -4254,8 +4367,8 @@
                             <div class="right-object-type">${type.toUpperCase()} · ID: ${obj.id}</div>
                         </div>
                         <div class="right-object-actions">
-                            <button class="right-object-btn locate" onclick="focusObjectRightPanel(${obj.id}); event.stopPropagation();" title="定位">📍</button>
-                            <button class="right-object-btn delete" onclick="deleteObjectByIdRightPanel(${obj.id}); event.stopPropagation();" title="删除">🗑️</button>
+                            <button class="right-object-btn locate" onclick="focusObjectRightPanel(${obj.id}); event.stopPropagation();" title="${weT('list.actionLocate', '定位')}">📍</button>
+                            <button class="right-object-btn delete" onclick="deleteObjectByIdRightPanel(${obj.id}); event.stopPropagation();" title="${weT('list.actionDelete', '删除')}">🗑️</button>
                         </div>
                     </div>
                 `;
@@ -4334,7 +4447,7 @@
             // 更新UI
             updateObjectList();
             updateStats();
-            showNotification('✅ 对象已删除', 'success');
+            showNotification(weT('list.objectDeleted', '✅ 对象已删除'), 'success');
         }
 
         // 右侧面板全选
@@ -4354,10 +4467,10 @@
         // 右侧面板删除选中对象
         function deleteAllSelectedRightPanel() {
             if (selectedObjects.length === 0) {
-                showNotification('请先选择要删除的对象', 'warning');
+                showNotification(weT('list.selectDeleteFirst', '请先选择要删除的对象'), 'warning');
                 return;
             }
-            if (confirm(`确定要删除选中的 ${selectedObjects.length} 个对象吗？`)) {
+            if (confirm(weTp('list.confirmDeleteSelected', {count: selectedObjects.length}, `确定要删除选中的 ${selectedObjects.length} 个对象吗？`))) {
                 selectedObjects.forEach(obj => {
                     if (obj.mesh) scene.remove(obj.mesh);
                     deleteWorldObject(obj.id);
@@ -4366,7 +4479,7 @@
                 updateSelection();
                 updateObjectList();
                 updateRightObjectList();
-                showNotification(`已删除 ${selectedObjects.length} 个对象`, 'success');
+                showNotification(weTp('list.deletedSelected', {count: selectedObjects.length}, `已删除 ${selectedObjects.length} 个对象`), 'success');
             }
         }
 
@@ -4507,7 +4620,7 @@
         // 应用右侧面板属性更改
         function applyRightPanelProps() {
             if (selectedObjects.length !== 1) {
-                showNotification('请选择一个对象', 'warning');
+                showNotification(weT('save.selectOneObject', '请选择一个对象'), 'warning');
                 return;
             }
 
@@ -4566,7 +4679,7 @@
                     console.log('🎬 视频属性已应用到元素:', videoProps);
                 }
                 
-                showNotification('✅ 属性已更新（包含视频设置）', 'success');
+                showNotification(weT('save.propsUpdatedVideo', '✅ 属性已更新（包含视频设置）'), 'success');
             }
 
             // 同步到transformControls
@@ -4577,7 +4690,7 @@
             // 保存到数据库
             saveObjectToDatabase(obj);
 
-            showNotification('✅ 属性已更新', 'success');
+            showNotification(weT('save.propsUpdated', '✅ 属性已更新'), 'success');
         }
 
         // 收起/展开右侧面板
@@ -4623,10 +4736,10 @@
                         position_z: obj.mesh.position.z
                     })
                 }).then(() => {
-                    showNotification(`已落地：${obj.data.name || '对象'}`, 'success');
+                    showNotification(weTp('place.landed', {name: obj.data.name || '对象'}, `已落地：${obj.data.name || '对象'}`), 'success');
                 }).catch(err => {
                     console.error('落地失败:', err);
-                    showNotification('落地失败', 'error');
+                    showNotification(weT('place.landFailed', '落地失败'), 'error');
                 });
             }
         }
@@ -4715,13 +4828,13 @@
             countElement.textContent = uploadedModels.length;
 
             if (uploadedModels.length === 0) {
-                listContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: #999; font-size: 13px;">暂无上传的模型</div>';
+                listContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: #999; font-size: 13px;">' + weT('list.noUploadedModels', '暂无上传的模型') + '</div>';
                 return;
             }
 
             listContainer.innerHTML = uploadedModels.map(model => {
-                const displayName = model.display_name || model.fileName || model.file_name || '未知文件';
-                const fileName = model.fileName || model.file_name || '未知文件';
+                const displayName = model.display_name || model.fileName || model.file_name || weT('list.unknownFile', '未知文件');
+                const fileName = model.fileName || model.file_name || weT('list.unknownFile', '未知文件');
                 const fileType = fileName.split('.').pop().toUpperCase();
                 const escapedDisplay = escapeHtml(displayName);
                 const escapedFile = escapeHtml(fileName);
@@ -4735,10 +4848,10 @@
                          ondragstart="onModelDragStart(event, '${model.path}', '${escapedDisplay}')">
                         <div class="object-info">
                             <div class="object-name" title="${escapedFile}">${escapedDisplay}</div>
-                            <div class="object-type">类型: ${fileType} | 点击或拖拽到画布</div>
+                            <div class="object-type">${weTp('list.modelTypeHint', {type: fileType}, '类型: ' + fileType + ' | 点击或拖拽到画布')}</div>
                         </div>
                         <div class="object-actions">
-                            <button class="icon-btn" onclick="deleteUploadedModel('${model.id}'); event.stopPropagation();" title="删除">🗑️</button>
+                            <button class="icon-btn" onclick="deleteUploadedModel('${model.id}'); event.stopPropagation();" title="${weT('list.actionDelete', '删除')}">🗑️</button>
                         </div>
                     </div>
                 `;
@@ -4785,7 +4898,7 @@
                     let modelData = dragModelData;
                     let codeData = (typeof getThreejsDragData === 'function') ? getThreejsDragData() : null;
                     if (!modelData && !codeData && e.dataTransfer.files.length > 0) {
-                        showNotification('请从左侧已上传列表中拖拽模型', 'warning');
+                        showNotification(weT('uploadedModels.dragFromList', '请从左侧已上传列表中拖拽模型'), 'warning');
                         return;
                     }
                     
@@ -4798,7 +4911,7 @@
                     }
                 } catch (err) {
                     console.error('拖放失败:', err);
-                    showNotification('添加失败: ' + err.message, 'error');
+                    showNotification(weTp('uploadedModels.addFailedWithError', {message: err.message}, '添加失败: ' + err.message), 'error');
                 }
                 
                 dragModelData = null;
@@ -4815,9 +4928,9 @@
             
             // 检查文件数量
             if (files.length > 20) {
-                statusElement.innerHTML = '❌ 最多只能同时上传20个文件';
+                statusElement.innerHTML = weT('uploadedModels.maxFilesLimitStatus', '❌ 最多只能同时上传20个文件');
                 statusElement.style.color = '#f44336';
-                showNotification('最多只能同时上传20个文件', 'warning');
+                showNotification(weT('uploadedModels.maxFilesLimit', '最多只能同时上传20个文件'), 'warning');
                 event.target.value = '';
                 return;
             }
@@ -4834,19 +4947,19 @@
 
         // 单文件上传
         async function uploadSingleModel(file, statusElement, event) {
-            statusElement.innerHTML = '<div class="loading-spinner" style="display: inline-block; margin-right: 8px;"></div>上传中...';
+            statusElement.innerHTML = '<div class="loading-spinner" style="display: inline-block; margin-right: 8px;"></div>' + weT('uploadedModels.uploading', '上传中...');
             statusElement.style.color = '#667eea';
 
             try {
                 // 验证文件大小（50MB）
                 if (file.size > 50 * 1024 * 1024) {
-                    throw new Error('文件大小超过50MB限制');
+                    throw new Error(weT('uploadedModels.fileTooLarge50', '文件大小超过50MB限制'));
                 }
 
                 // 验证文件类型
                 const ext = file.name.split('.').pop().toLowerCase();
                 if (!['glb', 'gltf', 'obj', 'zip'].includes(ext)) {
-                    throw new Error('不支持的文件格式，请上传 GLB、GLTF 或 ZIP 文件');
+                    throw new Error(weT('uploadedModels.unsupportedFormat', '不支持的文件格式，请上传 GLB、GLTF 或 ZIP 文件'));
                 }
 
                 const displayName = document.getElementById('upload-model-name')?.value?.trim() || '';
@@ -4863,7 +4976,7 @@
 
                 if (!response.ok) {
                     const errorText = await response.text();
-                    let errorMsg = '上传失败';
+                    let errorMsg = weT('uploadedModels.uploadFailed', '上传失败');
                     try {
                         const errorJson = JSON.parse(errorText);
                         errorMsg = errorJson.error || errorJson.details || errorMsg;
@@ -4876,14 +4989,14 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    statusElement.innerHTML = '✅ 上传成功！';
+                    statusElement.innerHTML = weT('uploadedModels.uploadSuccess', '✅ 上传成功！');
                     statusElement.style.color = '#4CAF50';
                     
                     // 添加到列表
                     uploadedModels.push(result.model);
                     updateUploadedModelsList();
                     
-                    showNotification('✅ 模型上传成功！点击模型添加到场景', 'success');
+                    showNotification(weT('uploadedModels.uploadSuccessHint', '✅ 模型上传成功！点击模型添加到场景'), 'success');
 
                     setTimeout(() => {
                         statusElement.innerHTML = '';
@@ -4892,13 +5005,13 @@
                     // 清空文件选择
                     event.target.value = '';
                 } else {
-                    throw new Error(result.error || result.details || '上传失败');
+                    throw new Error(result.error || result.details || weT('uploadedModels.uploadFailed', '上传失败'));
                 }
             } catch (error) {
                 console.error('上传失败:', error);
                 statusElement.innerHTML = '❌ ' + error.message;
                 statusElement.style.color = '#f44336';
-                showNotification('上传失败: ' + error.message, 'error');
+                showNotification(weTp('uploadedModels.uploadFailedWithError', {message: error.message}, '上传失败: ' + error.message), 'error');
                 
                 // 清空文件选择
                 event.target.value = '';
@@ -4907,7 +5020,8 @@
 
         // 批量上传
         async function uploadMultipleModels(files, statusElement, event) {
-            statusElement.innerHTML = `<div class="loading-spinner" style="display: inline-block; margin-right: 8px;"></div>批量上传中 (0/${files.length})...`;
+            const batchUploadStatus = weTp('uploadedModels.batchUploading', { total: files.length }, '批量上传中 (0/' + files.length + ')...');
+            statusElement.innerHTML = `<div class="loading-spinner" style="display: inline-block; margin-right: 8px;"></div>${batchUploadStatus}`;
             statusElement.style.color = '#667eea';
 
             try {
@@ -4915,13 +5029,13 @@
                 for (const file of files) {
                     // 验证文件大小（50MB）
                     if (file.size > 50 * 1024 * 1024) {
-                        throw new Error(`文件 ${file.name} 大小超过50MB限制`);
+                        throw new Error(weTp('uploadedModels.fileTooLarge50WithName', { name: file.name }, '文件 ' + file.name + ' 大小超过50MB限制'));
                     }
 
                     // 验证文件类型
                     const ext = file.name.split('.').pop().toLowerCase();
                     if (!['glb', 'gltf', 'obj', 'zip'].includes(ext)) {
-                        throw new Error(`文件 ${file.name} 格式不支持`);
+                        throw new Error(weTp('uploadedModels.unsupportedFormatWithName', { name: file.name }, '文件 ' + file.name + ' 格式不支持'));
                     }
                 }
 
@@ -4946,7 +5060,7 @@
 
                 if (!response.ok) {
                     const errorText = await response.text();
-                    let errorMsg = '批量上传失败';
+                    let errorMsg = weT('uploadedModels.batchUploadFailed', '批量上传失败');
                     try {
                         const errorJson = JSON.parse(errorText);
                         errorMsg = errorJson.error || errorJson.details || errorMsg;
@@ -4973,9 +5087,9 @@
                     }
                     
                     // 显示详细结果
-                    let message = `✅ 成功上传 ${result.successCount} 个模型`;
+                    let message = weTp('uploadedModels.batchSuccess', { count: result.successCount }, '✅ 成功上传 ' + result.successCount + ' 个模型');
                     if (result.errorCount > 0) {
-                        message += `\n⚠️ ${result.errorCount} 个文件失败`;
+                        message += weTp('uploadedModels.batchFailCount', { count: result.errorCount }, '\n⚠️ ' + result.errorCount + ' 个文件失败');
                         if (result.errors && result.errors.length > 0) {
                             message += ':\n' + result.errors.map(e => `- ${e.fileName}: ${e.error}`).join('\n');
                         }
@@ -4989,13 +5103,13 @@
                     // 清空文件选择
                     event.target.value = '';
                 } else {
-                    throw new Error(result.message || '批量上传失败');
+                    throw new Error(result.message || weT('uploadedModels.batchUploadFailed', '批量上传失败'));
                 }
             } catch (error) {
                 console.error('批量上传失败:', error);
                 statusElement.innerHTML = '❌ ' + error.message;
                 statusElement.style.color = '#f44336';
-                showNotification('批量上传失败: ' + error.message, 'error');
+                showNotification(weTp('uploadedModels.batchUploadFailedWithError', {message: error.message}, '批量上传失败: ' + error.message), 'error');
                 
                 // 清空文件选择
                 event.target.value = '';
@@ -5005,7 +5119,7 @@
         // 将上传的模型添加到场景
         async function addUploadedModelToScene(modelPath, modelName) {
             try {
-                showNotification('正在添加模型到场景...', 'info');
+                showNotification(weT('uploadedModels.addingToScene', '正在添加模型到场景...'), 'info');
 
                 // 确定文件类型
                 const ext = modelPath.split('.').pop().toLowerCase();
@@ -5044,7 +5158,7 @@
 
                 if (!response.ok) {
                     const errData = await response.json().catch(() => ({}));
-                    const detail = (errData && errData.details) ? errData.details : (errData.error || '添加失败');
+                    const detail = (errData && errData.details) ? errData.details : (errData.error || weT('uploadedModels.addFailed', '添加失败'));
                     throw new Error(detail);
                 }
 
@@ -5065,17 +5179,19 @@
                     }, 300);
                 }
                 
-                showNotification('✅ 模型已添加到场景！', 'success');
+                showNotification(weT('uploadedModels.addedToScene', '✅ 模型已添加到场景！'), 'success');
 
             } catch (error) {
                 console.error('添加模型到场景失败:', error);
-                showNotification('添加失败: ' + error.message, 'error');
+                showNotification(weTp('uploadedModels.addFailedWithError', {message: error.message}, '添加失败: ' + error.message), 'error');
             }
         }
 
         // 删除已上传的模型
         async function deleteUploadedModel(modelId) {
-            if (!confirm('确定要删除这个模型吗？这不会删除场景中已放置的模型。')) {
+            const model = uploadedModels.find(m => m.id === modelId);
+            const modelName = model ? (model.display_name || model.fileName || model.file_name || '') : '';
+            if (!confirm(weTp('uploadedModels.confirmDelete', { name: modelName }, '确定要删除这个模型吗？这不会删除场景中已放置的模型。'))) {
                 return;
             }
 
@@ -5087,13 +5203,13 @@
                 if (response.ok) {
                     uploadedModels = uploadedModels.filter(m => m.id !== modelId);
                     updateUploadedModelsList();
-                    showNotification('模型已删除', 'success');
+                    showNotification(weT('uploadedModels.modelDeleted', '模型已删除'), 'success');
                 } else {
-                    throw new Error('删除失败');
+                    throw new Error(weT('uploadedModels.deleteFailed', '删除失败'));
                 }
             } catch (error) {
                 console.error('删除模型失败:', error);
-                showNotification('删除失败: ' + error.message, 'error');
+                showNotification(weTp('uploadedModels.deleteFailedWithError', {message: error.message}, '删除失败: ' + error.message), 'error');
             }
         }
 
@@ -5126,6 +5242,18 @@
             setEditMode('select');
             initMediaLibrary(); // 初始化媒体库
             console.log('🌍 世界编辑器已启动');
+
+            // 初始化 i18n（不阻塞编辑器启动；翻译键由后续批次接入）
+            if (window.i18n) {
+                window.i18n.init().then(function() {
+                    applyTranslations();
+                    if (typeof updateObjectList === 'function') updateObjectList();
+                    if (typeof updateRightObjectList === 'function') updateRightObjectList();
+                    if (typeof updateUploadedModelsList === 'function') updateUploadedModelsList();
+                }).catch(function(err) {
+                    console.warn('[world_editor] i18n 初始化失败:', err);
+                });
+            }
         });
 
         // ===== 添加可编辑的出生点 =====
@@ -5221,8 +5349,13 @@
             iframe_bilibili: '📺', iframe_qq: '🟥', iframe_douyin: '🎵', iframe_youtube: '▶️'
         };
         const MEDIA_TYPE_LABELS = {
-            image: '图片', video_direct: '直链视频', video_hls: 'HLS直播流',
-            iframe_bilibili: 'B站视频', iframe_qq: '腾讯视频', iframe_douyin: '抖音视频', iframe_youtube: 'YouTube'
+            get image() { return weT('mediaType.image', '图片'); },
+            get video_direct() { return weT('mediaType.videoDirect', '直链视频'); },
+            get video_hls() { return weT('mediaType.videoHls', 'HLS直播流'); },
+            get iframe_bilibili() { return weT('mediaType.bilibili', 'B站视频'); },
+            get iframe_qq() { return weT('mediaType.qq', '腾讯视频'); },
+            get iframe_douyin() { return weT('mediaType.douyin', '抖音视频'); },
+            get iframe_youtube() { return weT('mediaType.youtube', 'YouTube'); }
         };
 
         // ===== 抽屉导航面板切换 =====
@@ -5339,11 +5472,11 @@
             const validFiles = [];
             for (const f of files) {
                 if (f.size > 1 * 1024 * 1024) {
-                    showNotification(`❌ "${f.name}" 超过1MB，已跳过`, 'error');
+                    showNotification(weTp('imageLib.tooLargeSkipped', { name: f.name }, '❌ "' + f.name + '" 超过1MB，已跳过'), 'error');
                     continue;
                 }
                 if (!f.type.startsWith('image/')) {
-                    showNotification(`❌ "${f.name}" 不是图片格式`, 'error');
+                    showNotification(weTp('imageLib.notImageSkipped', { name: f.name }, '❌ "' + f.name + '" 不是图片格式'), 'error');
                     continue;
                 }
                 validFiles.push(f);
@@ -5355,8 +5488,9 @@
             validFiles.forEach(f => formData.append('images', f));
 
             // 显示进度条
+            const uploadingText = weTp('imageLib.uploadingCount', { count: validFiles.length }, '上传 ' + validFiles.length + ' 张图片...');
             progressEl.innerHTML = `<div class="upload-progress-item">
-                <span>上传 ${validFiles.length} 张图片...</span>
+                <span>${uploadingText}</span>
                 <div class="upload-progress-bar"><div class="upload-progress-fill" id="img-prog-fill" style="width:10%"></div></div>
             </div>`;
 
@@ -5376,7 +5510,7 @@
 
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
-                    throw new Error(err.error || '上传失败');
+                    throw new Error(err.error || weT('imageLib.uploadFailed', '上传失败'));
                 }
                 const data = await res.json();
 
@@ -5396,11 +5530,11 @@
                 saveMediaLibrary();
                 renderImageLibrary();
                 renderMediaGrid();
-                showNotification(`✅ 成功上传 ${data.images.length} 张图片`, 'success');
+                showNotification(weTp('imageLib.uploadSuccessCount', { count: data.images.length }, '✅ 成功上传 ' + data.images.length + ' 张图片'), 'success');
                 setTimeout(() => { progressEl.innerHTML = ''; }, 2000);
 
             } catch(e) {
-                showNotification('❌ 上传失败: ' + e.message, 'error');
+                showNotification(weTp('imageLib.uploadFailedWithError', { message: e.message }, '❌ 上传失败: ' + e.message), 'error');
                 progressEl.innerHTML = '';
             }
         }
@@ -5410,13 +5544,13 @@
             const badge = document.getElementById('img-url-detect');
             if (!url.trim()) { badge.style.display = 'none'; return; }
             if (/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(url) || url.startsWith('data:image')) {
-                badge.textContent = '✅ 图片直链';
+                badge.textContent = weT('imageLib.urlBadgeDirect', '✅ 图片直链');
                 badge.className = 'url-detect-badge';
             } else if (/^https?:\/\//i.test(url)) {
-                badge.textContent = 'ℹ️ 将尝试作为图片加载';
+                badge.textContent = weT('imageLib.urlBadgeTryLoad', 'ℹ️ 将尝试作为图片加载');
                 badge.className = 'url-detect-badge info';
             } else {
-                badge.textContent = '⚠️ 请输入有效的HTTP/HTTPS链接';
+                badge.textContent = weT('imageLib.urlBadgeInvalid', '⚠️ 请输入有效的HTTP/HTTPS链接');
                 badge.className = 'url-detect-badge error';
             }
             badge.style.display = 'inline-block';
@@ -5424,9 +5558,9 @@
 
         function addImageFromUrl() {
             const url = document.getElementById('img-url-input').value.trim();
-            if (!url) { showNotification('请输入图片URL', 'error'); return; }
+            if (!url) { showNotification(weT('imageLib.enterImageUrl', '请输入图片URL'), 'error'); return; }
             if (!/^https?:\/\//i.test(url) && !url.startsWith('data:image')) {
-                showNotification('请输入有效的HTTP/HTTPS链接', 'error'); return;
+                showNotification(weT('imageLib.invalidUrl', '请输入有效的HTTP/HTTPS链接'), 'error'); return;
             }
             const name = url.split('/').pop().split('?')[0] || '图片';
             const item = {
@@ -5444,7 +5578,7 @@
             renderMediaGrid();
             document.getElementById('img-url-input').value = '';
             document.getElementById('img-url-detect').style.display = 'none';
-            showNotification('✅ 图片已添加到媒体库', 'success');
+            showNotification(weT('imageLib.addedToLibrary', '✅ 图片已添加到媒体库'), 'success');
         }
 
         // ===== 视频URL识别 =====
@@ -5453,10 +5587,10 @@
             if (!url.trim()) { badge.style.display = 'none'; return; }
             const type = classifyVideoUrl(url);
             if (type === 'unknown') {
-                badge.textContent = '⚠️ 无法识别，请检查链接';
+                badge.textContent = weT('videoLib.urlUnrecognized', '⚠️ 无法识别，请检查链接');
                 badge.className = 'url-detect-badge error';
             } else {
-                badge.textContent = '✅ 识别为: ' + (MEDIA_TYPE_LABELS[type] || type);
+                badge.textContent = weT('videoLib.urlRecognizedAs', '✅ 识别为: ') + (MEDIA_TYPE_LABELS[type] || type);
                 badge.className = 'url-detect-badge';
             }
             badge.style.display = 'inline-block';
@@ -5499,9 +5633,9 @@
 
         function addVideoFromUrl() {
             const url = document.getElementById('video-url-input').value.trim();
-            if (!url) { showNotification('请输入视频链接', 'error'); return; }
+            if (!url) { showNotification(weT('videoLib.enterVideoUrl', '请输入视频链接'), 'error'); return; }
             const mediaType = classifyVideoUrl(url);
-            if (mediaType === 'unknown') { showNotification('⚠️ 无法识别该链接，请检查', 'error'); return; }
+            if (mediaType === 'unknown') { showNotification(weT('videoLib.invalidVideoUrl', '⚠️ 无法识别该链接，请检查'), 'error'); return; }
 
             const embedUrl = toEmbedUrl(url, mediaType);
             const name = url.split('/').pop().split('?')[0].substring(0, 40) || (MEDIA_TYPE_LABELS[mediaType] + '-' + Date.now());
@@ -5522,7 +5656,7 @@
             renderMediaGrid();
             document.getElementById('video-url-input').value = '';
             document.getElementById('video-url-detect').style.display = 'none';
-            showNotification('✅ 视频已添加到媒体库', 'success');
+            showNotification(weT('videoLib.videoAdded', '✅ 视频已添加到媒体库'), 'success');
         }
 
         // ===== 视频上传（小视频直接上传） =====
@@ -5549,20 +5683,21 @@
             const progressEl = document.getElementById('video-upload-progress');
             
             if (file.size > 100 * 1024 * 1024) {
-                showNotification(`❌ 文件超过100MB，请使用"大视频导入"功能`, 'error');
+                showNotification(weT('videoLib.fileTooLarge100', '❌ 文件超过100MB，请使用"大视频导入"功能'), 'error');
                 return;
             }
             if (!file.type.startsWith('video/')) {
-                showNotification(`❌ 不是视频格式`, 'error');
+                showNotification(weT('videoLib.notVideoFormat', '❌ 不是视频格式'), 'error');
                 return;
             }
 
             const defaultName = file.name.replace(/\.[^/.]+$/, '');
-            const name = prompt('请输入视频名称:', defaultName);
-            if (!name || !name.trim()) { showNotification('已取消', 'info'); return; }
-            const tags = prompt('输入标签(可选，用逗号分隔):', '') || '';
+            const name = prompt(weT('videoLib.promptVideoName', '请输入视频名称:'), defaultName);
+            if (!name || !name.trim()) { showNotification(weT('videoLib.cancelled', '已取消'), 'info'); return; }
+            const tags = prompt(weT('videoLib.promptTags', '输入标签(可选，用逗号分隔):'), '') || '';
 
-            progressEl.innerHTML = `<div class="upload-progress-item"><span>正在上传: ${file.name}...</span><div class="upload-progress-bar"><div class="upload-progress-fill" id="vid-prog-fill" style="width:0%"></div></div></div>`;
+            const uploadingVideoText = weTp('videoLib.uploadingVideo', { name: file.name }, '正在上传: ' + file.name + '...');
+            progressEl.innerHTML = `<div class="upload-progress-item"><span>${uploadingVideoText}</span><div class="upload-progress-bar"><div class="upload-progress-fill" id="vid-prog-fill" style="width:0%"></div></div></div>`;
 
             const formData = new FormData();
             formData.append('video', file);
@@ -5582,25 +5717,26 @@
                         if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
                         else reject(new Error(xhr.statusText));
                     });
-                    xhr.addEventListener('error', () => reject(new Error('网络错误')));
+                    xhr.addEventListener('error', () => reject(new Error(weT('videoLib.networkError', '网络错误'))));
                     xhr.open('POST', '/api/media/upload-video');
                     xhr.send(formData);
                 });
 
-                progressEl.innerHTML = `<div class="upload-progress-item success"><span>✅ 上传成功!</span></div>`;
-                showNotification(`✅ 视频 "${name}" 上传成功!`, 'success');
+                progressEl.innerHTML = `<div class="upload-progress-item success"><span>${weT('videoLib.uploadSuccess', '✅ 上传成功!')}</span></div>`;
+                showNotification(weTp('videoLib.uploadSuccessWithName', { name: name }, '✅ 视频 "' + name + '" 上传成功!'), 'success');
                 loadLocalVideos();
                 setTimeout(() => { progressEl.innerHTML = ''; }, 3000);
             } catch (err) {
-                progressEl.innerHTML = `<div class="upload-progress-item error"><span>❌ 失败: ${err.message}</span></div>`;
-                showNotification(`❌ 上传失败: ${err.message}`, 'error');
+                const uploadFailText = weTp('videoLib.uploadFailWithError', { message: err.message }, '❌ 失败: ' + err.message);
+                progressEl.innerHTML = `<div class="upload-progress-item error"><span>${uploadFailText}</span></div>`;
+                showNotification(weTp('videoLib.uploadFailedWithError', { message: err.message }, '❌ 上传失败: ' + err.message), 'error');
             }
         }
 
         // ===== 扫描目录 - 大视频入库 =====
         async function scanVideoDirectory() {
             const resultEl = document.getElementById('new-video-scan-result');
-            resultEl.innerHTML = '<div style="text-align:center; padding:15px;"><span class="loading-spinner"></span> 正在扫描目录...</div>';
+            resultEl.innerHTML = '<div style="text-align:center; padding:15px;"><span class="loading-spinner"></span> ' + weT('videoLib.scanning', '正在扫描目录...') + '</div>';
 
             try {
                 const res = await fetch('/api/media/videos/scan');
@@ -5612,20 +5748,21 @@
                 }
 
                 if (data.newVideos.length === 0) {
-                    resultEl.innerHTML = '<div style="text-align:center; padding:12px; color:#52c41a; font-size:12px;">✅ 目录中没有发现新视频</div>';
+                    resultEl.innerHTML = '<div style="text-align:center; padding:12px; color:#52c41a; font-size:12px;">' + weT('videoLib.noNewVideos', '✅ 目录中没有发现新视频') + '</div>';
                     return;
                 }
 
+                const foundNewText = weTp('videoLib.foundNewVideos', { count: data.newVideos.length }, '📦 发现 ' + data.newVideos.length + ' 个新视频文件:');
                 let html = `
                     <div style="margin-top:10px; font-size:12px; color:#1890ff; font-weight:600;">
-                        📦 发现 ${data.newVideos.length} 个新视频文件:
+                        ${foundNewText}
                     </div>
                     <div style="max-height:300px; overflow-y:auto; margin-top:5px;">
                         <table style="width:100%; font-size:11px; border-collapse:collapse;">
                             <thead><tr style="background:#f5f5f5;">
-                                <th style="padding:6px; text-align:left;">文件名</th>
-                                <th style="padding:6px; text-align:right;">大小</th>
-                                <th style="padding:6px; text-align:center;">操作</th>
+                                <th style="padding:6px; text-align:left;">${weT('videoLib.colFilename', '文件名')}</th>
+                                <th style="padding:6px; text-align:right;">${weT('videoLib.colSize', '大小')}</th>
+                                <th style="padding:6px; text-align:center;">${weT('videoLib.colAction', '操作')}</th>
                             </tr></thead>
                             <tbody>
                 `;
@@ -5640,7 +5777,7 @@
                             <td style="padding:6px; text-align:center;">
                                 <button onclick="registerVideo('${escapeHtml(v.filename).replace(/'/g, "\\'")}', '${escapeHtml(v.originalName).replace(/'/g, "\\'")}', ${idx})"
                                         style="padding:4px 12px; background:#52c41a; color:white; border:none; border-radius:4px; cursor:pointer; font-size:11px;">
-                                    ✅ 入库
+                                    ${weT('videoLib.registerBtn', '✅ 入库')}
                                 </button>
                             </td>
                         </tr>
@@ -5650,21 +5787,23 @@
                 html += '</tbody></table></div>';
                 resultEl.innerHTML = html;
 
-                showNotification(`📦 发现 ${data.newVideos.length} 个新视频`, 'info');
+                showNotification(weTp('videoLib.foundNewVideosNotify', { count: data.newVideos.length }, '📦 发现 ' + data.newVideos.length + ' 个新视频'), 'info');
 
             } catch (err) {
-                resultEl.innerHTML = `<div style="color:red; padding:10px;">❌ 扫描失败: ${err.message}</div>`;
+                const scanFailText = weTp('videoLib.scanFailed', { message: err.message }, '❌ 扫描失败: ' + err.message);
+                resultEl.innerHTML = `<div style="color:red; padding:10px;">${scanFailText}</div>`;
             }
         }
 
         // 注册入库 - 弹窗填写信息
         async function registerVideo(filename, originalName, rowIdx) {
-            const name = prompt(`请输入视频名称:\n(文件: ${originalName})`, originalName);
+            const namePromptLabel = weTp('videoLib.promptVideoNameWithFile', { name: originalName }, '请输入视频名称:\n(文件: ' + originalName + ')');
+            const name = prompt(namePromptLabel, originalName);
             if (name === null || !name.trim()) {
-                showNotification('已取消', 'info');
+                showNotification(weT('videoLib.cancelled', '已取消'), 'info');
                 return;
             }
-            const tags = prompt(`输入标签(可选，用逗号分隔):\n例如: 产品介绍,宣传片`, '') || '';
+            const tags = prompt(weT('videoLib.promptTagsWithExample', '输入标签(可选，用逗号分隔):\n例如: 产品介绍,宣传片'), '') || '';
 
             try {
                 const res = await fetch('/api/media/videos/register', {
@@ -5680,7 +5819,7 @@
                 const data = await res.json();
 
                 if (data.success) {
-                    showNotification(`✅ "${name}" 已加入视频库!`, 'success');
+                    showNotification(weTp('videoLib.registered', { name: name }, '✅ "' + name + '" 已加入视频库!'), 'success');
                     
                     const row = document.getElementById(`scan-row-${rowIdx}`);
                     if (row) row.style.display = 'none';
@@ -5690,7 +5829,7 @@
                     showNotification(`❌ ${data.error}`, 'error');
                 }
             } catch (err) {
-                showNotification(`❌ 注册失败: ${err.message}`, 'error');
+                showNotification(weTp('videoLib.registerFailed', { message: err.message }, '❌ 注册失败: ' + err.message), 'error');
             }
         }
 
@@ -5704,7 +5843,7 @@
                 const countEl = document.getElementById('local-video-count');
                 
                 if (!data.success || !data.videos || data.videos.length === 0) {
-                    grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:15px; color:#999; font-size:12px;">暂无视频，请上传或导入</div>';
+                    grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:15px; color:#999; font-size:12px;">' + weT('videoLib.noLocalVideos', '暂无视频，请上传或导入') + '</div>';
                     countEl.textContent = '0';
                     return;
                 }
@@ -5722,19 +5861,19 @@
                             <video src="${v.url}#t=0.001" muted playsinline preload="auto"
                                    style="width:100%;height:100%;object-fit:cover;display:block;"
                                    onloadstart="this.currentTime=0.001;this.pause()"
-                                   onerror="this.style.display='none'; this.parentElement.innerHTML='❌ 视频加载失败';">
+                                   onerror="this.style.display='none'; this.parentElement.innerHTML='${weT('mediaLib.videoLoadFailed', '❌ 视频加载失败')}';">
                             </video>
                             <span style="position:absolute;bottom:2px;right:2px;font-size:8px;background:rgba(0,0,0,0.6);color:white;padding:1px 4px;border-radius:3px;">${formatSize(v.size)}</span>
                         </div>
                         <div class="media-info">
                             <div class="media-name" title="${escapeHtml(v.name || '')}" style="font-size:11px;">${escapeHtml(v.name || '')}</div>
                             ${tagsHtml ? `<div style="margin-top:3px;">${tagsHtml}</div>` : ''}
-                            <div style="font-size:9px; color:#aaa; margin-top:2px;">${isLocal ? '本地' : '在线'}</div>
+                            <div style="font-size:9px; color:#aaa; margin-top:2px;">${isLocal ? weT('mediaLib.local', '本地') : weT('mediaLib.online', '在线')}</div>
                         </div>
                         <div class="media-actions">
-                            <button class="btn-add-scene" onclick="addLocalVideoToScene('${v.id}')" title="添加到场景">➕</button>
-                            <button class="btn-edit-media" onclick="editVideoInfo('${v.id}', '${escapeHtml(v.name || '').replace(/'/g, "\\'")}', '${escapeHtml(v.tags || '').replace(/'/g, "\\'")}')" title="编辑">✏️</button>
-                            <button class="btn-del-media" onclick="deleteLocalVideo('${v.id}', event)" title="删除">🗑️</button>
+                            <button class="btn-add-scene" onclick="addLocalVideoToScene('${v.id}')" title="${weT('mediaLib.addToScene', '添加到场景')}">➕</button>
+                            <button class="btn-edit-media" onclick="editVideoInfo('${v.id}', '${escapeHtml(v.name || '').replace(/'/g, "\\'")}', '${escapeHtml(v.tags || '').replace(/'/g, "\\'")}')" title="${weT('mediaLib.edit', '编辑')}">✏️</button>
+                            <button class="btn-del-media" onclick="deleteLocalVideo('${v.id}', event)" title="${weT('mediaLib.delete', '删除')}">🗑️</button>
                         </div>
                     </div>
                 `}).join('');
@@ -5770,7 +5909,7 @@
                             }
                             
                             startPlaceMedia(item.id);
-                            showNotification(`✅ 已添加: ${video.name}`, 'success');
+                            showNotification(weTp('mediaLib.addedWithName', { name: video.name }, '✅ 已添加: ' + video.name), 'success');
                         }
                     }
                 });
@@ -5778,10 +5917,10 @@
 
         // 编辑视频信息
         function editVideoInfo(id, currentName, currentTags) {
-            const name = prompt('修改视频名称:', currentName);
+            const name = prompt(weT('videoLib.promptEditName', '修改视频名称:'), currentName);
             if (name === null) return;
             
-            const tags = prompt('修改标签(用逗号分隔):', currentTags) || '';
+            const tags = prompt(weT('videoLib.promptEditTags', '修改标签(用逗号分隔):'), currentTags) || '';
             
             fetch(`/api/media/videos/${id}`, {
                 method: 'PUT',
@@ -5790,7 +5929,7 @@
             })
             .then(r => r.json())
             .then(d => {
-                if (d.success) { showNotification('✅ 已更新', 'success'); loadLocalVideos(); }
+                if (d.success) { showNotification(weT('videoLib.updated', '✅ 已更新'), 'success'); loadLocalVideos(); }
                 else showNotification(`❌ ${d.error}`, 'error');
             });
         }
@@ -5798,12 +5937,12 @@
         // 删除视频
         function deleteLocalVideo(id, event) {
             event?.stopPropagation();
-            if (!confirm('确定删除此视频？此操作不可恢复！')) return;
+            if (!confirm(weT('videoLib.confirmDeleteVideo', '确定删除此视频？此操作不可恢复！'))) return;
             
             fetch(`/api/media/videos/${id}`, { method: 'DELETE' })
                 .then(r => r.json())
                 .then(d => {
-                    if (d.success) { showNotification('✅ 已删除', 'success'); loadLocalVideos(); }
+                    if (d.success) { showNotification(weT('videoLib.deleted', '✅ 已删除'), 'success'); loadLocalVideos(); }
                     else showNotification(`❌ ${d.error}`, 'error');
                 });
         }
@@ -5824,7 +5963,7 @@
             document.getElementById('img-count').textContent = images.length;
 
             if (images.length === 0) {
-                grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:15px; color:#999; font-size:12px;">暂无图片</div>';
+                grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:15px; color:#999; font-size:12px;">' + weT('mediaLib.noImages', '暂无图片') + '</div>';
                 return;
             }
 
@@ -5853,7 +5992,7 @@
             if (countEl) countEl.textContent = videos.length;
 
             if (videos.length === 0) {
-                grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:15px; color:#999; font-size:12px;">暂无视频</div>';
+                grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:15px; color:#999; font-size:12px;">' + weT('mediaLib.noVideos', '暂无视频') + '</div>';
                 return;
             }
 
@@ -5866,7 +6005,7 @@
                         <video src="${escapeHtml(item.url)}#t=0.001" muted playsinline preload="auto"
                                style="width:100%;height:100%;object-fit:cover;display:block;"
                                onloadstart="this.currentTime=0.001;this.pause()"
-                               onerror="this.style.display='none'; this.parentElement.innerHTML='❌ 视频加载失败';">
+                               onerror="this.style.display='none'; this.parentElement.innerHTML='${weT('mediaLib.videoLoadFailed', '❌ 视频加载失败')}';">
                         </video>
                     </div>
                     <span class="media-type-badge">${label}</span>
@@ -5904,7 +6043,7 @@
                 }
 
                 if (filtered.length === 0) {
-                    grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:20px; color:#999; font-size:13px;">暂无媒体</div>';
+                    grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:20px; color:#999; font-size:13px;">' + weT('mediaLib.noMedia', '暂无媒体') + '</div>';
                     return;
                 }
 
@@ -5919,7 +6058,7 @@
                               <video src="${escapeHtml(item.url)}#t=0.001" muted playsinline preload="auto"
                                      style="width:100%;height:100%;object-fit:cover;display:block;"
                                      onloadstart="this.currentTime=0.001;this.pause()"
-                                     onerror="this.style.display='none'; this.parentElement.innerHTML='❌ 视频加载失败';">
+                                     onerror="this.style.display='none'; this.parentElement.innerHTML='${weT('mediaLib.videoLoadFailed', '❌ 视频加载失败')}';">
                               </video>
                            </div>`;
 
@@ -5929,10 +6068,10 @@
                         <span class="media-type-badge">${label}</span>
                         <div class="media-info">
                             <div class="media-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
-                            <div class="media-meta">${sizeStr}${sizeStr ? ' · ' : ''}${item.source === 'upload' ? '本地上传' : '外部链接'}</div>
+                            <div class="media-meta">${sizeStr}${sizeStr ? ' · ' : ''}${item.source === 'upload' ? weT('mediaLib.localUpload', '本地上传') : weT('mediaLib.externalLink', '外部链接')}</div>
                         </div>
                         <div class="media-actions">
-                            <button class="btn-add-scene" onclick="startPlaceMedia('${escapeHtml(item.id)}')">➕ 移入场景</button>
+                            <button class="btn-add-scene" onclick="startPlaceMedia('${escapeHtml(item.id)}')">${weT('mediaLib.moveToScene', '➕ 移入场景')}</button>
                             <button class="btn-del-media" onclick="deleteMediaItem('${escapeHtml(item.id)}', event)">🗑️</button>
                         </div>
                     </div>`;
@@ -5957,7 +6096,7 @@
             event && event.stopPropagation();
             const item = mediaLibrary.find(m => m.id === id);
             if (!item) return;
-            if (!confirm(`删除 "${item.name}"？`)) return;
+            if (!confirm(weTp('mediaLib.confirmDelete', { name: item.name }, '删除 "' + item.name + '"？'))) return;
 
             // 如果是服务器上传的图片，同时删除服务器文件
             if (item.source === 'upload') {
@@ -5970,7 +6109,7 @@
             renderImageLibrary();
             renderVideoLibrary();
             renderMediaGrid();
-            showNotification('已删除', 'info');
+            showNotification(weT('mediaLib.deleted', '已删除'), 'info');
         }
 
         function formatFileSize(bytes) {
@@ -6017,7 +6156,7 @@
             }
 
             try {
-                showNotification('正在添加到场景...', 'info');
+                showNotification(weT('placeMedia.addingText', '正在添加到场景...'), 'info');
 
                 const res = await fetch('/api/world/objects', {
                     method: 'POST',
@@ -6041,7 +6180,7 @@
                 });
 
                 const data = await res.json();
-                if (!data.success) throw new Error(data.error || '保存失败');
+                if (!data.success) throw new Error(data.error || weT('placeMedia.saveFailedFallback', '保存失败'));
 
                 // 重新加载世界对象
                 await loadWorldObjects();
@@ -6051,10 +6190,10 @@
                 controls.target.set(x, y + h/2, z);
                 controls.update();
 
-                showNotification('✅ 媒体已添加到虚拟世界！', 'success');
+                showNotification(weT('placeMedia.addedText', '✅ 媒体已添加到虚拟世界！'), 'success');
 
             } catch(e) {
-                showNotification('❌ 添加失败: ' + e.message, 'error');
+                showNotification(weTp('placeMedia.addFailedWithError', { message: e.message }, '❌ 添加失败: ' + e.message), 'error');
             }
         }
 
@@ -6229,15 +6368,15 @@
                 });
 
                 const data = await res.json();
-                if (!data.success) throw new Error(data.error || '保存失败');
+                if (!data.success) throw new Error(data.error || weT('placeMedia.saveFailedFallback', '保存失败'));
 
                 // 移除预览，加载真实媒体对象
                 cancelMediaPlace();
                 await loadWorldObjects();
-                showNotification('✅ 媒体已添加到虚拟世界！', 'success');
+                showNotification(weT('placeMedia.addedText', '✅ 媒体已添加到虚拟世界！'), 'success');
 
             } catch(e) {
-                showNotification('❌ 保存失败: ' + e.message, 'error');
+                showNotification(weTp('placeMedia.saveFailedWithError', { message: e.message }, '❌ 保存失败: ' + e.message), 'error');
             }
         }
 
@@ -6459,10 +6598,10 @@
                 console.log('🎯 靠近媒体对象:', wObj ? `id=${wObj.id}, name=${wObj.data.name}, type=${wObj.data.type}` : '未找到');
                 if (wObj && wObj.data.type === 'media_video') {
                     const isIframe = (wObj.data.model_type || '').startsWith('iframe_');
-                    hud.innerHTML = `🎬 ${escapeHtml(wObj.data.name)} — 双击或按 <kbd style="background:rgba(255,255,255,0.2);padding:1px 5px;border-radius:3px;">F</kbd> 播放/控制`;
+                    hud.innerHTML = weTp('hud.videoHint', {name: escapeHtml(wObj.data.name)}, '🎬 ' + escapeHtml(wObj.data.name) + ' — 双击或按 <kbd style="background:rgba(255,255,255,0.2);padding:1px 5px;border-radius:3px;">F</kbd> 播放/控制');
                     hud.style.display = 'block';
                 } else if (wObj && wObj.data.type === 'media_image') {
-                    hud.innerHTML = `🖼️ ${escapeHtml(wObj.data.name)}`;
+                    hud.innerHTML = weTp('hud.imageName', {name: escapeHtml(wObj.data.name)}, '🖼️ ' + escapeHtml(wObj.data.name));
                     hud.style.display = 'block';
                 }
             } else if (!closestId) {
