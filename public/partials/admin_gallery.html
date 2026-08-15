@@ -11,19 +11,19 @@
 
 <div class="stats-grid" id="gallery-stats" style="display:none;">
   <div class="stat-card">
-    <div class="label">展区数量</div>
+    <div class="label" data-i18n="adminGallery.glStatFolders">展区数量</div>
     <div class="value" id="stat-folders">-</div>
   </div>
   <div class="stat-card">
-    <div class="label">照片数量</div>
+    <div class="label" data-i18n="adminGallery.glStatPhotos">照片数量</div>
     <div class="value" id="stat-photos">-</div>
   </div>
   <div class="stat-card">
-    <div class="label">视频数量</div>
+    <div class="label" data-i18n="adminGallery.glStatVideos">视频数量</div>
     <div class="value" id="stat-videos">-</div>
   </div>
   <div class="stat-card">
-    <div class="label">配置状态</div>
+    <div class="label" data-i18n="adminGallery.glStatStatus">配置状态</div>
     <div class="value" id="stat-status">未激活</div>
   </div>
 </div>
@@ -31,11 +31,11 @@
 <div style="display:flex;gap:16px;flex-wrap:wrap;">
   <!-- 左侧：基础配置 -->
   <div class="card" style="flex:1;min-width:360px;">
-    <div class="card-header">📍 基础参数</div>
+    <div class="card-header" data-i18n="adminGallery.glBaseTitle">📍 基础参数</div>
     <div class="card-body">
 
       <div class="form-group">
-        <label>起点坐标（固定值，不可修改）</label>
+        <label data-i18n="adminGallery.glStartLabel">起点坐标（固定值，不可修改）</label>
         <div style="display:flex;gap:12px;align-items:center;padding:8px 12px;background:#f5f5f5;border-radius:6px;border:1px solid #ddd;">
           <span style="font-size:13px;color:#666;">X</span>
           <span style="font-weight:bold;color:#c62828;font-size:15px;min-width:40px;text-align:center;">193</span>
@@ -44,7 +44,7 @@
           <span style="font-size:13px;color:#666;">Z</span>
           <span style="font-weight:bold;color:#c62828;font-size:15px;min-width:40px;text-align:center;">918</span>
         </div>
-        <small style="color:#c62828;margin-top:6px;display:block;font-weight:bold;">
+        <small style="color:#c62828;margin-top:6px;display:block;font-weight:bold;" data-i18n="adminGallery.glStartHint">
           🕯️ 在虚拟世界内这个位置浏览历史记忆
         </small>
         <!-- 隐藏字段，供 JS 读取固定坐标值 -->
@@ -54,7 +54,7 @@
       </div>
 
       <div class="form-group">
-        <label>矩阵宽度 (单位)</label>
+        <label data-i18n="adminGallery.glMatrixWidth">矩阵宽度 (单位)</label>
         <div style="display:flex;align-items:center;gap:8px;">
           <input type="range" id="cfg-matrixWidth" min="10" max="100" value="20" style="flex:1"
             oninput="document.getElementById('cfg-matrixWidth-val').textContent=this.value">
@@ -63,7 +63,7 @@
       </div>
 
       <div class="form-group">
-        <label>缓冲带比例</label>
+        <label data-i18n="adminGallery.glBufferRate">缓冲带比例</label>
         <div style="display:flex;align-items:center;gap:8px;">
           <input type="range" id="cfg-bufferRate" min="0" max="0.5" value="0.2" step="0.05" style="flex:1"
             oninput="document.getElementById('cfg-bufferRate-val').textContent=(this.value*100).toFixed(0)+'%'">
@@ -72,7 +72,7 @@
       </div>
 
       <div class="form-group">
-        <label>行间距 (放射方向)</label>
+        <label data-i18n="adminGallery.glRowSpacing">行间距 (放射方向)</label>
         <div style="display:flex;align-items:center;gap:8px;">
           <input type="range" id="cfg-rowSpacing" min="2" max="12" value="4" step="0.5" style="flex:1"
             oninput="document.getElementById('cfg-rowSpacing-val').textContent=this.value">
@@ -81,7 +81,7 @@
       </div>
 
       <div class="form-group">
-        <label>列间距 (宽度方向)</label>
+        <label data-i18n="adminGallery.glColSpacing">列间距 (宽度方向)</label>
         <div style="display:flex;align-items:center;gap:8px;">
           <input type="range" id="cfg-colSpacing" min="0.5" max="8" value="1.5" step="0.5" style="flex:1"
             oninput="document.getElementById('cfg-colSpacing-val').textContent=this.value">
@@ -90,17 +90,17 @@
       </div>
 
       <div class="form-group">
-        <label>自然抖动</label>
+        <label data-i18n="adminGallery.glJitter">自然抖动</label>
         <div style="display:flex;align-items:center;gap:8px;">
           <input type="range" id="cfg-jitter" min="0" max="1" value="0.3" step="0.1" style="flex:1"
             oninput="document.getElementById('cfg-jitter-val').textContent=this.value">
           <span id="cfg-jitter-val" style="min-width:30px;text-align:right">0.3</span>
         </div>
-        <small>越大越不工整，像树林一样的自然感</small>
+        <small data-i18n="adminGallery.glJitterHint">越大越不工整，像树林一样的自然感</small>
       </div>
 
       <div class="form-group">
-        <label>分区间距 (文件夹之间空白)</label>
+        <label data-i18n="adminGallery.glFolderGap">分区间距 (文件夹之间空白)</label>
         <div style="display:flex;align-items:center;gap:8px;">
           <input type="range" id="cfg-folderGap" min="3" max="20" value="8" step="1" style="flex:1"
             oninput="document.getElementById('cfg-folderGap-val').textContent=this.value">
@@ -109,11 +109,11 @@
       </div>
 
       <div class="form-group" style="margin-top:16px;padding-top:16px;border-top:1px solid #eee;">
-        <label>🧹 数据清理</label>
-        <button class="btn btn-secondary" onclick="galleryClearAll()" style="background:#f44336;color:white;width:100%;">
+        <label data-i18n="adminGallery.glClearTitle">🧹 数据清理</label>
+        <button class="btn btn-secondary" onclick="galleryClearAll()" style="background:#f44336;color:white;width:100%;" data-i18n="adminGallery.glClearBtn">
           🗑️ 清理全部数据（换图片时使用）
         </button>
-        <small style="color:#999;margin-top:4px;display:block;">
+        <small style="color:#999;margin-top:4px;display:block;" data-i18n="adminGallery.glClearHint">
           清空数据库中的旧坐标和统计数据，保留配置参数
         </small>
       </div>
@@ -123,11 +123,11 @@
 
   <!-- 右侧：照片限制 -->
   <div class="card" style="flex:1;min-width:360px;">
-    <div class="card-header">🖼️ 照片尺寸限制</div>
+    <div class="card-header" data-i18n="adminGallery.glPhotoTitle">🖼️ 照片尺寸限制</div>
     <div class="card-body">
 
       <div class="form-group">
-        <label>最大照片宽度 (单位)</label>
+        <label data-i18n="adminGallery.glMaxWidth">最大照片宽度 (单位)</label>
         <div style="display:flex;align-items:center;gap:8px;">
           <input type="range" id="cfg-maxWidth" min="2" max="10" value="5" step="0.5" style="flex:1"
             oninput="document.getElementById('cfg-maxWidth-val').textContent=this.value">
@@ -136,7 +136,7 @@
       </div>
 
       <div class="form-group">
-        <label>最大照片高度 (单位)</label>
+        <label data-i18n="adminGallery.glMaxHeight">最大照片高度 (单位)</label>
         <div style="display:flex;align-items:center;gap:8px;">
           <input type="range" id="cfg-maxHeight" min="2" max="8" value="4" step="0.5" style="flex:1"
             oninput="document.getElementById('cfg-maxHeight-val').textContent=this.value">
@@ -145,14 +145,14 @@
       </div>
 
       <div class="form-group">
-        <label>配置名称</label>
+        <label data-i18n="adminGallery.glConfigName">配置名称</label>
         <input type="text" id="cfg-name" value="默认配置" style="width:100%">
       </div>
 
       <div class="form-group">
-        <label>加载更多配置</label>
+        <label data-i18n="adminGallery.glLoadConfigs">加载更多配置</label>
         <select id="cfg-select" onchange="galleryLoadConfig(this.value)" style="width:100%">
-          <option value="">-- 新建配置 --</option>
+          <option value="" data-i18n="adminGallery.glNewConfig">-- 新建配置 --</option>
         </select>
       </div>
 
@@ -163,29 +163,29 @@
 <!-- 操作按钮 -->
 <div style="margin:16px 0;">
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-    <button class="btn btn-primary" onclick="galleryScan()" id="btn-scan">🔍 第1步：扫描文件夹</button>
-    <button class="btn btn-success" onclick="gallerySave()" id="btn-save">💾 第2步：保存配置</button>
-    <button class="btn btn-primary" onclick="galleryGenerate()" id="btn-generate">🧮 第3步：计算坐标</button>
-    <button class="btn" onclick="galleryActivate()" id="btn-activate" style="background:#ff9800;color:white;">✅ 第4步：设为当前激活</button>
+    <button class="btn btn-primary" onclick="galleryScan()" id="btn-scan" data-i18n="adminGallery.glBtnScan">🔍 第1步：扫描文件夹</button>
+    <button class="btn btn-success" onclick="gallerySave()" id="btn-save" data-i18n="adminGallery.glBtnSave">💾 第2步：保存配置</button>
+    <button class="btn btn-primary" onclick="galleryGenerate()" id="btn-generate" data-i18n="adminGallery.glBtnGenerate">🧮 第3步：计算坐标</button>
+    <button class="btn" onclick="galleryActivate()" id="btn-activate" style="background:#ff9800;color:white;" data-i18n="adminGallery.glBtnActivate">✅ 第4步：设为当前激活</button>
   </div>
   <div style="font-size:12px;color:#888;background:#fafafa;padding:8px 12px;border-radius:6px;border:1px solid #eee;">
-    ⚠️ 操作顺序：先 <b>扫描文件夹</b> 读取照片/视频 → 再 <b>保存配置</b> 写入数据库（获取配置ID）→ 然后 <b>计算坐标</b> 自动排版 → 最后 <b>设为当前激活</b> 让玩家可见
+    <span data-i18n="adminGallery.glOrderPrefix">⚠️ 操作顺序：先 </span><b data-i18n="adminGallery.glOrderStep1">扫描文件夹</b><span data-i18n="adminGallery.glOrderConn1"> 读取照片/视频 → 再 </span><b data-i18n="adminGallery.glOrderStep2">保存配置</b><span data-i18n="adminGallery.glOrderConn2"> 写入数据库（获取配置ID）→ 然后 </span><b data-i18n="adminGallery.glOrderStep3">计算坐标</b><span data-i18n="adminGallery.glOrderConn3"> 自动排版 → 最后 </span><b data-i18n="adminGallery.glOrderStep4">设为当前激活</b><span data-i18n="adminGallery.glOrderConn4"> 让玩家可见</span>
   </div>
   <div style="font-size:13px;color:#fff;background:#e65100;padding:10px 14px;border-radius:6px;margin-top:8px;border:2px solid #ff9800;font-weight:bold;">
-    📁 图片存放路径：<code style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:3px;color:#fff;">public/gallery_content/</code>
-    &nbsp;|&nbsp; 在此文件夹下新建子文件夹（如 <code style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:3px;color:#fff;">2025-08-08-普者黑</code>），把照片/视频放进去，然后点「第1步：扫描文件夹」
+    <span data-i18n="adminGallery.glPathPrefix">📁 图片存放路径：</span><code style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:3px;color:#fff;">public/gallery_content/</code>
+    <span>&nbsp;|&nbsp;</span><span data-i18n="adminGallery.glPathHintA">在此文件夹下新建子文件夹（如 </span><code style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:3px;color:#fff;">2025-08-08-普者黑</code><span data-i18n="adminGallery.glPathHintB">），把照片/视频放进去，然后点「第1步：扫描文件夹」</span>
   </div>
 </div>
 
 <!-- 扫描结果 -->
 <div class="card" id="scan-result" style="display:none;">
-  <div class="card-header">📊 扫描结果</div>
+  <div class="card-header" data-i18n="adminGallery.glScanTitle">📊 扫描结果</div>
   <div class="card-body" id="scan-result-body"></div>
 </div>
 
 <!-- 日志 -->
 <div class="card" id="gallery-log-card" style="display:none;">
-  <div class="card-header">📋 操作日志</div>
+  <div class="card-header" data-i18n="adminGallery.glLogTitle">📋 操作日志</div>
   <div class="card-body" id="gallery-log" style="max-height:200px;overflow-y:auto;font-family:monospace;font-size:12px;"></div>
 </div>
 

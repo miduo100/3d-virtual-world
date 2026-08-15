@@ -7,6 +7,28 @@
  * 从 admin_gallery.html 中提取，解决 innerHTML 注入不执行 script 的问题
  */
 
+// ==================== i18n 翻译辅助（仅翻译取值，缺失时回退原中文，不影响功能） ====================
+
+function glT(key, fallback) {
+  try {
+    if (window.i18n && typeof window.i18n.t === 'function') {
+      const v = window.i18n.t(key);
+      if (typeof v === 'string' && v !== key) return v;
+    }
+  } catch (e) { /* 忽略 i18n 异常，回退原文 */ }
+  return fallback !== undefined ? fallback : key;
+}
+
+function glTp(key, params, fallback) {
+  try {
+    if (window.i18n && typeof window.i18n.tp === 'function') {
+      const v = window.i18n.tp(key, params);
+      if (typeof v === 'string' && v !== key) return v;
+    }
+  } catch (e) { /* 忽略 i18n 异常，回退原文 */ }
+  return fallback !== undefined ? fallback : key;
+}
+
 function galleryLog(msg) {
   const logEl = document.getElementById('gallery-log');
   const card = document.getElementById('gallery-log-card');
@@ -21,7 +43,7 @@ function galleryLog(msg) {
 async function galleryScan() {
   const btn = document.getElementById('btn-scan');
   btn.disabled = true;
-  btn.textContent = '扫描中...';
+  btn.textContent = glT('adminGallery.glScanning', '扫描中...');
   galleryLog('开始扫描文件夹...');
 
   try {
@@ -36,27 +58,29 @@ async function galleryScan() {
 
       let html = '';
       for (const folder of data.folders) {
+        const counts = glTp('adminGallery.glFolderCounts', { photos: folder.photoCount, videos: folder.videoCount }, folder.photoCount + '张照片, ' + folder.videoCount + '个视频');
         html += `<div style="margin:4px 0;padding:6px;background:#f5f5f5;border-radius:4px;">
-          📁 <b>${folder.name}</b>: ${folder.photoCount}张照片, ${folder.videoCount}个视频
+          📁 <b>${folder.name}</b>: ${counts}
         </div>`;
       }
       if (!data.folders.length) {
-        html = '<p style="color:#999;">gallery_content 文件夹为空，请在 public/gallery_content/ 下创建子文件夹并放入照片</p>';
+        html = '<p style="color:#999;">' + glT('adminGallery.glEmptyFolder', 'gallery_content 文件夹为空，请在 public/gallery_content/ 下创建子文件夹并放入照片') + '</p>';
       }
       document.getElementById('scan-result-body').innerHTML = html;
       document.getElementById('scan-result').style.display = 'block';
 
       galleryLog(`扫描完成: ${data.folders.length}个文件夹, ${data.totalPhotos}张照片, ${data.totalVideos}个视频`);
     } else {
-      galleryLog('扫描失败: ' + (data.error || '未知错误'));
-      alert('扫描失败: ' + (data.error || '未知错误'));
+      const errMsg = data.error || glT('adminGallery.glUnknownError', '未知错误');
+      galleryLog('扫描失败: ' + errMsg);
+      alert(glTp('adminGallery.glScanFail', { message: errMsg }, '扫描失败: ' + errMsg));
     }
   } catch (err) {
     galleryLog('扫描出错: ' + err.message);
-    alert('扫描出错: ' + err.message);
+    alert(glTp('adminGallery.glScanError', { message: err.message }, '扫描出错: ' + err.message));
   }
   btn.disabled = false;
-  btn.textContent = '🔍 扫描文件夹';
+  btn.textContent = glT('adminGallery.glBtnScan', '🔍 扫描文件夹');
 }
 
 // 保存配置的当前ID
@@ -106,13 +130,13 @@ async function gallerySave() {
 // 生成坐标
 async function galleryGenerate() {
   if (!currentConfigId) {
-    alert('请先保存配置！');
+    alert(glT('adminGallery.glSaveFirst', '请先保存配置！'));
     return;
   }
 
   const btn = document.getElementById('btn-generate');
   btn.disabled = true;
-  btn.textContent = '计算中...';
+  btn.textContent = glT('adminGallery.glCalculating', '计算中...');
   galleryLog('开始计算坐标（可能需要一些时间，取决于照片数量）...');
 
   try {
@@ -126,7 +150,7 @@ async function galleryGenerate() {
     if (data.success && data.generated > 0) {
       document.getElementById('stat-photos').textContent = data.photos;
       document.getElementById('stat-videos').textContent = data.videos;
-      document.getElementById('stat-status').textContent = '已生成';
+      document.getElementById('stat-status').textContent = glT('adminGallery.glGenerated', '已生成');
       document.getElementById('stat-status').style.color = '#4caf50';
       galleryLog(`坐标计算完成: ${data.generated}个物品 (${data.photos}张照片, ${data.videos}个视频)`);
     } else if (data.generated === 0) {
@@ -137,16 +161,16 @@ async function galleryGenerate() {
     }
   } catch (err) {
     galleryLog('计算出错: ' + err.message);
-    alert('计算出错: ' + err.message);
+    alert(glTp('adminGallery.glCalcError', { message: err.message }, '计算出错: ' + err.message));
   }
   btn.disabled = false;
-  btn.textContent = '🧮 计算坐标';
+  btn.textContent = glT('adminGallery.glBtnGenerate', '🧮 计算坐标');
 }
 
 // 设为当前激活
 async function galleryActivate() {
   if (!currentConfigId) {
-    alert('请先保存配置！');
+    alert(glT('adminGallery.glSaveFirst', '请先保存配置！'));
     return;
   }
 
@@ -159,7 +183,7 @@ async function galleryActivate() {
     const data = await res.json();
 
     if (data.success) {
-      document.getElementById('stat-status').textContent = '已激活 ✅';
+      document.getElementById('stat-status').textContent = glT('adminGallery.glActivated', '已激活 ✅');
       document.getElementById('stat-status').style.color = '#4caf50';
       galleryLog('配置已设为当前激活！在虚拟世界中生效');
     } else {
@@ -177,12 +201,13 @@ async function galleryLoadConfigs() {
     const data = await res.json();
     const select = document.getElementById('cfg-select');
     if (!select) return;
-    select.innerHTML = '<option value="">-- 新建配置 --</option>';
+    select.innerHTML = '<option value="">' + glT('adminGallery.glNewConfig', '-- 新建配置 --') + '</option>';
 
     if (data.success && data.configs) {
       for (const cfg of data.configs) {
-        const active = cfg.is_active ? ' [已激活]' : '';
-        select.innerHTML += `<option value="${cfg.id}">${cfg.name}${active} (${cfg.total_photos || 0}张)</option>`;
+        const active = cfg.is_active ? glT('adminGallery.glActiveSuffix', ' [已激活]') : '';
+        const photosText = glTp('adminGallery.glPhotosCount', { count: cfg.total_photos || 0 }, (cfg.total_photos || 0) + '张');
+        select.innerHTML += `<option value="${cfg.id}">${cfg.name}${active} (${photosText})</option>`;
       }
     }
   } catch (err) {
@@ -225,7 +250,7 @@ async function galleryLoadConfig(id) {
 
     document.getElementById('stat-photos').textContent = cfg.total_photos;
     document.getElementById('stat-videos').textContent = cfg.total_videos;
-    document.getElementById('stat-status').textContent = cfg.is_active ? '已激活 ✅' : '未激活';
+    document.getElementById('stat-status').textContent = cfg.is_active ? glT('adminGallery.glActivated', '已激活 ✅') : glT('adminGallery.glInactive', '未激活');
     document.getElementById('stat-status').style.color = cfg.is_active ? '#4caf50' : '#999';
     document.getElementById('gallery-stats').style.display = 'grid';
 
@@ -237,13 +262,13 @@ async function galleryLoadConfig(id) {
 
 // 清理全部数据（换图片时使用）
 async function galleryClearAll() {
-  if (!confirm('确定要清理全部数据吗？\n\n将清空：\n- 所有照片/视频的坐标数据\n- 统计数据（照片数、视频数）\n- 激活状态\n\n配置参数会保留。')) {
+  if (!confirm(glT('adminGallery.glClearConfirm', '确定要清理全部数据吗？\n\n将清空：\n- 所有照片/视频的坐标数据\n- 统计数据（照片数、视频数）\n- 激活状态\n\n配置参数会保留。'))) {
     return;
   }
 
   const btn = event.target.closest('button');
   btn.disabled = true;
-  btn.textContent = '清理中...';
+  btn.textContent = glT('adminGallery.glClearing', '清理中...');
   galleryLog('开始清理全部数据...');
 
   try {
@@ -259,21 +284,22 @@ async function galleryClearAll() {
       document.getElementById('stat-folders').textContent = '-';
       document.getElementById('stat-photos').textContent = '-';
       document.getElementById('stat-videos').textContent = '-';
-      document.getElementById('stat-status').textContent = '未激活';
+      document.getElementById('stat-status').textContent = glT('adminGallery.glInactive', '未激活');
       document.getElementById('stat-status').style.color = '#999';
 
-      alert('清理完成！现在可以重新扫描文件夹。');
+      alert(glT('adminGallery.glClearDone', '清理完成！现在可以重新扫描文件夹。'));
     } else {
-      galleryLog('❌ 清理失败: ' + (data.error || '未知错误'));
-      alert('清理失败: ' + (data.error || '未知错误'));
+      const errMsg = data.error || glT('adminGallery.glUnknownError', '未知错误');
+      galleryLog('❌ 清理失败: ' + errMsg);
+      alert(glTp('adminGallery.glClearFail', { message: errMsg }, '清理失败: ' + errMsg));
     }
   } catch (err) {
     galleryLog('❌ 清理出错: ' + err.message);
-    alert('清理出错: ' + err.message);
+    alert(glTp('adminGallery.glClearError', { message: err.message }, '清理出错: ' + err.message));
   }
 
   btn.disabled = false;
-  btn.textContent = '🗑️ 清理全部数据（换图片时使用）';
+  btn.textContent = glT('adminGallery.glClearBtn', '🗑️ 清理全部数据（换图片时使用）');
 }
 
 // 画廊页面初始化（由 loadGalleryPage 调用）

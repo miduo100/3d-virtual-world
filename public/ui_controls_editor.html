@@ -7,7 +7,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>创世虚拟世界CRM系统 - UI控件管理</title>
+  <title data-i18n="adminUIControls.ucTitleTag">创世虚拟世界CRM系统 - UI控件管理</title>
   <link rel="stylesheet" href="/css/admin-ui-controls.css">
   <style>
     /* 基础样式 */
@@ -348,7 +348,7 @@
   <!-- 加载遮罩 -->
   <div class="loading-overlay" id="loadingOverlay">
     <div class="loading-spinner"></div>
-    <div class="loading-text">正在加载UI控件配置...</div>
+    <div class="loading-text" data-i18n="adminUIControls.ucLoading">正在加载UI控件配置...</div>
   </div>
 
   <!-- 顶部导航 -->
@@ -356,36 +356,43 @@
     <div class="nav-left">
       <a href="/admin.html" class="nav-back">
         <span>←</span>
-        <span>返回管理后台</span>
+        <span data-i18n="adminUIControls.ucBackAdmin">返回管理后台</span>
       </a>
       <a href="/" class="nav-brand">
         <span>🎨</span>
-        <span>UI控件管理器</span>
+        <span data-i18n="adminUIControls.ucTitle">UI控件管理器</span>
       </a>
     </div>
     <div class="nav-right">
       <div class="platform-btn-group" id="platformBtnGroup">
-        <button class="platform-btn active" data-mode="desktop">💻 桌面</button>
-        <button class="platform-btn" data-mode="mobile">📱 手机</button>
-        <button class="platform-btn" data-mode="vr">🥽 VR</button>
+        <button class="platform-btn active" data-mode="desktop" data-i18n="adminUIControls.ucDesktop">💻 桌面</button>
+        <button class="platform-btn" data-mode="mobile" data-i18n="adminUIControls.ucMobile">📱 手机</button>
+        <button class="platform-btn" data-mode="vr" data-i18n="adminUIControls.ucVR">🥽 VR</button>
       </div>
       <!-- 手机模式下的横竖屏切换，默认隐藏 -->
       <div class="platform-btn-group" id="orientationBtnGroup" style="display:none;">
-        <button class="platform-btn active" data-orientation="portrait">📱 竖屏</button>
-        <button class="platform-btn" data-orientation="landscape">📱 横屏</button>
+        <button class="platform-btn active" data-orientation="portrait" data-i18n="adminUIControls.ucPortrait">📱 竖屏</button>
+        <button class="platform-btn" data-orientation="landscape" data-i18n="adminUIControls.ucLandscape">📱 横屏</button>
       </div>
       <button class="btn btn-sm" id="addControlBtn">
         <span>➕</span>
-        <span>添加控件</span>
+        <span data-i18n="adminUIControls.ucAddControl">添加控件</span>
       </button>
       <button class="btn btn-sm btn-blue" id="batchSaveBtn">
         <span>💾</span>
-        <span>批量保存</span>
+        <span data-i18n="adminUIControls.ucBatchSave">批量保存</span>
       </button>
       <button class="btn btn-sm btn-secondary" id="refreshBtn">
         <span>🔄</span>
-        <span>刷新</span>
+        <span data-i18n="adminUIControls.ucRefresh">刷新</span>
       </button>
+      <div class="language-switcher" style="display:flex;align-items:center;gap:6px;margin-left:4px;">
+        <span style="color:var(--muted);font-size:12px;" data-i18n="adminUIControls.ucLang">语言</span>
+        <select id="uiLangSelect" onchange="changeUILanguage(this.value)" style="padding:6px 8px;background:rgba(0,0,0,0.5);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;cursor:pointer;">
+          <option value="zh-CN">中文</option>
+          <option value="en-US">English</option>
+        </select>
+      </div>
     </div>
   </nav>
 
@@ -394,7 +401,7 @@
     <!-- 左侧控件列表 -->
     <aside class="controls-sidebar" id="controlsList">
       <div class="sidebar-header">
-        <span class="sidebar-title">📋 控件列表</span>
+        <span class="sidebar-title" data-i18n="adminUIControls.ucControlsList">📋 控件列表</span>
       </div>
       <!-- 控件列表将在这里渲染 -->
     </aside>
@@ -402,37 +409,66 @@
     <!-- 中间预览区 -->
     <section class="preview-section" id="previewContainer">
       <div class="preview-toolbar">
-        <span style="color: var(--muted); font-size: 12px;">💡 提示：拖拽控件可调整位置</span>
+        <span style="color: var(--muted); font-size: 12px;" data-i18n="adminUIControls.ucPreviewHint">💡 提示：拖拽控件可调整位置</span>
       </div>
       <!-- 预览区域 -->
     </section>
 
     <!-- 右侧编辑器 -->
     <aside class="editor-panel" id="editorPanel">
-      <div class="ui-editor-placeholder">请选择一个控件进行编辑</div>
+      <div class="ui-editor-placeholder" data-i18n="adminUIControls.ucSelectPlaceholder">请选择一个控件进行编辑</div>
     </aside>
   </div>
 
   <!-- 引入管理脚本 -->
   <script src="/js/coordFormat.js"></script>
   <script src="/js/debugPanelPreview.js"></script>
+  <script src="/i18n/i18n.js"></script>
   <script src="/js/adminUIControls.js"></script>
   <script>
     // 页面加载完成后初始化
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', async function() {
       // 检查登录状态
       const token = localStorage.getItem('adminToken');
       if (!token) {
-        showError('未登录，请先登录管理后台');
+        showError(ucT('ucNotLoggedIn'));
         setTimeout(() => {
           window.location.href = '/admin_login.html';
         }, 2000);
         return;
       }
 
+      // 初始化 i18n（从服务器拉取系统语言并加载语言包）
+      if (window.i18n) {
+        try {
+          await window.i18n.init();
+          applyUITranslations();
+        } catch (e) {
+          console.warn('[ui_controls_editor] i18n 初始化失败:', e);
+        }
+      }
+
       // 初始化UI控件管理器（内部已包含所有事件绑定）
       AdminUIControls.init();
     });
+
+    // 切换语言（写入服务器，全局生效；其他页面刷新即跟随）
+    async function changeUILanguage(locale) {
+      if (!window.i18n) return;
+      if (locale === window.i18n.getCurrentLocale()) return;
+      const success = await window.i18n.setLocaleToServer(locale);
+      if (success) {
+        applyUITranslations();
+        // 重新渲染动态内容
+        AdminUIControls.renderControlsList();
+        AdminUIControls.renderEditor();
+        AdminUIControls.renderPreview();
+      } else {
+        showError('语言设置保存失败，请重试');
+        const sel = document.getElementById('uiLangSelect');
+        if (sel) sel.value = window.i18n.getCurrentLocale();
+      }
+    }
 
     // 显示错误消息
     function showError(message) {

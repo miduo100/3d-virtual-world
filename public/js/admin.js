@@ -141,16 +141,19 @@ async function loadPortals() {
     const portals = await apiRequest('/admin/portals');
     renderPortals(portals);
   } catch (error) {
+    const msg = window.i18n ? window.i18n.tp('adminFed.fedPortalLoadFailed', { message: error.message }) : `加载失败: ${error.message}`;
     document.getElementById('portals-content').innerHTML = 
-      `<div class="empty">加载失败: ${error.message}</div>`;
+      `<div class="empty">${msg}</div>`;
   }
 }
 
 function renderPortals(portals) {
   const container = document.getElementById('portals-content');
+  const t = (key) => window.i18n ? window.i18n.t(key) : key;
+  const tp = (key, params) => window.i18n ? window.i18n.tp(key, params) : key;
   
   if (portals.length === 0) {
-    container.innerHTML = '<div class="empty">暂无传送门</div>';
+    container.innerHTML = `<div class="empty">${t('adminFed.fedNoPortals')}</div>`;
     return;
   }
 
@@ -158,15 +161,15 @@ function renderPortals(portals) {
     <table>
       <thead>
         <tr>
-          <th>ID</th>
-          <th>名称</th>
-          <th>类型</th>
-          <th>位置</th>
-          <th>目标</th>
-          <th>等级要求</th>
-          <th>使用次数</th>
-          <th>状态</th>
-          <th>操作</th>
+          <th>${t('adminWorld.colId')}</th>
+          <th>${t('adminFed.fedColName')}</th>
+          <th>${t('adminWorld.colType')}</th>
+          <th>${t('adminFed.fedColPos')}</th>
+          <th>${t('adminFed.fedColTarget')}</th>
+          <th>${t('adminFed.fedColLevel')}</th>
+          <th>${t('adminFed.fedColUses')}</th>
+          <th>${t('adminWorld.colStatus')}</th>
+          <th>${t('adminWorld.colActions')}</th>
         </tr>
       </thead>
       <tbody>
@@ -174,16 +177,16 @@ function renderPortals(portals) {
           <tr>
             <td>${p.id}</td>
             <td>${p.name}</td>
-            <td><span class="badge badge-${p.portal_type}">${p.portal_type === 'local' ? '本地' : '跨服'}</span></td>
+            <td><span class="badge badge-${p.portal_type}">${p.portal_type === 'local' ? t('adminFed.fedLocal') : t('adminFed.fedRemote')}</span></td>
             <td>${formatPosition(p.source_position)}</td>
             <td>${p.portal_type === 'local' ? formatPosition(p.target_position) : (p.target_world_name || p.target_world_url)}</td>
             <td>${p.required_level}</td>
             <td>${p.usage_count}</td>
-            <td><span class="badge badge-${p.is_active ? 'active' : 'inactive'}">${p.is_active ? '激活' : '未激活'}</span></td>
+            <td><span class="badge badge-${p.is_active ? 'active' : 'inactive'}">${p.is_active ? t('adminFed.fedActive') : t('adminFed.fedInactive')}</span></td>
             <td>
               <div class="action-btns">
-                <button class="btn" onclick="editPortal('${p.id}')">编辑</button>
-                <button class="btn btn-danger" onclick="deletePortal('${p.id}')">删除</button>
+                <button class="btn" onclick="editPortal('${p.id}')">${t('adminFed.fedEdit')}</button>
+                <button class="btn btn-danger" onclick="deletePortal('${p.id}')">${t('adminFed.fedDelete')}</button>
               </div>
             </td>
           </tr>
@@ -203,7 +206,7 @@ function formatPosition(pos) {
 
 function showCreatePortalModal() {
   currentPortalId = null;
-  document.getElementById('portalModalTitle').textContent = '创建传送门';
+  document.getElementById('portalModalTitle').textContent = window.i18n ? window.i18n.t('adminFed.fedPortalModalTitle') : '创建传送门';
   document.getElementById('portalForm').reset();
   document.getElementById('portal-id').value = '';
   document.getElementById('portalModal').classList.add('active');
@@ -228,7 +231,7 @@ async function editPortal(id) {
     if (!portal) return;
 
     currentPortalId = id;
-    document.getElementById('portalModalTitle').textContent = '编辑传送门';
+    document.getElementById('portalModalTitle').textContent = window.i18n ? window.i18n.t('adminFed.fedPortalModalTitleEdit') : '编辑传送门';
     document.getElementById('portal-id').value = id;
     document.getElementById('portal-name').value = portal.name;
     document.getElementById('portal-type').value = portal.portal_type;
@@ -255,7 +258,7 @@ async function editPortal(id) {
     togglePortalTypeFields();
     document.getElementById('portalModal').classList.add('active');
   } catch (error) {
-    alert('加载传送门信息失败: ' + error.message);
+    alert(window.i18n ? window.i18n.tp('adminFed.fedPortalLoadFailed', { message: error.message }) : '加载传送门信息失败: ' + error.message);
   }
 }
 
@@ -297,41 +300,41 @@ document.getElementById('portalForm').addEventListener('submit', async (e) => {
         method: 'PUT',
         body: JSON.stringify(data)
       });
-      alert('传送门更新成功！');
+      alert(window.i18n ? window.i18n.t('adminFed.fedPortalUpdated') : '传送门更新成功！');
     } else {
       await apiRequest('/admin/portals', {
         method: 'POST',
         body: JSON.stringify(data)
       });
-      alert('传送门创建成功！');
+      alert(window.i18n ? window.i18n.t('adminFed.fedPortalCreated') : '传送门创建成功！');
     }
 
     closePortalModal();
     loadPortals();
     loadStats();
   } catch (error) {
-    alert('保存失败: ' + error.message);
+    alert(window.i18n ? window.i18n.tp('adminFed.fedPortalSaveFailed', { message: error.message }) : '保存失败: ' + error.message);
   }
 });
 
 function parsePosition(str) {
   const parts = str.split(',').map(s => parseFloat(s.trim()));
   if (parts.length !== 3 || parts.some(isNaN)) {
-    throw new Error('位置格式错误，应为: x, y, z');
+    throw new Error(window.i18n ? window.i18n.t('adminFed.fedPosParseError') : '位置格式错误，应为: x, y, z');
   }
   return { x: parts[0], y: parts[1], z: parts[2] };
 }
 
 async function deletePortal(id) {
-  if (!confirm('确定要删除这个传送门吗？')) return;
+  if (!confirm(window.i18n ? window.i18n.t('adminFed.fedPortalDeleteConfirm') : '确定要删除这个传送门吗？')) return;
   
   try {
     await apiRequest(`/admin/portals/${id}`, { method: 'DELETE' });
-    alert('传送门删除成功！');
+    alert(window.i18n ? window.i18n.t('adminFed.fedPortalDeleted') : '传送门删除成功！');
     loadPortals();
     loadStats();
   } catch (error) {
-    alert('删除失败: ' + error.message);
+    alert(window.i18n ? window.i18n.tp('adminFed.fedPortalDeleteFailed', { message: error.message }) : '删除失败: ' + error.message);
   }
 }
 
@@ -496,32 +499,35 @@ function getStatusIcon(status) {
 async function checkWorldHealth(worldId) {
   try {
     await apiRequest(`/admin/worlds/${worldId}/health`);
-    alert('状态检查完成');
+    alert(window.i18n ? window.i18n.t('adminFed.fedHealthCheckDone') : '状态检查完成');
     loadWorlds();
   } catch (error) {
-    alert('检查失败: ' + error.message);
+    alert(window.i18n ? window.i18n.tp('adminFed.fedHealthCheckFailed', { message: error.message }) : '检查失败: ' + error.message);
   }
 }
 
 async function removeWorld(worldId) {
-  if (!confirm('确定要移除这个世界吗？')) return;
+  if (!confirm(window.i18n ? window.i18n.t('adminWorld.confirmRemoveWorld') : '确定要移除这个世界吗？')) return;
   
   try {
     await apiRequest(`/admin/worlds/${worldId}`, { method: 'DELETE' });
-    alert('世界移除成功！');
+    alert(window.i18n ? window.i18n.t('adminWorld.worldRemoved') : '世界移除成功！');
     loadWorlds();
   } catch (error) {
-    alert('移除失败: ' + error.message);
+    alert(window.i18n ? window.i18n.tp('adminWorld.removeFailed', { message: error.message }) : '移除失败: ' + error.message);
   }
 }
 
 // ==================== 传送日志 ====================
 
+let logsCurrentPage = 1;
+let logsSearchTerm = '';   // 用户主动搜索词（防浏览器自动填充污染输入框）
+
 async function loadLogs() {
   try {
-    const searchTerm = document.getElementById('logs-search')?.value || '';
+    const searchTerm = logsSearchTerm;   // 不直接读 DOM 的 .value，避免浏览器自动填充
     const filter = document.getElementById('logs-filter')?.value || 'all';
-    const page = document.getElementById('logs-page')?.value || 1;
+    const page = logsCurrentPage;
     const limit = 50;
     
     const logs = await apiRequest(`/admin/portal-logs?limit=${limit}&page=${page}&search=${encodeURIComponent(searchTerm)}&filter=${filter}`);
@@ -530,6 +536,13 @@ async function loadLogs() {
     document.getElementById('logs-content').innerHTML = 
       `<div class="empty">${window.i18n.t('adminWorld.loadFailed').replace('{{message}}', error.message)}</div>`;
   }
+}
+
+// 用户主动点击"搜索"时同步搜索词
+function doLogSearch() {
+  logsSearchTerm = document.getElementById('logs-search')?.value || '';
+  logsCurrentPage = 1;
+  loadLogs();
 }
 
 function renderLogs(logs, currentPage, limit) {
@@ -569,8 +582,8 @@ function renderLogs(logs, currentPage, limit) {
     <div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 15px;">
       <button class="btn btn-sm" onclick="changePage(${parseInt(currentPage) - 1})" ${parseInt(currentPage) === 1 ? 'disabled' : ''} data-i18n="adminWorld.logPagePrev">上一页</button>
       <span>${window.i18n.t('adminWorld.logPageOf').replace('{{current}}', currentPage)}</span>
-      <button class="btn btn-sm" onclick="changePage(${parseInt(currentPage) + 1})") data-i18n="adminWorld.logPageNext">下一页</button>
-      <select id="logs-page" value="${currentPage}" onchange="changePage(this.value)">
+      <button class="btn btn-sm" onclick="changePage(${parseInt(currentPage) + 1})" data-i18n="adminWorld.logPageNext">下一页</button>
+      <select id="logs-page" onchange="changePage(this.value)">
         ${Array.from({ length: 10 }, (_, i) => `<option value="${i + 1}" ${i + 1 === parseInt(currentPage) ? 'selected' : ''}>${i + 1}</option>`).join('')}
       </select>
     </div>
@@ -581,7 +594,7 @@ function renderLogs(logs, currentPage, limit) {
 }
 
 function changePage(page) {
-  document.getElementById('logs-page').value = page;
+  logsCurrentPage = parseInt(page) || 1;
   loadLogs();
 }
 

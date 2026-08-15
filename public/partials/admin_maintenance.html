@@ -5,30 +5,29 @@
 -->
 <div class="card" style="margin-bottom:16px;">
   <div class="card-header">
-    <div class="card-title">🛠️ 维护工具</div>
-    <div style="font-size:12px;color:var(--muted)">清理脏数据、检查引用完整性、刷新基础数据</div>
+    <div class="card-title" data-i18n="adminMaintenance.mtTitle">🛠️ 维护工具</div>
+    <div style="font-size:12px;color:var(--muted)" data-i18n="adminMaintenance.mtSubtitle">清理脏数据、检查引用完整性、刷新基础数据</div>
   </div>
-  <div style="background:rgba(255,180,50,0.08);border-left:3px solid var(--orange,#f0a030);padding:10px 14px;border-radius:6px;font-size:12px;color:#aaa;line-height:1.6;">
-    ⚠️ 执行前请确认操作影响范围。标记"危险"的操作建议先在预览模式查看结果，确认后再执行。
-    所有执行记录会保存在下方"执行日志"中。
+  <div style="background:rgba(255,180,50,0.08);border-left:3px solid var(--orange,#f0a030);padding:10px 14px;border-radius:6px;font-size:12px;color:#aaa;line-height:1.6;" data-i18n="adminMaintenance.mtWarning">
+    ⚠️ 执行前请确认操作影响范围。标记"危险"的操作建议先在预览模式查看结果，确认后再执行。所有执行记录会保存在下方"执行日志"中。
   </div>
 </div>
 
 <!-- 脚本卡片网格 -->
 <div id="maintenance-scripts-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;margin-bottom:20px;">
-  <div style="text-align:center;padding:40px;color:var(--muted);grid-column:1/-1;">加载中...</div>
+  <div style="text-align:center;padding:40px;color:var(--muted);grid-column:1/-1;" data-i18n="adminMaintenance.mtLoading">加载中...</div>
 </div>
 
 <!-- 执行日志区域 -->
 <div class="card">
   <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
     <div>
-      <div class="card-title">📜 执行日志</div>
-      <div style="font-size:12px;color:var(--muted)">最近 30 条执行记录</div>
+      <div class="card-title" data-i18n="adminMaintenance.mtLogTitle">📜 执行日志</div>
+      <div style="font-size:12px;color:var(--muted)" data-i18n="adminMaintenance.mtLogSubtitle">最近 30 条执行记录</div>
     </div>
-    <button class="btn btn-sm" onclick="MaintenancePage.refreshLogs()">🔄 刷新</button>
+    <button class="btn btn-sm" onclick="MaintenancePage.refreshLogs()" data-i18n="adminMaintenance.mtRefresh">🔄 刷新</button>
   </div>
   <div id="maintenance-logs" style="max-height:400px;overflow-y:auto;">
-    <div style="text-align:center;padding:30px;color:var(--muted)">加载中...</div>
+    <div style="text-align:center;padding:30px;color:var(--muted)" data-i18n="adminMaintenance.mtLoading">加载中...</div>
   </div>
 </div>

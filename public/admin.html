@@ -533,7 +533,7 @@
               <button class="btn btn-sm" onclick="loadMonsters()" data-i18n="adminWorld.refresh">🔄 刷新</button>
             </div>
           </div>
-          <div id="monsters-content" class="loading" data-i18n="adminWorld.loading">加载中...</div>
+          <div id="monsters-content" class="loading"><span data-i18n="adminWorld.loading">加载中...</span></div>
         </div>
       </div>
 
@@ -543,7 +543,7 @@
             <div class="card-title" data-i18n="adminWorld.plotsTitle">🏘️ 地块管理</div>
             <button class="btn btn-sm" onclick="loadPlots()" data-i18n="adminWorld.refresh">🔄 刷新</button>
           </div>
-          <div id="plots-content" class="loading" data-i18n="adminWorld.plotsWIP">功能正在开发中，敬请期待...</div>
+          <div id="plots-content" class="loading"><span data-i18n="adminWorld.plotsWIP">功能正在开发中，敬请期待...</span></div>
         </div>
       </div>
 
@@ -694,7 +694,7 @@
           </div>
 
           <!-- 在线玩家天气同步状态 -->
-          <div style="margin-top:16px;padding:12px;background:rgba(0,0,0,0.15);border-radius:8px;font-size:12px;color:var(--muted)" id="weather-broadcast-status" data-i18n="adminWorld.notBroadcasted">
+          <div style="margin-top:16px;padding:12px;background:rgba(0,0,0,0.15);border-radius:8px;font-size:12px;color:var(--muted)" id="weather-broadcast-status">
             尚未广播
           </div>
         </div>
@@ -711,7 +711,7 @@
             </div>
           </div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:14px" data-i18n="adminWorld.customNPCHint">定制NPC拥有独立AI接口、专属外形与训练设置，可放置到游戏世界中</div>
-          <div id="custom-npc-list" class="loading" data-i18n="adminWorld.loading">加载中...</div>
+          <div id="custom-npc-list" class="loading"><span data-i18n="adminWorld.loading">加载中...</span></div>
         </div>
       </div>
 
@@ -849,7 +849,7 @@
             <div class="card-title" data-i18n="adminAssets.generatedGeometryTitle">📋 已生成的几何体建筑</div>
             <button class="btn btn-sm" onclick="refreshGeometryBuildings()" data-i18n="adminAssets.refresh">🔄 刷新</button>
           </div>
-          <div id="geometry-buildings-list" class="loading" data-i18n="adminAssets.loading">加载中...</div>
+          <div id="geometry-buildings-list" class="loading"><span data-i18n="adminAssets.loading">加载中...</span></div>
         </div>
       </div>
 
@@ -878,7 +878,7 @@
               <option value="name-desc" data-i18n="adminAssets.sortNameDesc">名称降序</option>
             </select>
           </div>
-          <div id="uploaded-models-content" class="loading" data-i18n="adminAssets.loading">加载中...</div>
+          <div id="uploaded-models-content" class="loading"><span data-i18n="adminAssets.loading">加载中...</span></div>
         </div>
         <!-- 上传模型模态框 -->
         <div id="upload-model-modal" class="modal">
@@ -986,11 +986,11 @@
               <option value="attribute" data-i18n="adminAssets.catAttribute">特殊属性</option>
             </select>
           </div>
-          <div id="tag-library-content" class="loading" data-i18n="adminAssets.loading">加载中...</div>
+          <div id="tag-library-content" class="loading"><span data-i18n="adminAssets.loading">加载中...</span></div>
         </div>
         <div class="card">
           <div class="card-header"><div class="card-title" data-i18n="adminAssets.recentTaggedTitle">🆕 最近打标签的模型</div></div>
-          <div id="recent-tagged-models" class="loading" data-i18n="adminAssets.loading">加载中...</div>
+          <div id="recent-tagged-models" class="loading"><span data-i18n="adminAssets.loading">加载中...</span></div>
         </div>
         <!-- 新建标签模态框 -->
         <div id="add-tag-modal" class="modal">
@@ -1060,7 +1060,7 @@
               <option value="creator" data-i18n="adminCharacters.filterRoleCreator">创世者</option>
             </select>
           </div>
-          <div id="templates-content" class="loading" data-i18n="common.loading">加载中...</div>
+          <div id="templates-content" class="loading"><span data-i18n="common.loading">加载中...</span></div>
         </div>
       </div>
 
@@ -1074,7 +1074,7 @@
 
     <!-- ===== 动作库页面 ===== -->
     <div id="page-anim-library" class="page">
-      <div id="anim-library-content" class="loading" data-i18n="adminAnimLib.loading">加载中...</div>
+      <div id="anim-library-content" class="loading"><span data-i18n="adminAnimLib.loading">加载中...</span></div>
     </div>
 
     <!-- ===== 5. Economy System ===== -->
@@ -1098,7 +1098,7 @@
           <div style="background:rgba(88,166,255,0.06);border-left:3px solid var(--blue);padding:11px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;color:#ccc;line-height:1.6;" data-i18n="adminEco.adSlotsDesc">
             广告位是放置在世界坐标中的传送点，可设置租期。支持三种类型：外链跳转（PC/手机打开网址）、世界传送（携带角色跨世界）、应用拉起（手机端Deep Link拉起APP）。过期后传送门自动失效。
           </div>
-          <div id="ad-slots-content" class="loading" data-i18n="adminEco.loading">加载中...</div>
+          <div id="ad-slots-content" class="loading"><span data-i18n="adminEco.loading">加载中...</span></div>
         </div>
       </div>
 
@@ -1110,7 +1110,7 @@
             <div class="card-title" data-i18n="adminEco.rewardPools">🎯 奖励池</div>
             <button class="btn btn-sm btn-blue" onclick="showPoolModal()" data-i18n="adminEco.newPool">➕ 新建奖励池</button>
           </div>
-          <div id="pools-content" class="loading" data-i18n="adminEco.loading">加载中...</div>
+          <div id="pools-content" class="loading"><span data-i18n="adminEco.loading">加载中...</span></div>
         </div>
         <!-- Batch Import Redemption Codes -->
         <div class="card" style="margin-top:16px">
@@ -1150,7 +1150,7 @@
             <div class="card-title" data-i18n="adminEco.issuanceRecords">📋 发放记录</div>
             <button class="btn btn-sm" onclick="loadIssuedRecords()" data-i18n="adminEco.refresh">🔄 刷新</button>
           </div>
-          <div id="issued-content" class="empty" data-i18n="adminEco.clickLoad">点击刷新加载</div>
+          <div id="issued-content" class="empty"><span data-i18n="adminEco.clickLoad">点击刷新加载</span></div>
         </div>
       </div>
 
@@ -1161,7 +1161,7 @@
             <div class="card-title" data-i18n="adminEco.orderList">📋 订单列表</div>
             <button class="btn btn-sm" onclick="loadOrders()" data-i18n="adminEco.refresh">🔄 刷新</button>
           </div>
-          <div id="orders-content" class="loading" data-i18n="adminEco.loading">加载中...</div>
+          <div id="orders-content" class="loading"><span data-i18n="adminEco.loading">加载中...</span></div>
         </div>
       </div>
     </div>
@@ -1337,12 +1337,12 @@
     <div id="page-weapons" class="page">
       <div class="card">
         <div class="card-header">
-          <div class="card-title">⚔️ 武器库</div>
-          <button class="btn btn-sm" onclick="openWeaponModal()">➕ 新建武器</button>
+          <div class="card-title" data-i18n="adminWeapons.wpnTitle">⚔️ 武器库</div>
+          <button class="btn btn-sm" onclick="openWeaponModal()" data-i18n="adminWeapons.wpnNewBtn">➕ 新建武器</button>
         </div>
         <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.7">
-          在此统一管理所有武器。每把武器独立配置外观参数，角色模板在「基本信息」的装备槽中选择使用哪把武器。<br>
-          <span style="color:rgba(255,140,0,0.8)">💡 后期支持上传自定义武器 GLB 模型（当前仅内置光剑）。</span>
+          <span data-i18n="adminWeapons.wpnIntro">在此统一管理所有武器。每把武器独立配置外观参数，角色模板在「基本信息」的装备槽中选择使用哪把武器。</span><br>
+          <span style="color:rgba(255,140,0,0.8)" data-i18n="adminWeapons.wpnIntroNote">💡 后期支持上传自定义武器 GLB 模型（当前仅内置光剑）。</span>
         </div>
         <div id="weapons-list" class="loading">加载中...</div>
       </div>
@@ -1359,24 +1359,24 @@
 
         <div class="form-row">
           <div class="form-group">
-            <label>武器名称 *</label>
-            <input type="text" id="weapon-name" placeholder="例：青龙光剑、暗影之刃">
+            <label data-i18n="adminWeapons.wpnLabelName">武器名称 *</label>
+            <input type="text" id="weapon-name" placeholder="例：青龙光剑、暗影之刃" data-i18n-placeholder="adminWeapons.wpnPlaceholderName">
           </div>
           <div class="form-group">
-            <label>武器类型</label>
+            <label data-i18n="adminWeapons.wpnLabelType">武器类型</label>
             <select id="weapon-type">
-              <option value="builtin_lightsaber">⚔️ 内置光剑（程序化生成）</option>
-              <option value="custom_glb" disabled>📦 自定义模型（即将支持）</option>
+              <option value="builtin_lightsaber" data-i18n="adminWeapons.wpnTypeLightsaberFull">⚔️ 内置光剑（程序化生成）</option>
+              <option value="custom_glb" disabled data-i18n="adminWeapons.wpnTypeCustomFull">📦 自定义模型（即将支持）</option>
             </select>
           </div>
         </div>
 
         <!-- 光剑外观配置 -->
         <div id="weapon-lightsaber-config">
-          <div style="font-size:12px;font-weight:700;color:var(--orange);margin:12px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">🎨 光剑外观参数</div>
+          <div style="font-size:12px;font-weight:700;color:var(--orange);margin:12px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)" data-i18n="adminWeapons.wpnSectionAppearance">🎨 光剑外观参数</div>
           <div class="form-row">
             <div class="form-group">
-              <label>剑刃颜色</label>
+              <label data-i18n="adminWeapons.wpnLabelBladeColor">剑刃颜色</label>
               <div style="display:flex;gap:8px;align-items:center">
                 <input type="color" id="weapon-blade-color-picker" value="#00ffff"
                   style="width:42px;height:36px;padding:2px;border:1px solid var(--border);border-radius:4px;background:none;cursor:pointer"
@@ -1388,68 +1388,68 @@
               </div>
               <!-- 快捷色板 -->
               <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">
-                <div onclick="setWeaponColor('#00ffff')" style="width:22px;height:22px;border-radius:3px;background:#00ffff;cursor:pointer;box-shadow:0 0 5px #00ffff66" title="青色"></div>
-                <div onclick="setWeaponColor('#ff2200')" style="width:22px;height:22px;border-radius:3px;background:#ff2200;cursor:pointer;box-shadow:0 0 5px #ff220066" title="赤红"></div>
-                <div onclick="setWeaponColor('#00ff44')" style="width:22px;height:22px;border-radius:3px;background:#00ff44;cursor:pointer;box-shadow:0 0 5px #00ff4466" title="绿"></div>
-                <div onclick="setWeaponColor('#aa00ff')" style="width:22px;height:22px;border-radius:3px;background:#aa00ff;cursor:pointer;box-shadow:0 0 5px #aa00ff66" title="紫"></div>
-                <div onclick="setWeaponColor('#ff8800')" style="width:22px;height:22px;border-radius:3px;background:#ff8800;cursor:pointer;box-shadow:0 0 5px #ff880066" title="橙"></div>
-                <div onclick="setWeaponColor('#ffff00')" style="width:22px;height:22px;border-radius:3px;background:#ffff00;cursor:pointer;box-shadow:0 0 5px #ffff0066" title="黄"></div>
-                <div onclick="setWeaponColor('#ffffff')" style="width:22px;height:22px;border-radius:3px;background:#ffffff;cursor:pointer;box-shadow:0 0 5px #ffffff66" title="白"></div>
-                <div onclick="setWeaponColor('#ff00ff')" style="width:22px;height:22px;border-radius:3px;background:#ff00ff;cursor:pointer;box-shadow:0 0 5px #ff00ff66" title="粉紫"></div>
+                <div onclick="setWeaponColor('#00ffff')" style="width:22px;height:22px;border-radius:3px;background:#00ffff;cursor:pointer;box-shadow:0 0 5px #00ffff66" title="青色" data-i18n-title="adminWeapons.wpnColorCyan"></div>
+                <div onclick="setWeaponColor('#ff2200')" style="width:22px;height:22px;border-radius:3px;background:#ff2200;cursor:pointer;box-shadow:0 0 5px #ff220066" title="赤红" data-i18n-title="adminWeapons.wpnColorRed"></div>
+                <div onclick="setWeaponColor('#00ff44')" style="width:22px;height:22px;border-radius:3px;background:#00ff44;cursor:pointer;box-shadow:0 0 5px #00ff4466" title="绿" data-i18n-title="adminWeapons.wpnColorGreen"></div>
+                <div onclick="setWeaponColor('#aa00ff')" style="width:22px;height:22px;border-radius:3px;background:#aa00ff;cursor:pointer;box-shadow:0 0 5px #aa00ff66" title="紫" data-i18n-title="adminWeapons.wpnColorPurple"></div>
+                <div onclick="setWeaponColor('#ff8800')" style="width:22px;height:22px;border-radius:3px;background:#ff8800;cursor:pointer;box-shadow:0 0 5px #ff880066" title="橙" data-i18n-title="adminWeapons.wpnColorOrange"></div>
+                <div onclick="setWeaponColor('#ffff00')" style="width:22px;height:22px;border-radius:3px;background:#ffff00;cursor:pointer;box-shadow:0 0 5px #ffff0066" title="黄" data-i18n-title="adminWeapons.wpnColorYellow"></div>
+                <div onclick="setWeaponColor('#ffffff')" style="width:22px;height:22px;border-radius:3px;background:#ffffff;cursor:pointer;box-shadow:0 0 5px #ffffff66" title="白" data-i18n-title="adminWeapons.wpnColorWhite"></div>
+                <div onclick="setWeaponColor('#ff00ff')" style="width:22px;height:22px;border-radius:3px;background:#ff00ff;cursor:pointer;box-shadow:0 0 5px #ff00ff66" title="粉紫" data-i18n-title="adminWeapons.wpnColorPink"></div>
               </div>
             </div>
             <div class="form-group">
-              <label>剑柄颜色</label>
+              <label data-i18n="adminWeapons.wpnLabelHiltColor">剑柄颜色</label>
               <input type="color" id="weapon-hilt-color" value="#222222"
                 style="width:100%;height:36px;padding:2px;border:1px solid var(--border);border-radius:4px;background:none;cursor:pointer">
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>发光强度（0~3）<span id="weapon-glow-val" style="color:var(--orange);margin-left:6px">0.8</span></label>
+              <label><span data-i18n="adminWeapons.wpnLabelGlow">发光强度（0~3）</span><span id="weapon-glow-val" style="color:var(--orange);margin-left:6px">0.8</span></label>
               <input type="range" id="weapon-glow-intensity" min="0" max="3" step="0.1" value="0.8"
                 style="width:100%" oninput="document.getElementById('weapon-glow-val').textContent=this.value;updateWeaponModalPreview()">
             </div>
             <div class="form-group">
-              <label>剑刃长度（0.3~2.0）<span id="weapon-len-val" style="color:var(--orange);margin-left:6px">0.8</span></label>
+              <label><span data-i18n="adminWeapons.wpnLabelLength">剑刃长度（0.3~2.0）</span><span id="weapon-len-val" style="color:var(--orange);margin-left:6px">0.8</span></label>
               <input type="range" id="weapon-blade-length" min="0.3" max="2.0" step="0.1" value="0.8"
                 style="width:100%" oninput="document.getElementById('weapon-len-val').textContent=this.value">
             </div>
           </div>
           <div class="form-group">
-            <label>点光源强度（照亮周围环境，0~3）<span id="weapon-light-val" style="color:var(--orange);margin-left:6px">1.5</span></label>
+            <label><span data-i18n="adminWeapons.wpnLabelLight">点光源强度（照亮周围环境，0~3）</span><span id="weapon-light-val" style="color:var(--orange);margin-left:6px">1.5</span></label>
             <input type="range" id="weapon-light-intensity" min="0" max="3" step="0.1" value="1.5"
               style="width:100%" oninput="document.getElementById('weapon-light-val').textContent=this.value">
           </div>
-          <div style="font-size:11px;font-weight:700;color:var(--orange);margin-bottom:8px">✨ 初始特效（持续效果）</div>
+          <div style="font-size:11px;font-weight:700;color:var(--orange);margin-bottom:8px" data-i18n="adminWeapons.wpnSectionEffect">✨ 初始特效（持续效果）</div>
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:14px" id="weapon-default-effect-grid">
             <div class="weapon-effect-btn active" data-key="none" onclick="selectWeaponModalDefaultEffect('none',this)"
               style="padding:7px 5px;border:2px solid var(--green);border-radius:7px;text-align:center;cursor:pointer;transition:all 0.2s;background:rgba(0,255,0,0.08)">
-              <div style="font-size:16px">🚫</div><div style="font-size:11px;color:var(--text);font-weight:600;margin-top:2px">无</div>
+              <div style="font-size:16px">🚫</div><div style="font-size:11px;color:var(--text);font-weight:600;margin-top:2px" data-i18n="adminWeapons.effectNone">无</div>
             </div>
             <div class="weapon-effect-btn" data-key="spark" onclick="selectWeaponModalDefaultEffect('spark',this)"
               style="padding:7px 5px;border:2px solid var(--border);border-radius:7px;text-align:center;cursor:pointer;transition:all 0.2s;background:rgba(0,0,0,0.3)">
-              <div style="font-size:16px">✨</div><div style="font-size:11px;color:var(--text);font-weight:600;margin-top:2px">星火</div>
+              <div style="font-size:16px">✨</div><div style="font-size:11px;color:var(--text);font-weight:600;margin-top:2px" data-i18n="adminWeapons.effectSpark">星火</div>
             </div>
             <div class="weapon-effect-btn" data-key="fire" onclick="selectWeaponModalDefaultEffect('fire',this)"
               style="padding:7px 5px;border:2px solid var(--border);border-radius:7px;text-align:center;cursor:pointer;transition:all 0.2s;background:rgba(0,0,0,0.3)">
-              <div style="font-size:16px">🔥</div><div style="font-size:11px;color:var(--text);font-weight:600;margin-top:2px">火焰</div>
+              <div style="font-size:16px">🔥</div><div style="font-size:11px;color:var(--text);font-weight:600;margin-top:2px" data-i18n="adminWeapons.effectFire">火焰</div>
             </div>
             <div class="weapon-effect-btn" data-key="frost" onclick="selectWeaponModalDefaultEffect('frost',this)"
               style="padding:7px 5px;border:2px solid var(--border);border-radius:7px;text-align:center;cursor:pointer;transition:all 0.2s;background:rgba(0,0,0,0.3)">
-              <div style="font-size:16px">❄️</div><div style="font-size:11px;color:var(--text);font-weight:600;margin-top:2px">冰霜</div>
+              <div style="font-size:16px">❄️</div><div style="font-size:11px;color:var(--text);font-weight:600;margin-top:2px" data-i18n="adminWeapons.effectFrost">冰霜</div>
             </div>
             <div class="weapon-effect-btn" data-key="lightning" onclick="selectWeaponModalDefaultEffect('lightning',this)"
               style="padding:7px 5px;border:2px solid var(--border);border-radius:7px;text-align:center;cursor:pointer;transition:all 0.2s;background:rgba(0,0,0,0.3)">
-              <div style="font-size:16px">⚡</div><div style="font-size:11px;color:var(--text);font-weight:600;margin-top:2px">闪电</div>
+              <div style="font-size:16px">⚡</div><div style="font-size:11px;color:var(--text);font-weight:600;margin-top:2px" data-i18n="adminWeapons.effectLightning">闪电</div>
             </div>
             <div class="weapon-effect-btn" data-key="dark" onclick="selectWeaponModalDefaultEffect('dark',this)"
               style="padding:7px 5px;border:2px solid var(--border);border-radius:7px;text-align:center;cursor:pointer;transition:all 0.2s;background:rgba(0,0,0,0.3)">
-              <div style="font-size:16px">🌑</div><div style="font-size:11px;color:var(--text);font-weight:600;margin-top:2px">黑暗</div>
+              <div style="font-size:16px">🌑</div><div style="font-size:11px;color:var(--text);font-weight:600;margin-top:2px" data-i18n="adminWeapons.effectDark">黑暗</div>
             </div>
             <div class="weapon-effect-btn" data-key="holy" onclick="selectWeaponModalDefaultEffect('holy',this)"
               style="padding:7px 5px;border:2px solid var(--border);border-radius:7px;text-align:center;cursor:pointer;transition:all 0.2s;background:rgba(0,0,0,0.3)">
-              <div style="font-size:16px">🌟</div><div style="font-size:11px;color:var(--text);font-weight:600;margin-top:2px">神圣</div>
+              <div style="font-size:16px">🌟</div><div style="font-size:11px;color:var(--text);font-weight:600;margin-top:2px" data-i18n="adminWeapons.effectHoly">神圣</div>
             </div>
           </div>
           <input type="hidden" id="weapon-default-effect" value="none">
@@ -1457,25 +1457,25 @@
 
         <!-- 预留：自定义GLB -->
         <div id="weapon-custom-glb-config" style="display:none;padding:12px;border:1px solid rgba(88,166,255,0.2);border-radius:7px;background:rgba(88,166,255,0.04)">
-          <div style="font-size:12px;color:var(--blue);font-weight:700;margin-bottom:8px">📦 自定义武器 GLB 模型（即将支持）</div>
-          <div style="font-size:11px;color:var(--muted)">上传 GLB 后，武器将挂载到角色骨骼的 rightHand 节点。</div>
+          <div style="font-size:12px;color:var(--blue);font-weight:700;margin-bottom:8px" data-i18n="adminWeapons.wpnSectionCustomGlb">📦 自定义武器 GLB 模型（即将支持）</div>
+          <div style="font-size:11px;color:var(--muted)" data-i18n="adminWeapons.wpnCustomGlbHint">上传 GLB 后，武器将挂载到角色骨骼的 rightHand 节点。</div>
           <input type="file" id="weapon-glb-file" accept=".glb,.gltf" style="margin-top:8px;padding:6px" disabled>
         </div>
 
         <div class="form-group" style="margin-top:12px">
-          <label>排序权重（越小越前）</label>
+          <label data-i18n="adminWeapons.wpnLabelSortOrder">排序权重（越小越前）</label>
           <input type="number" id="weapon-sort-order" value="0" min="0" style="max-width:120px">
         </div>
 
         <!-- 技能列表 -->
-        <div style="font-size:12px;font-weight:700;color:var(--orange);margin:12px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">⚔️ 触发技能</div>
-        <button class="btn btn-sm btn-blue" onclick="addWeaponSkill()" style="margin-bottom:10px">➕ 添加技能</button>
+        <div style="font-size:12px;font-weight:700;color:var(--orange);margin:12px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)" data-i18n="adminWeapons.wpnSectionSkills">⚔️ 触发技能</div>
+        <button class="btn btn-sm btn-blue" onclick="addWeaponSkill()" style="margin-bottom:10px" data-i18n="adminWeapons.wpnAddSkillBtn">➕ 添加技能</button>
         <div id="weapon-skills-container"></div>
         <input type="hidden" id="weapon-skills-data" value="[]">
 
         <div class="btn-group" style="margin-top:14px">
-          <button class="btn" onclick="saveWeapon()">💾 保存武器</button>
-          <button class="btn btn-secondary" onclick="closeWeaponModal()">取消</button>
+          <button class="btn" onclick="saveWeapon()" data-i18n="adminWeapons.wpnSaveBtn">💾 保存武器</button>
+          <button class="btn btn-secondary" onclick="closeWeaponModal()" data-i18n="adminWeapons.wpnCancelBtn">取消</button>
         </div>
       </div>
     </div>
@@ -1483,20 +1483,20 @@
     <!-- ===== 6. 联邦与传送 ===== -->
     <div id="page-federation" class="page">
       <div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:0;">
-        <button class="sub-tab active" onclick="switchSubTab('federation','portals',this)">🚪 传送门</button>
-        <button class="sub-tab" onclick="switchSubTab('federation','trusted',this); initFederationTrust();">🤝 受信任世界</button>
-        <button class="sub-tab" onclick="switchSubTab('federation','history',this)">📜 传送历史</button>
-        <button class="sub-tab" onclick="switchSubTab('federation','stats',this)">📊 世界统计</button>
-        <button class="sub-tab" onclick="switchSubTab('federation','info',this)">🔑 本世界信息</button>
+        <button class="sub-tab active" onclick="switchSubTab('federation','portals',this)" data-i18n="adminFed.fedSubPortals">🚪 传送门</button>
+        <button class="sub-tab" onclick="switchSubTab('federation','trusted',this); initFederationTrust();" data-i18n="adminFed.fedSubTrusted">🤝 受信任世界</button>
+        <button class="sub-tab" onclick="switchSubTab('federation','history',this)" data-i18n="adminFed.fedSubHistory">📜 传送历史</button>
+        <button class="sub-tab" onclick="switchSubTab('federation','stats',this)" data-i18n="adminFed.fedSubStats">📊 世界统计</button>
+        <button class="sub-tab" onclick="switchSubTab('federation','info',this)" data-i18n="adminFed.fedSubInfo">🔑 本世界信息</button>
       </div>
 
       <div id="federation-sub-portals" class="sub-page">
         <div class="card">
           <div class="card-header">
-            <div class="card-title">🚪 传送门管理</div>
-            <button class="btn btn-sm" onclick="showCreatePortalModal()">➕ 创建</button>
+            <div class="card-title" data-i18n="adminFed.fedPortalsTitle">🚪 传送门管理</div>
+            <button class="btn btn-sm" onclick="showCreatePortalModal()" data-i18n="adminFed.fedCreateBtn">➕ 创建</button>
           </div>
-          <div id="portals-content" class="loading">加载中...</div>
+          <div id="portals-content" class="loading"><span data-i18n="common.loading">加载中...</span></div>
         </div>
       </div>
 
@@ -1504,15 +1504,15 @@
         <!-- 信任审批开关 -->
         <div class="card" style="margin-bottom:18px;">
           <div class="card-header">
-            <div class="card-title">🔒 信任审批开关</div>
-            <button id="btn-save-trust-settings" class="btn btn-sm" onclick="saveTrustSettings()">💾 保存</button>
+            <div class="card-title" data-i18n="adminFed.fedApprovalTitle">🔒 信任审批开关</div>
+            <button id="btn-save-trust-settings" class="btn btn-sm" onclick="saveTrustSettings()" data-i18n="adminFed.fedSaveBtn">💾 保存</button>
           </div>
           <div style="padding:16px;">
             <label style="display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none;">
               <input type="checkbox" id="trust-requires-approval" style="width:18px;height:18px;cursor:pointer;">
               <span>
                 <strong id="trust-status-text">已关闭：收到信任请求自动同意</strong>
-                <div style="font-size:12px;color:var(--muted);margin-top:4px;">开启后，其他世界向你发起握手时需要你在本后台手动同意；关闭则收到请求自动同意。</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:4px;" data-i18n="adminFed.fedApprovalDesc">开启后，其他世界向你发起握手时需要你在本后台手动同意；关闭则收到请求自动同意。</div>
               </span>
             </label>
           </div>
@@ -1521,75 +1521,75 @@
         <!-- 待审批请求 -->
         <div id="pending-trust-requests-card" class="card" style="margin-bottom:18px;">
           <div class="card-header">
-            <div class="card-title">⏳ 待审批的信任请求</div>
-            <button class="btn btn-sm" onclick="loadPendingTrustRequests()">🔄 刷新</button>
+            <div class="card-title" data-i18n="adminFed.fedPendingTitle">⏳ 待审批的信任请求</div>
+            <button class="btn btn-sm" onclick="loadPendingTrustRequests()" data-i18n="adminWorld.refresh">🔄 刷新</button>
           </div>
-          <div id="pending-trust-requests-content" class="loading">加载中...</div>
+          <div id="pending-trust-requests-content" class="loading"><span data-i18n="common.loading">加载中...</span></div>
         </div>
 
         <div class="card">
           <div class="card-header">
-            <div class="card-title">🤝 受信任世界</div>
+            <div class="card-title" data-i18n="adminFed.fedTrustedTitle">🤝 受信任世界</div>
             <div style="display: flex; gap: 10px; align-items: center;">
               <div style="display: flex; gap: 5px; align-items: center;">
-                <input type="text" id="worlds-search" placeholder="搜索世界名称" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; width: 200px;">
-                <button class="btn btn-sm" onclick="loadWorlds()">🔍 搜索</button>
+                <input type="text" id="worlds-search" placeholder="搜索世界名称" data-i18n-placeholder="adminFed.fedSearchPlaceholder" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; width: 200px;">
+                <button class="btn btn-sm" onclick="loadWorlds()" data-i18n="adminFed.fedSearchBtn">🔍 搜索</button>
               </div>
-              <button class="btn btn-sm" onclick="showAddWorldModal()">➕ 添加世界</button>
+              <button class="btn btn-sm" onclick="showAddWorldModal()" data-i18n="adminFed.fedAddWorldBtn">➕ 添加世界</button>
             </div>
           </div>
-          <div id="worlds-content" class="loading">加载中...</div>
+          <div id="worlds-content" class="loading"><span data-i18n="common.loading">加载中...</span></div>
         </div>
       </div>
 
       <div id="federation-sub-history" class="sub-page" style="display:none">
         <div class="card">
           <div class="card-header">
-            <div class="card-title">📜 跨世界传送历史</div>
+            <div class="card-title" data-i18n="adminFed.fedHistoryTitle">📜 跨世界传送历史</div>
             <div style="display: flex; gap: 10px; align-items: center;">
               <div style="display: flex; gap: 5px; align-items: center;">
-                <input type="text" id="logs-search" placeholder="搜索用户或世界" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; width: 200px;">
+                <input type="text" id="logs-search" placeholder="搜索用户或世界" data-i18n-placeholder="adminFed.fedHistorySearchPlaceholder" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; width: 200px;">
                 <select id="logs-filter" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
-                  <option value="all">全部</option>
-                  <option value="user">用户</option>
-                  <option value="world">世界</option>
+                  <option value="all" data-i18n="adminFed.fedFilterAll">全部</option>
+                  <option value="user" data-i18n="adminFed.fedFilterUser">用户</option>
+                  <option value="world" data-i18n="adminFed.fedFilterWorld">世界</option>
                 </select>
-                <button class="btn btn-sm" onclick="loadLogs()">🔍 搜索</button>
+                <button class="btn btn-sm" onclick="doLogSearch()" data-i18n="adminFed.fedSearchBtn">🔍 搜索</button>
               </div>
-              <button class="btn btn-sm" onclick="loadLogs()">🔄 刷新</button>
+              <button class="btn btn-sm" onclick="loadLogs()" data-i18n="adminWorld.refresh">🔄 刷新</button>
             </div>
           </div>
-          <div id="logs-content" class="loading">加载中...</div>
+          <div id="logs-content" class="loading"><span data-i18n="common.loading">加载中...</span></div>
         </div>
       </div>
 
       <div id="federation-sub-stats" class="sub-page" style="display:none">
         <div class="card">
           <div class="card-header">
-            <div class="card-title">📊 世界统计</div>
+            <div class="card-title" data-i18n="adminFed.fedStatsTitle">📊 世界统计</div>
             <div style="display: flex; gap: 10px; align-items: center;">
               <select id="stats-time-range" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
-                <option value="7">最近7天</option>
-                <option value="30">最近30天</option>
-                <option value="90">最近90天</option>
+                <option value="7" data-i18n="adminFed.fedRange7">最近7天</option>
+                <option value="30" data-i18n="adminFed.fedRange30">最近30天</option>
+                <option value="90" data-i18n="adminFed.fedRange90">最近90天</option>
               </select>
-              <button class="btn btn-sm" onclick="loadWorldStats()">🔄 刷新</button>
+              <button class="btn btn-sm" onclick="loadWorldStats()" data-i18n="adminWorld.refresh">🔄 刷新</button>
             </div>
           </div>
-          <div id="world-stats-content" class="loading">加载中...</div>
+          <div id="world-stats-content" class="loading"><span data-i18n="common.loading">加载中...</span></div>
         </div>
       </div>
 
       <div id="federation-sub-info" class="sub-page" style="display:none">
         <div class="card">
           <div class="card-header">
-            <div class="card-title">🔑 本世界联邦信息</div>
+            <div class="card-title" data-i18n="adminFed.fedInfoTitle">🔑 本世界联邦信息</div>
             <div style="display:flex;gap:8px;">
-              <button onclick="loadFederationInfo()" style="padding:5px 10px; font-size:12px;">刷新</button>
-              <button onclick="resetWorldIdentity()" style="padding:5px 10px; font-size:12px; background:rgba(255,100,0,0.15); color:#ff9955; border:1px solid rgba(255,100,0,0.3); border-radius:4px; cursor:pointer;">⚠️ 重置世界ID</button>
+              <button onclick="loadFederationInfo()" data-i18n="adminFed.fedInfoRefreshBtn" style="padding:5px 10px; font-size:12px;">刷新</button>
+              <button onclick="resetWorldIdentity()" data-i18n="adminFed.fedResetIdBtn" style="padding:5px 10px; font-size:12px; background:rgba(255,100,0,0.15); color:#ff9955; border:1px solid rgba(255,100,0,0.3); border-radius:4px; cursor:pointer;">⚠️ 重置世界ID</button>
             </div>
           </div>
-          <div id="federation-info-content" class="loading">加载中...</div>
+          <div id="federation-info-content" class="loading"><span data-i18n="common.loading">加载中...</span></div>
         </div>
       </div>
     </div>
@@ -2303,51 +2303,51 @@
     <!-- ===== 7. 系统配置 ===== -->
     <div id="page-config" class="page">
       <div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:0;">
-        <button class="sub-tab active" onclick="switchSubTab('config','ai-providers',this)">🤖 AI提供商</button>
-        <button class="sub-tab" onclick="switchSubTab('config','sys-config',this)">🔧 系统参数</button>
-        <button class="sub-tab" onclick="switchSubTab('config','audit',this)">📜 审计日志</button>
-        <button class="sub-tab" onclick="switchSubTab('config','seo',this)">🔍 SEO配置</button>
+        <button class="sub-tab active" onclick="switchSubTab('config','ai-providers',this)" data-i18n="adminSystem.subtabAIProviders">🤖 AI提供商</button>
+        <button class="sub-tab" onclick="switchSubTab('config','sys-config',this)" data-i18n="adminSystem.subtabSysConfig">🔧 系统参数</button>
+        <button class="sub-tab" onclick="switchSubTab('config','audit',this)" data-i18n="adminSystem.subtabAudit">📜 审计日志</button>
+        <button class="sub-tab" onclick="switchSubTab('config','seo',this)" data-i18n="adminSystem.subtabSeo">🔍 SEO配置</button>
       </div>
 
       <div id="config-sub-ai-providers" class="sub-page">
         <div class="card">
           <div class="card-header">
-            <div class="card-title">🤖 AI 提供商配置</div>
-            <button class="btn btn-sm" onclick="showAddProviderDialog()">➕ 添加</button>
+            <div class="card-title" data-i18n="adminSystem.aiProvidersTitle">🤖 AI 提供商配置</div>
+            <button class="btn btn-sm" onclick="showAddProviderDialog()" data-i18n="adminSystem.aiProvidersAdd">➕ 添加</button>
           </div>
-          <div style="background:rgba(88,166,255,0.06);border-left:3px solid var(--blue);padding:11px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;color:#ccc;line-height:1.6;">
+          <div style="background:rgba(88,166,255,0.06);border-left:3px solid var(--blue);padding:11px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;color:#ccc;line-height:1.6;" data-i18n="adminSystem.aiProvidersHint">
             支持腾讯混元3D、阿里千问、字节豆包等，所有 API Key 均加密存储。
           </div>
-          <div id="ai-providers-list" class="loading">加载中...</div>
+          <div id="ai-providers-list" class="loading" data-i18n="adminSystem.loading">加载中...</div>
         </div>
       </div>
 
       <div id="config-sub-sys-config" class="sub-page" style="display:none">
         <div class="card">
           <div class="card-header">
-            <div class="card-title">🌐 世界基础设置</div>
-            <div style="font-size:12px;color:var(--muted)">配置本世界的名称与对外访问地址</div>
+            <div class="card-title" data-i18n="adminSystem.worldSettingsTitle">🌐 世界基础设置</div>
+            <div style="font-size:12px;color:var(--muted)" data-i18n="adminSystem.worldSettingsDesc">配置本世界的名称与对外访问地址</div>
           </div>
           <div id="world-settings-form">
             <div class="form-group">
-              <label>世界名称 *</label>
-              <input type="text" id="ws-world-name" placeholder="如：我的虚拟世界">
+              <label data-i18n="adminSystem.wsNameLabel">世界名称 *</label>
+              <input type="text" id="ws-world-name" data-i18n-placeholder="adminSystem.wsNamePlaceholder" placeholder="如：我的虚拟世界">
             </div>
             <div class="form-group">
-              <label>世界URL（对外域名）*</label>
-              <input type="text" id="ws-world-url" placeholder="如：https://world.example.com">
+              <label data-i18n="adminSystem.wsUrlLabel">世界URL（对外域名）*</label>
+              <input type="text" id="ws-world-url" data-i18n-placeholder="adminSystem.wsUrlPlaceholder" placeholder="如：https://world.example.com">
               <div style="font-size:11px;color:var(--muted);margin-top:4px">
-                用于联邦传送、传送门跨服等功能。绑定域名后填写域名地址，本地测试填 <code style="color:var(--green)">http://localhost:3002</code>
+                <span data-i18n="adminSystem.wsUrlHintPre">用于联邦传送、传送门跨服等功能。绑定域名后填写域名地址，本地测试填</span> <code style="color:var(--green)">http://localhost:3002</code>
               </div>
             </div>
             <div class="form-group">
-              <label>世界描述</label>
-              <textarea id="ws-world-description" placeholder="一句话介绍这个世界（选填）" style="min-height:70px"></textarea>
+              <label data-i18n="adminSystem.wsDescLabel">世界描述</label>
+              <textarea id="ws-world-description" data-i18n-placeholder="adminSystem.wsDescPlaceholder" placeholder="一句话介绍这个世界（选填）" style="min-height:70px"></textarea>
             </div>
             <div id="ws-save-msg" style="display:none;margin-bottom:12px;padding:9px 13px;border-radius:6px;font-size:13px"></div>
             <div class="btn-group">
-              <button class="btn" onclick="saveWorldSettings()">💾 保存设置</button>
-              <button class="btn btn-secondary" onclick="loadWorldSettings()">🔄 重新加载</button>
+              <button class="btn" onclick="saveWorldSettings()" data-i18n="adminSystem.wsSaveBtn">💾 保存设置</button>
+              <button class="btn btn-secondary" onclick="loadWorldSettings()" data-i18n="adminSystem.wsReloadBtn">🔄 重新加载</button>
             </div>
           </div>
         </div>
@@ -2356,38 +2356,38 @@
       <div id="config-sub-audit" class="sub-page" style="display:none">
         <div class="card">
           <div class="card-header">
-            <div class="card-title">📜 配置审计日志</div>
-            <button class="btn btn-sm" onclick="loadAuditLogs()">🔄 刷新</button>
+            <div class="card-title" data-i18n="adminSystem.auditTitle">📜 配置审计日志</div>
+            <button class="btn btn-sm" onclick="loadAuditLogs()" data-i18n="adminSystem.auditRefresh">🔄 刷新</button>
           </div>
-          <div id="config-audit-logs" class="loading">加载中...</div>
+          <div id="config-audit-logs" class="loading" data-i18n="adminSystem.loading">加载中...</div>
         </div>
       </div>
 
       <div id="config-sub-seo" class="sub-page" style="display:none">
         <div class="card">
           <div class="card-header">
-            <div class="card-title">🔍 SEO TDK 配置</div>
-            <div style="font-size:12px;color:var(--muted)">配置搜索引擎优化相关的标题、描述和关键词</div>
+            <div class="card-title" data-i18n="adminSystem.seoTitle">🔍 SEO TDK 配置</div>
+            <div style="font-size:12px;color:var(--muted)" data-i18n="adminSystem.seoDesc">配置搜索引擎优化相关的标题、描述和关键词</div>
           </div>
           <div class="form-group">
-            <label>网站标题（Title）*</label>
-            <input type="text" id="seo-title" placeholder="如：创世虚拟世界CRM系统" maxlength="60">
-            <div style="font-size:11px;color:var(--muted);margin-top:4px">建议不超过60个字符，显示在浏览器标签和搜索结果标题</div>
+            <label data-i18n="adminSystem.seoTitleLabel">网站标题（Title）*</label>
+            <input type="text" id="seo-title" data-i18n-placeholder="adminSystem.seoTitlePlaceholder" placeholder="如：创世虚拟世界CRM系统" maxlength="60">
+            <div style="font-size:11px;color:var(--muted);margin-top:4px" data-i18n="adminSystem.seoTitleHint">建议不超过60个字符，显示在浏览器标签和搜索结果标题</div>
           </div>
           <div class="form-group">
-            <label>网站描述（Description）</label>
-            <textarea id="seo-description" placeholder="一句话描述网站内容..." style="min-height:80px"></textarea>
-            <div style="font-size:11px;color:var(--muted);margin-top:4px">建议不超过160个字符，显示在搜索结果摘要中</div>
+            <label data-i18n="adminSystem.seoDescLabel">网站描述（Description）</label>
+            <textarea id="seo-description" data-i18n-placeholder="adminSystem.seoDescPlaceholder" placeholder="一句话描述网站内容..." style="min-height:80px"></textarea>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px" data-i18n="adminSystem.seoDescHint">建议不超过160个字符，显示在搜索结果摘要中</div>
           </div>
           <div class="form-group">
-            <label>网站关键词（Keywords）</label>
-            <input type="text" id="seo-keywords" placeholder="如：虚拟世界,3D游戏,CRM系统">
-            <div style="font-size:11px;color:var(--muted);margin-top:4px">多个关键词用逗号分隔</div>
+            <label data-i18n="adminSystem.seoKeywordsLabel">网站关键词（Keywords）</label>
+            <input type="text" id="seo-keywords" data-i18n-placeholder="adminSystem.seoKeywordsPlaceholder" placeholder="如：虚拟世界,3D游戏,CRM系统">
+            <div style="font-size:11px;color:var(--muted);margin-top:4px" data-i18n="adminSystem.seoKeywordsHint">多个关键词用逗号分隔</div>
           </div>
           <div id="seo-save-msg" style="display:none;margin-bottom:12px;padding:9px 13px;border-radius:6px;font-size:13px"></div>
           <div class="btn-group">
-            <button class="btn" onclick="saveSEOConfig()">💾 保存配置</button>
-            <button class="btn btn-secondary" onclick="loadSEOConfig()">🔄 重新加载</button>
+            <button class="btn" onclick="saveSEOConfig()" data-i18n="adminSystem.seoSaveBtn">💾 保存配置</button>
+            <button class="btn btn-secondary" onclick="loadSEOConfig()" data-i18n="adminSystem.seoReloadBtn">🔄 重新加载</button>
           </div>
         </div>
       </div>
@@ -2397,25 +2397,25 @@
     <div id="page-security-questions" class="page">
       <div class="card">
         <div class="card-header">
-          <div class="card-title">🔐 安全问题列表</div>
-          <button class="btn btn-sm" onclick="showAddSecurityQuestionDialog()">➕ 添加问题</button>
+          <div class="card-title" data-i18n="adminSystem.sqTitle">🔐 安全问题列表</div>
+          <button class="btn btn-sm" onclick="showAddSecurityQuestionDialog()" data-i18n="adminSystem.sqAddBtn">➕ 添加问题</button>
         </div>
-        <div style="background:rgba(255,255,0,0.06);border-left:3px solid var(--yellow);padding:11px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;color:#ccc;line-height:1.6;">
+        <div style="background:rgba(255,255,0,0.06);border-left:3px solid var(--yellow);padding:11px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;color:#ccc;line-height:1.6;" data-i18n="adminSystem.sqHint">
           💡 安全问题是用户在注册时选择、找回密码时验证的凭据。有用户在使用的问题无法直接删除。
         </div>
         <table class="data-table" style="width:100%">
           <thead>
             <tr>
-              <th style="width:60px">序号</th>
-              <th>问题文本</th>
-              <th style="width:80px">排序</th>
-              <th style="width:80px">状态</th>
-              <th style="width:80px">使用人数</th>
-              <th style="width:120px">操作</th>
+              <th style="width:60px" data-i18n="adminSystem.sqColNum">序号</th>
+              <th data-i18n="adminSystem.sqColText">问题文本</th>
+              <th style="width:80px" data-i18n="adminSystem.sqColSort">排序</th>
+              <th style="width:80px" data-i18n="adminSystem.sqColStatus">状态</th>
+              <th style="width:80px" data-i18n="adminSystem.sqColUsers">使用人数</th>
+              <th style="width:120px" data-i18n="adminSystem.sqColActions">操作</th>
             </tr>
           </thead>
           <tbody id="security-questions-tbody">
-            <tr><td colspan="6" class="loading">加载中...</td></tr>
+            <tr><td colspan="6" class="loading" data-i18n="adminSystem.loading">加载中...</td></tr>
           </tbody>
         </table>
       </div>
@@ -2551,33 +2551,33 @@
 <div id="portalModal" class="modal">
   <div class="modal-box">
     <div class="modal-header">
-      <h2 id="portalModalTitle">创建传送门</h2>
+      <h2 id="portalModalTitle" data-i18n="adminFed.fedPortalModalTitle">创建传送门</h2>
       <button class="close-btn" onclick="closePortalModal()">×</button>
     </div>
     <form id="portalForm">
       <input type="hidden" id="portal-id">
       <div class="form-group">
-        <label>传送门名称 *</label>
+        <label data-i18n="adminFed.fedPortalNameLabel">传送门名称 *</label>
         <input type="text" id="portal-name" required>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>类型</label>
+          <label data-i18n="adminFed.fedPortalTypeLabel">类型</label>
           <select id="portal-type" onchange="togglePortalTypeFields()">
-            <option value="local">本地传送</option>
-            <option value="remote">跨服传送</option>
+            <option value="local" data-i18n="adminFed.fedPortalTypeLocal">本地传送</option>
+            <option value="remote" data-i18n="adminFed.fedPortalTypeRemote">跨服传送</option>
           </select>
         </div>
         <div class="form-group">
-          <label>是否激活</label>
+          <label data-i18n="adminFed.fedPortalActiveLabel">是否激活</label>
           <select id="portal-active">
-            <option value="1">是</option>
-            <option value="0">否</option>
+            <option value="1" data-i18n="adminFed.fedPortalYes">是</option>
+            <option value="0" data-i18n="adminFed.fedPortalNo">否</option>
           </select>
         </div>
       </div>
       <div class="form-group">
-        <label>传送门位置 (x, y, z)</label>
+        <label data-i18n="adminFed.fedPortalPosLabel">传送门位置 (x, y, z)</label>
         <div style="display:flex;gap:8px;">
           <input type="number" id="portal-position-x" placeholder="X" step="any" required style="width:33%">
           <input type="number" id="portal-position-y" placeholder="Y" step="any" required style="width:33%">
@@ -2586,7 +2586,7 @@
       </div>
       <div id="local-fields">
         <div class="form-group">
-          <label>目标位置 (x, y, z)</label>
+          <label data-i18n="adminFed.fedPortalTargetLabel">目标位置 (x, y, z)</label>
           <div style="display:flex;gap:8px;">
             <input type="number" id="portal-target-x" placeholder="X" step="any" style="width:33%">
             <input type="number" id="portal-target-y" placeholder="Y" step="any" style="width:33%">
@@ -2596,31 +2596,31 @@
       </div>
       <div id="remote-fields" style="display:none">
         <div class="form-group">
-          <label>目标服务器 URL</label>
+          <label data-i18n="adminFed.fedPortalUrlLabel">目标服务器 URL</label>
           <input type="text" id="portal-target-url" placeholder="http://server2.com:3000">
         </div>
         <div class="form-group">
-          <label>目标世界名称</label>
-          <input type="text" id="portal-target-name" placeholder="梦幻世界">
+          <label data-i18n="adminFed.fedPortalWorldLabel">目标世界名称</label>
+          <input type="text" id="portal-target-name" placeholder="梦幻世界" data-i18n-placeholder="adminFed.fedPortalWorldPlaceholder">
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>所需等级</label>
+          <label data-i18n="adminFed.fedPortalLevelLabel">所需等级</label>
           <input type="number" id="portal-level" value="1" min="1">
         </div>
         <div class="form-group">
-          <label>冷却时间（秒）</label>
+          <label data-i18n="adminFed.fedPortalCooldownLabel">冷却时间（秒）</label>
           <input type="number" id="portal-cooldown" value="0" min="0">
         </div>
       </div>
       <div class="form-group">
-        <label>描述</label>
-        <textarea id="portal-description" placeholder="传送门描述"></textarea>
+        <label data-i18n="adminFed.fedPortalDescLabel">描述</label>
+        <textarea id="portal-description" placeholder="传送门描述" data-i18n-placeholder="adminFed.fedPortalDescPlaceholder"></textarea>
       </div>
       <div class="btn-group">
-        <button type="submit" class="btn">保存</button>
-        <button type="button" class="btn btn-secondary" onclick="closePortalModal()">取消</button>
+        <button type="submit" class="btn" data-i18n="common.save">保存</button>
+        <button type="button" class="btn btn-secondary" onclick="closePortalModal()" data-i18n="common.cancel">取消</button>
       </div>
     </form>
   </div>
@@ -2667,19 +2667,19 @@
 <div id="addWorldModal" class="modal">
   <div class="modal-box">
     <div class="modal-header">
-      <h2>🤝 添加受信任世界</h2>
+      <h2 data-i18n="adminFed.fedAddWorldTitle">🤝 添加受信任世界</h2>
       <button class="close-btn" onclick="document.getElementById('addWorldModal').classList.remove('active')">×</button>
     </div>
     <div class="form-group">
-      <label>目标世界 URL</label>
+      <label data-i18n="adminFed.fedAddWorldUrlLabel">目标世界 URL</label>
       <input type="text" id="add-world-url" placeholder="http://world-b.example.com">
     </div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;" data-i18n="adminFed.fedAddWorldDesc">
       输入目标世界的服务器地址，系统将自动发起 RSA 握手建立信任关系。
     </div>
     <div class="btn-group">
-      <button class="btn" onclick="connectWorld()">🔗 发起握手</button>
-      <button class="btn btn-secondary" onclick="document.getElementById('addWorldModal').classList.remove('active')">取消</button>
+      <button class="btn" onclick="connectWorld()" data-i18n="adminFed.fedHandshakeBtn">🔗 发起握手</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('addWorldModal').classList.remove('active')" data-i18n="adminFed.fedCancelBtn">取消</button>
     </div>
   </div>
 </div>
@@ -3586,7 +3586,29 @@
     else if (name === 'anim-library') { AnimLibMenu && AnimLibMenu.loadPage && AnimLibMenu.loadPage(); }
     else if (name === 'weapons') loadWeapons();
     else if (name === 'economy') loadAdSlots();
-    else if (name === 'federation') { loadPortals(); }
+    else if (name === 'federation') {
+      applyAdminTranslations(document.getElementById('page-federation'));
+      // 按当前激活子 tab 重载
+      let activeSub = 'portals';
+      ['portals','trusted','history','stats','info'].forEach(s => {
+        const el = document.getElementById('federation-sub-' + s);
+        if (el && el.style.display !== 'none') activeSub = s;
+      });
+      if (activeSub === 'portals') loadPortals();
+      else if (activeSub === 'trusted') { loadWorlds(); if (typeof initFederationTrust === 'function') initFederationTrust(); }
+      else if (activeSub === 'history') loadLogs();
+      else if (activeSub === 'stats') loadWorldStats();
+      else if (activeSub === 'info') loadFederationInfo();
+      // 弹窗状态恢复
+      const portalModal = document.getElementById('portalModal');
+      if (portalModal && portalModal.classList.contains('active')) {
+        document.getElementById('portalModalTitle').textContent = document.getElementById('portal-id').value
+          ? _tchT('adminFed.fedPortalModalTitleEdit') : _tchT('adminFed.fedPortalModalTitle');
+        togglePortalTypeFields();
+      }
+      const addWorldModal = document.getElementById('addWorldModal');
+      if (addWorldModal && addWorldModal.classList.contains('active')) applyAdminTranslations(addWorldModal);
+    }
     else if (name === 'config') { loadWorldSettings(); loadAIProviders(); }
     else if (name === 'security-questions') { loadSecurityQuestionsPage(); }
     else if (name === 'maintenance') { loadMaintenancePage(); }
@@ -3612,6 +3634,7 @@
     else if (sub === 'rewards') loadRewards();
     else if (sub === 'orders') loadOrders();
     else if (sub === 'history') loadLogs();
+    else if (sub === 'stats') loadWorldStats();
     else if (sub === 'info') loadFederationInfo();
     else if (sub === 'sys-config') loadWorldSettings();
     else if (sub === 'audit') loadAuditLogs();
@@ -5302,32 +5325,32 @@
       console.error('federation-info-content元素不存在');
       return;
     }
-    contentEl.innerHTML = '<div class="loading">加载中...</div>';
+    contentEl.innerHTML = `<div class="loading">${_tchT('common.loading')}</div>`;
     try {
       console.log('开始fetch请求');
       const r = await fetch('/api/federation/info');
       console.log('fetch请求完成，状态码:', r.status);
       if (!r.ok) {
-        throw new Error(`HTTP错误: ${r.status}`);
+        throw new Error(_tchTp('adminFed.fedHttpError', { status: r.status }));
       }
       console.log('开始解析JSON');
       const data = await r.json();
       console.log('JSON解析完成:', data);
       if (!data.success) {
-        throw new Error(data.error || 'API返回失败');
+        throw new Error(data.error || _tchT('adminFed.fedApiFailed'));
       }
       const w = data.world || {};
       console.log('世界信息:', w);
       contentEl.innerHTML = `
-        <div class="form-group"><label>世界 ID</label><input type="text" value="${w.worldId||'-'}" readonly style="opacity:0.7;font-family:monospace;font-size:12px"></div>
-        <div class="form-group"><label>世界名称</label><input type="text" value="${w.worldName||'-'}" readonly style="opacity:0.7"></div>
-        <div class="form-group"><label>世界 URL</label><input type="text" value="${w.worldUrl||'-'}" readonly style="opacity:0.7"></div>
-        <div class="form-group"><label>公钥（RSA-2048）</label><textarea readonly style="opacity:0.7;font-family:monospace;font-size:11px;min-height:120px">${w.publicKey||'-'}</textarea></div>
-        <div class="form-group"><label>原始数据</label><textarea readonly style="opacity:0.7;font-family:monospace;font-size:11px;min-height:80px">${JSON.stringify(data, null, 2)}</textarea></div>
+        <div class="form-group"><label>${_tchT('adminFed.fedInfoWorldId')}</label><input type="text" value="${w.worldId||'-'}" readonly style="opacity:0.7;font-family:monospace;font-size:12px"></div>
+        <div class="form-group"><label>${_tchT('adminWorld.worldName')}</label><input type="text" value="${w.worldName||'-'}" readonly style="opacity:0.7"></div>
+        <div class="form-group"><label>${_tchT('adminWorld.worldURL')}</label><input type="text" value="${w.worldUrl||'-'}" readonly style="opacity:0.7"></div>
+        <div class="form-group"><label>${_tchT('adminFed.fedInfoPublicKey')}</label><textarea readonly style="opacity:0.7;font-family:monospace;font-size:11px;min-height:120px">${w.publicKey||'-'}</textarea></div>
+        <div class="form-group"><label>${_tchT('adminFed.fedInfoRawData')}</label><textarea readonly style="opacity:0.7;font-family:monospace;font-size:11px;min-height:80px">${JSON.stringify(data, null, 2)}</textarea></div>
       `;
     } catch(e) {
       console.error('加载联邦信息失败:', e);
-      contentEl.innerHTML = `<div class="empty">加载失败: ${e.message}</div>`;
+      contentEl.innerHTML = `<div class="empty">${_tchTp('adminFed.fedPortalLoadFailed', { message: e.message })}</div>`;
     }
   }
 
@@ -5335,7 +5358,7 @@
 
   async function connectWorld() {
     let url = document.getElementById('add-world-url').value.trim().replace(/\/+$/, '');
-    if (!url) { showToast('请输入目标世界URL', 'error'); return; }
+    if (!url) { showToast(_tchT('adminFed.fedNeedUrl'), 'error'); return; }
     const token = localStorage.getItem('adminToken');
     try {
       const r = await fetch('/api/federation/trust', {
@@ -5345,18 +5368,18 @@
       const data = await r.json();
       if (data.success) {
         if (data.requiresApproval) {
-          showToast('信任请求已发送，等待对方管理员审批');
+          showToast(_tchT('adminFed.fedTrustSent'));
         } else {
-          showToast('握手成功！已建立信任关系');
+          showToast(_tchT('adminFed.fedHandshakeOk'));
         }
         document.getElementById('addWorldModal').classList.remove('active');
         loadWorlds();
-      } else showToast('握手失败: ' + data.error, 'error');
-    } catch(e) { showToast('连接失败: ' + e.message, 'error'); }
+      } else showToast(_tchTp('adminFed.fedHandshakeFailed', { message: data.error }), 'error');
+    } catch(e) { showToast(_tchTp('adminFed.fedConnectFailed', { message: e.message }), 'error'); }
   }
 
   async function resetWorldIdentity() {
-    if (!confirm('⚠️ 重置世界ID会生成全新的世界身份和密钥对，已建立的握手连接需要重新发起。\n\n确定要继续吗？')) return;
+    if (!confirm(_tchT('adminFed.fedResetConfirm'))) return;
     const token = localStorage.getItem('adminToken');
     try {
       const r = await fetch('/api/federation/reset-identity', {
@@ -5365,15 +5388,17 @@
       });
       const data = await r.json();
       if (data.success) {
-        showToast('✅ 世界身份已重置，新ID: ' + data.worldId);
+        showToast(_tchTp('adminFed.fedResetDone', { id: data.worldId }));
         loadFederationInfo();
       } else {
-        showToast('重置失败: ' + data.error, 'error');
+        showToast(_tchTp('adminFed.fedResetFailed', { message: data.error }), 'error');
       }
-    } catch(e) { showToast('操作失败: ' + e.message, 'error'); }
+    } catch(e) { showToast(_tchTp('adminFed.fedConnectFailed', { message: e.message }), 'error'); }
   }
 
   // ===== 世界设置 =====
+  const _tws = (k) => (window.i18n && window.i18n.t) ? window.i18n.t(k) : k;
+  const _twsp = (k, p) => (window.i18n && window.i18n.tp) ? window.i18n.tp(k, p) : k;
   async function loadWorldSettings() {
     try {
       const token = localStorage.getItem('adminToken');
@@ -5398,7 +5423,7 @@
       msgEl.style.background = 'rgba(255,68,68,0.12)';
       msgEl.style.color = 'var(--red)';
       msgEl.style.border = '1px solid rgba(255,68,68,0.3)';
-      msgEl.textContent = '❌ 世界名称和世界URL为必填项';
+      msgEl.textContent = _tws('adminSystem.wsRequiredMsg');
       return;
     }
 
@@ -5415,35 +5440,37 @@
         msgEl.style.background = 'rgba(0,255,0,0.08)';
         msgEl.style.color = 'var(--green)';
         msgEl.style.border = '1px solid rgba(0,255,0,0.2)';
-        msgEl.textContent = '✅ 世界设置已保存';
+        msgEl.textContent = _tws('adminSystem.wsSavedMsg');
         setTimeout(() => { msgEl.style.display = 'none'; }, 3000);
       } else {
         msgEl.style.display = 'block';
         msgEl.style.background = 'rgba(255,68,68,0.12)';
         msgEl.style.color = 'var(--red)';
         msgEl.style.border = '1px solid rgba(255,68,68,0.3)';
-        msgEl.textContent = '❌ ' + (data.error || '保存失败');
+        msgEl.textContent = '❌ ' + (data.error || _tws('adminSystem.wsSaveFailed'));
       }
     } catch(e) {
       msgEl.style.display = 'block';
       msgEl.style.background = 'rgba(255,68,68,0.12)';
       msgEl.style.color = 'var(--red)';
       msgEl.style.border = '1px solid rgba(255,68,68,0.3)';
-      msgEl.textContent = '❌ 请求失败: ' + e.message;
+      msgEl.textContent = _twsp('adminSystem.wsRequestFailed', { message: e.message });
     }
   }
 
   // ===== 审计日志 =====
+  const _tla = (k) => (window.i18n && window.i18n.t) ? window.i18n.t(k) : k;
+  const _tlap = (k, p) => (window.i18n && window.i18n.tp) ? window.i18n.tp(k, p) : k;
   async function loadAuditLogs() {
-    document.getElementById('config-audit-logs').innerHTML = '<div class="loading">加载中...</div>';
+    document.getElementById('config-audit-logs').innerHTML = `<div class="loading">${_tla('adminSystem.loading')}</div>`;
     try {
       const token = localStorage.getItem('adminToken');
       const r = await fetch('/api/ai-providers/audit-logs', { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await r.json();
       const logs = data.logs || [];
-      if (!logs.length) { document.getElementById('config-audit-logs').innerHTML = '<div class="empty">暂无审计日志</div>'; return; }
+      if (!logs.length) { document.getElementById('config-audit-logs').innerHTML = `<div class="empty">${_tla('adminSystem.auditEmpty')}</div>`; return; }
       document.getElementById('config-audit-logs').innerHTML = `<div class="table-wrap"><table>
-        <thead><tr><th>时间</th><th>操作</th><th>配置项</th><th>操作人</th><th>IP</th></tr></thead>
+        <thead><tr><th>${_tla('adminSystem.auditColTime')}</th><th>${_tla('adminSystem.auditColAction')}</th><th>${_tla('adminSystem.auditColConfigKey')}</th><th>${_tla('adminSystem.auditColOperator')}</th><th>${_tla('adminSystem.auditColIp')}</th></tr></thead>
         <tbody>${logs.map(l => `<tr>
           <td style="color:var(--muted);font-size:11px">${l.created_at ? new Date(l.created_at).toLocaleString('zh-CN') : '-'}</td>
           <td><span class="badge badge-blue">${l.action}</span></td>
@@ -5453,7 +5480,7 @@
         </tr>`).join('')}</tbody>
       </table></div>`;
     } catch(e) {
-      document.getElementById('config-audit-logs').innerHTML = `<div class="empty">加载失败: ${e.message}</div>`;
+      document.getElementById('config-audit-logs').innerHTML = `<div class="empty">${_tlap('adminSystem.loadFailedMsg', { message: e.message })}</div>`;
     }
   }
 
@@ -5465,6 +5492,7 @@
     // 如果已加载过 HTML，直接初始化
     if (container.dataset.loaded === 'true') {
       if (window.MaintenancePage) MaintenancePage.init();
+      applyAdminTranslations(document.getElementById('page-maintenance'));
       return;
     }
 
@@ -5474,6 +5502,7 @@
       const html = await r.text();
       container.innerHTML = html;
       container.dataset.loaded = 'true';
+      applyAdminTranslations(document.getElementById('page-maintenance'));
       if (window.MaintenancePage) MaintenancePage.init();
     } catch (e) {
       container.innerHTML = `<div class="card" style="text-align:center;padding:40px;color:#f85149;">
@@ -5494,32 +5523,37 @@
       const questions = data.questions || [];
 
       if (questions.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">暂无安全问题，请点击"添加问题"</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">' + _tla('adminSystem.sqEmpty') + '</td></tr>';
         return;
       }
+
+      const _tActive = _tla('adminSystem.sqActive');
+      const _tInactive = _tla('adminSystem.sqInactive');
+      const _tEdit = _tla('adminSystem.sqEdit');
+      const _tDelete = _tla('adminSystem.sqDelete');
 
       tbody.innerHTML = questions.map((q, idx) => `
         <tr>
           <td>${idx + 1}</td>
           <td>${escapeHtml(q.question_text)}</td>
           <td>${q.sort_order}</td>
-          <td><span style="color:${q.is_active ? '#00ff00' : '#888'}">${q.is_active ? '启用' : '停用'}</span></td>
-          <td>${q.usage_count || 0} 人</td>
+          <td><span style="color:${q.is_active ? '#00ff00' : '#888'}">${q.is_active ? _tActive : _tInactive}</span></td>
+          <td>${_tlap('adminSystem.sqUsersCount', { count: q.usage_count || 0 })}</td>
           <td>
-            <button class="btn btn-sm" onclick="showEditSecurityQuestionDialog(${q.id}, '${escapeJs(q.question_text)}', ${q.sort_order}, ${q.is_active})" title="编辑">✏️</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteSecurityQuestion(${q.id}, ${q.usage_count || 0})" title="删除" ${q.usage_count > 0 ? 'disabled' : ''}>🗑️</button>
+            <button class="btn btn-sm" onclick="showEditSecurityQuestionDialog(${q.id}, '${escapeJs(q.question_text)}', ${q.sort_order}, ${q.is_active})" title="${_tEdit}">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteSecurityQuestion(${q.id}, ${q.usage_count || 0})" title="${_tDelete}" ${q.usage_count > 0 ? 'disabled' : ''}>🗑️</button>
           </td>
         </tr>
       `).join('');
     } catch (e) {
-      tbody.innerHTML = '<tr><td colspan="6" style="color:#f85149;text-align:center">加载失败: ' + escapeHtml(e.message) + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="color:#f85149;text-align:center">' + _tlap('adminSystem.loadFailedMsg', { message: escapeHtml(e.message) }) + '</td></tr>';
     }
   }
 
   function showAddSecurityQuestionDialog() {
-    const text = prompt('请输入安全问题文本（如：你的小学学校名称）');
+    const text = prompt(_tla('adminSystem.sqAddPrompt'));
     if (!text || !text.trim()) return;
-    if (text.trim().length > 200) { alert('问题文本不能超过200个字符'); return; }
+    if (text.trim().length > 200) { alert(_tla('adminSystem.sqTooLong')); return; }
 
     fetch('/api/admin/security-questions', {
       method: 'POST',
@@ -5531,14 +5565,14 @@
     }).then(r => r.json()).then(data => {
       if (data.error) { alert(data.error); return; }
       loadSecurityQuestionsPage();
-    }).catch(e => alert('添加失败: ' + e.message));
+    }).catch(e => alert(_tlap('adminSystem.sqAddFailed', { message: e.message })));
   }
 
   function showEditSecurityQuestionDialog(id, currentText, currentSort, isActive) {
-    const newText = prompt('编辑安全问题文本', currentText);
+    const newText = prompt(_tla('adminSystem.sqEditPrompt'), currentText);
     if (newText === null) return; // 取消
-    if (!newText.trim()) { alert('文本不能为空'); return; }
-    if (newText.trim().length > 200) { alert('问题文本不能超过200个字符'); return; }
+    if (!newText.trim()) { alert(_tla('adminSystem.sqTextEmpty')); return; }
+    if (newText.trim().length > 200) { alert(_tla('adminSystem.sqTooLong')); return; }
 
     fetch('/api/admin/security-questions/' + id, {
       method: 'PUT',
@@ -5550,15 +5584,15 @@
     }).then(r => r.json()).then(data => {
       if (data.error) { alert(data.error); return; }
       loadSecurityQuestionsPage();
-    }).catch(e => alert('编辑失败: ' + e.message));
+    }).catch(e => alert(_tlap('adminSystem.sqEditFailed', { message: e.message })));
   }
 
   function deleteSecurityQuestion(id, usageCount) {
     if (usageCount > 0) {
-      alert(`该安全问题有 ${usageCount} 个用户正在使用，无法删除。\n请先引导用户更换安全问题。`);
+      alert(_tlap('adminSystem.sqInUse', { count: usageCount }));
       return;
     }
-    if (!confirm('确定要删除这个安全问题吗？此操作不可撤销。')) return;
+    if (!confirm(_tla('adminSystem.sqDeleteConfirm'))) return;
 
     fetch('/api/admin/security-questions/' + id, {
       method: 'DELETE',
@@ -5566,7 +5600,7 @@
     }).then(r => r.json()).then(data => {
       if (data.error) { alert(data.error); return; }
       loadSecurityQuestionsPage();
-    }).catch(e => alert('删除失败: ' + e.message));
+    }).catch(e => alert(_tlap('adminSystem.sqDeleteFailed', { message: e.message })));
   }
 
   function escapeHtml(str) {
@@ -5584,7 +5618,12 @@
     const container = document.getElementById('page-gallery');
     if (!container) return;
 
-    if (container.dataset.loaded === 'true') return;
+    // 如果已加载过 HTML，直接初始化
+    if (container.dataset.loaded === 'true') {
+      if (typeof galleryInit === 'function') galleryInit();
+      applyAdminTranslations(document.getElementById('page-gallery'));
+      return;
+    }
 
     try {
       const r = await fetch('/partials/admin_gallery.html');
@@ -5592,6 +5631,7 @@
       const html = await r.text();
       container.innerHTML = html;
       container.dataset.loaded = 'true';
+      applyAdminTranslations(document.getElementById('page-gallery'));
       // 初始化画廊脚本（innerHTML注入不执行script，需要手动触发）
       if (typeof galleryInit === 'function') galleryInit();
     } catch (e) {
@@ -5725,7 +5765,7 @@
 
   // ===== 传送门相关（保持兼容） =====
   function showCreatePortalModal() {
-    document.getElementById('portalModalTitle').textContent = '创建传送门';
+    document.getElementById('portalModalTitle').textContent = _tchT('adminFed.fedPortalModalTitle');
     document.getElementById('portal-id').value = '';
     document.getElementById('portalForm').reset();
     document.getElementById('portalModal').classList.add('active');
@@ -7675,13 +7715,13 @@
   async function loadWeapons() {
     const token = localStorage.getItem('adminToken');
     const el = document.getElementById('weapons-list');
-    if (el) el.innerHTML = '<div class="loading">加载中...</div>';
+    if (el) el.innerHTML = '<div class="loading">' + _tchT('adminWeapons.wpnLoading') + '</div>';
     try {
       const r = await fetch('/api/character-templates/weapons', { headers: { 'Authorization': `Bearer ${token}` } });
       if (!r.ok) {
         const errText = await r.text();
         console.error('[loadWeapons] 接口返回', r.status, errText);
-        if (el) el.innerHTML = `<div class="empty">加载失败: HTTP ${r.status} - ${errText}</div>`;
+        if (el) el.innerHTML = `<div class="empty">${_tchTp('adminWeapons.wpnLoadFailed', { status: r.status, error: errText })}</div>`;
         return;
       }
       const data = await r.json();
@@ -7690,36 +7730,36 @@
       renderWeaponList(_weaponsList);
     } catch(e) {
       console.error('[loadWeapons] 异常:', e);
-      if (el) el.innerHTML = `<div class="empty">加载失败: ${e.message}</div>`;
+      if (el) el.innerHTML = `<div class="empty">${_tchTp('adminWeapons.wpnLoadFailedMsg', { message: e.message })}</div>`;
     }
   }
 
   function renderWeaponList(weapons) {
     const el = document.getElementById('weapons-list');
     if (!el) return;
-    if (!weapons.length) { el.innerHTML = '<div class="empty">暂无武器，点击「新建武器」</div>'; return; }
-    const particleLabel = { none:'🚫 无', spark:'✨ 星火', fire:'🔥 火焰', ice:'❄️ 冰霜', lightning:'⚡ 闪电', dark:'🌑 暗黑', holy:'🌟 神圣', poison:'☠️ 毒素' };
+    if (!weapons.length) { el.innerHTML = '<div class="empty">' + _tchT('adminWeapons.wpnEmpty') + '</div>'; return; }
+    const particleLabel = { none:'🚫 ' + _tchT('adminWeapons.effectNone'), spark:'✨ ' + _tchT('adminWeapons.effectSpark'), fire:'🔥 ' + _tchT('adminWeapons.effectFire'), ice:'❄️ ' + _tchT('adminWeapons.effectFrost'), lightning:'⚡ ' + _tchT('adminWeapons.effectLightning'), dark:'🌑 ' + _tchT('adminWeapons.effectDark'), holy:'🌟 ' + _tchT('adminWeapons.effectHoly'), poison:'☠️ ' + _tchT('adminWeapons.effectPoison') };
     el.innerHTML = `<div class="table-wrap"><table>
       <thead><tr>
-        <th>名称</th><th>类型</th><th>剑刃颜色</th><th>常态粒子</th><th>排序</th><th>操作</th>
+        <th>${_tchT('adminWeapons.wpnColName')}</th><th>${_tchT('adminWeapons.wpnColType')}</th><th>${_tchT('adminWeapons.wpnColBladeColor')}</th><th>${_tchT('adminWeapons.wpnColParticle')}</th><th>${_tchT('adminWeapons.wpnColSort')}</th><th>${_tchT('adminWeapons.wpnColActions')}</th>
       </tr></thead>
       <tbody>${weapons.map(w => {
         const cfg = typeof w.config === 'string' ? JSON.parse(w.config || '{}') : (w.config || {});
         const color = cfg.blade_color || '#00ffff';
         return `<tr>
           <td style="font-weight:700">${w.name}</td>
-          <td><span class="badge badge-orange">${w.weapon_type === 'builtin_lightsaber' ? '⚔️ 内置光剑' : '📦 自定义'}</span></td>
+          <td><span class="badge badge-orange">${w.weapon_type === 'builtin_lightsaber' ? _tchT('adminWeapons.wpnTypeLightsaber') : _tchT('adminWeapons.wpnTypeCustom')}</span></td>
           <td>
             <div style="display:flex;align-items:center;gap:7px">
               <div style="width:18px;height:18px;border-radius:3px;background:${color};box-shadow:0 0 6px ${color}88"></div>
               <span style="font-size:12px;color:var(--muted)">${color}</span>
             </div>
           </td>
-          <td>${particleLabel[cfg.particle_type || 'none'] || '🚫 无'}</td>
+          <td>${particleLabel[cfg.particle_type || 'none'] || ('🚫 ' + _tchT('adminWeapons.effectNone'))}</td>
           <td style="color:var(--muted)">${w.sort_order}</td>
           <td><div class="btn-group">
-            <button class="btn btn-sm btn-blue" onclick="openWeaponModal('${w.id}')">编辑</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteWeapon('${w.id}','${w.name}')">删除</button>
+            <button class="btn btn-sm btn-blue" onclick="openWeaponModal('${w.id}')">${_tchT('adminWeapons.wpnBtnEdit')}</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteWeapon('${w.id}','${w.name}')">${_tchT('adminWeapons.wpnBtnDelete')}</button>
           </div></td>
         </tr>`;
       }).join('')}</tbody>
@@ -7759,7 +7799,7 @@
   }
 
   function openWeaponModal(weaponId = null) {
-    document.getElementById('weaponModalTitle').textContent = weaponId ? '⚔️ 编辑武器' : '⚔️ 新建武器';
+    document.getElementById('weaponModalTitle').textContent = weaponId ? _tchT('adminWeapons.wpnModalTitleEdit') : _tchT('adminWeapons.wpnModalTitleNew');
     document.getElementById('weapon-id').value = weaponId || '';
     document.getElementById('weapon-name').value = '';
     document.getElementById('weapon-type').value = 'builtin_lightsaber';
@@ -7838,11 +7878,35 @@
   let _weaponSkillCounter = 0;
 
   function addWeaponSkill(skillData = null) {
+    const _tBtnEdit = _tchT('adminWeapons.wpnBtnEdit');
+    const _tBtnConfirm = _tchT('adminWeapons.wpnBtnConfirm');
+    const _tBtnDelete = _tchT('adminWeapons.wpnBtnDelete');
+    const _tConfirmed = _tchT('adminWeapons.wpnSkillConfirmed');
+    const _tPending = _tchT('adminWeapons.wpnSkillPending');
+    const _tLabelSkillName = _tchT('adminWeapons.wpnLabelSkillName');
+    const _tLabelSkillSort = _tchT('adminWeapons.wpnLabelSkillSort');
+    const _tLabelEffectType = _tchT('adminWeapons.wpnLabelEffectType');
+    const _tLabelTriggerType = _tchT('adminWeapons.wpnLabelTriggerType');
+    const _tLabelDuration = _tchT('adminWeapons.wpnLabelDuration');
+    const _tLabelSoundUrl = _tchT('adminWeapons.wpnLabelSoundUrl');
+    const _tEffectNone = '🚫 ' + _tchT('adminWeapons.effectNone');
+    const _tEffectSpark = '✨ ' + _tchT('adminWeapons.effectSpark');
+    const _tEffectFire = '🔥 ' + _tchT('adminWeapons.effectFire');
+    const _tEffectFrost = '❄️ ' + _tchT('adminWeapons.effectFrost');
+    const _tEffectLightning = '⚡ ' + _tchT('adminWeapons.effectLightning');
+    const _tEffectDark = '🌑 ' + _tchT('adminWeapons.effectDark');
+    const _tEffectHoly = '🌟 ' + _tchT('adminWeapons.effectHoly');
+    const _tTriggerManual = _tchT('adminWeapons.wpnTriggerManual');
+    const _tTriggerAttack = _tchT('adminWeapons.wpnTriggerAttack');
+    const _tTriggerDefend = _tchT('adminWeapons.wpnTriggerDefend');
+    const _tTriggerDamage = _tchT('adminWeapons.wpnTriggerDamage');
+    const _tTriggerKill = _tchT('adminWeapons.wpnTriggerKill');
+    const _tTriggerCooldown = _tchT('adminWeapons.wpnTriggerCooldown');
     if (!skillData) {
       _weaponSkillCounter++;
     }
     const skillId = skillData?.id || `skill-${_weaponSkillCounter}`;
-    const skillName = skillData?.skill_name || `技能 ${_weaponSkillCounter}`;
+    const skillName = skillData?.skill_name || _tchTp('adminWeapons.wpnSkillDefaultName', { n: _weaponSkillCounter });
     const effectType = skillData?.effect_type || 'none';
     const triggerType = skillData?.trigger_type || 'manual';
     const duration = skillData?.duration || 3000;
@@ -7855,55 +7919,55 @@
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <div style="font-size:13px;font-weight:700;color:${isConfirmed ? 'var(--green)' : 'var(--orange)'}">
             ${isConfirmed ? '✅' : '🎯'} ${skillName}
-            ${isConfirmed ? '<span style="font-size:11px;color:var(--green);margin-left:6px;font-weight:400">(已确认)</span>' : '<span style="font-size:11px;color:var(--yellow);margin-left:6px;font-weight:400">(待确认)</span>'}
+            ${isConfirmed ? '<span style="font-size:11px;color:var(--green);margin-left:6px;font-weight:400">' + _tConfirmed + '</span>' : '<span style="font-size:11px;color:var(--yellow);margin-left:6px;font-weight:400">' + _tPending + '</span>'}
           </div>
           <div style="display:flex;gap:6px">
-            ${isConfirmed ? `<button class="btn-sm btn-blue" onclick="editWeaponSkill('${skillId}')" style="padding:3px 8px;font-size:11px">✏️ 编辑</button>` : `<button class="btn-sm" onclick="confirmWeaponSkill('${skillId}')" style="padding:3px 8px;font-size:11px">✅ 确认</button>`}
-            <button class="btn-sm btn-danger" onclick="removeWeaponSkill('${skillId}')" style="padding:3px 8px;font-size:11px">🗑️ 删除</button>
+            ${isConfirmed ? `<button class="btn-sm btn-blue" onclick="editWeaponSkill('${skillId}')" style="padding:3px 8px;font-size:11px">✏️ ${_tBtnEdit}</button>` : `<button class="btn-sm" onclick="confirmWeaponSkill('${skillId}')" style="padding:3px 8px;font-size:11px">${_tBtnConfirm}</button>`}
+            <button class="btn-sm btn-danger" onclick="removeWeaponSkill('${skillId}')" style="padding:3px 8px;font-size:11px">🗑️ ${_tBtnDelete}</button>
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>技能名称</label>
-            <input type="text" class="skill-name" value="${skillName}" placeholder="技能名称" ${isConfirmed ? 'readonly style=background:rgba(0,0,0,0.3)' : ''}>
+            <label>${_tLabelSkillName}</label>
+            <input type="text" class="skill-name" value="${skillName}" placeholder="${_tLabelSkillName}" ${isConfirmed ? 'readonly style=background:rgba(0,0,0,0.3)' : ''}>
           </div>
           <div class="form-group">
-            <label>排序权重</label>
+            <label>${_tLabelSkillSort}</label>
             <input type="number" class="skill-sort-order" value="${sortOrder}" min="0" style="width:100%" ${isConfirmed ? 'readonly style=background:rgba(0,0,0,0.3)' : ''}>
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>特效类型</label>
+            <label>${_tLabelEffectType}</label>
             <select class="skill-effect-type" ${isConfirmed ? 'disabled' : ''}>
-              <option value="none" ${effectType === 'none' ? 'selected' : ''}>🚫 无</option>
-              <option value="spark" ${effectType === 'spark' ? 'selected' : ''}>✨ 星火</option>
-              <option value="fire" ${effectType === 'fire' ? 'selected' : ''}>🔥 火焰</option>
-              <option value="frost" ${effectType === 'frost' ? 'selected' : ''}>❄️ 冰霜</option>
-              <option value="lightning" ${effectType === 'lightning' ? 'selected' : ''}>⚡ 闪电</option>
-              <option value="dark" ${effectType === 'dark' ? 'selected' : ''}>🌑 黑暗</option>
-              <option value="holy" ${effectType === 'holy' ? 'selected' : ''}>🌟 神圣</option>
+              <option value="none" ${effectType === 'none' ? 'selected' : ''}>${_tEffectNone}</option>
+              <option value="spark" ${effectType === 'spark' ? 'selected' : ''}>${_tEffectSpark}</option>
+              <option value="fire" ${effectType === 'fire' ? 'selected' : ''}>${_tEffectFire}</option>
+              <option value="frost" ${effectType === 'frost' ? 'selected' : ''}>${_tEffectFrost}</option>
+              <option value="lightning" ${effectType === 'lightning' ? 'selected' : ''}>${_tEffectLightning}</option>
+              <option value="dark" ${effectType === 'dark' ? 'selected' : ''}>${_tEffectDark}</option>
+              <option value="holy" ${effectType === 'holy' ? 'selected' : ''}>${_tEffectHoly}</option>
             </select>
           </div>
           <div class="form-group">
-            <label>触发条件</label>
+            <label>${_tLabelTriggerType}</label>
             <select class="skill-trigger-type" ${isConfirmed ? 'disabled' : ''}>
-              <option value="manual" ${triggerType === 'manual' ? 'selected' : ''}>🖱️ 手动点击</option>
-              <option value="attack" ${triggerType === 'attack' ? 'selected' : ''}>⚔️ 攻击触发</option>
-              <option value="defend" ${triggerType === 'defend' ? 'selected' : ''}>🛡️ 防御触发</option>
-              <option value="damage" ${triggerType === 'damage' ? 'selected' : ''}>💥 受伤触发</option>
-              <option value="kill" ${triggerType === 'kill' ? 'selected' : ''}>☠️ 击杀触发</option>
-              <option value="cooldown" ${triggerType === 'cooldown' ? 'selected' : ''}>⏱️ 冷却自动</option>
+              <option value="manual" ${triggerType === 'manual' ? 'selected' : ''}>${_tTriggerManual}</option>
+              <option value="attack" ${triggerType === 'attack' ? 'selected' : ''}>${_tTriggerAttack}</option>
+              <option value="defend" ${triggerType === 'defend' ? 'selected' : ''}>${_tTriggerDefend}</option>
+              <option value="damage" ${triggerType === 'damage' ? 'selected' : ''}>${_tTriggerDamage}</option>
+              <option value="kill" ${triggerType === 'kill' ? 'selected' : ''}>${_tTriggerKill}</option>
+              <option value="cooldown" ${triggerType === 'cooldown' ? 'selected' : ''}>${_tTriggerCooldown}</option>
             </select>
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>持续时间（毫秒）</label>
+            <label>${_tLabelDuration}</label>
             <input type="number" class="skill-duration" value="${duration}" min="0" step="100" placeholder="3000" ${isConfirmed ? 'readonly style=background:rgba(0,0,0,0.3)' : ''}>
           </div>
           <div class="form-group">
-            <label>语音音效URL</label>
+            <label>${_tLabelSoundUrl}</label>
             <input type="text" class="skill-sound-url" value="${soundUrl}" placeholder="https://..." ${isConfirmed ? 'readonly style=background:rgba(0,0,0,0.3)' : ''}>
           </div>
         </div>
@@ -7928,6 +7992,9 @@
   }
 
   function confirmWeaponSkill(skillId) {
+    const _tConfirmed = _tchT('adminWeapons.wpnSkillConfirmed');
+    const _tBtnEdit = _tchT('adminWeapons.wpnBtnEdit');
+    const _tConfirmCheck = _tchT('adminWeapons.wpnBtnConfirm');
     const skillCard = document.querySelector(`.weapon-skill-card[data-skill-id="${skillId}"]`);
     if (skillCard) {
       skillCard.dataset.confirmed = 'true';
@@ -7941,13 +8008,13 @@
       headerDiv.style.color = 'var(--green)';
       headerDiv.innerHTML = `
         ✅ ${skillName}
-        <span style="font-size:11px;color:var(--green);margin-left:6px;font-weight:400">(已确认)</span>
+        <span style="font-size:11px;color:var(--green);margin-left:6px;font-weight:400">${_tConfirmed}</span>
       `;
       
       const buttonContainer = skillCard.querySelector('div > div:last-child');
       const confirmBtn = buttonContainer.querySelector('button:first-child');
-      if (confirmBtn && confirmBtn.textContent.includes('确认')) {
-        confirmBtn.outerHTML = `<button class="btn-sm btn-blue" onclick="editWeaponSkill('${skillId}')" style="padding:3px 8px;font-size:11px">✏️ 编辑</button>`;
+      if (confirmBtn && confirmBtn.textContent.includes(_tConfirmCheck)) {
+        confirmBtn.outerHTML = `<button class="btn-sm btn-blue" onclick="editWeaponSkill('${skillId}')" style="padding:3px 8px;font-size:11px">✏️ ${_tBtnEdit}</button>`;
       }
       
       skillCard.querySelectorAll('.skill-name, .skill-sort-order, .skill-duration, .skill-sound-url').forEach(input => {
@@ -7960,11 +8027,14 @@
       });
       
       serializeWeaponSkills();
-      showToast('技能已确认，将在虚拟世界中生效！', 'success');
+      showToast(_tchT('adminWeapons.wpnSkillConfirmedToast'), 'success');
     }
   }
 
   function editWeaponSkill(skillId) {
+    const _tPending = _tchT('adminWeapons.wpnSkillPending');
+    const _tBtnEditCheck = _tchT('adminWeapons.wpnBtnEdit');
+    const _tBtnConfirm = _tchT('adminWeapons.wpnBtnConfirm');
     const skillCard = document.querySelector(`.weapon-skill-card[data-skill-id="${skillId}"]`);
     if (skillCard) {
       skillCard.dataset.confirmed = 'false';
@@ -7978,13 +8048,13 @@
       headerDiv.style.color = 'var(--orange)';
       headerDiv.innerHTML = `
         🎯 ${skillName}
-        <span style="font-size:11px;color:var(--yellow);margin-left:6px;font-weight:400">(待确认)</span>
+        <span style="font-size:11px;color:var(--yellow);margin-left:6px;font-weight:400">${_tPending}</span>
       `;
       
       const buttonContainer = skillCard.querySelector('div > div:last-child');
       const editBtn = buttonContainer.querySelector('button:first-child');
-      if (editBtn && editBtn.textContent.includes('编辑')) {
-        editBtn.outerHTML = `<button class="btn-sm" onclick="confirmWeaponSkill('${skillId}')" style="padding:3px 8px;font-size:11px">✅ 确认</button>`;
+      if (editBtn && editBtn.textContent.includes(_tBtnEditCheck)) {
+        editBtn.outerHTML = `<button class="btn-sm" onclick="confirmWeaponSkill('${skillId}')" style="padding:3px 8px;font-size:11px">${_tBtnConfirm}</button>`;
       }
       
       skillCard.querySelectorAll('.skill-name, .skill-sort-order, .skill-duration, .skill-sound-url').forEach(input => {
@@ -7997,7 +8067,7 @@
       });
       
       serializeWeaponSkills();
-      showToast('技能已进入编辑状态，修改后请重新确认', 'info');
+      showToast(_tchT('adminWeapons.wpnSkillEditedToast'), 'info');
     }
   }
 
@@ -8006,7 +8076,7 @@
     if (skillCard) {
       const isConfirmed = skillCard.dataset.confirmed === 'true';
       if (isConfirmed) {
-        if (!confirm('确定要删除这个已确认的技能吗？删除后在虚拟世界中将无法触发此技能。')) {
+        if (!confirm(_tchT('adminWeapons.wpnDeleteSkillConfirm'))) {
           return;
         }
       }
@@ -8068,7 +8138,7 @@
     const token = localStorage.getItem('adminToken');
     const weaponId = document.getElementById('weapon-id').value;
     const name = document.getElementById('weapon-name').value.trim();
-    if (!name) { showToast('请填写武器名称', 'error'); return; }
+    if (!name) { showToast(_tchT('adminWeapons.wpnRequireName'), 'error'); return; }
     serializeWeaponSkills();
     const skillsData = document.getElementById('weapon-skills-data').value;
     console.log('保存前的技能数据:', JSON.parse(skillsData));
@@ -8101,16 +8171,17 @@
       });
       const data = await r.json();
       if (data.success) {
-        showToast(weaponId ? '✅ 武器已更新' : '✅ 武器已创建');
+        showToast(weaponId ? _tchT('adminWeapons.wpnSaveUpdated') : _tchT('adminWeapons.wpnSaveCreated'));
         closeWeaponModal();
         loadWeapons();
         _weaponsList = [];
-      } else showToast('保存失败: ' + (data.error || ''), 'error');
-    } catch(e) { showToast('保存失败: ' + e.message, 'error'); }
+      } else showToast(_tchTp('adminWeapons.wpnSaveFailed', { error: data.error || '' }), 'error');
+    } catch(e) { showToast(_tchTp('adminWeapons.wpnSaveFailed', { error: e.message }), 'error'); }
   }
 
   async function deleteWeapon(id, name) {
-    if (!confirm(`确定删除武器「${name}」？使用此武器的角色模板将自动解绑。`)) return;
+    const _delMsg = _tchTp('adminWeapons.wpnDeleteConfirm', { name });
+    if (!confirm(_delMsg)) return;
     const token = localStorage.getItem('adminToken');
     try {
       const r = await fetch(`/api/character-templates/weapons/${id}`, {
@@ -8118,11 +8189,11 @@
       });
       const data = await r.json();
       if (data.success) {
-        showToast('武器已删除');
+        showToast(_tchT('adminWeapons.wpnDeleted'));
         _weaponsList = [];
         loadWeapons();
-      } else showToast('删除失败: ' + (data.error || ''), 'error');
-    } catch(e) { showToast('删除失败', 'error'); }
+      } else showToast(_tchTp('adminWeapons.wpnDeleteFailed', { error: data.error || '' }), 'error');
+    } catch(e) { showToast(_tchT('adminWeapons.wpnDeleteFailedShort'), 'error'); }
   }
 
   // ============================================================
@@ -10774,6 +10845,42 @@ async function initBoneEditor() {
           }
           applyAdminTranslations(document.getElementById('page-anim-library'));
         }
+        else if (name === 'weapons') {
+          loadWeapons();
+          applyAdminTranslations(document.getElementById('page-weapons'));
+          const wpnModal = document.getElementById('weaponModal');
+          if (wpnModal && wpnModal.classList.contains('active')) {
+            document.getElementById('weaponModalTitle').textContent = document.getElementById('weapon-id').value
+              ? _tchT('adminWeapons.wpnModalTitleEdit')
+              : _tchT('adminWeapons.wpnModalTitleNew');
+            // 重新渲染技能卡片（label/option 带新语言）
+            _weaponSkillCounter = 0;
+            document.getElementById('weapon-skills-container').innerHTML = '';
+            const wpnId = document.getElementById('weapon-id').value;
+            if (wpnId) loadWeaponSkills(wpnId);
+          }
+        }
+        else if (name === 'config') {
+          const activeSubTab = document.querySelector('.sub-tab.active');
+          if (activeSubTab) {
+            activeSubTab.click();
+          } else {
+            loadAIProviders();
+            loadWorldSettings();
+            loadAuditLogs();
+            loadSEOConfig();
+          }
+          applyAdminTranslations(document.getElementById('page-config'));
+        }
+        else if (name === 'maintenance') {
+          if (window.MaintenancePage && typeof window.MaintenancePage.init === 'function') {
+            window.MaintenancePage.init();
+          }
+          applyAdminTranslations(document.getElementById('page-maintenance'));
+        }
+        else if (name === 'gallery') {
+          loadGalleryPage();
+        }
       }
 
       // 页面加载时初始化 i18n
@@ -10835,12 +10942,12 @@ async function initBoneEditor() {
             msg.style.background = 'rgba(0,255,0,0.08)';
             msg.style.border = '1px solid rgba(0,255,0,0.2)';
             msg.style.color = 'var(--green)';
-            msg.textContent = '✅ ' + (data.message || '保存成功');
+            msg.textContent = '✅ ' + (data.message || _tla('adminSystem.seoSavedMsg'));
           } else {
             msg.style.background = 'rgba(255,68,68,0.08)';
             msg.style.border = '1px solid rgba(255,68,68,0.2)';
             msg.style.color = 'var(--red)';
-            msg.textContent = '❌ ' + (data.error || '保存失败');
+            msg.textContent = '❌ ' + (data.error || _tla('adminSystem.seoSaveFailedMsg'));
           }
           setTimeout(() => { msg.style.display = 'none'; }, 3000);
         } catch (err) {
@@ -10849,7 +10956,7 @@ async function initBoneEditor() {
           msg.style.background = 'rgba(255,68,68,0.08)';
           msg.style.border = '1px solid rgba(255,68,68,0.2)';
           msg.style.color = 'var(--red)';
-          msg.textContent = '❌ 网络错误，请重试';
+          msg.textContent = _tla('adminSystem.seoNetworkError');
           setTimeout(() => { msg.style.display = 'none'; }, 3000);
         }
       }

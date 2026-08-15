@@ -4,6 +4,10 @@
  */
 // AI提供商管理功能
 
+// i18n 兜底：未初始化时返回 key 本身
+const _tcfg = (k) => (window.i18n && window.i18n.t) ? window.i18n.t(k) : k;
+const _tcfgp = (k, p) => (window.i18n && window.i18n.tp) ? window.i18n.tp(k, p) : k;
+
 let aiProviders = [];
 
 // 加载AI提供商列表
@@ -21,7 +25,7 @@ async function loadAIProviders() {
       container.innerHTML = `
         <div style="text-align: center; padding: 40px; color: #ff0000;">
           <div style="font-size: 48px; margin-bottom: 15px;">❌</div>
-          <div>加载AI提供商失败</div>
+          <div>${_tcfg('adminSystem.loadFailed')}</div>
         </div>
       `;
     }
@@ -30,7 +34,7 @@ async function loadAIProviders() {
     container.innerHTML = `
       <div style="text-align: center; padding: 40px; color: #ff0000;">
         <div style="font-size: 48px; margin-bottom: 15px;">❌</div>
-        <div>加载失败: ${error.message}</div>
+        <div>${_tcfgp('adminSystem.loadFailedMsg', { message: error.message })}</div>
       </div>
     `;
   }
@@ -44,7 +48,7 @@ function renderAIProviders(providers) {
     container.innerHTML = `
       <div style="text-align: center; padding: 40px; color: #888;">
         <div style="font-size: 48px; margin-bottom: 15px;">🤖</div>
-        <div>暂无AI提供商配置</div>
+        <div>${_tcfg('adminSystem.empty')}</div>
       </div>
     `;
     return;
@@ -68,11 +72,11 @@ function renderAIProviders(providers) {
   });
   
   const typeNames = {
-    'chat': '💬 对话AI',
-    'image_to_3d': '🏗️ 图片转3D',
-    'text_to_3d': '✍️ 文字生成3D',
-    'tts': '🗣️ 文字转语音',
-    'stt': '👂 语音转文字'
+    'chat': _tcfg('adminSystem.typeChat'),
+    'image_to_3d': _tcfg('adminSystem.typeImgTo3d'),
+    'text_to_3d': _tcfg('adminSystem.typeTextTo3d'),
+    'tts': _tcfg('adminSystem.typeTts'),
+    'stt': _tcfg('adminSystem.typeStt')
   };
   
   container.innerHTML = Object.entries(groupedProviders).map(([type, typeProviders]) => `
@@ -90,17 +94,17 @@ function renderAIProviders(providers) {
 // 渲染单个提供商卡片
 function renderProviderCard(provider) {
   const statusColor = provider.is_enabled ? '#00ff00' : '#888';
-  const statusText = provider.is_enabled ? '✅ 已启用' : '⭕ 未启用';
-  const isDefault = provider.is_default ? '<span style="background: #ffc107; color: #000; padding: 2px 8px; border-radius: 3px; font-size: 11px; margin-left: 8px;">默认</span>' : '';
+  const statusText = provider.is_enabled ? _tcfg('adminSystem.cardEnabled') : _tcfg('adminSystem.cardDisabled');
+  const isDefault = provider.is_default ? `<span style="background: #ffc107; color: #000; padding: 2px 8px; border-radius: 3px; font-size: 11px; margin-left: 8px;">${_tcfg('adminSystem.cardDefault')}</span>` : '';
   
   // 多功能标签
   const types = provider.provider_type.split(',').map(t => t.trim());
   const typeLabels = {
-    'chat': '对话',
-    'image_to_3d': '图生3D',
-    'text_to_3d': '文生3D',
-    'tts': 'TTS',
-    'stt': 'STT'
+    'chat': _tcfg('adminSystem.badgeChat'),
+    'image_to_3d': _tcfg('adminSystem.badgeImgTo3d'),
+    'text_to_3d': _tcfg('adminSystem.badgeTextTo3d'),
+    'tts': _tcfg('adminSystem.badgeTts'),
+    'stt': _tcfg('adminSystem.badgeStt')
   };
   const featureBadges = types.length > 1 
     ? `<div style="margin-top: 6px;">${types.map(t => 
@@ -113,8 +117,8 @@ function renderProviderCard(provider) {
   const configuredCount = configs.filter(c => c.has_value).length;
   const totalCount = configs.length;
   const configStatus = configuredCount === totalCount && totalCount > 0 
-    ? '<span style="color: #00ff00;">● 已配置</span>' 
-    : `<span style="color: #ffa500;">● 未完成 (${configuredCount}/${totalCount})</span>`;
+    ? `<span style="color: #00ff00;">${_tcfg('adminSystem.cardConfigured')}</span>` 
+    : `<span style="color: #ffa500;">${_tcfgp('adminSystem.cardNotConfigured', { configured: configuredCount, total: totalCount })}</span>`;
   
   return `
     <div style="
@@ -156,7 +160,7 @@ function renderProviderCard(provider) {
           cursor: pointer;
           font-weight: bold;
           font-size: 13px;
-        ">⚙️ 配置</button>
+        ">${_tcfg('adminSystem.cardConfigure')}</button>
         
         ${provider.is_enabled ? `
           <button onclick="testProviderConnection(${provider.id})" style="
@@ -168,7 +172,7 @@ function renderProviderCard(provider) {
             cursor: pointer;
             font-weight: bold;
             font-size: 13px;
-          ">🧪 测试连接</button>
+          ">${_tcfg('adminSystem.cardTest')}</button>
         ` : ''}
         
         ${!provider.is_default ? `
@@ -181,7 +185,7 @@ function renderProviderCard(provider) {
             cursor: pointer;
             font-weight: bold;
             font-size: 13px;
-          ">⭐ 设为默认</button>
+          ">${_tcfg('adminSystem.cardSetDefault')}</button>
         ` : ''}
       </div>
     </div>
@@ -206,12 +210,12 @@ async function toggleProvider(providerId, enabled) {
       // 刷新列表
       await loadAIProviders();
     } else {
-      alert('❌ 操作失败: ' + data.error);
+      alert(_tcfgp('adminSystem.opFailed', { message: data.error }));
       await loadAIProviders(); // 重新加载恢复状态
     }
   } catch (error) {
     console.error('切换提供商状态失败:', error);
-    alert('❌ 操作失败: ' + error.message);
+    alert(_tcfgp('adminSystem.opFailed', { message: error.message }));
     await loadAIProviders(); // 重新加载恢复状态
   }
 }
@@ -228,7 +232,7 @@ async function showProviderConfig(providerId) {
     const data = await response.json();
     
     if (!data.success || !data.provider) {
-      alert('❌ 获取配置失败');
+      alert(_tcfg('adminSystem.getConfigFailed'));
       return;
     }
     
@@ -241,14 +245,14 @@ async function showProviderConfig(providerId) {
     modal.innerHTML = `
       <div class="modal-content" style="max-width: 600px;">
         <div class="modal-header">
-          <h2>⚙️ 配置 ${provider.display_name}</h2>
+          <h2>${_tcfgp('adminSystem.modalConfigTitle', { name: provider.display_name })}</h2>
           <button class="close-btn" onclick="this.closest('.modal').remove()">×</button>
         </div>
         
         <div style="margin-bottom: 20px; padding: 15px; background: rgba(102, 126, 234, 0.1); border-left: 4px solid #667eea; border-radius: 5px;">
-          <div style="color: #667eea; font-weight: bold; margin-bottom: 5px;">📝 配置说明</div>
+          <div style="color: #667eea; font-weight: bold; margin-bottom: 5px;">${_tcfg('adminSystem.modalConfigHint')}</div>
           <div style="color: #ccc; font-size: 13px;">
-            ${provider.description || '请填写以下配置信息'}
+            ${provider.description || _tcfg('adminSystem.modalHintDefault')}
           </div>
         </div>
         
@@ -257,10 +261,10 @@ async function showProviderConfig(providerId) {
           
           <div class="action-btns" style="margin-top: 25px;">
             <button type="submit" class="btn" style="background: linear-gradient(135deg, #00ff00 0%, #00cc00 100%);">
-              💾 保存配置
+              ${_tcfg('adminSystem.modalSave')}
             </button>
             <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">
-              取消
+              ${_tcfg('adminSystem.cancel')}
             </button>
           </div>
         </form>
@@ -270,7 +274,7 @@ async function showProviderConfig(providerId) {
     document.body.appendChild(modal);
   } catch (error) {
     console.error('加载配置失败:', error);
-    alert('❌ 加载配置失败: ' + error.message);
+    alert(_tcfgp('adminSystem.loadConfigFailed', { message: error.message }));
   }
 }
 
@@ -282,6 +286,10 @@ function renderConfigField(field, provider) {
   
   const required = field.required ? 'required' : '';
   const placeholder = field.placeholder || '';
+  
+  // 先算好提示文本（避免嵌套模板字符串）
+  const optCount = (field.options || []).length;
+  const selectHintText = _tcfg('adminSystem.selectHint') + (optCount > 0 ? _tcfgp('adminSystem.selectOptions', { count: optCount }) : '');
   
   if (field.type === 'select') {
     // 对于模型字段或选项超过5个的，使用可搜索的input+datalist
@@ -298,7 +306,7 @@ function renderConfigField(field, provider) {
             name="${field.key}" 
             list="${datalistId}"
             value="${currentValue}"
-            placeholder="输入或选择${field.label}..."
+            placeholder="${_tcfgp('adminSystem.inputOrSelect', { label: field.label })}"
             ${required}
             style="
               width: 100%;
@@ -315,7 +323,7 @@ function renderConfigField(field, provider) {
             `).join('')}
           </datalist>
           <div style="color: #888; font-size: 11px; margin-top: 5px;">
-            💡 可以直接输入或从下拉列表中选择${(field.options || []).length > 0 ? `（共${(field.options || []).length}个选项）` : ''}
+            ${selectHintText}
           </div>
         </div>
       `;
@@ -358,7 +366,7 @@ function renderConfigField(field, provider) {
                ">
         <div style="display: flex; align-items: center; margin-top: 8px;">
           <input type="checkbox" id="show-${field.key}" onchange="togglePasswordVisibility('${field.key}')" style="margin-right: 8px;">
-          <label for="show-${field.key}" style="color: #888; font-size: 12px; cursor: pointer; margin: 0;">显示密钥</label>
+          <label for="show-${field.key}" style="color: #888; font-size: 12px; cursor: pointer; margin: 0;">${_tcfg('adminSystem.showKey')}</label>
         </div>
       </div>
     `;
@@ -420,17 +428,17 @@ async function saveProviderConfig(event, providerId) {
     const data = await response.json();
     
     if (data.success) {
-      alert('✅ 配置保存成功！');
+      alert(_tcfg('adminSystem.saveSuccess'));
       // 关闭对话框
       form.closest('.modal').remove();
       // 刷新列表
       await loadAIProviders();
     } else {
-      alert('❌ 保存失败: ' + data.message);
+      alert(_tcfgp('adminSystem.saveFailed', { message: data.message }));
     }
   } catch (error) {
     console.error('保存配置失败:', error);
-    alert('❌ 保存失败: ' + error.message);
+    alert(_tcfgp('adminSystem.saveFailed', { message: error.message }));
   }
 }
 
@@ -439,7 +447,7 @@ async function testProviderConnection(providerId) {
   try {
     const btn = event.target;
     const originalText = btn.innerHTML;
-    btn.innerHTML = '⏳ 测试中...';
+    btn.innerHTML = _tcfg('adminSystem.testing');
     btn.disabled = true;
     
     const response = await fetch(`/api/ai-providers/providers/${providerId}/test`, {
@@ -455,13 +463,13 @@ async function testProviderConnection(providerId) {
     btn.disabled = false;
     
     if (data.success) {
-      alert('✅ 连接测试成功！\n\n' + data.message);
+      alert(_tcfg('adminSystem.testSuccess') + '\n\n' + data.message);
     } else {
-      alert('❌ 连接测试失败\n\n' + data.message);
+      alert(_tcfg('adminSystem.testFailed') + '\n\n' + data.message);
     }
   } catch (error) {
     console.error('测试连接失败:', error);
-    alert('❌ 测试失败: ' + error.message);
+    alert(_tcfgp('adminSystem.testFailedMsg', { message: error.message }));
     event.target.innerHTML = originalText;
     event.target.disabled = false;
   }
@@ -469,7 +477,7 @@ async function testProviderConnection(providerId) {
 
 // 设置默认提供商
 async function setDefaultProvider(providerId) {
-  if (!confirm('确定要将此提供商设为默认吗？')) {
+  if (!confirm(_tcfg('adminSystem.setDefaultConfirm'))) {
     return;
   }
   
@@ -484,20 +492,20 @@ async function setDefaultProvider(providerId) {
     const data = await response.json();
     
     if (data.success) {
-      alert('✅ 已设置为默认提供商！');
+      alert(_tcfg('adminSystem.setDefaultSuccess'));
       await loadAIProviders();
     } else {
-      alert('❌ 设置失败: ' + data.error);
+      alert(_tcfgp('adminSystem.setDefaultFailed', { message: data.error }));
     }
   } catch (error) {
     console.error('设置默认提供商失败:', error);
-    alert('❌ 设置失败: ' + error.message);
+    alert(_tcfgp('adminSystem.setDefaultFailed', { message: error.message }));
   }
 }
 
 // 显示添加自定义提供商对话框
 function showAddProviderDialog() {
-  alert('自定义提供商功能即将推出！\n\n目前支持：\n✅ 腾讯混元\n✅ 阿里通义千问\n✅ 字节豆包\n✅ 腾讯混元3D');
+  alert(_tcfg('adminSystem.addProviderSoon'));
 }
 
 // 导出函数供admin.html使用

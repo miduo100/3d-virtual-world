@@ -7,6 +7,55 @@
  * 用于管理后台的UI控件配置页面
  */
 
+// ===== UI控件编辑器 i18n 辅助函数 =====
+function ucT(key, fallback) {
+  if (window.i18n && window.i18n.initialized) {
+    const full = 'adminUIControls.' + key;
+    const text = window.i18n.t(full);
+    return text !== full ? text : (typeof fallback === 'string' ? fallback : key);
+  }
+  return typeof fallback === 'string' ? fallback : key;
+}
+function ucTp(key, params, fallback) {
+  if (window.i18n && window.i18n.initialized) {
+    const full = 'adminUIControls.' + key;
+    const text = window.i18n.tp(full, params);
+    return text !== full ? text : (typeof fallback === 'string' ? fallback : key);
+  }
+  let text = typeof fallback === 'string' ? fallback : key;
+  if (params) {
+    Object.keys(params).forEach(function(p) { text = String(text).split('{{' + p + '}}').join(params[p]); });
+  }
+  return text;
+}
+// 控件名称翻译（方案A）：英文语言下按 control_id 查 i18n 映射表，查不到回退数据库原名
+function ucControlName(control) {
+  if (!control || !control.control_name) return '';
+  if (window.i18n && window.i18n.initialized && window.i18n.getCurrentLocale() === 'en-US') {
+    const full = 'adminUIControls.controlNames.' + control.control_id;
+    const text = window.i18n.t(full);
+    return text !== full ? text : control.control_name;
+  }
+  return control.control_name;
+}
+function applyUITranslations() {
+  if (!window.i18n || !window.i18n.initialized) return;
+  // 静态 [data-i18n] 元素（key 为完整路径，如 adminUIControls.ucTitle）
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    const key = el.getAttribute('data-i18n');
+    if (!key) return;
+    const text = window.i18n.t(key);
+    if (el.tagName === 'TITLE') {
+      document.title = text;
+    } else if (text !== key) {
+      el.textContent = text;
+    }
+  });
+  // 同步语言下拉框
+  const sel = document.getElementById('uiLangSelect');
+  if (sel) sel.value = window.i18n.getCurrentLocale();
+}
+
 const AdminUIControls = {
   controls: [],
   currentControl: null,
@@ -27,40 +76,40 @@ const AdminUIControls = {
 
   // 控件类型选项
   controlTypes: [
-    { value: 'button', label: '按钮', icon: '🔘', color: 'rgba(0, 255, 0, 0.3)', borderColor: '#00ff00' },
-    { value: 'panel', label: '面板', icon: '📋', color: 'rgba(0, 100, 255, 0.3)', borderColor: '#0066ff' },
-    { value: 'joystick', label: '摇杆', icon: '🕹️', color: 'rgba(255, 255, 0, 0.3)', borderColor: '#ffff00' },
-    { value: 'minimap', label: '小地图', icon: '🗺️', color: 'rgba(255, 0, 255, 0.3)', borderColor: '#ff00ff' },
-    { value: 'healthbar', label: '血条', icon: '❤️', color: 'rgba(255, 0, 0, 0.3)', borderColor: '#ff0000' },
-    { value: 'chat', label: '聊天框', icon: '💬', color: 'rgba(0, 255, 255, 0.3)', borderColor: '#00ffff' },
-    { value: 'other', label: '其他', icon: '📦', color: 'rgba(128, 128, 128, 0.3)', borderColor: '#808080' }
+    { value: 'button', get label() { return ucT('ucTypeButton', '按钮'); }, icon: '🔘', color: 'rgba(0, 255, 0, 0.3)', borderColor: '#00ff00' },
+    { value: 'panel', get label() { return ucT('ucTypePanel', '面板'); }, icon: '📋', color: 'rgba(0, 100, 255, 0.3)', borderColor: '#0066ff' },
+    { value: 'joystick', get label() { return ucT('ucTypeJoystick', '摇杆'); }, icon: '🕹️', color: 'rgba(255, 255, 0, 0.3)', borderColor: '#ffff00' },
+    { value: 'minimap', get label() { return ucT('ucTypeMinimap', '小地图'); }, icon: '🗺️', color: 'rgba(255, 0, 255, 0.3)', borderColor: '#ff00ff' },
+    { value: 'healthbar', get label() { return ucT('ucTypeHealthbar', '血条'); }, icon: '❤️', color: 'rgba(255, 0, 0, 0.3)', borderColor: '#ff0000' },
+    { value: 'chat', get label() { return ucT('ucTypeChat', '聊天框'); }, icon: '💬', color: 'rgba(0, 255, 255, 0.3)', borderColor: '#00ffff' },
+    { value: 'other', get label() { return ucT('ucTypeOther', '其他'); }, icon: '📦', color: 'rgba(128, 128, 128, 0.3)', borderColor: '#808080' }
   ],
 
   // 控件ID到描述的映射
   controlDescriptions: {
-    'btn_profile': '个人资料按钮',
-    'btn_inventory': '物品管理按钮', 
-    'skill_voice_btn': '语音按钮',
-    'skill_hud': '技能栏面板',
-    'mobile_joystick': '移动摇杆',
-    'mobile_jump_btn': '跳跃按钮',
-    'mobile_sprint_btn': '冲刺按钮',
-    'mobile_camera_toggle_btn': '视角切换按钮',
-    'mobile_turn_left_btn': '左转按钮（按住向左转向）',
-    'mobile_turn_right_btn': '右转按钮（按住向右转向）',
-    'health_bar': '血条',
-    'minimap': '小地图',
-    'portal_btn': '世界传送门按钮',
-    'performance_monitor': '性能监控面板',
-    'debug_panel': '坐标调试面板'
+    'btn_profile': ucT('ucDescBtnProfile', '个人资料按钮'),
+    'btn_inventory': ucT('ucDescBtnInventory', '物品管理按钮'),
+    'skill_voice_btn': ucT('ucDescSkillVoiceBtn', '语音按钮'),
+    'skill_hud': ucT('ucDescSkillHud', '技能栏面板'),
+    'mobile_joystick': ucT('ucDescMobileJoystick', '移动摇杆'),
+    'mobile_jump_btn': ucT('ucDescMobileJumpBtn', '跳跃按钮'),
+    'mobile_sprint_btn': ucT('ucDescMobileSprintBtn', '冲刺按钮'),
+    'mobile_camera_toggle_btn': ucT('ucDescMobileCameraToggleBtn', '视角切换按钮'),
+    'mobile_turn_left_btn': ucT('ucDescMobileTurnLeftBtn', '左转按钮（按住向左转向）'),
+    'mobile_turn_right_btn': ucT('ucDescMobileTurnRightBtn', '右转按钮（按住向右转向）'),
+    'health_bar': ucT('ucDescHealthBar', '血条'),
+    'minimap': ucT('ucDescMinimap', '小地图'),
+    'portal_btn': ucT('ucDescPortalBtn', '世界传送门按钮'),
+    'performance_monitor': ucT('ucDescPerformanceMonitor', '性能监控面板'),
+    'debug_panel': ucT('ucDescDebugPanel', '坐标调试面板')
   },
 
   // 分类选项
   categories: [
-    { value: 'mobile', label: '移动端专用' },
-    { value: 'desktop', label: '桌面端专用' },
-    { value: 'general', label: '通用' },
-    { value: 'vr', label: 'VR端专用' }
+    { value: 'mobile', get label() { return ucT('ucCatMobile', '移动端专用'); } },
+    { value: 'desktop', get label() { return ucT('ucCatDesktop', '桌面端专用'); } },
+    { value: 'general', get label() { return ucT('ucCatGeneral', '通用'); } },
+    { value: 'vr', get label() { return ucT('ucCatVR', 'VR端专用'); } }
   ],
 
   /**
@@ -102,7 +151,7 @@ const AdminUIControls = {
     window.addEventListener('beforeunload', (e) => {
       if (this.hasUnsavedChanges) {
         e.preventDefault();
-        e.returnValue = '有未保存的更改，确定要离开吗？';
+        e.returnValue = ucT('ucUnsavedLeave', '有未保存的更改，确定要离开吗？');
         return e.returnValue;
       }
     });
@@ -391,7 +440,7 @@ const AdminUIControls = {
    * 渲染单个控件卡片
    */
   renderControlCard(control) {
-    const typeInfo = this.controlTypes.find(t => t.value === control.control_type) || { icon: '📦', label: '其他' };
+    const typeInfo = this.controlTypes.find(t => t.value === control.control_type) || { icon: '📦', label: ucT('ucTypeOther', '其他') };
     const isSelected = this.currentControl?.control_id === control.control_id;
 
     // 为常用控件分配更易识别的图标
@@ -410,7 +459,7 @@ const AdminUIControls = {
            data-control-id="${control.control_id}">
         <div class="ui-control-icon">${icon}</div>
         <div class="ui-control-info">
-          <div class="ui-control-name">${control.control_name}</div>
+          <div class="ui-control-name">${ucControlName(control)}</div>
           <div class="ui-control-type">${typeInfo.label}</div>
         </div>
         <div class="ui-control-status">
@@ -513,27 +562,30 @@ const AdminUIControls = {
     // 兼容旧版和新版ID
     const container = document.getElementById('editorPanel') || document.getElementById('ui-editor-panel');
     if (!container || !this.currentControl) {
-      if (container) container.innerHTML = '<div class="ui-editor-placeholder">请选择一个控件进行编辑</div>';
+      if (container) container.innerHTML = '<div class="ui-editor-placeholder">' + ucT('ucSelectPlaceholder', '请选择一个控件进行编辑') + '</div>';
       return;
     }
 
     const control = this.currentControl;
     const isMobile = this.previewMode === 'mobile';
+    const platformLabel = this.previewMode === 'vr' ? ucT('ucPlatformVR', '🥽 VR端')
+      : isMobile ? (this.mobileOrientation === 'landscape' ? ucT('ucPlatformLandscape', '📱 移动端横屏') : ucT('ucPlatformPortrait', '📱 移动端竖屏'))
+      : ucT('ucPlatformDesktop', '💻 桌面端');
 
     container.innerHTML = `
       <div class="ui-editor-header">
-        <h3>编辑: ${control.control_name}</h3>
+        <h3>${ucTp('ucEditTitle', { name: ucControlName(control) }, '编辑: ' + ucControlName(control))}</h3>
         <span class="ui-control-id">ID: ${control.control_id}</span>
       </div>
 
       <div class="ui-editor-section">
-        <h4>基本设置</h4>
+        <h4>${ucT('ucEditBasic', '基本设置')}</h4>
         <div class="ui-form-row">
-          <label>控件名称</label>
+          <label>${ucT('ucEditName', '控件名称')}</label>
           <input type="text" id="ui-edit-name" value="${control.control_name}">
         </div>
         <div class="ui-form-row">
-          <label>控件类型</label>
+          <label>${ucT('ucEditType', '控件类型')}</label>
           <select id="ui-edit-type">
             ${this.controlTypes.map(t => `
               <option value="${t.value}" ${control.control_type === t.value ? 'selected' : ''}>${t.icon} ${t.label}</option>
@@ -541,7 +593,7 @@ const AdminUIControls = {
           </select>
         </div>
         <div class="ui-form-row">
-          <label>分类</label>
+          <label>${ucT('ucEditCategory', '分类')}</label>
           <select id="ui-edit-category">
             ${this.categories.map(c => `
               <option value="${c.value}" ${control.category === c.value ? 'selected' : ''}>${c.label}</option>
@@ -549,80 +601,80 @@ const AdminUIControls = {
           </select>
         </div>
         <div class="ui-form-row">
-          <label>关联模块</label>
-          <input type="text" id="ui-edit-module" value="${control.related_module || ''}" placeholder="例如: mobileControls.js">
+          <label>${ucT('ucEditModule', '关联模块')}</label>
+          <input type="text" id="ui-edit-module" value="${control.related_module || ''}" placeholder="${ucT('ucEditModulePlaceholder', '例如: mobileControls.js')}">
         </div>
         <div class="ui-form-row">
-          <label>描述</label>
+          <label>${ucT('ucEditDesc', '描述')}</label>
           <textarea id="ui-edit-description" rows="2">${control.description || ''}</textarea>
         </div>
       </div>
 
       <div class="ui-editor-section">
-        <h4>${this.previewMode === 'vr' ? '🥽 VR端' : isMobile ? (this.mobileOrientation === 'landscape' ? '📱 移动端横屏' : '📱 移动端竖屏') : '💻 桌面端'} 位置和大小</h4>
+        <h4>${ucTp('ucEditPosSize', { platform: platformLabel }, platformLabel + ' 位置和大小')}</h4>
         <div class="ui-form-row">
-          <label id="ui-edit-pos-x-label">距左边缘</label>
-          <input type="text" id="ui-edit-pos-x" value="${this.getFieldValue(control, 'position_x')}" placeholder="例如: 20px 或 auto">
+          <label id="ui-edit-pos-x-label">${ucT('ucEditPosXLeft', '距左边缘 (left)')}</label>
+          <input type="text" id="ui-edit-pos-x" value="${this.getFieldValue(control, 'position_x')}" placeholder="${ucT('ucEditPosPlaceholder', '例如: 20px 或 auto')}">
         </div>
         <div class="ui-form-row">
-          <label id="ui-edit-pos-y-label">距顶边缘</label>
-          <input type="text" id="ui-edit-pos-y" value="${this.getFieldValue(control, 'position_y')}" placeholder="例如: 20px 或 auto">
+          <label id="ui-edit-pos-y-label">${ucT('ucEditPosYTop', '距顶边缘 (top)')}</label>
+          <input type="text" id="ui-edit-pos-y" value="${this.getFieldValue(control, 'position_y')}" placeholder="${ucT('ucEditPosPlaceholder', '例如: 20px 或 auto')}">
         </div>
         <div class="ui-form-row">
-          <label>水平对齐</label>
+          <label>${ucT('ucEditHAlign', '水平对齐')}</label>
           <select id="ui-edit-h-align" onchange="window.uiAdminEditor.updatePositionLabels()">
-            <option value="left" ${(control.h_align || 'left') === 'left' ? 'selected' : ''}>左对齐 (left)</option>
-            <option value="right" ${(control.h_align || 'left') === 'right' ? 'selected' : ''}>右对齐 (right)</option>
+            <option value="left" ${(control.h_align || 'left') === 'left' ? 'selected' : ''}>${ucT('ucEditHLeft', '左对齐 (left)')}</option>
+            <option value="right" ${(control.h_align || 'left') === 'right' ? 'selected' : ''}>${ucT('ucEditHRight', '右对齐 (right)')}</option>
           </select>
         </div>
         <div class="ui-form-row">
-          <label>垂直对齐</label>
+          <label>${ucT('ucEditVAlign', '垂直对齐')}</label>
           <select id="ui-edit-v-align" onchange="window.uiAdminEditor.updatePositionLabels()">
-            <option value="top" ${(control.v_align || 'top') === 'top' ? 'selected' : ''}>顶部对齐 (top)</option>
-            <option value="bottom" ${(control.v_align || 'top') === 'bottom' ? 'selected' : ''}>底部对齐 (bottom)</option>
+            <option value="top" ${(control.v_align || 'top') === 'top' ? 'selected' : ''}>${ucT('ucEditVTop', '顶部对齐 (top)')}</option>
+            <option value="bottom" ${(control.v_align || 'top') === 'bottom' ? 'selected' : ''}>${ucT('ucEditVBottom', '底部对齐 (bottom)')}</option>
           </select>
         </div>
         <div class="ui-form-row">
-          <label>宽度</label>
-          <input type="text" id="ui-edit-width" value="${this.getFieldValue(control, 'width')}" placeholder="例如: 100px 或 auto">
+          <label>${ucT('ucEditWidth', '宽度')}</label>
+          <input type="text" id="ui-edit-width" value="${this.getFieldValue(control, 'width')}" placeholder="${ucT('ucEditWidthPlaceholder', '例如: 100px 或 auto')}">
         </div>
         <div class="ui-form-row">
-          <label>高度</label>
-          <input type="text" id="ui-edit-height" value="${this.getFieldValue(control, 'height')}" placeholder="例如: 50px 或 auto">
+          <label>${ucT('ucEditHeight', '高度')}</label>
+          <input type="text" id="ui-edit-height" value="${this.getFieldValue(control, 'height')}" placeholder="${ucT('ucEditHeightPlaceholder', '例如: 50px 或 auto')}">
         </div>
         <div class="ui-form-row">
-          <label>定位方式</label>
+          <label>${ucT('ucEditPositionType', '定位方式')}</label>
           <select id="ui-edit-position-type">
-            <option value="fixed" ${control.position_type === 'fixed' ? 'selected' : ''}>Fixed (固定)</option>
-            <option value="absolute" ${control.position_type === 'absolute' ? 'selected' : ''}>Absolute (绝对)</option>
+            <option value="fixed" ${control.position_type === 'fixed' ? 'selected' : ''}>${ucT('ucEditPosFixed', 'Fixed (固定)')}</option>
+            <option value="absolute" ${control.position_type === 'absolute' ? 'selected' : ''}>${ucT('ucEditPosAbsolute', 'Absolute (绝对)')}</option>
           </select>
         </div>
         <div class="ui-form-row">
-          <label>层级 (z-index)</label>
+          <label>${ucT('ucEditZIndex', '层级 (z-index)')}</label>
           <input type="number" id="ui-edit-z-index" value="${control.z_index}" min="0" max="9999">
         </div>
       </div>
 
       <div class="ui-editor-section">
-        <h4>显示设置</h4>
+        <h4>${ucT('ucEditDisplay', '显示设置')}</h4>
         <div class="ui-form-row ui-checkbox-row">
           <label>
             <input type="checkbox" id="ui-edit-visible" ${control.is_visible ? 'checked' : ''}>
-            可见
+            ${ucT('ucEditVisible', '可见')}
           </label>
         </div>
         <div class="ui-form-row ui-checkbox-row">
           <label>
             <input type="checkbox" id="ui-edit-enabled" ${control.is_enabled ? 'checked' : ''}>
-            启用
+            ${ucT('ucEditEnabled', '启用')}
           </label>
         </div>
       </div>
 
       <div class="ui-editor-actions">
-        <button class="btn" id="ui-save-btn">💾 保存更改</button>
-        <button class="btn btn-secondary" id="ui-reset-btn">🔄 重置为默认</button>
-        <button class="btn btn-danger" id="ui-delete-btn" onclick="AdminUIControls.deleteControl()">🗑️ 删除控件</button>
+        <button class="btn" id="ui-save-btn">${ucT('ucEditSave', '💾 保存更改')}</button>
+        <button class="btn btn-secondary" id="ui-reset-btn">${ucT('ucEditReset', '🔄 重置为默认')}</button>
+        <button class="btn btn-danger" id="ui-delete-btn" onclick="AdminUIControls.deleteControl()">${ucT('ucEditDelete', '🗑️ 删除控件')}</button>
       </div>
     `;
 
@@ -743,10 +795,10 @@ const AdminUIControls = {
     const yLabel = document.getElementById('ui-edit-pos-y-label');
 
     if (xLabel) {
-      xLabel.textContent = hAlign === 'right' ? '距右边缘 (right)' : '距左边缘 (left)';
+      xLabel.textContent = hAlign === 'right' ? ucT('ucEditPosXRight', '距右边缘 (right)') : ucT('ucEditPosXLeft', '距左边缘 (left)');
     }
     if (yLabel) {
-      yLabel.textContent = vAlign === 'bottom' ? '距底边缘 (bottom)' : '距顶边缘 (top)';
+      yLabel.textContent = vAlign === 'bottom' ? ucT('ucEditPosYBottom', '距底边缘 (bottom)') : ucT('ucEditPosYTop', '距顶边缘 (top)');
     }
 
     // 【修复】当对齐方式改变时，重新计算位置值保持相同视觉位置
@@ -935,7 +987,7 @@ const AdminUIControls = {
     }
 
     // 添加悬停提示
-    el.title = `${control.control_name} (${control.control_id})\n点击选中，拖拽移动，拖拽右下角调整大小`;
+    el.title = `${ucControlName(control)} (${control.control_id})\n点击选中，拖拽移动，拖拽右下角调整大小`;
 
     // 绑定事件
     el.addEventListener('mousedown', (e) => this.handleMouseDown(e, control, el));
@@ -1005,7 +1057,7 @@ const AdminUIControls = {
           background: rgba(0,0,0,0.8);
           padding: 2px 6px;
           border-radius: 4px;
-        ">${control.control_name}</div>
+        ">${ucControlName(control)}</div>
       </div>
     `;
   },
@@ -1102,7 +1154,7 @@ const AdminUIControls = {
           background: rgba(0,0,0,0.8);
           padding: 2px 6px;
           border-radius: 4px;
-        ">${control.control_name}</div>
+        ">${ucControlName(control)}</div>
       </div>
     `;
   },
@@ -1142,7 +1194,7 @@ const AdminUIControls = {
           background: rgba(0,0,0,0.8);
           padding: 2px 6px;
           border-radius: 4px;
-        ">${control.control_name}</div>
+        ">${ucControlName(control)}</div>
       </div>
     `;
   },
@@ -1186,7 +1238,7 @@ const AdminUIControls = {
           background: rgba(0,0,0,0.8);
           padding: 2px 6px;
           border-radius: 4px;
-        ">${control.control_name}</div>
+        ">${ucControlName(control)}</div>
       </div>
     `;
   },
@@ -1239,7 +1291,7 @@ const AdminUIControls = {
           background: rgba(0,0,0,0.8);
           padding: 2px 6px;
           border-radius: 4px;
-        ">${control.control_name}</div>
+        ">${ucControlName(control)}</div>
       </div>
     `;
   },
@@ -1284,7 +1336,7 @@ const AdminUIControls = {
             background: rgba(0,0,0,0.8);
             padding: 2px 6px;
             border-radius: 4px;
-          ">${control.control_name}</div>
+          ">${ucControlName(control)}</div>
         </div>
       `;
     }
@@ -1321,7 +1373,7 @@ const AdminUIControls = {
           background: rgba(0,0,0,0.8);
           padding: 2px 6px;
           border-radius: 4px;
-        ">${control.control_name}</div>
+        ">${ucControlName(control)}</div>
       </div>
     `;
   },
@@ -1373,7 +1425,7 @@ const AdminUIControls = {
           background: rgba(0,0,0,0.8);
           padding: 2px 6px;
           border-radius: 4px;
-        ">${control.control_name}</div>
+        ">${ucControlName(control)}</div>
       </div>
     `;
   },
@@ -1397,7 +1449,7 @@ const AdminUIControls = {
         box-shadow: ${isSelected ? '0 0 20px rgba(0,255,0,0.8)' : 'none'};
       ">
         <span style="font-size: 24px;">${typeInfo.icon}</span>
-        <span style="font-size: 10px; margin-top: 4px;">${control.control_name}</span>
+        <span style="font-size: 10px; margin-top: 4px;">${ucControlName(control)}</span>
       </div>
     `;
   },
@@ -1819,7 +1871,7 @@ const AdminUIControls = {
   async resetCurrentControl() {
     if (!this.currentControl) return;
 
-    if (!confirm(`确定要将 "${this.currentControl.control_name}" 重置为默认配置吗？`)) {
+    if (!confirm(ucTp('ucResetConfirm', { name: ucControlName(this.currentControl) }, '确定要将 "' + ucControlName(this.currentControl) + '" 重置为默认配置吗？'))) {
       return;
     }
 
@@ -1834,16 +1886,16 @@ const AdminUIControls = {
       const data = await response.json();
 
       if (data.success) {
-        this.showSuccess('控件已重置为默认配置');
+        this.showSuccess(ucT('ucResetSuccess', '控件已重置为默认配置'));
         this.currentControl = data.control;
         this.loadControls();
         this.renderEditor();
       } else {
-        this.showError('重置失败: ' + data.error);
+        this.showError(ucT('ucResetFail', '重置失败') + ': ' + data.error);
       }
     } catch (error) {
       console.error('重置控件失败:', error);
-      this.showError('重置失败');
+      this.showError(ucT('ucResetFail', '重置失败'));
     }
   },
 
@@ -1853,7 +1905,7 @@ const AdminUIControls = {
   async deleteControl() {
     if (!this.currentControl) return;
 
-    if (!confirm(`确定要删除控件 "${this.currentControl.control_name}" 吗？此操作不可恢复。`)) {
+    if (!confirm(ucTp('ucDeleteConfirm', { name: ucControlName(this.currentControl) }, '确定要删除控件 "' + ucControlName(this.currentControl) + '" 吗？此操作不可恢复。'))) {
       return;
     }
 
@@ -1868,18 +1920,18 @@ const AdminUIControls = {
       const data = await response.json();
 
       if (data.success) {
-        this.showSuccess('控件已删除');
+        this.showSuccess(ucT('ucDeleteSuccess', '控件已删除'));
         this.controls = this.controls.filter(c => c.control_id !== this.currentControl.control_id);
         this.currentControl = null;
         this.renderControlsList();
         this.renderEditor();
         this.updatePreview();
       } else {
-        this.showError('删除失败: ' + data.error);
+        this.showError(ucT('ucDeleteFail', '删除失败') + ': ' + data.error);
       }
     } catch (error) {
       console.error('删除控件失败:', error);
-      this.showError('删除失败');
+      this.showError(ucT('ucDeleteFail', '删除失败'));
     }
   },
 
@@ -1892,34 +1944,34 @@ const AdminUIControls = {
     modal.innerHTML = `
       <div class="ui-modal-content">
         <div class="ui-modal-header">
-          <h3>添加新控件</h3>
+          <h3>${ucT('ucAddTitle', '添加新控件')}</h3>
           <button class="ui-modal-close" onclick="this.closest('.ui-modal').remove()">&times;</button>
         </div>
         <div class="ui-modal-body">
           <div class="ui-form-row">
-            <label>控件ID (唯一标识)</label>
-            <input type="text" id="ui-new-control-id" placeholder="例如: my_custom_button">
+            <label>${ucT('ucAddIdLabel', '控件ID (唯一标识)')}</label>
+            <input type="text" id="ui-new-control-id" placeholder="${ucT('ucAddIdPlaceholder', '例如: my_custom_button')}">
           </div>
           <div class="ui-form-row">
-            <label>控件名称</label>
-            <input type="text" id="ui-new-control-name" placeholder="例如: 我的自定义按钮">
+            <label>${ucT('ucEditName', '控件名称')}</label>
+            <input type="text" id="ui-new-control-name" placeholder="${ucT('ucAddNamePlaceholder', '例如: 我的自定义按钮')}">
           </div>
           <div class="ui-form-row">
-            <label>控件类型</label>
+            <label>${ucT('ucEditType', '控件类型')}</label>
             <select id="ui-new-control-type">
               ${this.controlTypes.map(t => `<option value="${t.value}">${t.icon} ${t.label}</option>`).join('')}
             </select>
           </div>
           <div class="ui-form-row">
-            <label>分类</label>
+            <label>${ucT('ucEditCategory', '分类')}</label>
             <select id="ui-new-control-category">
               ${this.categories.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
             </select>
           </div>
         </div>
         <div class="ui-modal-footer">
-          <button class="btn" onclick="AdminUIControls.createNewControl()">创建</button>
-          <button class="btn btn-secondary" onclick="this.closest('.ui-modal').remove()">取消</button>
+          <button class="btn" onclick="AdminUIControls.createNewControl()">${ucT('ucAddCreate', '创建')}</button>
+          <button class="btn btn-secondary" onclick="this.closest('.ui-modal').remove()">${ucT('ucAddCancel', '取消')}</button>
         </div>
       </div>
     `;
@@ -1936,25 +1988,25 @@ const AdminUIControls = {
     const category = document.getElementById('ui-new-control-category')?.value;
 
     if (!controlId || !controlName) {
-      this.showError('请填写控件ID和名称');
+      this.showError(ucT('ucErrNeedIdName', '请填写控件ID和名称'));
       return;
     }
 
     // 验证ID格式
     if (!/^[a-z0-9_]+$/.test(controlId)) {
-      this.showError('控件ID只能包含小写字母、数字和下划线');
+      this.showError(ucT('ucErrIdFormat', '控件ID只能包含小写字母、数字和下划线'));
       return;
     }
 
     // 验证ID长度
     if (controlId.length < 3 || controlId.length > 50) {
-      this.showError('控件ID长度必须在3-50个字符之间');
+      this.showError(ucT('ucErrIdLength', '控件ID长度必须在3-50个字符之间'));
       return;
     }
 
     // 验证名称长度
     if (controlName.length < 1 || controlName.length > 100) {
-      this.showError('控件名称长度必须在1-100个字符之间');
+      this.showError(ucT('ucErrNameLength', '控件名称长度必须在1-100个字符之间'));
       return;
     }
 
