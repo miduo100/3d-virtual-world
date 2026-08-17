@@ -2036,7 +2036,9 @@
       "videos": "视频",
       "videosTooltip": "🎬 视频",
       "live": "直播",
-      "liveTooltip": "📡 直播源"
+      "liveTooltip": "📡 直播源",
+      "3dgs": "高斯",
+      "3dgsTooltip": "✨ 高斯场景库"
     },
     "status": {
       "mode": "选择",
@@ -2134,6 +2136,13 @@
       "devTitle": "功能开发中",
       "devDesc": "直播源功能正在开发中",
       "devComing": "敬请期待..."
+    },
+    "panel3dgs": {
+      "title": "✨ 高斯场景库",
+      "fileListTitle": "📂 高斯文件",
+      "searchPlaceholder": "🔍 搜索高斯文件...",
+      "refreshBtn": "刷新",
+      "empty": "暂无高斯文件，请上传到 public/scenes/3dgs"
     },
     "props": {
       "title": "⚙️ 对象属性",

@@ -1893,6 +1893,11 @@
             <span class="nav-text" data-i18n="worldEditor.nav.live">直播</span>
             <span class="nav-tooltip" data-i18n="worldEditor.nav.liveTooltip">📡 直播源</span>
         </div>
+        <div class="nav-item" id="nav-3dgs" onclick="switchPanel('3dgs')">
+            ✨
+            <span class="nav-text" data-i18n="worldEditor.nav.3dgs">高斯</span>
+            <span class="nav-tooltip" data-i18n="worldEditor.nav.3dgsTooltip">✨ 高斯场景库</span>
+        </div>
     </div>
 
     <!-- ===== 右侧内容面板 ===== -->
@@ -2094,6 +2099,23 @@
                         <span data-i18n="worldEditor.panelLive.devDesc">直播源功能正在开发中</span><br>
                         <span data-i18n="worldEditor.panelLive.devComing">敬请期待...</span>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 高斯场景库面板 -->
+        <div id="panel-3dgs" class="panel-view">
+            <div class="panel-title" data-i18n="worldEditor.panel3dgs.title">✨ 高斯场景库</div>
+
+            <div class="panel-section">
+                <div class="panel-section-title"><span data-i18n="worldEditor.panel3dgs.fileListTitle">📂 高斯文件</span> (<span id="dgs-count">0</span>)</div>
+                <div class="url-input-group">
+                    <input type="text" id="dgs-search" data-i18n-placeholder="worldEditor.panel3dgs.searchPlaceholder"
+                           placeholder="🔍 搜索高斯文件..." oninput="filterDgsList(this.value)">
+                    <button onclick="load3dgsFiles()" data-i18n="worldEditor.panel3dgs.refreshBtn">刷新</button>
+                </div>
+                <div class="object-list" id="dgs-file-list">
+                    <div style="text-align:center; padding:15px; color:#999; font-size:12px;">加载中...</div>
                 </div>
             </div>
         </div>
@@ -2802,6 +2824,8 @@
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/MTLLoader.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/controls/TransformControls.js"></script>
+    <script src="js/gaussianSplatLoader.js"></script>
+    <script src="js/gaussianSplatRenderer.js"></script>
     <!-- 国际化核心库 -->
     <script src="/i18n/i18n.js"></script>
     <script src="js/geometryTemplates.js"></script>
@@ -2813,6 +2837,7 @@
     <script src="js/customConfigApplier.js"></script>
     <script src="js/customConfigPanel.js"></script>
     <script src="js/worldEditorThreejsCode.js"></script>
+    <script src="js/worldEditor3dgs.js"></script>
     <script>
         // ===== 全局变量 =====
         let scene, camera, renderer, controls, transformControls;
@@ -2948,10 +2973,11 @@
             camera.lookAt(0, 0, 0);
 
             // 渲染器
-            renderer = new THREE.WebGLRenderer({ antialias: true });
+            // 渲染器降配：编辑器场景关闭阴影（PCFSoftShadowMap 对高模每帧开销极大），
+            // 编辑布局不需要投影，模型外观不受影响，每帧 GPU 开销大幅下降
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
             renderer.setSize(container.clientWidth, container.clientHeight);
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.shadowMap.enabled = false;
             container.appendChild(renderer.domElement);
 
             // 轨道控制器
@@ -3032,6 +3058,7 @@
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
+            if (window.onEditorGaussianTick) window.onEditorGaussianTick(camera, renderer); // 渲染前驱动高斯预览更新
             renderer.render(scene, camera);
             if (window.onMediaAnimateTick) window.onMediaAnimateTick();
             // Three.js 代码块动画
@@ -3151,9 +3178,14 @@
                         console.log(`  对象${i+1}: id=${obj.id}, name=${obj.name}, type=${obj.type}`);
                     });
 
-                    // 清空现有对象
+                    // 清空现有对象（递归释放 GPU 资源，刷新不累积内存；
+                    // GLB 共享实例走缓存复用，不会释放共享 geometry/material）
                     worldObjects.forEach(obj => {
-                        if (obj.mesh) scene.remove(obj.mesh);
+                        if (obj.mesh) {
+                            scene.remove(obj.mesh);
+                            // uploaded_model 走共享缓存，不释放 geometry/material
+                            disposeObject3D(obj.mesh, obj.type === 'uploaded_model');
+                        }
                     });
                     worldObjects = [];
 
@@ -3285,37 +3317,30 @@
                 const modelPath = obj.model_path;
 
                 if (modelType === 'gltf') {
-                    // 加载 GLB/GLTF
-                    const loader = new THREE.GLTFLoader();
-                    const dracoLoader = new THREE.DRACOLoader();
-                    dracoLoader.setDecoderPath('https://unpkg.com/three@0.128.0/examples/js/libs/draco/');
-                    loader.setDRACOLoader(dracoLoader);
-                    loader.load(
-                        modelPath,
-                        (gltf) => {
-                            console.log('✅ GLTF模型加载成功:', modelPath);
-                            placeholder.remove(loaderMesh);
-                            placeholder.add(gltf.scene);
-                            
-                            // 启用阴影
-                            gltf.scene.traverse((child) => {
-                                if (child.isMesh) {
-                                    child.castShadow = true;
-                                    child.receiveShadow = true;
-                                }
-                            });
-                        },
-                        (progress) => {
-                            if (progress.total > 0) {
-                                console.log('📦 GLTF加载进度:', (progress.loaded / progress.total * 100).toFixed(2) + '%');
-                            }
-                        },
-                        (error) => {
-                            console.error('❌ GLTF加载失败:', error);
-                            loaderMaterial.color.set(0xff0000);
-                        }
-                    );
+                    // 性能优化：模型缓存 + 串行加载队列 + 纹理降级
+                    // 1) 缓存命中：直接从缓存克隆实例（共享 geometry/material，不重复下载/解析）
+                    const cached = editorModelCache.get(modelPath);
+                    if (cached && cached.scene) {
+                        const inst = cloneModelForInstancing(cached.scene);
+                        inst.userData.sharedModel = true;
+                        placeholder.remove(loaderMesh);
+                        placeholder.add(inst);
+                        console.log('✅ 从缓存加载模型:', modelPath);
+                    } else {
+                        // 2) 缓存未命中：进入串行队列，同时只加载 1 个 GLB，避免并发解析打爆 CPU
+                        enqueueGlbLoad({ placeholder, loaderMesh, obj, modelPath });
+                    }
                 } else if (modelType === 'obj') {
+                    // 性能优化：OBJ 同样走缓存复用，刷新场景不重复解析、不累积泄漏
+                    const objCached = editorModelCache.get(modelPath);
+                    if (objCached && objCached.scene) {
+                        const objInst = cloneModelForInstancing(objCached.scene);
+                        objInst.userData.sharedModel = true;
+                        placeholder.remove(loaderMesh);
+                        placeholder.add(objInst);
+                        console.log('✅ 从缓存加载OBJ模型:', modelPath);
+                        return placeholder;
+                    }
                     // 加载 OBJ（带材质和纹理）
                     const modelDir = modelPath.substring(0, modelPath.lastIndexOf('/') + 1);
                     const mtlFileName = 'material.mtl';  // 上传接口固定使用这个名称
@@ -3340,12 +3365,13 @@
                                 (object) => {
                                     console.log('✅ OBJ模型加载成功（带材质）:', modelPath);
                                     placeholder.remove(loaderMesh);
-                                    placeholder.add(object);
+                                    addToEditorModelCache(modelPath, object);
+                                    const objInst = cloneModelForInstancing(object);
+                                    objInst.userData.sharedModel = true;
+                                    placeholder.add(objInst);
                                     
                                     object.traverse((child) => {
                                         if (child.isMesh) {
-                                            child.castShadow = true;
-                                            child.receiveShadow = true;
                                             console.log('🎨 材质:', child.material);
                                         }
                                     });
@@ -3373,16 +3399,16 @@
                                 modelPath,
                                 (object) => {
                                     console.log('✅ OBJ模型加载成功（无材质）:', modelPath);
-                                    placeholder.remove(loaderMesh);
-                                    placeholder.add(object);
-                                    
                                     object.traverse((child) => {
                                         if (child.isMesh) {
                                             child.material = new THREE.MeshLambertMaterial({ color: 0xcccccc });
-                                            child.castShadow = true;
-                                            child.receiveShadow = true;
                                         }
                                     });
+                                    placeholder.remove(loaderMesh);
+                                    addToEditorModelCache(modelPath, object);
+                                    const objInst = cloneModelForInstancing(object);
+                                    objInst.userData.sharedModel = true;
+                                    placeholder.add(objInst);
                                 },
                                 undefined,
                                 (error) => {
@@ -3397,6 +3423,15 @@
                 return placeholder;
             }
 
+            // 3DGS 高斯场景：占位 + 异步加载真实 PLY 点云
+            if (type === 'gaussian_splat') {
+                const group = createGaussianSplatPlaceholder(obj);
+                if (window.editorGaussianLoadIntoGroup) {
+                    window.editorGaussianLoadIntoGroup(obj, group);
+                }
+                return group;
+            }
+
             // 默认：创建一个简单的方块
             const geometry = new THREE.BoxGeometry(2, 2, 2);
             const material = new THREE.MeshLambertMaterial({ color: 0x888888 });
@@ -3407,6 +3442,31 @@
             mesh.castShadow = true;
             mesh.receiveShadow = true;
             return mesh;
+        }
+
+        // 创建 3DGS 高斯场景占位（紫色线框立方体 + 中心点，与主场景占位一致）
+        function createGaussianSplatPlaceholder(obj) {
+            const group = new THREE.Group();
+            group.position.set(obj.position_x || 0, obj.position_y || 0, obj.position_z || 0);
+            group.rotation.set(obj.rotation_x || 0, obj.rotation_y || 0, obj.rotation_z || 0);
+            group.scale.set(obj.scale_x || 1, obj.scale_y || 1, obj.scale_z || 1);
+            group.userData.objectType = 'gaussian_splat';
+            group.userData.modelPath = obj.model_path;
+
+            // 紫色线框盒 + 中心点（gsPlaceholder 标记供 editorGaussianLoadIntoGroup 识别移除）
+            const box = new THREE.Mesh(
+                new THREE.BoxGeometry(3, 3, 3),
+                new THREE.MeshBasicMaterial({ color: 0xa78bfa, wireframe: true })
+            );
+            box.userData.gsPlaceholder = true;
+            group.add(box);
+            const dot = new THREE.Mesh(
+                new THREE.SphereGeometry(0.2, 12, 12),
+                new THREE.MeshBasicMaterial({ color: 0xa78bfa })
+            );
+            dot.userData.gsPlaceholder = true;
+            group.add(dot);
+            return group;
         }
 
         // ===== 对象选择 =====
@@ -3496,28 +3556,39 @@
                             child.userData.outline = null;
                         }
                     } else {
-                        // 非媒体对象：保持原有emissive高亮方式
+                        // 非媒体对象：仅对支持 emissive uniform 的材质用 emissive 高亮
+                        // ⚠️ MeshBasicMaterial 等没有 emissive uniform，
+                        //    强加 emissive 属性会导致 refreshMaterialUniforms 崩溃
+                        const mat = child.material;
+                        const supportsEmissive = mat && (mat.isMeshLambertMaterial || mat.isMeshPhongMaterial ||
+                            mat.isMeshStandardMaterial || mat.isMeshPhysicalMaterial ||
+                            mat.isMeshToonMaterial || mat.isMeshMatcapMaterial);
+
                         if (highlight) {
-                            let cloned = false;
-                            try {
-                                child.material = child.material.clone();
-                                cloned = true;
-                            } catch (e) {
-                                console.warn('[highlightObject] 材质克隆失败，改用轮廓线高亮:', e);
-                                if (!child.userData.outline) {
-                                    const edges = new THREE.EdgesGeometry(child.geometry);
-                                    const line = new THREE.LineSegments(
-                                        edges,
-                                        new THREE.LineBasicMaterial({ color: 0x667eea, linewidth: 2 })
-                                    );
-                                    line.renderOrder = 999;
-                                    child.add(line);
-                                    child.userData.outline = line;
+                            if (supportsEmissive) {
+                                let cloned = false;
+                                try {
+                                    child.material = mat.clone();
+                                    cloned = true;
+                                } catch (e) {
+                                    console.warn('[highlightObject] 材质克隆失败，改用轮廓线高亮:', e);
+                                }
+                                if (cloned) {
+                                    child.material.emissive = new THREE.Color(0x4444ff);
+                                    child.material.emissiveIntensity = 0.3;
+                                    return;
                                 }
                             }
-                            if (cloned) {
-                                child.material.emissive = new THREE.Color(0x4444ff);
-                                child.material.emissiveIntensity = 0.3;
+                            // 不支持 emissive 或克隆失败 → 轮廓线高亮（与媒体对象同款，安全）
+                            if (!child.userData.outline) {
+                                const edges = new THREE.EdgesGeometry(child.geometry);
+                                const line = new THREE.LineSegments(
+                                    edges,
+                                    new THREE.LineBasicMaterial({ color: 0x667eea, linewidth: 2 })
+                                );
+                                line.renderOrder = 999;
+                                child.add(line);
+                                child.userData.outline = line;
                             }
                         } else {
                             if (child.userData.outline) {
@@ -3526,8 +3597,11 @@
                                 child.userData.outline.material.dispose();
                                 child.userData.outline = null;
                             }
-                            child.material.emissive = new THREE.Color(0x000000);
-                            child.material.emissiveIntensity = 0;
+                            // 取消选中同样不能污染 Basic 材质
+                            if (supportsEmissive && child.material.emissive) {
+                                child.material.emissive.setHex(0x000000);
+                                child.material.emissiveIntensity = 0;
+                            }
                         }
                     }
                 }
@@ -4280,6 +4354,7 @@
                 'plane': '📄',
                 'cylinder': '🛢️',
                 'torus': '🍩',
+                'gaussian_splat': '✨',
                 'unknown': '❓'
             };
             return iconMap[type?.toLowerCase()] || iconMap['unknown'];
@@ -5361,14 +5436,14 @@
         // ===== 抽屉导航面板切换 =====
         function switchPanel(panelName) {
             // 更新左侧导航选中状态
-            const navItems = ['models', 'threejs-code', 'scene', 'images', 'videos', 'live', 'props'];
+            const navItems = ['models', 'threejs-code', 'scene', 'images', 'videos', 'live', '3dgs', 'props'];
             navItems.forEach(item => {
                 const el = document.getElementById('nav-' + item);
                 if (el) el.classList.toggle('active', item === panelName);
             });
 
             // 切换右侧内容面板
-            const panelViews = ['models', 'threejs-code', 'scene', 'images', 'videos', 'live', 'props'];
+            const panelViews = ['models', 'threejs-code', 'scene', 'images', 'videos', 'live', '3dgs', 'props'];
             panelViews.forEach(view => {
                 const el = document.getElementById('panel-' + view);
                 if (el) el.classList.toggle('active', view === panelName);
@@ -6204,6 +6279,13 @@
                 mediaPreviewMesh = null;
             }
 
+            // 3DGS 高斯场景：真实 PLY 预览（占位盒 + 进度 → 渐进清晰）
+            if (item.type === 'gaussian_splat') {
+                mediaPreviewMesh = window.editorGaussianCreatePreview(item, x, y, z, ry, w, h);
+                scene.add(mediaPreviewMesh);
+                return;
+            }
+
             const geo = new THREE.PlaneGeometry(w, h);
             let mat;
 
@@ -6257,6 +6339,11 @@
 
             mediaPreviewMesh.position.set(x, y, z);
             mediaPreviewMesh.rotation.y = ry * Math.PI / 180;
+            // 3DGS 高斯场景：同步真实 splat 变换（位置/旋转由上方通用代码设置）
+            if (pendingMediaItem.type === 'gaussian_splat') {
+                window.editorGaussianUpdatePreview(mediaPreviewMesh, w, h);
+                return;
+            }
             mediaPreviewMesh.scale.set(w / 8, h / 4.5, 1); // 用scale而非重建几何体
         }
 
@@ -6315,6 +6402,13 @@
             }
             document.getElementById('media-place-panel').style.display = 'none';
             pendingMediaItem = null;
+            // 恢复默认标题与锁定宽高比
+            const mpTitle = document.getElementById('media-place-title');
+            if (mpTitle) mpTitle.textContent = '🖼️ ' + weT('placeMedia.title', '放置图片');
+            const lockEl = document.getElementById('mp-lock-ratio');
+            if (lockEl) lockEl.checked = true;
+            const videoOpts = document.getElementById('video-opts-section');
+            if (videoOpts) videoOpts.style.display = 'none';
         }
 
         // ===== 保存媒体到世界 =====
@@ -6328,6 +6422,12 @@
             const ry = parseFloat(document.getElementById('mp-ry').value) || 0;
             const w = parseFloat(document.getElementById('mp-w').value) || 8;
             const h = parseFloat(document.getElementById('mp-h').value) || 4.5;
+
+            // 3DGS 高斯场景：独立保存逻辑
+            if (item.type === 'gaussian_splat') {
+                await saveGaussianToWorld(item, x, y, z, ry, w, h);
+                return;
+            }
 
             const props = {
                 mediaId: item.id,
@@ -6378,6 +6478,95 @@
             } catch(e) {
                 showNotification(weTp('placeMedia.saveFailedWithError', { message: e.message }, '❌ 保存失败: ' + e.message), 'error');
             }
+        }
+
+        // ===== 保存 3DGS 高斯场景到世界 =====
+        async function saveGaussianToWorld(item, x, y, z, ry, w, h) {
+            const props = {
+                mediaId: item.id,
+                mediaType: item.mediaType,
+                originalUrl: item.url,
+                width: w,
+                height: h
+            };
+            try {
+                const res = await fetch('/api/world/objects', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'gaussian_splat',
+                        name: item.name.substring(0, 60),
+                        model_path: item.url,
+                        model_type: item.mediaType || 'ply',
+                        position_x: x,
+                        position_y: y,
+                        position_z: z,
+                        rotation_x: 0,
+                        rotation_y: ry * Math.PI / 180,
+                        rotation_z: 0,
+                        scale_x: w,
+                        scale_y: h,
+                        scale_z: w,
+                        properties: JSON.stringify(props)
+                    })
+                });
+
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || weT('placeMedia.saveFailedFallback', '保存失败'));
+
+                // 移除预览，加载真实对象
+                cancelMediaPlace();
+                await loadWorldObjects();
+                showNotification('✅ 3DGS 场景已添加到虚拟世界！', 'success');
+
+            } catch(e) {
+                showNotification('❌ 保存失败: ' + e.message, 'error');
+            }
+        }
+
+        // ===== 打开 3DGS 高斯场景放置预览框 =====
+        async function openGaussianPlace(file) {
+            if (!file) return;
+            const displayName = file.scene_name || file.filename || '3DGS场景';
+            const fileUrl = file.url || ('/scenes/3dgs/' + file.relative_path);
+
+            // 默认位置：相机前方 20 单位
+            const dir = new THREE.Vector3();
+            camera.getWorldDirection(dir);
+            dir.y = 0;
+            dir.normalize();
+            const pos = camera.position.clone().add(dir.multiplyScalar(20));
+
+            // 构造伪媒体项，复用媒体放置面板
+            pendingMediaItem = {
+                id: 'dgs-' + file.relative_path,
+                name: displayName,
+                url: fileUrl,
+                type: 'gaussian_splat',
+                mediaType: (file.ext || '').replace('.', '') || 'ply'
+            };
+
+            // 更新面板标题与选项
+            const titleEl = document.getElementById('media-place-title');
+            if (titleEl) titleEl.textContent = '✨ ' + weT('panel3dgs.placeTitle', '放置 3DGS 场景');
+            const lockEl = document.getElementById('mp-lock-ratio');
+            if (lockEl) lockEl.checked = false;
+            const videoOpts = document.getElementById('video-opts-section');
+            if (videoOpts) videoOpts.style.display = 'none';
+
+            // 设置默认输入值（尺寸基准 3×3×3，默认 6×6）
+            document.getElementById('mp-x').value = pos.x.toFixed(2);
+            document.getElementById('mp-y').value = '2';
+            document.getElementById('mp-z').value = pos.z.toFixed(2);
+            document.getElementById('mp-ry').value = '0';
+            document.getElementById('mp-w').value = '6';
+            document.getElementById('mp-h').value = '6';
+            updateDialNeedle(0);
+
+            // 显示面板并创建预览占位
+            document.getElementById('media-place-panel').style.display = 'block';
+            createMediaPreview(pendingMediaItem, pos.x, 2, pos.z, 0, 6, 6);
+            updateMediaPreview();
         }
 
         // =====================================================
@@ -6435,6 +6624,205 @@
             // 延迟加载
             scheduleMediaLoad(mesh, obj);
             return mesh;
+        }
+
+        // ===== GLB 模型加载优化：缓存 + 串行队列 + 纹理降级 =====
+        // 解决 9×20MB 高模场景内存爆表问题：
+        //  - 缓存：同 model_path 只下载/解析一次，多实例浅克隆共享 geometry/material（显存只占一份）
+        //  - 串行队列：GLB 同时只加载 1 个，消除并发解析造成的 CPU 峰值
+        //  - 纹理降级：4K→1K Canvas 重采样，形状轮廓完全保留，显存降 90%+
+        const editorModelCache = new Map(); // model_path → { scene }
+        const MAX_EDITOR_MODEL_CACHE = 32;  // 缓存条目上限，超限淘汰最旧
+        const EDITOR_TEXTURE_MAX_SIZE = 1024; // 编辑器纹理降级目标尺寸
+        let glbLoadQueue = [];
+        let glbLoadingActive = false;
+
+        // 递归浅克隆：共享 geometry/material（多实例只占一份 GPU 内存）
+        function cloneModelForInstancing(root) {
+            const clone = root.clone(); // 浅克隆，不复制 children/geometry/material
+            clone.children = [];
+            for (let i = 0; i < root.children.length; i++) {
+                clone.add(cloneModelForInstancing(root.children[i]));
+            }
+            return clone;
+        }
+
+        // 模型串行加载队列：同时只加载 1 个 GLB
+        function enqueueGlbLoad(task) {
+            glbLoadQueue.push(task);
+            if (!glbLoadingActive) processGlbQueue();
+        }
+
+        function processGlbQueue() {
+            glbLoadingActive = true;
+            const runNext = () => {
+                if (glbLoadQueue.length === 0) {
+                    glbLoadingActive = false;
+                    return;
+                }
+                const task = glbLoadQueue.shift();
+                loadGlbModel(task).finally(runNext);
+            };
+            runNext();
+        }
+
+        function loadGlbModel({ placeholder, loaderMesh, obj, modelPath }) {
+            return new Promise((resolve) => {
+                // 排队期间可能已被其它任务加载入缓存
+                const cached = editorModelCache.get(modelPath);
+                if (cached && cached.scene) {
+                    const inst = cloneModelForInstancing(cached.scene);
+                    inst.userData.sharedModel = true;
+                    placeholder.remove(loaderMesh);
+                    placeholder.add(inst);
+                    resolve();
+                    return;
+                }
+                const loader = new THREE.GLTFLoader();
+                const dracoLoader = new THREE.DRACOLoader();
+                dracoLoader.setDecoderPath('https://unpkg.com/three@0.128.0/examples/js/libs/draco/');
+                loader.setDRACOLoader(dracoLoader);
+                loader.load(
+                    modelPath,
+                    (gltf) => {
+                        console.log('✅ GLTF模型加载成功:', modelPath);
+                        // 纹理降级：4K→1K，几何体完全不动，形状轮廓不变
+                        downsizeSceneTextures(gltf.scene, EDITOR_TEXTURE_MAX_SIZE);
+                        // 入缓存（限制条目数，超限淘汰最旧）
+                        addToEditorModelCache(modelPath, gltf.scene);
+                        // 为当前对象克隆实例
+                        const inst = cloneModelForInstancing(gltf.scene);
+                        inst.userData.sharedModel = true;
+                        placeholder.remove(loaderMesh);
+                        placeholder.add(inst);
+                        resolve();
+                    },
+                    (progress) => {
+                        if (progress.total > 0) {
+                            console.log('📦 GLTF加载进度:', (progress.loaded / progress.total * 100).toFixed(2) + '%');
+                        }
+                    },
+                    (error) => {
+                        console.error('❌ GLTF加载失败:', error);
+                        if (loaderMesh && loaderMesh.material) loaderMesh.material.color.set(0xff0000);
+                        resolve();
+                    }
+                );
+            });
+        }
+
+        // 纹理降级：把超过 maxSize 的贴图用 Canvas 重采样到目标尺寸
+        function downsizeSceneTextures(root, maxSize) {
+            if (!root) return;
+            const texCache = new Map(); // 旧纹理 → 新纹理（同一纹理被多材质共享时只降级一次）
+            const slots = ['map','normalMap','roughnessMap','metalnessMap','aoMap','emissiveMap','bumpMap','alphaMap','specularMap','lightMap'];
+            root.traverse((child) => {
+                if (!child.isMesh || !child.material) return;
+                (Array.isArray(child.material) ? child.material : [child.material]).forEach((mat) => {
+                    slots.forEach((slot) => {
+                        const tex = mat[slot];
+                        if (!tex || !tex.image || !tex.image.width || !tex.image.height) return;
+                        if (Math.max(tex.image.width, tex.image.height) <= maxSize) return;
+                        let newTex = texCache.get(tex);
+                        if (!newTex) {
+                            newTex = downsizeTexture(tex, maxSize);
+                            if (newTex) texCache.set(tex, newTex);
+                        }
+                        if (newTex) mat[slot] = newTex;
+                    });
+                });
+            });
+            // 全部材质替换完成后释放旧纹理
+            texCache.forEach((newTex, oldTex) => {
+                try { oldTex.dispose(); } catch (e) {}
+            });
+        }
+
+        function downsizeTexture(texture, maxSize) {
+            const img = texture.image;
+            try {
+                const ratio = maxSize / Math.max(img.width, img.height);
+                const w = Math.max(1, Math.round(img.width * ratio));
+                const h = Math.max(1, Math.round(img.height * ratio));
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w, h);
+                const newTex = new THREE.CanvasTexture(canvas);
+                newTex.wrapS = texture.wrapS;
+                newTex.wrapT = texture.wrapT;
+                newTex.magFilter = texture.magFilter;
+                newTex.minFilter = THREE.LinearMipmapLinearFilter;
+                newTex.generateMipmaps = true;
+                newTex.encoding = texture.encoding;
+                newTex.flipY = texture.flipY;
+                newTex.repeat.copy(texture.repeat);
+                newTex.offset.copy(texture.offset);
+                newTex.rotation = texture.rotation;
+                newTex.anisotropy = Math.min(texture.anisotropy || 1, 4);
+                newTex.needsUpdate = true;
+                return newTex;
+            } catch (e) {
+                console.warn('[纹理降级] 失败，保留原纹理:', e.message);
+                return null;
+            }
+        }
+
+        // 释放单个材质的全部纹理资源
+        function disposeMaterialResources(mat) {
+            if (!mat) return;
+            ['map','normalMap','roughnessMap','metalnessMap','aoMap','emissiveMap','bumpMap','alphaMap','specularMap','lightMap'].forEach((slot) => {
+                const tex = mat[slot];
+                if (tex && tex.dispose) tex.dispose();
+            });
+            if (mat.dispose) mat.dispose();
+        }
+
+        // 入缓存（统一入口：GLB/OBJ 共用），超限时淘汰最旧并释放其资源
+        function addToEditorModelCache(modelPath, scene) {
+            if (editorModelCache.size >= MAX_EDITOR_MODEL_CACHE) {
+                const oldestKey = editorModelCache.keys().next().value;
+                const old = editorModelCache.get(oldestKey);
+                if (old && old.scene) disposeSharedScene(old.scene);
+                editorModelCache.delete(oldestKey);
+            }
+            editorModelCache.set(modelPath, { scene });
+        }
+
+        // 深度释放一个场景树的所有 GPU 资源（仅用于缓存淘汰，此时无任何实例引用）
+        function disposeSharedScene(root) {
+            if (!root) return;
+            root.traverse((child) => {
+                if (child.isMesh) {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        (Array.isArray(child.material) ? child.material : [child.material]).forEach((m) => disposeMaterialResources(m));
+                    }
+                }
+            });
+        }
+
+        // 清场释放：GLB 共享实例（shared=true）只清理高亮线，
+        // geometry/material 归缓存所有不能释放；非共享对象递归释放 GPU 资源
+        function disposeObject3D(root, shared = false) {
+            if (!root) return;
+            root.traverse((child) => {
+                if (child.userData && child.userData.outline) {
+                    try {
+                        child.remove(child.userData.outline);
+                        if (child.userData.outline.geometry) child.userData.outline.geometry.dispose();
+                        if (child.userData.outline.material) child.userData.outline.material.dispose();
+                        child.userData.outline = null;
+                    } catch (e) {}
+                }
+                if (child.isMesh && !shared) {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        (Array.isArray(child.material) ? child.material : [child.material]).forEach((m) => disposeMaterialResources(m));
+                    }
+                }
+            });
         }
 
         // ===== 媒体延迟加载队列 =====

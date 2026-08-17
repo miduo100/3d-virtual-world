@@ -4346,12 +4346,16 @@ class World {
         const adSlotObjects = worldObjects.objects
           .filter(obj => obj.type === 'ad_slot' && obj.model_path);
 
+        // 加载3DGS高斯场景对象（占位渲染，真实渲染后续接入）
+        const gaussianSplatObjects = worldObjects.objects
+          .filter(obj => obj.type === 'gaussian_splat');
+
         // 加载媒体对象（图片/视频）- 延迟加载
         const mediaObjects = worldObjects.objects
           .filter(obj => obj.type === 'media_image' || obj.type === 'media_video');
           
-        const totalObjects = generatedBuildingObjects.length + geometryObjects.length + uploadedModelObjects.length + threejsObjects.length + adSlotObjects.length;
-        console.log(`📦 找到 ${totalObjects} 个对象: ${generatedBuildingObjects.length} 建筑, ${geometryObjects.length} 几何体, ${uploadedModelObjects.length} 上传模型, ${threejsObjects.length} Three.js模型, ${adSlotObjects.length} 广告位, ${mediaObjects.length} 媒体对象`);
+        const totalObjects = generatedBuildingObjects.length + geometryObjects.length + uploadedModelObjects.length + threejsObjects.length + adSlotObjects.length + gaussianSplatObjects.length;
+        console.log(`📦 找到 ${totalObjects} 个对象: ${generatedBuildingObjects.length} 建筑, ${geometryObjects.length} 几何体, ${uploadedModelObjects.length} 上传模型, ${threejsObjects.length} Three.js模型, ${adSlotObjects.length} 广告位, ${mediaObjects.length} 媒体对象, ${gaussianSplatObjects.length} 3DGS场景`);
 
         // 🎯 新策略：几何体 → 媒体 → 模型（三阶段有序加载）
         console.log(`📸 ${mediaObjects.length} 个媒体对象将在几何体完成后立即加载`);
@@ -4364,7 +4368,8 @@ class World {
           ...generatedBuildingObjects.map(obj => ({ ...obj, loadMethod: 'addGeneratedBuilding' })),
           ...uploadedModelObjects.map(obj => ({ ...obj, loadMethod: 'addUploadedModel' })),
           ...threejsObjects.map(obj => ({ ...obj, loadMethod: 'addThreeJSModel' })),
-          ...adSlotObjects.map(obj => ({ ...obj, loadMethod: 'addAdSlotPortal' }))
+          ...adSlotObjects.map(obj => ({ ...obj, loadMethod: 'addAdSlotPortal' })),
+          ...gaussianSplatObjects.map(obj => ({ ...obj, loadMethod: 'addGaussianSplat' }))
         ];
 
         // 清空延迟队列（不再需要延迟加载机制）

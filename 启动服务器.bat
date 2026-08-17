@@ -13,5 +13,15 @@ echo.
 echo   按 Ctrl+C 停止服务器
 echo ========================================
 echo.
-npm start
+node src/server.js
+if errorlevel 1 (
+  echo.
+  echo [错误] 服务器启动失败！请查看上方红色错误信息。
+  echo 常见原因:
+  echo   1. 端口 3002 已被占用  - 可运行: netstat -ano ^| findstr :3002 查看占用进程
+  echo   2. 数据库(PostgreSQL)未启动或密码错误
+  echo   3. 依赖缺失  - 请运行: npm install
+  echo 也可先运行 环境检测.bat 排查环境问题。
+)
+echo.
 pause

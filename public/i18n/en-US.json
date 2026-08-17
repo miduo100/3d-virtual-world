@@ -2036,7 +2036,9 @@
       "videos": "Videos",
       "videosTooltip": "🎬 Videos",
       "live": "Live",
-      "liveTooltip": "📡 Live Sources"
+      "liveTooltip": "📡 Live Sources",
+      "3dgs": "3DGS",
+      "3dgsTooltip": "✨ 3DGS Scenes"
     },
     "status": {
       "mode": "Select",
@@ -2134,6 +2136,13 @@
       "devTitle": "Under Development",
       "devDesc": "Live source feature is under development",
       "devComing": "Stay tuned..."
+    },
+    "panel3dgs": {
+      "title": "✨ 3DGS Scene Library",
+      "fileListTitle": "📂 3DGS Files",
+      "searchPlaceholder": "🔍 Search 3DGS files...",
+      "refreshBtn": "Refresh",
+      "empty": "No 3DGS files. Upload to public/scenes/3dgs"
     },
     "props": {
       "title": "⚙️ Object Properties",

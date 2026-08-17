@@ -102,6 +102,7 @@ const npcRoutes = require('./routes/npc');
 const customNpcRoutes = require('./routes/customNpc');
 const { router: uiControlsRouter, ensureDefaultControls } = require('./routes/uiControls');
 const mediaRoutes = require('./routes/media');
+const threeDgsRoutes = require('./routes/threeDgs');
 const aiFactoryRoutes = require('./routes/aiFactory');
 const galleryRoutes = require('./routes/gallery');
 const modelGuardRoutes = require('./routes/modelGuard');
@@ -138,6 +139,7 @@ app.use('/api/inventory', inventoryRoutes);  // 背包/奖励池/掉落物路由
 app.use('/api/npc', npcRoutes);  // NPC管理路由
 app.use('/api/custom-npc', customNpcRoutes);  // 定制NPC路由
 app.use('/api/media', mediaRoutes);  // 媒体图片上传路由
+app.use('/api/three-dgs', threeDgsRoutes);  // 3D高斯泼溅场景公开只读列表路由
 app.use('/api/ai-factory', aiFactoryRoutes);  // AI动作工厂路由
 app.use('/api/gallery', galleryRoutes);  // 画廊系统路由
 app.use('/api/model-guard', modelGuardRoutes);  // 远程模型守卫路由（公开读）
