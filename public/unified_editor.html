@@ -5303,6 +5303,7 @@
                 if (modelType === 'gltf') {
                     // 加载 GLB/GLTF
                     const loader = new THREE.GLTFLoader();
+                    window.setupMeshoptLoader && window.setupMeshoptLoader(loader);
                     loader.load(
                         modelPath,
                         (gltf) => {
@@ -7817,6 +7818,7 @@
             return new Promise((resolve, reject) => {
                 if (typeof THREE === 'undefined' || !THREE.GLTFLoader) { reject(new Error('GLTFLoader不可用')); return; }
                 const loader = new THREE.GLTFLoader();
+                window.setupMeshoptLoader && window.setupMeshoptLoader(loader);
                 loader.load(url, (gltf) => {
                     const model = gltf.scene;
                     model.position.set(pos.x, pos.y, pos.z);
@@ -8065,6 +8067,7 @@
   </div>
 </div>
 
+<script src="js/meshoptSetup.js"></script>
 <script src="js/threejsCompatibility.js"></script>
 <script src="js/threejsCodeRunner.js"></script>
 <script>

@@ -1,0 +1,54 @@
+- generic [active] [ref=e1]:
+  - generic:
+    - generic:
+      - generic: "HP: 100/100"
+    - generic [ref=e3]:
+      - button "👤" [ref=e4] [cursor=pointer]
+      - button "🎒" [ref=e5] [cursor=pointer]
+      - button "🌐" [ref=e6] [cursor=pointer]
+    - button "世界传送门" [ref=e19] [cursor=pointer]
+    - generic:
+      - generic: 操作指南
+      - generic:
+        - generic:
+          - generic: 第一视角
+          - generic: WASD - 移动
+          - generic: Q/E - 左右转
+          - generic: 鼠标 - 转向
+        - generic:
+          - generic: 第三视角
+          - generic: W/S - 前/后
+          - generic: A/D - 左/右
+          - generic: 鼠标 - 360°旋转
+        - generic:
+          - generic: 战斗
+          - generic: 左键 - 挥剑砍杀
+          - generic: 触摸 - 攻击怪物
+        - generic:
+          - generic: 其他
+          - generic: Space - 跳跃
+          - generic: Shift - 冲刺
+          - generic: C - 切换视角
+          - generic: F - 交互
+          - generic: ESC - 重置视角
+      - button "开始游戏"
+    - generic [ref=e9]:
+      - generic [ref=e10]: 当前坐标
+      - generic [ref=e11]:
+        - generic [ref=e12]: X:-22.4
+        - generic [ref=e13]: Y:+11.1
+        - generic [ref=e14]: Z:+2.7
+      - button "📋 复制" [ref=e20] [cursor=pointer]
+  - generic [ref=e16] [cursor=pointer]:
+    - generic [ref=e17]: 🎤
+    - generic [ref=e18]: 语音
+  - button "🌍 联邦传送 Federation Teleport" [ref=e21] [cursor=pointer]:
+    - text: 🌍 联邦传送
+    - text: Federation Teleport
+  - generic [ref=e23]:
+    - generic [ref=e24]:
+      - generic [ref=e25]: 🌟
+      - generic [ref=e26]: 游览模式 · 注册登录后可获得完整身份（聊天、背包、技能等）
+    - generic [ref=e27]:
+      - button "登录" [ref=e28] [cursor=pointer]
+      - button "注册" [ref=e29] [cursor=pointer]

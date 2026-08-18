@@ -352,6 +352,20 @@
     "modelNamePlaceholder": "输入模型显示名称，如：现代办公楼",
     "tagsOptional": "标签（可选，用逗号分隔）",
     "upload": "上传",
+    "selectMultiple": "可多选文件，将逐个上传",
+    "fileListTitle": "📋 待上传文件",
+    "statusWaiting": "等待上传",
+    "uploading": "上传中 {{percent}}",
+    "uploadDone": "✅ 上传完成",
+    "compressing": "⚙️ 压缩中（第 {{index}}/{{total}} 个）",
+    "compressTip1": "正在优化模型，请稍候…",
+    "compressTip2": "压缩可降低加载内存占用…",
+    "compressTip3": "大模型可能需要几十秒…",
+    "compressDone": "✅ 压缩完成 {{from}}→{{to}} -{{pct}}",
+    "compressSkipped": "✅ 无需压缩",
+    "compressFailed": "⚠️ 压缩失败（保留原文件）",
+    "uploadError": "❌ 上传失败",
+    "progressSummary": "已完成 {{done}}/{{total}} 个文件",
     "statTotalTags": "标签总数",
     "statGeometryTagged": "几何体已标签",
     "statUploadedTagged": "上传模型已标签",
@@ -2081,7 +2095,8 @@
       "formatObj": "• OBJ：需将 .obj + .mtl + 纹理图片打包为 ZIP 上传",
       "formatSize": "• 单个文件 ≤100MB",
       "uploadedTitle": "📂 已上传模型",
-      "emptyModels": "暂无上传的模型"
+      "emptyModels": "暂无上传的模型",
+      "refreshTitle": "刷新模型列表"
     },
     "panelScene": {
       "title": "🔷 场景对象",
@@ -2364,7 +2379,8 @@
       "confirmDelete": "确定要删除这个模型吗？这不会删除场景中已放置的模型。",
       "modelDeleted": "模型已删除",
       "deleteFailed": "删除失败",
-      "deleteFailedWithError": "删除失败: {{message}}"
+      "deleteFailedWithError": "删除失败: {{message}}",
+      "modelListRefreshed": "模型列表已刷新"
     },
     "place": {
       "landed": "已落地：{{name}}",

@@ -281,7 +281,7 @@
     // 大场景(如荷花 157 万点/83MB)避免重复下载+解析; FIFO 淘汰, 最多 2 条
     var parsedCache = Object.create(null);
     var parsedCacheOrder = [];
-    var PARSED_CACHE_MAX = 2;
+    var PARSED_CACHE_MAX = 1;
 
     function cacheGet(url) { return parsedCache[url] || null; }
 

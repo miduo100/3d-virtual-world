@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3DGS 高斯渲染验证</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#0b0b14;font-family:'Microsoft YaHei',Arial,sans-serif;color:#e8e8ef}
+#app{position:fixed;top:0;left:0;right:0;bottom:0}
+canvas{display:block}
+#hud{position:fixed;left:16px;top:16px;width:290px;background:rgba(12,12,22,.88);border:1px solid #2c2c44;border-radius:10px;padding:14px 16px;z-index:10;font-size:13px;backdrop-filter:blur(4px)}
+#hud h1{margin:0 0 12px;font-size:15px;color:#a78bfa;font-weight:600}
+.row{display:flex;justify-content:space-between;align-items:center;margin:5px 0}
+.row .k{color:#8a8aa0}
+.row .v{color:#e8e8ef;font-variant-numeric:tabular-nums}
+.bar{height:7px;background:#1c1c30;border-radius:4px;margin:2px 0 9px;overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#6d28d9,#a78bfa);border-radius:4px;transition:width .15s linear}
+#f-msg{margin-top:8px;color:#8a8aa0;font-size:12px;line-height:1.5}
+.err{color:#f87171!important}
+#btn-toggle{margin-top:10px;width:100%;padding:7px 0;border:1px solid #3b3b5c;background:#1b1b30;color:#c9c9e0;border-radius:6px;cursor:pointer;font-size:13px}
+#btn-toggle:hover{background:#26263f}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="hud">
+    <h1>✨ 3D 高斯泼溅渲染验证</h1>
+    <div class="row"><span class="k">文件</span><span class="v" id="f-file">scene-1786835882322-897112501.ply</span></div>
+    <div class="row"><span class="k">下载</span><span class="v" id="f-download">0%</span></div>
+    <div class="bar"><i id="b-download"></i></div>
+    <div class="row"><span class="k">解析</span><span class="v" id="f-parse">0%</span></div>
+    <div class="bar"><i id="b-parse"></i></div>
+    <div class="row"><span class="k">渐进上屏</span><span class="v" id="f-render">0%</span></div>
+    <div class="bar"><i id="b-render"></i></div>
+    <div class="row"><span class="k">总点数</span><span class="v" id="f-count">-</span></div>
+    <div class="row"><span class="k">FPS</span><span class="v" id="f-fps">-</span></div>
+    <div id="f-msg">准备加载…</div>
+    <button id="btn-toggle">释放内存 (dispose)</button>
+</div>
+
+<script src="js/lib/three.min.js"></script>
+<script src="js/lib/OrbitControls.js"></script>
+<script src="js/gaussianSplatLoader.js"></script>
+<script src="js/gaussianSplatRenderer.js"></script>
+<script>
+(function () {
+    'use strict';
+    var PLY_URL = '/scenes/3dgs/scene-1786835882322-897112501.ply';
+    var el = function (id) { return document.getElementById(id); };
+
+    // ---- 渲染器(r128) ----
+    var renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputEncoding = THREE.sRGBEncoding; // 与主世界 world.js 一致
+    document.getElementById('app').appendChild(renderer.domElement);
+
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b0b14);
+
+    var camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 10000);
+    camera.position.set(0, 2, 6);
+
+    var controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+
+    window.addEventListener('resize', function () {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ---- 进度 UI ----
+    function setBar(id, ratio) {
+        var pct = Math.round(Math.max(0, Math.min(1, ratio || 0)) * 100);
+        el(id).style.width = pct + '%';
+        return pct;
+    }
+
+    // ---- 加载与渲染 ----
+    var splat = null;
+    var loaded = false;
+
+    async function loadScene() {
+        el('f-msg').textContent = '开始下载 83.8MB PLY…';
+        el('f-msg').className = '';
+        try {
+            var data = await window.GaussianSplatLoader.loadPLY(PLY_URL, {
+                onDownload: function (p) {
+                    el('f-download').textContent = setBar('b-download', p) + '%';
+                },
+                onParse: function (p) {
+                    el('f-parse').textContent = setBar('b-parse', p) + '%';
+                }
+            });
+            el('f-download').textContent = '100%'; setBar('b-download', 1);
+            el('f-parse').textContent = '100%'; setBar('b-parse', 1);
+            el('f-count').textContent = data.count.toLocaleString();
+            el('f-msg').textContent = '解析完成，正在构建渲染节点…';
+
+            // 相机对准场景包围球
+            if (data.boundingSphere) {
+                var bs = data.boundingSphere;
+                var c = new THREE.Vector3(bs.center[0], bs.center[1], bs.center[2]);
+                var r = Math.max(bs.radius, 1);
+                camera.position.set(c.x + r * 1.6, c.y + r * 1.1, c.z + r * 1.6);
+                controls.target.copy(c);
+                controls.update();
+            }
+
+            splat = window.GaussianSplatRenderer.createSplatNode(data, {
+                initialCount: 50000
+                // incrementPerFrame 默认自适应(~1.5s 全量), 可覆盖如 30000
+                // incrementPerFrame: 30000
+            });
+            splat.setProgressCallback(function (p) {
+                el('f-render').textContent = setBar('b-render', p) + '%';
+            });
+            scene.add(splat.object3D);
+            loaded = true;
+            el('f-msg').textContent = '✅ 渲染中：滚轮缩放 / 拖拽旋转';
+            el('btn-toggle').textContent = '释放内存 (dispose)';
+        } catch (err) {
+            console.error('[3DGS]', err);
+            el('f-msg').textContent = '❌ ' + (err && err.message || String(err));
+            el('f-msg').className = 'err';
+        }
+    }
+
+    // ---- dispose / 重载 ----
+    document.getElementById('btn-toggle').addEventListener('click', function () {
+        if (loaded && splat) {
+            scene.remove(splat.object3D);
+            splat.dispose();
+            splat = null;
+            loaded = false;
+            el('f-msg').textContent = '已 dispose，再次点击可重新加载';
+            el('btn-toggle').textContent = '重新加载';
+        } else {
+            loadScene();
+        }
+    });
+
+    // ---- 主循环 ----
+    var frames = 0, lastFps = performance.now();
+    function animate() {
+        requestAnimationFrame(animate);
+        frames++;
+        var now = performance.now();
+        if (now - lastFps >= 1000) {
+            el('f-fps').textContent = Math.round(frames * 1000 / (now - lastFps));
+            frames = 0;
+            lastFps = now;
+        }
+        controls.update();
+        if (splat) splat.update(camera, renderer);
+        renderer.render(scene, camera);
+    }
+
+    loadScene();
+    animate();
+})();
+</script>
+</body>
+</html>

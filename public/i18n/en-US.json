@@ -352,6 +352,20 @@
     "modelNamePlaceholder": "e.g.: Modern Office Building",
     "tagsOptional": "Tags (optional, comma-separated)",
     "upload": "Upload",
+    "selectMultiple": "Multiple files allowed, uploaded one by one",
+    "fileListTitle": "📋 Files to Upload",
+    "statusWaiting": "Waiting",
+    "uploading": "Uploading {{percent}}",
+    "uploadDone": "✅ Uploaded",
+    "compressing": "⚙️ Compressing ({{index}}/{{total}})",
+    "compressTip1": "Optimizing model, please wait…",
+    "compressTip2": "Compression reduces memory usage…",
+    "compressTip3": "Large models may take tens of seconds…",
+    "compressDone": "✅ Compressed {{from}}→{{to}} -{{pct}}",
+    "compressSkipped": "✅ No compression needed",
+    "compressFailed": "⚠️ Compression failed (original kept)",
+    "uploadError": "❌ Upload failed",
+    "progressSummary": "{{done}}/{{total}} files done",
     "statTotalTags": "Total Tags",
     "statGeometryTagged": "Geometry Tagged",
     "statUploadedTagged": "Uploaded Tagged",
@@ -2081,7 +2095,8 @@
       "formatObj": "• OBJ: Package .obj + .mtl + textures into a ZIP to upload",
       "formatSize": "• Single file ≤100MB",
       "uploadedTitle": "📂 Uploaded Models",
-      "emptyModels": "No models uploaded yet"
+      "emptyModels": "No models uploaded yet",
+      "refreshTitle": "Refresh model list"
     },
     "panelScene": {
       "title": "🔷 Scene Objects",
@@ -2364,7 +2379,8 @@
       "confirmDelete": "Are you sure you want to delete this model {{name}}? This will not remove models already placed in the scene.",
       "modelDeleted": "Model deleted",
       "deleteFailed": "Delete failed",
-      "deleteFailedWithError": "Failed to delete: {{message}}"
+      "deleteFailedWithError": "Failed to delete: {{message}}",
+      "modelListRefreshed": "Model list refreshed"
     },
     "place": {
       "landed": "Landed: {{name}}",

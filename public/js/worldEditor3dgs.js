@@ -130,7 +130,7 @@
 (function () {
     'use strict';
 
-    const PREVIEW_MAX_POINTS = 80000; // 预览抽稀上限：拖拽编辑要最流畅, 8 万点即可看清效果
+    const PREVIEW_MAX_POINTS = 40000; // 预览抽稀上限：拖拽编辑要最流畅, 4 万点即可看清效果
 
     let _group = null;      // 当前预览 group（即 mediaPreviewMesh）
     let _splat = null;      // 当前 splat 节点 { object3D, update, dispose, setProgressCallback }
@@ -252,8 +252,8 @@
 
             _disposeSplat();
             const splat = GaussianSplatRenderer.createSplatNode(data, {
-                maxPointSize: 24,
-                initialCount: 30000
+                maxPointSize: 12,
+                initialCount: 15000
             });
             splat.setProgressCallback(function (p) {
                 if (!_isCurrent(token)) return;
@@ -424,9 +424,10 @@
         group.add(sprite);
         setSpriteText(sprite, '加载中 0%');
 
-        // 与世界内一致: 按重要度抽稀到 12 万点(157 万点全量渲染会卡), 编辑器所见 = 世界所得
+        // 与世界内一致: 按重要度抽稀到 5 万点(与 world3dgs.js 相同预算), 编辑器所见 = 世界所得
         GaussianSplatLoader.loadPLY(url, {
-            maxPoints: 120000,
+            maxPoints: 50000,
+            noCache: true, // 编辑器不缓存全量解析，加载完即释放约 144MB 常驻内存
             onDownload: function (p) {
                 if (rec.disposed || token !== rec.token) return;
                 setSpriteText(sprite, p > 0 ? '下载中 ' + Math.round(p * 70) + '%' : '下载中 …');
@@ -440,9 +441,9 @@
             if (rec.disposed || token !== rec.token || !group || group.parent === null) return;
 
             const splat = GaussianSplatRenderer.createSplatNode(data, {
-                maxPointSize: 24,
-                initialCount: Math.min(50000, data.count || 50000),
-                incrementPerFrame: Math.max(3000, Math.ceil((data.count || 50000) / 90))
+                maxPointSize: 10,
+                initialCount: Math.min(20000, data.count || 50000),
+                incrementPerFrame: Math.max(2000, Math.ceil((data.count || 50000) / 120))
             });
             rec.splat = splat;
 

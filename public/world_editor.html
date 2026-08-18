@@ -1926,7 +1926,10 @@
             </div>
 
             <div class="panel-section">
-                <div class="panel-section-title"><span data-i18n="worldEditor.panelModels.uploadedTitle">📂 已上传模型</span> (<span id="uploaded-count">0</span>)</div>
+                <div class="panel-section-title" style="display:flex;align-items:center;justify-content:space-between;">
+                    <span><span data-i18n="worldEditor.panelModels.uploadedTitle">📂 已上传模型</span> (<span id="uploaded-count">0</span>)</span>
+                    <button class="icon-btn" onclick="refreshUploadedModels()" title="刷新模型列表" data-i18n-title="worldEditor.panelModels.refreshTitle">🔄</button>
+                </div>
                 <div class="object-list" id="uploaded-models-list">
                     <div style="text-align: center; padding: 15px; color: #999; font-size: 12px;" data-i18n="worldEditor.panelModels.emptyModels">
                         暂无上传的模型
@@ -2824,6 +2827,7 @@
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/MTLLoader.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/controls/TransformControls.js"></script>
+    <script src="js/meshoptSetup.js"></script>
     <script src="js/gaussianSplatLoader.js"></script>
     <script src="js/gaussianSplatRenderer.js"></script>
     <!-- 国际化核心库 -->
@@ -3055,8 +3059,33 @@
             animate();
         }
 
+        // ---- 帧率管理：空闲降帧 + 后台标签页暂停渲染（降低 CPU/GPU 消耗） ----
+        let _idleSince = performance.now();
+        let _skipIdleFrame = false;
+        let _idleTrackReady = false;
+
         function animate() {
             requestAnimationFrame(animate);
+            // 首次进入时注册交互监听（此时 renderer 已由 init() 初始化完毕）
+            if (!_idleTrackReady && renderer && renderer.domElement) {
+                _idleTrackReady = true;
+                ['pointerdown', 'pointermove', 'wheel', 'touchstart', 'keydown'].forEach(evt => {
+                    renderer.domElement.addEventListener(evt, () => { _idleSince = performance.now(); }, { passive: true });
+                });
+            }
+            // 后台标签页：浏览器已节流 rAF，这里兜底跳过渲染
+            if (document.hidden) { controls.update(); return; }
+            // 空闲 2 秒后隔帧渲染（约 30fps），降帧期间仍驱动高斯上屏，不拖慢加载
+            const now = performance.now();
+            const idle = now - _idleSince > 2000;
+            if (idle) {
+                _skipIdleFrame = !_skipIdleFrame;
+                if (_skipIdleFrame) {
+                    controls.update();
+                    if (window.onEditorGaussianTick) window.onEditorGaussianTick(camera, renderer);
+                    return;
+                }
+            }
             controls.update();
             if (window.onEditorGaussianTick) window.onEditorGaussianTick(camera, renderer); // 渲染前驱动高斯预览更新
             renderer.render(scene, camera);
@@ -4895,6 +4924,12 @@
             }
         }
 
+        // 手动刷新已上传模型列表（重新从服务器拉取）
+        async function refreshUploadedModels() {
+            await loadUploadedModels();
+            showNotification(weT('uploadedModels.modelListRefreshed', '模型列表已刷新'), 'success');
+        }
+
         // 更新已上传模型列表UI
         function updateUploadedModelsList() {
             const listContainer = document.getElementById('uploaded-models-list');
@@ -4907,7 +4942,8 @@
                 return;
             }
 
-            listContainer.innerHTML = uploadedModels.map(model => {
+            // 渲染时过滤掉异常项，防止单项脏数据导致整表不刷新
+            listContainer.innerHTML = uploadedModels.filter(m => m && m.path).map(model => {
                 const displayName = model.display_name || model.fileName || model.file_name || weT('list.unknownFile', '未知文件');
                 const fileName = model.fileName || model.file_name || weT('list.unknownFile', '未知文件');
                 const fileType = fileName.split('.').pop().toUpperCase();
@@ -5067,9 +5103,8 @@
                     statusElement.innerHTML = weT('uploadedModels.uploadSuccess', '✅ 上传成功！');
                     statusElement.style.color = '#4CAF50';
                     
-                    // 添加到列表
-                    uploadedModels.push(result.model);
-                    updateUploadedModelsList();
+                    // 从服务器重新拉取列表（保证与数据库一致，含压缩后大小等最新数据）
+                    await loadUploadedModels();
                     
                     showNotification(weT('uploadedModels.uploadSuccessHint', '✅ 模型上传成功！点击模型添加到场景'), 'success');
 
@@ -5151,15 +5186,8 @@
                     statusElement.innerHTML = `✅ ${result.message}`;
                     statusElement.style.color = '#4CAF50';
                     
-                    // 添加成功的模型到列表
-                    if (result.results && result.results.length > 0) {
-                        result.results.forEach(item => {
-                            if (item.success && item.model) {
-                                uploadedModels.push(item.model);
-                            }
-                        });
-                        updateUploadedModelsList();
-                    }
+                    // 从服务器重新拉取列表（保证与数据库一致，含压缩后大小等最新数据）
+                    await loadUploadedModels();
                     
                     // 显示详细结果
                     let message = weTp('uploadedModels.batchSuccess', { count: result.successCount }, '✅ 成功上传 ' + result.successCount + ' 个模型');
@@ -6679,6 +6707,7 @@
                     return;
                 }
                 const loader = new THREE.GLTFLoader();
+                window.setupMeshoptLoader && window.setupMeshoptLoader(loader);
                 const dracoLoader = new THREE.DRACOLoader();
                 dracoLoader.setDecoderPath('https://unpkg.com/three@0.128.0/examples/js/libs/draco/');
                 loader.setDRACOLoader(dracoLoader);

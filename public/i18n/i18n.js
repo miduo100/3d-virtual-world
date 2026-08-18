@@ -86,7 +86,7 @@ class I18n {
     if (this.translations[locale]) return;
 
     try {
-      const response = await fetch(`/i18n/${locale}.json`);
+      const response = await fetch(`/i18n/${locale}.json`, { cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       this.translations[locale] = await response.json();
       console.log('[i18n] 语言包加载完成:', locale);
@@ -96,7 +96,7 @@ class I18n {
       const fallback = locale === 'en-US' ? 'zh-CN' : 'en-US';
       if (!this.translations[fallback]) {
         try {
-          const fbResp = await fetch(`/i18n/${fallback}.json`);
+          const fbResp = await fetch(`/i18n/${fallback}.json`, { cache: 'no-store' });
           if (fbResp.ok) {
             this.translations[fallback] = await fbResp.json();
             this.currentLocale = fallback;

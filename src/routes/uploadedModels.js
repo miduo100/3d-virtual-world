@@ -9,6 +9,8 @@ const path = require('path');
 const fs = require('fs').promises;
 const { pool } = require('../database/db');
 const AdmZip = require('adm-zip');
+const { compressIfNeeded } = require('../services/modelAutoCompress');
+const { compressTextures } = require('../services/textureCompress');
 
 // 配置文件上传
 const storage = multer.diskStorage({
@@ -132,6 +134,21 @@ router.post('/upload-model', upload.single('model'), async (req, res) => {
 
     console.log('✅ 模型已保存到数据库:', result.rows[0]);
 
+    // 自动压缩：大尺寸 GLB 用 gltfpack 压缩 + 纹理二级压缩（失败自动跳过，不阻断上传）
+    if (fileType === 'glb') {
+      const compression = await compressIfNeeded(req.file.path, fileSize);
+      let finalSize = compression.compressed ? compression.compressedSize : fileSize;
+      const texture = await compressTextures(req.file.path, { maxSize: 2048 });
+      if (texture.compressed) finalSize = texture.newSize;
+      if (finalSize !== fileSize) {
+        await pool.query('UPDATE uploaded_models SET file_size = $1 WHERE id = $2',
+          [finalSize, result.rows[0].id]);
+        result.rows[0].file_size = finalSize;
+      }
+      result.rows[0].compression = compression;
+      result.rows[0].textureCompression = { compressed: texture.compressed, reason: texture.reason, originalSize: texture.originalSize, newSize: texture.newSize };
+    }
+
     res.json({
       success: true,
       message: '模型上传成功',
@@ -240,10 +257,27 @@ router.post('/upload-models-batch', upload.array('models', 20), async (req, res)
 
         console.log('✅ 模型已保存到数据库:', result.rows[0].id);
 
+        // 自动压缩：大尺寸 GLB 用 gltfpack 压缩 + 纹理二级压缩（失败自动跳过，不阻断上传）
+        let compression = null;
+        let textureCompression = null;
+        if (fileType === 'glb') {
+          compression = await compressIfNeeded(file.path, fileSize);
+          let finalSize = compression.compressed ? compression.compressedSize : fileSize;
+          textureCompression = await compressTextures(file.path, { maxSize: 2048 });
+          if (textureCompression.compressed) finalSize = textureCompression.newSize;
+          if (finalSize !== fileSize) {
+            await pool.query('UPDATE uploaded_models SET file_size = $1 WHERE id = $2',
+              [finalSize, result.rows[0].id]);
+            result.rows[0].file_size = finalSize;
+          }
+        }
+
         results.push({
           success: true,
           fileName: fileName,
-          model: result.rows[0]
+          model: result.rows[0],
+          compression: compression,
+          textureCompression: textureCompression ? { compressed: textureCompression.compressed, reason: textureCompression.reason, originalSize: textureCompression.originalSize, newSize: textureCompression.newSize } : null
         });
 
       } catch (fileError) {
@@ -291,6 +325,17 @@ router.get('/uploaded-models', async (req, res) => {
     `;
     
     const result = await pool.query(query);
+
+    // 补充磁盘实际大小（压缩后文件在磁盘上的真实字节数）
+    for (const row of result.rows) {
+      try {
+        const filePath = path.join(__dirname, '../../public', row.path || '');
+        const stat = await fs.stat(filePath);
+        row.disk_size = stat.size;
+      } catch (e) {
+        row.disk_size = null;
+      }
+    }
 
     res.json({
       success: true,

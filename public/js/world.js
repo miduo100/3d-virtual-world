@@ -92,6 +92,14 @@ class World {
     this.particles = [];
     this.collisionObjects = []; // Store objects with collision
     this.gltfLoader = new THREE.GLTFLoader(); // GLTF模型加载器
+    // 注册 MeshoptDecoder，支持 gltfpack -cc 压缩的 GLB（上传大模型自动压缩后必需）
+    this.meshoptDecoder = null;
+    import('/js/libs/meshopt/meshopt_decoder.module.js')
+      .then(m => {
+        this.meshoptDecoder = m.MeshoptDecoder;
+        this.gltfLoader.setMeshoptDecoder(m.MeshoptDecoder);
+      })
+      .catch(err => console.warn('[Meshopt] 解码器加载失败:', err));
     // 配置DRACOLoader，支持Draco压缩的GLB文件
     this.dracoLoader = new THREE.DRACOLoader();
     this.dracoLoader.setDecoderPath('/js/libs/draco/');
@@ -1355,6 +1363,7 @@ class World {
         // 使用GLTFLoader加载缓存数据
         const loader = new THREE.GLTFLoader();
         loader.setDRACOLoader(this.dracoLoader);
+        if (this.meshoptDecoder) loader.setMeshoptDecoder(this.meshoptDecoder);
         const blob = new Blob([data], { type: 'model/gltf-binary' });
         const url = URL.createObjectURL(blob);
         
@@ -6213,6 +6222,7 @@ class World {
         console.warn('⚠️ OBJ加载全部失败，尝试作为GLTF/GLB加载:', model_path);
         const fallbackLoader = new THREE.GLTFLoader();
         fallbackLoader.setDRACOLoader(this.dracoLoader);
+        if (this.meshoptDecoder) fallbackLoader.setMeshoptDecoder(this.meshoptDecoder);
         fallbackLoader.load(
           model_path,
           (gltf) => {

@@ -194,6 +194,19 @@
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(0,255,0,0.25); border-radius: 3px; }
+    /* 上传模型进度 UI */
+    .upf-list { margin-top: 8px; max-height: 180px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 6px; font-size: 13px; }
+    .upf-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 8px; border-bottom: 1px dashed var(--border); }
+    .upf-item:last-child { border-bottom: none; }
+    .upf-name { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .upf-sub { font-size: 11px; color: var(--muted); margin-top: 2px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .upf-status { font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+    .upf-status[data-status="waiting"] { color: var(--muted); }
+    .upf-status[data-status="uploading"] { color: #f59e0b; }
+    .upf-status[data-status="done"] { color: #22c55e; }
+    .upf-status[data-status="error"] { color: #ef4444; }
+    .upf-spin { display: inline-block; animation: upfSpin 1s linear infinite; }
+    @keyframes upfSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   </style>
   <!-- Chart.js 和 Three.js 依赖 - 按需懒加载 -->
   <script>
@@ -889,10 +902,17 @@
             </div>
             <div class="form-group">
               <label data-i18n="adminAssets.modelFile">模型文件 *</label>
-              <input type="file" id="upload-model-file" accept=".glb,.gltf,.obj" multiple>
+              <input type="file" id="upload-model-file" accept=".glb,.gltf,.obj" multiple onchange="renderUploadFileList()">
               <div style="margin-top: 8px; font-size: 12px; color: #888;" data-i18n="adminAssets.modelFileHint">
                 支持 GLB、GLTF、OBJ，单个文件 ≤100MB
               </div>
+            </div>
+            <div id="upload-file-list" class="upf-list" style="display:none"></div>
+            <div id="upload-progress-container" style="display:none;margin-top:12px">
+              <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden">
+                <div id="upload-total-fill" style="height:100%;width:0%;background:#22c55e;transition:width .2s"></div>
+              </div>
+              <div id="upload-total-text" style="margin-top:4px;font-size:12px;color:var(--muted)"></div>
             </div>
             <div class="form-group">
               <label data-i18n="adminAssets.modelName">模型名称 *</label>
@@ -5127,22 +5147,162 @@
 
   function showUploadModelModal() {
     document.getElementById('upload-model-modal').classList.add('active');
+    applyAdminTranslations(document.getElementById('upload-model-modal'));
   }
 
   function closeUploadModelModal() {
+    _clearCompressTimers();
     document.getElementById('upload-model-modal').classList.remove('active');
     document.getElementById('upload-model-file').value = '';
     document.getElementById('upload-model-name').value = '';
     document.getElementById('upload-model-tags').value = '';
+    const listEl = document.getElementById('upload-file-list');
+    const progEl = document.getElementById('upload-progress-container');
+    if (listEl) listEl.style.display = 'none';
+    if (progEl) progEl.style.display = 'none';
+  }
+
+  // ---- 上传模型：逐文件串行 + 真实进度 UI ----
+  let _uploadCompressTimers = [];
+
+  function formatSize(bytes) {
+    if (bytes == null || isNaN(bytes)) return '-';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function _clearCompressTimers() {
+    _uploadCompressTimers.forEach(function(t) { clearInterval(t); });
+    _uploadCompressTimers = [];
+  }
+
+  function renderUploadFileList() {
+    const input = document.getElementById('upload-model-file');
+    const listEl = document.getElementById('upload-file-list');
+    const progEl = document.getElementById('upload-progress-container');
+    const files = input.files;
+    if (!files || !files.length) {
+      if (listEl) listEl.style.display = 'none';
+      if (progEl) progEl.style.display = 'none';
+      return;
+    }
+    const items = Array.from(files).map(function(f, i) {
+      return '<div class="upf-item" id="upf-item-' + i + '">' +
+        '<div style="min-width:0">' +
+          '<div class="upf-name" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + '</div>' +
+          '<div class="upf-sub">' + formatSize(f.size) + '</div>' +
+        '</div>' +
+        '<span class="upf-status" data-status="waiting" id="upf-status-' + i + '">' +
+          window.i18n.t('adminAssets.statusWaiting') + '</span>' +
+      '</div>';
+    }).join('');
+    listEl.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--muted);padding:2px 8px 6px">' +
+      window.i18n.t('adminAssets.fileListTitle') + '</div>' + items;
+    listEl.style.display = 'block';
+    progEl.style.display = 'block';
+    document.getElementById('upload-total-fill').style.width = '0%';
+    document.getElementById('upload-total-text').textContent =
+      window.i18n.tp('adminAssets.progressSummary', { done: '0', total: String(files.length) });
+  }
+
+  function _applyCompressResult(comp, statusEl, subEl) {
+    if (!comp) {
+      statusEl.textContent = window.i18n.t('adminAssets.compressSkipped');
+      return;
+    }
+    if (comp.compressed) {
+      const from = formatSize(comp.originalSize);
+      const to = formatSize(comp.compressedSize);
+      const pct = Math.round((1 - comp.compressedSize / comp.originalSize) * 100);
+      statusEl.textContent = window.i18n.tp('adminAssets.compressDone', { from: from, to: to, pct: pct + '%' });
+      if (subEl) subEl.textContent = '';
+      return;
+    }
+    if (comp.skipped) {
+      if (comp.reason === 'error') {
+        statusEl.textContent = window.i18n.t('adminAssets.compressFailed');
+        if (subEl) subEl.textContent = comp.error || '';
+      } else {
+        statusEl.textContent = window.i18n.t('adminAssets.compressSkipped');
+        if (subEl) subEl.textContent = comp.reason ? '(' + comp.reason + ')' : '';
+      }
+      return;
+    }
+    statusEl.textContent = window.i18n.t('adminAssets.compressFailed');
+  }
+
+  function _uploadOneFile(file, displayName, tagsInput, index, total) {
+    return new Promise(function(resolve) {
+      const statusEl = document.getElementById('upf-status-' + index);
+      const subEl = statusEl ? statusEl.parentElement.querySelector('.upf-sub') : null;
+      function setStatus(txt, cls) {
+        if (statusEl) { statusEl.textContent = txt; statusEl.dataset.status = cls || 'waiting'; }
+      }
+      const fd = new FormData();
+      fd.append('model', file);
+      fd.append('display_name', displayName);
+      if (tagsInput) fd.append('tags', tagsInput);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/upload-model');
+
+      xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          setStatus(window.i18n.tp('adminAssets.uploading', { percent: pct + '%' }), 'uploading');
+        }
+      };
+      xhr.upload.onload = function() {
+        // 上传完成、响应未到：进入压缩中状态（轮换文案）
+        setStatus(window.i18n.tp('adminAssets.compressing', { index: String(index + 1), total: String(total) }), 'uploading');
+        if (subEl) {
+          const tips = [
+            window.i18n.t('adminAssets.compressTip1'),
+            window.i18n.t('adminAssets.compressTip2'),
+            window.i18n.t('adminAssets.compressTip3')
+          ];
+          let ti = 0;
+          subEl.textContent = tips[0];
+          const timer = setInterval(function() {
+            ti = (ti + 1) % tips.length;
+            subEl.textContent = tips[ti];
+          }, 2000);
+          _uploadCompressTimers.push(timer);
+        }
+      };
+      xhr.onload = function() {
+        _clearCompressTimers();
+        let data = null;
+        try { data = JSON.parse(xhr.responseText); } catch (e) { data = null; }
+        if (xhr.status >= 200 && xhr.status < 300 && data && data.success) {
+          setStatus(window.i18n.t('adminAssets.uploadDone'), 'done');
+          const comp = data.model && data.model.compression;
+          _applyCompressResult(comp, statusEl, subEl);
+          resolve(true);
+        } else {
+          setStatus(window.i18n.t('adminAssets.uploadError'), 'error');
+          if (subEl) subEl.textContent = (data && data.error) ? data.error : '';
+          resolve(false);
+        }
+      };
+      xhr.onerror = function() {
+        _clearCompressTimers();
+        setStatus(window.i18n.t('adminAssets.uploadError'), 'error');
+        if (subEl) subEl.textContent = '';
+        resolve(false);
+      };
+      xhr.send(fd);
+    });
   }
 
   async function uploadModel() {
     const fileInput = document.getElementById('upload-model-file');
     const nameInput = document.getElementById('upload-model-name').value.trim();
     const tagsInput = document.getElementById('upload-model-tags').value.trim();
-    const files = fileInput.files;
+    const files = Array.from(fileInput.files || []);
 
-    if (!files || files.length === 0) {
+    if (!files.length) {
       showToast(window.i18n.t('adminAssets.selectFile'), 'error');
       return;
     }
@@ -5151,35 +5311,27 @@
       return;
     }
 
-    const formData = new FormData();
-    const displayNames = [];
-    for (let i = 0; i < files.length; i++) {
-      formData.append('models', files[i]);
-      // 单文件直接用名称，多文件加序号
-      displayNames.push(files.length === 1 ? nameInput : `${nameInput}-${i + 1}`);
-    }
-    formData.append('display_names', JSON.stringify(displayNames));
-    if (tagsInput) {
-      formData.append('tags', tagsInput);
+    renderUploadFileList();
+    let successCount = 0;
+    let failCount = 0;
+    const total = files.length;
+
+    for (let i = 0; i < total; i++) {
+      // 命名规则：单文件用输入名称，多文件 名称-1、名称-2…
+      const displayName = total === 1 ? nameInput : nameInput + '-' + (i + 1);
+      const ok = await _uploadOneFile(files[i], displayName, tagsInput, i, total);
+      if (ok) successCount++; else failCount++;
+      const done = i + 1;
+      document.getElementById('upload-total-fill').style.width = Math.round((done / total) * 100) + '%';
+      document.getElementById('upload-total-text').textContent =
+        window.i18n.tp('adminAssets.progressSummary', { done: String(done), total: String(total) });
     }
 
-    try {
-      const response = await fetch('/api/upload-models-batch', {
-        method: 'POST',
-        body: formData
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        showToast(window.i18n.tp('adminAssets.uploadSuccess', { count: data.successCount || data.uploadedCount || 0 }));
-        closeUploadModelModal();
-        loadUploadedModels();
-      } else {
-        showToast(window.i18n.t('adminAssets.uploadFailed') + ': ' + (data.error || window.i18n.t('adminAssets.unknownError')), 'error');
-      }
-    } catch (error) {
-      showToast(window.i18n.t('adminAssets.uploadFailed') + ': ' + error.message, 'error');
-    }
+    let summary = window.i18n.tp('adminAssets.uploadSuccess', { count: successCount });
+    if (failCount > 0) summary += '，' + window.i18n.t('adminAssets.uploadFailed') + ': ' + failCount;
+    showToast(summary, failCount > 0 ? 'error' : 'success');
+    closeUploadModelModal();
+    loadUploadedModels();
   }
 
   function showModelPreviewModal(modelId) {
@@ -5304,7 +5456,7 @@
         <td><button class="btn btn-sm" onclick="showModelPreviewModal('${m.id}')" title="${m.file_name}">${m.display_name || m.file_name}</button></td>
         <td style="font-size:11px;color:var(--muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${m.file_name}">${m.file_name}</td>
         <td><span class="badge badge-blue">${m.file_type || '-'}</span></td>
-        <td style="color:var(--muted)">${m.file_size ? Math.round(m.file_size/1024) + ' KB' : '-'}</td>
+        <td style="color:var(--muted)">${m.file_size ? formatSize(m.file_size) : '-'}</td>
         <td style="font-size:11px;color:var(--muted)">${(m.tags||[]).slice(0,3).join(', ') || '-'}</td>
         <td style="color:var(--muted)">${m.created_at ? new Date(m.created_at).toLocaleDateString('zh-CN') : '-'}</td>
         <td>
