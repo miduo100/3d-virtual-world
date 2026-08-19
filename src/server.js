@@ -110,10 +110,12 @@ const threejsCodeBlocksRoutes = require('./routes/threejsCodeBlocks');
 const threejsImportRoutes = require('./routes/threejsImport');
 const securityQuestionsRoutes = require('./routes/securityQuestions');
 const subscriptionRoutes = require('./routes/subscription');
+const worldSpatialRoutes = require('./routes/worldSpatial');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', securityQuestionsRoutes);  // 安全问题管理（需管理员认证）
 app.use('/api/users', userRoutes);
+app.use('/api/world/spatial', worldSpatialRoutes);
 app.use('/api/world', worldRoutes);
 app.use('/api/shop', shopRoutes);
 app.use('/api/plot', plotRoutes);

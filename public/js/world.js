@@ -3432,18 +3432,20 @@ class World {
             if (building.isPlaceholder) {
               this.recycleToPool('placeholders', building.model);
             } else {
+              // P1: 纹理释放改为引用计数（worldTextureOptimizer 统一管理），
+              // 不再直接 dispose mat.map —— 否则会误杀其他实例共享的同源纹理
+              if (window.WorldTextureOptimizer && building.model.userData) {
+                window.WorldTextureOptimizer.releaseInstance(building.model);
+              }
               // Three.js r128 中 clone() 共享 geometry，但材质是独立克隆的
-              // 所以卸载时：只 dispose material（释放 GPU 纹理），不 dispose geometry（避免缓存中原始模型变白）
+              // 卸载时：只 dispose material 对象本身（隔离克隆，可安全释放），
+              // 不 dispose geometry（避免缓存中原始模型变白）；纹理由引用计数归零时统一释放
               building.model.traverse(child => {
                 if (child.isMesh) {
                   if (child.material) {
                     if (Array.isArray(child.material)) {
-                      child.material.forEach(mat => {
-                        if (mat.map) mat.map.dispose();
-                        mat.dispose();
-                      });
+                      child.material.forEach(mat => mat.dispose());
                     } else {
-                      if (child.material.map) child.material.map.dispose();
                       child.material.dispose();
                     }
                   }
@@ -3541,6 +3543,11 @@ class World {
         // 只删除缓存引用，不 dispose GPU 资源
         // dispose 会使所有从该模型 clone 出的场景对象材质变白
         this.modelCache.delete(key);
+        // P1: 通知 worldTextureOptimizer 同步淘汰同名缓存条目——
+        //     引用计数归零时真释放 GPU 资源（远离后内存回落的关键）
+        if (window.WorldTextureOptimizer) {
+          window.WorldTextureOptimizer.disposeModel(key);
+        }
       });
     }
   }
@@ -4318,8 +4325,18 @@ class World {
       this.showLoadingProgress();
       
       // 只获取世界对象，不需要获取hunyuan3d/buildings，因为世界对象已经包含了所有已放置的建筑
-      const worldObjectsResponse = await fetch('/api/world/objects');
-      const worldObjects = await worldObjectsResponse.json();
+      // P1: 空间分页——按玩家位置增量拉取，替代一次性全量（返回结构完全兼容）
+      let worldObjects;
+      if (window.WorldSpatialManager) {
+        if (!this._spatialMgr) {
+          this._spatialMgr = new window.WorldSpatialManager(this);
+        }
+        worldObjects = await this._spatialMgr.initialLoad();
+      } else {
+        // 防御：管理器未加载时回退旧全量接口
+        const worldObjectsResponse = await fetch('/api/world/objects');
+        worldObjects = await worldObjectsResponse.json();
+      }
 
       if (worldObjects.success) {
         // 获取位置覆盖（用于UUID等不在world_objects表中的对象）

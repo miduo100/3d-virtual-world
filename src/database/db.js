@@ -49,7 +49,8 @@ async function initializeDatabase() {
     'migrations/add_has_collision.sql',
     'add_threejs_code_blocks.sql',
     'migrations/add_federation_trust_approval.sql',
-    'migrations/add_custom_config.sql'
+    'migrations/add_custom_config.sql',
+    'migrations/add_spatial_paging_indexes.sql'
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);
