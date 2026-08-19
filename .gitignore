@@ -69,3 +69,8 @@ _check_*.js
 
 # Server error logs
 *.err
+
+# Root debug artifacts (UI snapshots / temp check scripts)
+/*.yaml
+/check_*.js
+/scan_zh.js
