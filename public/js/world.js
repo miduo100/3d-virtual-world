@@ -3252,6 +3252,31 @@ class World {
           // 先标记为已加载，防止重复入队
           this.loadedObjects.add(objToLoad.id);
           
+          // 防御：loadMethod 缺失或不是函数时（增量分页/WebSocket 直接入队的对象），
+          // 按 type 推导加载方法；推导不出则跳过，避免连续失败重试刷屏
+          if (typeof this[objToLoad.loadMethod] !== 'function') {
+            let resolved = null;
+            const t = objToLoad.type;
+            if (t && t.startsWith('geometry_')) resolved = 'addGeometryBuilding';
+            else if (t === 'generated_building') resolved = 'addGeneratedBuilding';
+            else if (t === 'uploaded_model') resolved = 'addUploadedModel';
+            else if (t === 'threejs_code') resolved = 'addThreeJSModel';
+            else if (t === 'ad_slot') resolved = 'addAdSlotPortal';
+            else if (t === 'gaussian_splat') resolved = 'addGaussianSplat';
+            else if (t === 'media_image' || t === 'media_video') resolved = 'loadMediaObject';
+            if (resolved && typeof this[resolved] === 'function') {
+              objToLoad.loadMethod = resolved;
+              console.warn(`[Queue] 🔧 为对象 ${objToLoad.name || objToLoad.id} 按 type=${objToLoad.type} 推导加载方法 ${resolved}`);
+            } else {
+              this.loadingBatch = this.loadingBatch.filter(o => o.id !== objToLoad.id);
+              console.warn(`[Queue] ⏭ 跳过对象 ${objToLoad.name || objToLoad.id}（无法解析加载方法 type=${objToLoad.type || '未知'}）`);
+              if (this.loadingQueue.length > 0) {
+                setTimeout(() => this.processLoadingQueue(currentTime), 0);
+              }
+              return;
+            }
+          }
+          
           // 异步加载对象
           await this[objToLoad.loadMethod](objToLoad);
           
@@ -3414,6 +3439,14 @@ class World {
         if (this.generatedBuildings.has(obj.id)) {
           const building = this.generatedBuildings.get(obj.id);
           if (building && building.model) {
+            // 若该对象正被建筑编辑器的变换控制器选中，先解绑，
+            // 避免 TransformControls 悬空导致每帧报错
+            const bm = this.buildingManager;
+            if (bm && bm.transformControls && bm.transformControls.object === building.model) {
+              bm.transformControls.detach();
+              if (bm.selectedObject === building.model) bm.selectedObject = null;
+              console.log('[World] 卸载对象时已解除变换控制器绑定:', obj.name || obj.id);
+            }
             // 从场景中移除
             this.scene.remove(building.model);
             

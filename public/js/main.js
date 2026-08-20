@@ -881,6 +881,9 @@ function setupKeyboardShortcuts() {
   let isFirstMove = false; // 标记是否是拖动后的第一次移动
   
   canvas.addEventListener('mousedown', (e) => {
+    // 修复：拖拽 TransformControls gizmo 时禁止相机旋转（否则相机抢鼠标、gizmo拖不动）
+    const _bmTc = window.gameWorld && window.gameWorld.buildingManager && window.gameWorld.buildingManager.transformControls;
+    if (_bmTc && _bmTc.dragging) return;
     // 左键、右键、中键都可以拖动（兼容手机触摸）
     MOUSE.isDragging = true;
     MOUSE.lastX = e.clientX;

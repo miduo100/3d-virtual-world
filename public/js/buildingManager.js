@@ -573,6 +573,12 @@ class BuildingManager {
     document.getElementById('object-name-input').value = 
       object.userData.name || '';
     
+    // 修复：被实例合批摘除的模型(parent=null)会导致 TransformControls 每帧 detach，先恢复独立渲染
+    if (object.parent === null && window.WorldInstanceMerger && window.WorldInstanceMerger.excludeModel) {
+      console.log('🔄 [合批修复] 选中对象不在场景图中(被实例合批摘除)，恢复独立渲染...');
+      window.WorldInstanceMerger.excludeModel(object);
+    }
+
     // 附加变换控制器
     if (this.transformControls) {
       this.transformControls.attach(object);

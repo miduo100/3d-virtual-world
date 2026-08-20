@@ -157,17 +157,18 @@
 
 			if ( this.object !== undefined ) {
 
-				this.object.updateMatrixWorld();
-
 				if ( this.object.parent === null ) {
 
-					console.error( 'TransformControls: The attached 3D object must be a part of the scene graph.' );
-
-				} else {
-
-					this.object.parent.matrixWorld.decompose( this._parentPosition, this._parentQuaternion, this._parentScale );
+					// 修复：attach 的对象已被移出场景图（距离卸载/删除/实例合并等路径），
+					// 自动解绑并隐藏控制柄，避免每帧 console.error 刷屏
+					this.detach();
+					return;
 
 				}
+
+				this.object.updateMatrixWorld();
+
+				this.object.parent.matrixWorld.decompose( this._parentPosition, this._parentQuaternion, this._parentScale );
 
 				this.object.matrixWorld.decompose( this.worldPosition, this.worldQuaternion, this._worldScale );
 

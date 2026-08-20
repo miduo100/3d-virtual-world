@@ -90,6 +90,7 @@
       const model = entry.model;
       const url = model.userData && model.userData.__texOptSource;
       if (!url) return;
+      if (model.userData && model.userData.__excludeFromMerge) return; // 已排除编辑的模型不参与合批
       if (entry.data && entry.data.custom_config) return;
       if (entry.data && entry.data.model_path && entry.data.model_path !== url) return;
       if (!groups.has(url)) groups.set(url, []);
@@ -338,6 +339,22 @@
       console.log('[合批] 已启用');
     },
     rescan: scanAndMerge,
+    /** 把指定模型从合批组排除并恢复独立渲染（供编辑模式选中被合批对象时调用） */
+    excludeModel: function (model) {
+      const world = findWorld();
+      if (!world || !world.generatedBuildings) return { ok: false, reason: 'no world' };
+      let targetId = null;
+      world.generatedBuildings.forEach((entry, id) => { if (entry.model === model) targetId = id; });
+      if (targetId === null) return { ok: false, reason: 'id not found' };
+      let targetUrl = null;
+      mergedGroups.forEach((rec, url) => { if (rec.sourceIds.has(targetId)) targetUrl = url; });
+      if (!targetUrl) return { ok: false, reason: 'not in merged group' };
+      model.userData.__excludeFromMerge = true;  // 防 2 秒后扫描重新合批
+      unmergeGroup(world, targetUrl, true);       // 解散该组，源模型全部加回场景
+      scanAndMerge();                             // 立即重建（被排除的模型不再参与）
+      console.log(`[合批] 排除模型 id=${targetId}，组 ${targetUrl.slice(-40)} 已重建为独立渲染`);
+      return { ok: true, id: targetId };
+    },
     getStats: function () {
       return Object.assign({}, stats, { enabled: enabled, threshold: MERGE_THRESHOLD, maxDist: MAX_RENDER_DIST });
     },

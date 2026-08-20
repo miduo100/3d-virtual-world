@@ -82,12 +82,32 @@
       return result;
     }
 
+    // type → loadMethod 映射（与 world.js loadGeneratedBuildings 保持一致）
+    // 修复：增量对象绕过 loadGeneratedBuildings 的 loadMethod 赋值，
+    // 直接入队会导致 processLoadingQueue 调用 this[undefined] 抛 TypeError
+    _resolveLoadMethod(obj) {
+      const t = obj && obj.type;
+      if (!t) return null;
+      if (t.startsWith('geometry_')) return 'addGeometryBuilding';
+      switch (t) {
+        case 'generated_building': return 'addGeneratedBuilding';
+        case 'uploaded_model': return 'addUploadedModel';
+        case 'threejs_code': return 'addThreeJSModel';
+        case 'ad_slot': return 'addAdSlotPortal';
+        case 'gaussian_splat': return 'addGaussianSplat';
+        case 'media_image':
+        case 'media_video': return 'loadMediaObject';
+        default: return null;
+      }
+    }
+
     _merge(objects) {
       let added = 0;
       const target = this.world.allWorldObjects;
       for (let i = 0; i < objects.length; i++) {
         const o = objects[i];
         if (!o || o.id === undefined || this.loadedIds.has(o.id)) continue;
+        if (!o.loadMethod) o.loadMethod = this._resolveLoadMethod(o);
         this.loadedIds.add(o.id);
         target.push(o);
         added++;
