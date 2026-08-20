@@ -155,7 +155,7 @@ router.get('/around', async (req, res) => {
     const objectsResult = await query(
       `SELECT * FROM world_objects
        WHERE ${where}
-       ORDER BY created_at DESC
+       ORDER BY (type IN ('geometry_nature', 'geometry_building', 'media_image', 'media_video', 'threejs_code', 'gaussian_splat')) DESC, created_at DESC
        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       [...params, limit, offset]
     );

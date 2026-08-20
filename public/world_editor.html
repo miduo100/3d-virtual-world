@@ -2771,11 +2771,21 @@
                 📏
             </button>
             <div class="canvas-tool-separator"></div>
-            <button class="canvas-tool-btn" id="ctb-copy" onclick="copySelected()" title="复制" data-i18n-title="worldEditor.toolbar.copy">
+            <button class="canvas-tool-btn" id="ctb-copy" onclick="copySelectedGroupAware()" title="复制" data-i18n-title="worldEditor.toolbar.copy">
                 📋
             </button>
-            <button class="canvas-tool-btn" id="ctb-delete" onclick="deleteSelected()" title="删除" data-i18n-title="worldEditor.toolbar.delete">
+            <button class="canvas-tool-btn" id="ctb-delete" onclick="deleteSelectedGroupAware()" title="删除" data-i18n-title="worldEditor.toolbar.delete">
                 🗑️
+            </button>
+            <div class="canvas-tool-separator"></div>
+            <button class="canvas-tool-btn" id="ctb-marquee" onclick="toggleMarqueeMode()" title="框选" data-i18n-title="worldEditor.toolbar.marquee">
+                🔲
+            </button>
+            <button class="canvas-tool-btn" id="ctb-group" onclick="groupSelected()" title="编组" data-i18n-title="worldEditor.toolbar.group">
+                🗂️
+            </button>
+            <button class="canvas-tool-btn" id="ctb-ungroup" onclick="ungroupActive()" title="解组" data-i18n-title="worldEditor.toolbar.ungroup">
+                ➗
             </button>
             <div class="canvas-tool-separator"></div>
             <button class="canvas-tool-btn" id="ctb-reset-camera" onclick="resetCamera()" title="重置相机" data-i18n-title="worldEditor.toolbar.resetCamera">
@@ -2813,6 +2823,8 @@
             <div data-i18n="worldEditor.hint.zoom">• 滚轮：缩放视角</div>
             <div data-i18n="worldEditor.hint.select">• 点击对象：选择</div>
             <div data-i18n="worldEditor.hint.multiSelect">• Ctrl+点击：多选</div>
+            <div data-i18n="worldEditor.hint.marquee">• Shift+拖拽 或 框选按钮：框选多个对象</div>
+            <div data-i18n="worldEditor.hint.group">• 编组后整体拖动/复制，拖动结束自动保存</div>
         </div>
 
         <!-- 通知消息 -->
@@ -2830,6 +2842,7 @@
     <script src="js/meshoptSetup.js"></script>
     <script src="js/gaussianSplatLoader.js"></script>
     <script src="js/gaussianSplatRenderer.js"></script>
+    <script src="js/worldEditorGrouping.js"></script>
     <!-- 国际化核心库 -->
     <script src="/i18n/i18n.js"></script>
     <script src="js/geometryTemplates.js"></script>
@@ -3178,7 +3191,7 @@
         function onKeyDown(event) {
             if (event.key === 'Delete' || event.key === 'Backspace') {
                 if (selectedObjects.length > 0) {
-                    deleteSelected();
+                    deleteSelectedGroupAware();
                     event.preventDefault();
                 }
             } else if (event.key === 'Escape') {
@@ -3187,7 +3200,7 @@
                 selectAll();
                 event.preventDefault();
             } else if (event.ctrlKey && event.key === 'd') {
-                copySelected();
+                copySelectedGroupAware();
                 event.preventDefault();
             }
         }
@@ -3209,6 +3222,8 @@
 
                     // 清空现有对象（递归释放 GPU 资源，刷新不累积内存；
                     // GLB 共享实例走缓存复用，不会释放共享 geometry/material）
+                    // 重建前先拆除编辑器编组（组成员归还场景，统一走下方 dispose）
+                    if (typeof cleanupEditorGroup === 'function') cleanupEditorGroup();
                     worldObjects.forEach(obj => {
                         if (obj.mesh) {
                             scene.remove(obj.mesh);
@@ -4246,7 +4261,7 @@
         }
 
         async function deleteAllSelected() {
-            await deleteSelected();
+            await deleteSelectedGroupAware();
         }
 
         async function addObject(type) {

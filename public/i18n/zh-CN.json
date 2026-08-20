@@ -2066,7 +2066,10 @@
       "scale": "缩放",
       "copy": "复制",
       "delete": "删除",
-      "resetCamera": "重置相机"
+      "resetCamera": "重置相机",
+      "marquee": "框选",
+      "group": "编组",
+      "ungroup": "解组"
     },
     "hint": {
       "title": "🖱️ 控制说明",
@@ -2074,10 +2077,29 @@
       "pan": "• 右键拖拽：平移视角",
       "zoom": "• 滚轮：缩放视角",
       "select": "• 点击对象：选择",
-      "multiSelect": "• Ctrl+点击：多选"
+      "multiSelect": "• Ctrl+点击：多选",
+      "marquee": "• Shift+拖拽 或 框选按钮：框选多个对象",
+      "group": "• 编组后整体拖动/复制，拖动结束自动保存"
     },
     "common": {
       "loading": "加载中..."
+    },
+    "group": {
+      "marqueeOn": "🔲 框选模式已开启：在画布上拖拽矩形框选多个对象",
+      "marqueeOff": "🔲 框选模式已关闭",
+      "selected": "🔲 框选选中 {{count}} 个对象",
+      "selectedNone": "🔲 框选未选中任何对象",
+      "needTwo": "⚠️ 请至少选择 2 个对象进行编组",
+      "alreadyGrouped": "⚠️ 当前已有编组，请先解组",
+      "grouped": "✅ 已编组 {{count}} 个对象，可整体拖动",
+      "noGroup": "⚠️ 当前没有编组",
+      "ungrouped": "✅ 已解组 {{count}} 个对象",
+      "saved": "💾 组变换已保存 ({{count}} 个对象)",
+      "saveFailed": "❌ {{count}} 个对象变换保存失败",
+      "saveError": "❌ 组保存失败: {{error}}",
+      "deleteConfirm": "确定要删除组内 {{count}} 个对象吗？",
+      "deleted": "🗑️ 已删除 {{count}} 个对象",
+      "deleteFailed": "❌ 删除失败: {{error}}"
     },
     "sceneLoad": {
       "loading": "正在加载世界对象...",

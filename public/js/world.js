@@ -6124,21 +6124,31 @@ class World {
     const onModelLoaded = (model) => {
       console.log('✅ 上传模型加载成功:', model_path);
       
-      // 将模型添加到缓存中
-      this.addToModelCache(model_path, model);
+      // 将模型添加到缓存中（同 URL 仅首次入库，批量副本避免重复序列化+写 IndexedDB）
+      if (!this.modelCache.has(model_path)) {
+        this.addToModelCache(model_path, model);
+      }
       
-      // 创建模型的克隆（深克隆材质，保留纹理）
-      const modelClone = model.clone();
-      modelClone.traverse((child) => {
-        if (child.isMesh && child.material) {
-          // 深克隆材质，避免材质共享导致纹理丢失
-          if (Array.isArray(child.material)) {
-            child.material = child.material.map(m => m.clone());
-          } else {
-            child.material = child.material.clone();
+      // 【性能修复】worldTextureOptimizer 返回的实例已完成克隆+材质隔离，
+      // 检测到 __texOptSource 标记时直接复用，跳过二次全树 clone+材质深克隆
+      // （批量复制场景下：加载耗时约减半，材质对象数约减半）
+      let modelClone;
+      if (model.userData && model.userData.__texOptSource) {
+        modelClone = model;
+      } else {
+        // 原路径（OBJ / 未经 texOpt 处理的模型）：克隆 + 材质深隔离
+        modelClone = model.clone();
+        modelClone.traverse((child) => {
+          if (child.isMesh && child.material) {
+            // 深克隆材质，避免材质共享导致纹理丢失
+            if (Array.isArray(child.material)) {
+              child.material = child.material.map(m => m.clone());
+            } else {
+              child.material = child.material.clone();
+            }
           }
-        }
-      });
+        });
+      }
       
       // 设置位置、旋转、缩放
       modelClone.position.set(position_x || 0, position_y || 0, position_z || 0);

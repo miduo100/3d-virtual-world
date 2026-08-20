@@ -2066,7 +2066,10 @@
       "scale": "Scale",
       "copy": "Copy",
       "delete": "Delete",
-      "resetCamera": "Reset Camera"
+      "resetCamera": "Reset Camera",
+      "marquee": "Box Select",
+      "group": "Group",
+      "ungroup": "Ungroup"
     },
     "hint": {
       "title": "🖱️ Controls",
@@ -2074,10 +2077,29 @@
       "pan": "• Right drag: pan view",
       "zoom": "• Scroll: zoom view",
       "select": "• Click object: select",
-      "multiSelect": "• Ctrl+click: multi-select"
+      "multiSelect": "• Ctrl+click: multi-select",
+      "marquee": "• Shift+drag or Box Select button: select multiple",
+      "group": "• Grouped objects move/copy together, auto-saved on drag end"
     },
     "common": {
       "loading": "Loading..."
+    },
+    "group": {
+      "marqueeOn": "🔲 Box select mode ON: drag a rectangle on the canvas",
+      "marqueeOff": "🔲 Box select mode OFF",
+      "selected": "🔲 Box-selected {{count}} objects",
+      "selectedNone": "🔲 No objects selected by box",
+      "needTwo": "⚠️ Select at least 2 objects to group",
+      "alreadyGrouped": "⚠️ A group already exists, ungroup it first",
+      "grouped": "✅ Grouped {{count}} objects, drag as a whole",
+      "noGroup": "⚠️ Nothing to ungroup",
+      "ungrouped": "✅ Ungrouped {{count}} objects",
+      "saved": "💾 Group transform saved ({{count}} objects)",
+      "saveFailed": "❌ Failed to save transform for {{count}} objects",
+      "saveError": "❌ Failed to save group: {{error}}",
+      "deleteConfirm": "Delete all {{count}} objects in the group?",
+      "deleted": "🗑️ Deleted {{count}} objects",
+      "deleteFailed": "❌ Delete failed: {{error}}"
     },
     "sceneLoad": {
       "loading": "Loading world objects...",

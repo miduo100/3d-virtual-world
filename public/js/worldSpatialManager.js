@@ -56,14 +56,30 @@
 
     // ---- 拉取与合并 ----
 
-    async _fetchAround(x, z, radius) {
-      const url = API_BASE + '?x=' + x + '&z=' + z + '&radius=' + radius + '&limit=' + FETCH_LIMIT;
+    async _fetchAround(x, z, radius, type, offset) {
+      let url = API_BASE + '?x=' + x + '&z=' + z + '&radius=' + radius + '&limit=' + FETCH_LIMIT;
+      if (offset) url += '&offset=' + offset;
+      if (type) url += '&type=' + encodeURIComponent(type);
       const resp = await fetch(url);
       const json = await resp.json();
       if (!json.success) {
         throw new Error('spatial API error');
       }
       return json;
+    }
+
+    // 翻页拉取直到 hasMore=false，防止旧对象被 LIMIT 挤出
+    async _fetchAroundAll(x, z, radius, type) {
+      const result = [];
+      let offset = 0;
+      for (let i = 0; i < 20; i++) {
+        const json = await this._fetchAround(x, z, radius, type, offset);
+        const objs = json.objects || [];
+        result.push(...objs);
+        if (!json.hasMore || objs.length === 0) break;
+        offset += objs.length;
+      }
+      return result;
     }
 
     _merge(objects) {
@@ -91,13 +107,35 @@
     async initialLoad() {
       const pos = this._playerPos();
       try {
+        // 1) 专项翻页拉取特殊类型对象（数量少，防止被 uploaded_model 挤出分页）
+        const extra = [];
+        for (const t of ['geometry_building', 'geometry_nature', 'media_image', 'media_video', 'threejs_code', 'gaussian_splat']) {
+          try {
+            const objs = await this._fetchAroundAll(pos.x, pos.z, INITIAL_RADIUS, t);
+            extra.push(...objs);
+          } catch (e) { /* 单项失败不阻断 */ }
+        }
+        // 2) uploaded_model 翻页拉全（红军+旧模型都拉回，由 merger 视距裁剪控制渲染）
+        try {
+          const ups = await this._fetchAroundAll(pos.x, pos.z, INITIAL_RADIUS, 'uploaded_model');
+          extra.push(...ups);
+        } catch (e) { /* 失败不阻断 */ }
+        // 3) 常规拉取（广告位等）
         const json = await this._fetchAround(pos.x, pos.z, INITIAL_RADIUS);
         if (json.success) {
+          const merged = [...extra, ...(json.objects || [])];
+          const seen = new Set();
+          const deduped = [];
+          for (const o of merged) {
+            if (o.id === undefined || seen.has(o.id)) continue;
+            seen.add(o.id);
+            deduped.push(o);
+          }
           this._lastCell = this._cellKey(pos.x, pos.z);
           this.loadedCells.add(this._lastCell);
-          json.objects.forEach((o) => { if (o.id !== undefined) this.loadedIds.add(o.id); });
+          deduped.forEach((o) => { if (o.id !== undefined) this.loadedIds.add(o.id); });
           this.startPolling();
-          return { success: true, objects: json.objects };
+          return { success: true, objects: deduped };
         }
         return json;
       } catch (e) {
@@ -131,12 +169,10 @@
       if (cell === this._lastCell) return;
       this.pending = true;
       try {
-        const json = await this._fetchAround(pos.x, pos.z, CELL_SIZE);
-        if (json.success) {
-          this._lastCell = cell;
-          this.loadedCells.add(cell);
-          this._merge(json.objects);
-        }
+        const objs = await this._fetchAroundAll(pos.x, pos.z, CELL_SIZE);
+        this._lastCell = cell;
+        this.loadedCells.add(cell);
+        this._merge(objs);
       } catch (e) {
         // 拉取失败静默，下一轮重试
         console.warn('[空间分页] 增量拉取失败:', e.message);
