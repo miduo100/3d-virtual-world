@@ -139,6 +139,7 @@ router.put('/world-settings', async (req, res) => {
 
     // 同步更新联邦系统的 world_config 表（保持两者一致）
     try {
+      const FederationSystem = require('../federationSystem');
       const existing = await query(
         'SELECT value FROM world_config WHERE key = $1',
         ['federation_config']
@@ -152,12 +153,31 @@ router.put('/world-settings', async (req, res) => {
           'UPDATE world_config SET value = $1, updated_at = NOW() WHERE key = $2',
           [JSON.stringify(fedConfig), 'federation_config']
         );
-        // 同步更新内存中的联邦系统实例
-        const fs = getFederationSystem();
-        if (fs) {
-          fs.worldName = world_name;
-          fs.worldUrl  = world_url;
-        }
+      } else {
+        // federation_config 不存在（新部署/精简导入场景）：创建完整配置并打上 manual 标记，
+        // 否则重启后 autoFixWorldUrl 会把公网地址覆盖为本机内网IP
+        const worldId = `world_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const { publicKey, privateKey } = FederationSystem.generateKeyPair();
+        const newFedConfig = {
+          worldId,
+          worldName: world_name,
+          worldUrl: world_url,
+          privateKey,
+          publicKey,
+          url_source: 'manual'
+        };
+        await query(
+          `INSERT INTO world_config (key, value, created_at, updated_at)
+           VALUES ($1, $2, NOW(), NOW())`,
+          ['federation_config', JSON.stringify(newFedConfig)]
+        );
+        console.log('✅ [world-settings] 已创建 federation_config（含 manual 标记）');
+      }
+      // 同步更新内存中的联邦系统实例（统一处理）
+      const fs = getFederationSystem();
+      if (fs) {
+        fs.worldName = world_name;
+        fs.worldUrl  = world_url;
       }
     } catch (syncErr) {
       console.error('同步联邦配置失败（不影响保存结果）:', syncErr.message);

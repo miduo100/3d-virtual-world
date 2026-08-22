@@ -1645,6 +1645,7 @@
     "wsUrlLabel": "世界URL（对外域名）*",
     "wsUrlPlaceholder": "如：https://world.example.com",
     "wsUrlHintPre": "用于联邦传送、传送门跨服等功能。绑定域名后填写域名地址，本地测试填",
+    "wsUrlHintServer": "部署到新服务器时请填写公网IP或域名（如 http://8.8.8.8:3002），保存后重启不会被自动覆盖",
     "wsDescLabel": "世界描述",
     "wsDescPlaceholder": "一句话介绍这个世界（选填）",
     "wsSaveBtn": "💾 保存设置",

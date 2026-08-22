@@ -36,7 +36,8 @@
   const MERGE_THRESHOLD = 6;    // 同 URL 实例数达到该值才合批
   const SCAN_INTERVAL = 2000;   // 快照 diff 轮询间隔(ms)
   const BOOT_RETRY = 500;       // 等待 gameWorld 实例的重试间隔(ms)
-  const MAX_RENDER_DIST = 120;  // 视距裁剪半径（米），仅渲染该距离内的实例
+  const MAX_RENDER_DIST = 200;  // 视距裁剪半径（米），仅渲染该距离内的实例
+  const CULL_MARK = '__culledByDist'; // 未合批对象被视距裁剪摘除场景的标记
 
   // ===== 状态 =====
   const mergedGroups = new Map(); // url → { group, sourceIds:Set, meshCount, instanceCount, templates, instanceWorlds, instancePositions, lastVisibleCount }
@@ -156,7 +157,9 @@
     world.scene.add(group);
 
     for (let i = 0; i < instances.length; i++) {
-      if (instances[i].model.parent) world.scene.remove(instances[i].model);
+      const m = instances[i].model;
+      if (m.parent) world.scene.remove(m);
+      delete m.userData[CULL_MARK]; // 清除视距裁剪标记，防 unmerge 后误跳过
     }
 
     const instanceWorlds = [];
@@ -228,10 +231,67 @@
     deadUrls.forEach((url) => unmergeGroup(world, url, true));
   }
 
+  // ===== 未合批对象视距裁剪（加载期占位符 + 尚未合批的独立模型）=====
+  // 红军模型加载完成前占位符全量显示、加载完成后合批前独立全量渲染，是
+  // 加载期卡顿的根源。此函数把视距裁剪提前到整个加载周期：
+  //   距离 ≤ MAX_RENDER_DIST → 保持在场景（可见）
+  //   距离 >  MAX_RENDER_DIST → 从场景摘除（不渲染），玩家走近自动加回
+  // 用"摘除/加回"而非 visible，避免 world.js updateFrustumCulling 每 4 帧
+  // 覆盖 model.visible 造成的竞争。
+  // ===== 远距占位 box（真模型被视距裁剪摘除时，用轻量方块标识"这里有东西"）=====
+  // 共享几何体/材质（全部实例复用，无额外显存），保证"不渲染的位置也有内容感"
+  let _farBoxGeo = null, _farBoxMat = null;
+  function sharedFarBoxGeo() {
+    if (!_farBoxGeo) _farBoxGeo = new THREE.BoxGeometry(5, 6, 5);
+    return _farBoxGeo;
+  }
+  function sharedFarBoxMat() {
+    if (!_farBoxMat) _farBoxMat = new THREE.MeshBasicMaterial({ color: 0x0066ff, transparent: true, opacity: 0.7 });
+    return _farBoxMat;
+  }
+
+  function cullUnmerged(world, playerPos, maxDistSq) {
+    if (!world || !world.generatedBuildings || !world.scene) return 0;
+    let hidden = 0;
+    world.generatedBuildings.forEach((entry) => {
+      if (!entry || !entry.model) return;
+      const model = entry.model;
+      // 占位符不参与视距裁剪：只要有模型的位置就保持显示，维持空间内容感
+      // （兼容历史上被摘除过、已带 CULL_MARK 的占位符：加回场景）
+      if (entry.isPlaceholder) {
+        if (!model.parent) world.scene.add(model);
+        return;
+      }
+      // 已合批源模型已从场景摘除且不带裁剪标记 → 由合批组 im.count 控制，跳过
+      if (!model.parent && !model.userData[CULL_MARK]) return;
+      const p = model.position;
+      if (!p) return;
+      const dx = p.x - playerPos.x, dy = p.y - playerPos.y, dz = p.z - playerPos.z;
+      if (dx * dx + dy * dy + dz * dz <= maxDistSq) {
+        // 玩家靠近：加回场景并清除标记，同时撤下"远距占位 box"
+        if (!model.parent) {
+          world.scene.add(model);
+          delete model.userData[CULL_MARK];
+        }
+        if (entry.farBox && entry.farBox.parent) world.scene.remove(entry.farBox);
+      } else if (model.parent) {      // 过远：从场景摘除，省渲染开销
+        world.scene.remove(model);
+        model.userData[CULL_MARK] = true;
+        // 没渲染的位置也要有"这里有东西"的标识：放置轻量远距占位 box
+        if (!entry.farBox) {
+          entry.farBox = new THREE.Mesh(sharedFarBoxGeo(), sharedFarBoxMat());
+          entry.farBox.position.copy(model.position);
+        }
+        if (!entry.farBox.parent) world.scene.add(entry.farBox);
+        hidden++;
+      }
+    });
+    return hidden;
+  }
+
   // ===== 视距裁剪 =====
   function runCull() {
-    console.log('[cull] runCull tick', enabled, mergedGroups.size);
-    if (!enabled || !mergedGroups.size) {
+    if (!enabled) {
       cullRaf = requestAnimationFrame(runCull);
       return;
     }
@@ -243,6 +303,9 @@
     playerPos.copy(player.position);
     const maxDistSq = MAX_RENDER_DIST * MAX_RENDER_DIST;
     let totalCulled = 0;
+
+    // 未合批对象（加载期占位符/独立模型）视距裁剪
+    totalCulled += cullUnmerged(findWorld(), playerPos, maxDistSq);
 
     mergedGroups.forEach((rec) => {
       const positions = rec.instancePositions;
@@ -329,6 +392,13 @@
       const world = findWorld();
       if (world) {
         Array.from(mergedGroups.keys()).forEach((url) => unmergeGroup(world, url, true));
+        // 恢复所有被视距裁剪摘除的未合批对象
+        world.generatedBuildings.forEach((entry) => {
+          if (entry && entry.model && entry.model.userData[CULL_MARK] && !entry.model.parent) {
+            world.scene.add(entry.model);
+            delete entry.model.userData[CULL_MARK];
+          }
+        });
       }
       console.log('[合批] 已禁用，恢复独立渲染');
     },
@@ -376,7 +446,20 @@
         }
         results.push({ url: url.slice(-40), total: positions.length, visible: visibleIndices.length, firstPos: positions[0] ? [Math.round(positions[0].x), Math.round(positions[0].y), Math.round(positions[0].z)] : null });
       });
-      return { playerPos: [Math.round(playerPos.x), Math.round(playerPos.y), Math.round(playerPos.z)], results };
+      let unmergedTotal = 0, unmergedHidden = 0;
+      const world = findWorld();
+      if (world && world.generatedBuildings) {
+        world.generatedBuildings.forEach((entry) => {
+          if (!entry || !entry.model) return;
+          unmergedTotal++;
+          if (entry.model.userData[CULL_MARK]) unmergedHidden++;
+        });
+      }
+      return {
+        playerPos: [Math.round(playerPos.x), Math.round(playerPos.y), Math.round(playerPos.z)],
+        results,
+        unmerged: { total: unmergedTotal, hidden: unmergedHidden }
+      };
     }
   };
 

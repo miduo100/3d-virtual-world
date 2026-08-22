@@ -2359,6 +2359,7 @@
               <div style="font-size:11px;color:var(--muted);margin-top:4px">
                 <span data-i18n="adminSystem.wsUrlHintPre">用于联邦传送、传送门跨服等功能。绑定域名后填写域名地址，本地测试填</span> <code style="color:var(--green)">http://localhost:3002</code>
               </div>
+              <div style="font-size:11px;color:var(--orange);margin-top:4px" data-i18n="adminSystem.wsUrlHintServer"></div>
             </div>
             <div class="form-group">
               <label data-i18n="adminSystem.wsDescLabel">世界描述</label>
@@ -5594,6 +5595,7 @@
         msgEl.style.border = '1px solid rgba(0,255,0,0.2)';
         msgEl.textContent = _tws('adminSystem.wsSavedMsg');
         setTimeout(() => { msgEl.style.display = 'none'; }, 3000);
+        loadWorldSettings();  // 回显数据库中的最新值，保证表单与库一致
       } else {
         msgEl.style.display = 'block';
         msgEl.style.background = 'rgba(255,68,68,0.12)';

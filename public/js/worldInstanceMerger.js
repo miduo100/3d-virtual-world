@@ -36,7 +36,7 @@
   const MERGE_THRESHOLD = 6;    // 同 URL 实例数达到该值才合批
   const SCAN_INTERVAL = 2000;   // 快照 diff 轮询间隔(ms)
   const BOOT_RETRY = 500;       // 等待 gameWorld 实例的重试间隔(ms)
-  const MAX_RENDER_DIST = 120;  // 视距裁剪半径（米），仅渲染该距离内的实例
+  const MAX_RENDER_DIST = 200;  // 视距裁剪半径（米），仅渲染该距离内的实例
 
   // ===== 状态 =====
   const mergedGroups = new Map(); // url → { group, sourceIds:Set, meshCount, instanceCount, templates, instanceWorlds, instancePositions, lastVisibleCount }

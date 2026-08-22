@@ -1645,6 +1645,7 @@
     "wsUrlLabel": "World URL (Public Domain) *",
     "wsUrlPlaceholder": "e.g., https://world.example.com",
     "wsUrlHintPre": "Used for federation teleport, cross-server portals, etc. After binding a domain, fill in the domain address; for local testing, fill in",
+    "wsUrlHintServer": "When deploying to a new server, use your public IP or domain (e.g., http://8.8.8.8:3002). Saved value won't be auto-overridden after restart.",
     "wsDescLabel": "World Description",
     "wsDescPlaceholder": "A one-line introduction to this world (optional)",
     "wsSaveBtn": "💾 Save Settings",
