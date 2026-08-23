@@ -55,6 +55,7 @@
   };
 
   const tmp = new THREE.Matrix4();
+  const tmp2 = new THREE.Matrix4();
   const playerPos = new THREE.Vector3();
   const _dist = new THREE.Vector3(); // 复用距离计算
 
@@ -268,25 +269,75 @@
       if (!p) return;
       const dx = p.x - playerPos.x, dy = p.y - playerPos.y, dz = p.z - playerPos.z;
       if (dx * dx + dy * dy + dz * dz <= maxDistSq) {
-        // 玩家靠近：加回场景并清除标记，同时撤下"远距占位 box"
+        // 玩家靠近：加回场景并清除标记
         if (!model.parent) {
           world.scene.add(model);
           delete model.userData[CULL_MARK];
         }
-        if (entry.farBox && entry.farBox.parent) world.scene.remove(entry.farBox);
       } else if (model.parent) {      // 过远：从场景摘除，省渲染开销
         world.scene.remove(model);
         model.userData[CULL_MARK] = true;
-        // 没渲染的位置也要有"这里有东西"的标识：放置轻量远距占位 box
-        if (!entry.farBox) {
-          entry.farBox = new THREE.Mesh(sharedFarBoxGeo(), sharedFarBoxMat());
-          entry.farBox.position.copy(model.position);
-        }
-        if (!entry.farBox.parent) world.scene.add(entry.farBox);
         hidden++;
       }
     });
     return hidden;
+  }
+
+  // ===== 统一远距占位方块（任何"当前无真实渲染"的位置都显示）=====
+  // 增量 entry.farBox 覆盖不到合批组被裁剪实例（红军 416 在 1140 米全被裁），
+  // 也无法覆盖以后新增的任何模型。改为每帧全量重建：
+  //   把【被裁剪真模型 + 合批组被裁剪实例】的位置写入共享 InstancedMesh，
+  //   全量重建自动自愈（unmerge/卸载后残留自动消失），416 实例仅 1 个 draw call。
+  let _farBoxIm = null;
+  function ensureFarBoxIm() {
+    if (!_farBoxIm) {
+      _farBoxIm = new THREE.InstancedMesh(sharedFarBoxGeo(), sharedFarBoxMat(), 8192);
+      _farBoxIm.frustumCulled = false;
+      _farBoxIm.castShadow = false;
+      _farBoxIm.receiveShadow = false;
+      _farBoxIm.count = 0;
+    }
+    return _farBoxIm;
+  }
+
+  // 收集所有"当前无真实渲染"的位置并写入共享占位方块，返回方块实例数
+  function syncFarBoxes(world, playerPos, maxDistSq) {
+    const farBox = ensureFarBoxIm();
+    let farCount = 0;
+    // 1) 未合批真模型：被视距裁剪摘除的（不在场景且带 CULL_MARK）
+    if (world && world.generatedBuildings) {
+      world.generatedBuildings.forEach((entry) => {
+        if (!entry || !entry.model || entry.isPlaceholder) return; // 占位符自身显示
+        const model = entry.model;
+        if (!model.parent && !model.userData[CULL_MARK]) return;   // 合批源，跳过
+        if (model.parent) return;                                  // 正在渲染，跳过
+        if (farCount < 8192) {
+          tmp2.setPosition(model.position.x, model.position.y, model.position.z);
+          farBox.setMatrixAt(farCount++, tmp2);
+        }
+      });
+    }
+    // 2) 合批组被裁剪实例（红军等）：距离 > 渲染半径 的实例
+    mergedGroups.forEach((rec) => {
+      const positions = rec.instancePositions;
+      for (let i = 0; i < positions.length; i++) {
+        const dx = positions[i].x - playerPos.x;
+        const dy = positions[i].y - playerPos.y;
+        const dz = positions[i].z - playerPos.z;
+        if (dx * dx + dy * dy + dz * dz > maxDistSq && farCount < 8192) {
+          tmp2.setPosition(positions[i].x, positions[i].y, positions[i].z);
+          farBox.setMatrixAt(farCount++, tmp2);
+        }
+      }
+    });
+    farBox.count = farCount;
+    farBox.instanceMatrix.needsUpdate = true;
+    if (farCount > 0) {
+      if (world && world.scene && !farBox.parent) world.scene.add(farBox);
+    } else if (farBox.parent) {
+      world.scene.remove(farBox);
+    }
+    return farCount;
   }
 
   // ===== 视距裁剪 =====
@@ -304,8 +355,13 @@
     const maxDistSq = MAX_RENDER_DIST * MAX_RENDER_DIST;
     let totalCulled = 0;
 
+    const world = findWorld();
+
     // 未合批对象（加载期占位符/独立模型）视距裁剪
-    totalCulled += cullUnmerged(findWorld(), playerPos, maxDistSq);
+    totalCulled += cullUnmerged(world, playerPos, maxDistSq);
+
+    // 统一远距占位方块：任何"当前无真实渲染"的位置都显示，含合批组被裁剪实例
+    syncFarBoxes(world, playerPos, maxDistSq);
 
     mergedGroups.forEach((rec) => {
       const positions = rec.instancePositions;

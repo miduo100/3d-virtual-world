@@ -153,17 +153,6 @@
       return ret;
     };
 
-    // ===== 7. 卸载对象时清理远距占位 box（避免 cullUnmerged 的 farBox 泄漏）=====
-    var origUnload = World.prototype.unloadObject;
-    World.prototype.unloadObject = function (obj) {
-      var entry = obj && obj.id !== undefined && this.generatedBuildings ?
-        this.generatedBuildings.get(obj.id) : null;
-      if (entry && entry.farBox) {
-        if (entry.farBox.parent) this.scene.remove(entry.farBox);
-        entry.farBox = null;
-      }
-      return origUnload.call(this, obj);
-    };
   }
 
   // ===== 日志治理（可开关）=====

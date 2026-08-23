@@ -609,7 +609,14 @@ router.delete('/objects/:id', async (req, res) => {
 router.post('/objects/:id/copy', async (req, res) => {
   try {
     const { id } = req.params;
-    const { offset_x = 5, offset_y = 0, offset_z = 0 } = req.body;
+    const {
+      offset_x = 5, offset_y = 0, offset_z = 0,
+      // 可选：编辑器复制时前端传入 mesh 实际世界变换，
+      // 避免数据库位置滞后（拖动保存延迟/未保存）导致副本回到旧位置
+      position_x, position_y, position_z,
+      rotation_x, rotation_y, rotation_z,
+      scale_x, scale_y, scale_z
+    } = req.body;
 
     // Get original object
     const originalResult = await query(
@@ -626,6 +633,22 @@ router.post('/objects/:id/copy', async (req, res) => {
 
     const original = originalResult.rows[0];
 
+    // 优先使用前端传入的显式变换（+offset），未传入时回退数据库值（向后兼容）
+    const hasExplicitPos = typeof position_x === 'number' && typeof position_y === 'number' && typeof position_z === 'number';
+    const newX = hasExplicitPos ? position_x + offset_x : original.position_x + offset_x;
+    const newY = hasExplicitPos ? position_y + offset_y : original.position_y + offset_y;
+    const newZ = hasExplicitPos ? position_z + offset_z : original.position_z + offset_z;
+
+    const hasExplicitRot = typeof rotation_x === 'number' && typeof rotation_y === 'number' && typeof rotation_z === 'number';
+    const newRotX = hasExplicitRot ? rotation_x : (original.rotation_x || 0);
+    const newRotY = hasExplicitRot ? rotation_y : (original.rotation_y || 0);
+    const newRotZ = hasExplicitRot ? rotation_z : (original.rotation_z || 0);
+
+    const hasExplicitScl = typeof scale_x === 'number' && typeof scale_y === 'number' && typeof scale_z === 'number';
+    const newSclX = hasExplicitScl ? scale_x : (original.scale_x || 1);
+    const newSclY = hasExplicitScl ? scale_y : (original.scale_y || 1);
+    const newSclZ = hasExplicitScl ? scale_z : (original.scale_z || 1);
+
     // Create copy with offset position
     const insertQuery = `
       INSERT INTO world_objects 
@@ -640,15 +663,15 @@ router.post('/objects/:id/copy', async (req, res) => {
       original.type,
       `${original.name} (副本)`,
       original.model_path,
-      original.position_x + offset_x,
-      original.position_y + offset_y,
-      original.position_z + offset_z,
-      original.rotation_x || 0,
-      original.rotation_y || 0,
-      original.rotation_z || 0,
-      original.scale_x || 1,
-      original.scale_y || 1,
-      original.scale_z || 1,
+      newX,
+      newY,
+      newZ,
+      newRotX,
+      newRotY,
+      newRotZ,
+      newSclX,
+      newSclY,
+      newSclZ,
       original.building_id
     ]);
 

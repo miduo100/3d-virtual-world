@@ -457,10 +457,31 @@
         try {
             const newIds = [];
             for (let i = 0; i < originals.length; i++) {
-                const resp = await fetch(API_BASE + '/objects/' + originals[i].id + '/copy', {
+                const obj = originals[i];
+                const body = { offset_x: 0, offset_z: 0 };
+                // 传 mesh 实际世界变换，避免数据库位置滞后（拖动保存延迟）导致副本回到旧位置
+                if (obj && obj.mesh) {
+                    const pos = new THREE.Vector3();
+                    const quat = new THREE.Quaternion();
+                    const scl = new THREE.Vector3();
+                    obj.mesh.getWorldPosition(pos);
+                    obj.mesh.getWorldQuaternion(quat);
+                    obj.mesh.getWorldScale(scl);
+                    const euler = new THREE.Euler().setFromQuaternion(quat, 'XYZ');
+                    body.position_x = pos.x;
+                    body.position_y = pos.y;
+                    body.position_z = pos.z;
+                    body.rotation_x = euler.x;
+                    body.rotation_y = euler.y;
+                    body.rotation_z = euler.z;
+                    body.scale_x = scl.x;
+                    body.scale_y = scl.y;
+                    body.scale_z = scl.z;
+                }
+                const resp = await fetch(API_BASE + '/objects/' + obj.id + '/copy', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ offset_x: 5, offset_z: 5 })
+                    body: JSON.stringify(body)
                 });
                 const data = await resp.json();
                 if (!data.success) throw new Error(data.error || 'copy failed');
@@ -479,6 +500,8 @@
                     if (obj.mesh) highlightObject(obj.mesh, true);
                 });
                 updateSelection();
+                // 副本原位复制后 gizmo 直接附着，复制完即可拖动到目标位置
+                syncTransformAnchor();
             }
             // 整组复制 → 副本自动重新编组
             if (isGroupCopy && copies.length >= 2) {
