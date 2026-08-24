@@ -2053,7 +2053,9 @@
       "live": "直播",
       "liveTooltip": "📡 直播源",
       "3dgs": "高斯",
-      "3dgsTooltip": "✨ 高斯场景库"
+      "3dgsTooltip": "✨ 高斯场景库",
+      "ground": "地块",
+      "groundTooltip": "🟩 地块设置"
     },
     "status": {
       "mode": "选择",
@@ -2080,7 +2082,8 @@
       "select": "• 点击对象：选择",
       "multiSelect": "• Ctrl+点击：多选",
       "marquee": "• Shift+拖拽 或 框选按钮：框选多个对象",
-      "group": "• 编组后整体拖动/复制，拖动结束自动保存"
+      "group": "• 编组后整体拖动/复制，拖动结束自动保存",
+      "wasd": "• WASD 移动视角（空格 加速）"
     },
     "common": {
       "loading": "加载中..."
@@ -2117,9 +2120,20 @@
       "formatGlb": "• GLB / GLTF：直接上传（推荐）",
       "formatObj": "• OBJ：需将 .obj + .mtl + 纹理图片打包为 ZIP 上传",
       "formatSize": "• 单个文件 ≤100MB",
+      "formatToggle": "💬 格式说明",
       "uploadedTitle": "📂 已上传模型",
       "emptyModels": "暂无上传的模型",
-      "refreshTitle": "刷新模型列表"
+      "refreshTitle": "刷新模型列表",
+      "decimateTitle": "⚙️ 模型减面",
+      "decimateToggle": "💬 减面说明",
+      "decimateAuto": "自动减面（推荐）",
+      "decimateOff": "不减面（保留全部细节）",
+      "decimateWhyTitle": "为什么减面",
+      "decimateWhyBody": "：模型面数越高（超过5万面），大量复制摆放后 GPU 每帧渲染负担成倍增加，会导致游戏卡顿。",
+      "decimateWhenTitle": "什么时候该减",
+      "decimateWhenBody": "：要批量复制的模型（建筑、树木、军事单位、场景道具）——远看无差别，性能提升数倍。",
+      "decimateCostTitle": "减面的代价",
+      "decimateCostBody": "：贴脸细看时小部件细节略减（面数约降85%）；不减面则保留全部细节，但复制多了会卡。上传后可在模型列表中随时切换。"
     },
     "panelScene": {
       "title": "🔷 场景对象",
@@ -2181,6 +2195,24 @@
       "searchPlaceholder": "🔍 搜索高斯文件...",
       "refreshBtn": "刷新",
       "empty": "暂无高斯文件，请上传到 public/scenes/3dgs"
+    },
+    "panelGround": {
+      "title": "🟩 地块设置",
+      "mainTitle": "🌍 默认主地块",
+      "widthLabel": "宽度 (X)",
+      "depthLabel": "深度 (Z)",
+      "gridSizeLabel": "网格数量",
+      "colorLabel": "地块颜色",
+      "actionsTitle": "⚡ 操作",
+      "applyBtn": "✅ 应用（预览）",
+      "saveBtn": "💾 保存到世界",
+      "newTitle": "🧱 新建地块",
+      "newBtn": "➕ 新建地块",
+      "newComingSoon": "🚧 新建地块功能开发中，敬请期待",
+      "tip": "💡 保存后，编辑器与主场景的地块都会按此尺寸生成。默认 2000×2000。",
+      "applied": "🟩 地块已更新（预览）",
+      "saved": "✅ 地块配置已保存，编辑器与主场景将同步生效",
+      "saveError": "❌ 保存失败"
     },
     "props": {
       "title": "⚙️ 对象属性",

@@ -2053,7 +2053,9 @@
       "live": "Live",
       "liveTooltip": "📡 Live Sources",
       "3dgs": "3DGS",
-      "3dgsTooltip": "✨ 3DGS Scenes"
+      "3dgsTooltip": "✨ 3DGS Scenes",
+      "ground": "Ground",
+      "groundTooltip": "🟩 Ground Settings"
     },
     "status": {
       "mode": "Select",
@@ -2080,7 +2082,8 @@
       "select": "• Click object: select",
       "multiSelect": "• Ctrl+click: multi-select",
       "marquee": "• Shift+drag or Box Select button: select multiple",
-      "group": "• Grouped objects move/copy together, auto-saved on drag end"
+      "group": "• Grouped objects move/copy together, auto-saved on drag end",
+      "wasd": "• WASD to move camera (Hold Space to speed up)"
     },
     "common": {
       "loading": "Loading..."
@@ -2117,9 +2120,20 @@
       "formatGlb": "• GLB / GLTF: Direct upload (recommended)",
       "formatObj": "• OBJ: Package .obj + .mtl + textures into a ZIP to upload",
       "formatSize": "• Single file ≤100MB",
+      "formatToggle": "💬 Format Info",
       "uploadedTitle": "📂 Uploaded Models",
       "emptyModels": "No models uploaded yet",
-      "refreshTitle": "Refresh model list"
+      "refreshTitle": "Refresh model list",
+      "decimateTitle": "⚙️ Model Decimation",
+      "decimateToggle": "💬 Decimate Info",
+      "decimateAuto": "Auto decimate (recommended)",
+      "decimateOff": "No decimation (keep all detail)",
+      "decimateWhyTitle": "Why decimate",
+      "decimateWhyBody": ": The higher the polygon count (over 50K faces), the heavier the GPU rendering load becomes when many copies are placed, causing game lag.",
+      "decimateWhenTitle": "When to decimate",
+      "decimateWhenBody": ": Models placed in bulk (buildings, trees, military units, scene props) — no visible difference from afar, but performance improves several times.",
+      "decimateCostTitle": "Trade-off",
+      "decimateCostBody": ": Small details may be slightly reduced when viewed up close (faces drop ~85%). Choosing no decimation keeps all detail, but many copies may cause lag. You can switch anytime in the model list after upload."
     },
     "panelScene": {
       "title": "🔷 Scene Objects",
@@ -2181,6 +2195,24 @@
       "searchPlaceholder": "🔍 Search 3DGS files...",
       "refreshBtn": "Refresh",
       "empty": "No 3DGS files. Upload to public/scenes/3dgs"
+    },
+    "panelGround": {
+      "title": "🟩 Ground Settings",
+      "mainTitle": "🌍 Default Main Ground",
+      "widthLabel": "Width (X)",
+      "depthLabel": "Depth (Z)",
+      "gridSizeLabel": "Grid Count",
+      "colorLabel": "Ground Color",
+      "actionsTitle": "⚡ Actions",
+      "applyBtn": "✅ Apply (Preview)",
+      "saveBtn": "💾 Save to World",
+      "newTitle": "🧱 New Ground",
+      "newBtn": "➕ New Ground",
+      "newComingSoon": "🚧 New ground feature under development, stay tuned",
+      "tip": "💡 After saving, both the editor and the main scene will use this size. Default 2000×2000.",
+      "applied": "🟩 Ground updated (Preview)",
+      "saved": "✅ Ground config saved, editor and main scene will sync",
+      "saveError": "❌ Save failed"
     },
     "props": {
       "title": "⚙️ Object Properties",

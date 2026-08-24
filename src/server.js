@@ -78,6 +78,7 @@ const { initializeDatabase, query } = require('./database/db');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const worldRoutes = require('./routes/world');
+const worldGroundRoutes = require('./routes/worldGround');
 const shopRoutes = require('./routes/shop');
 const plotRoutes = require('./routes/plot');
 const skillRoutes = require('./routes/skills');
@@ -117,6 +118,7 @@ app.use('/api/admin', securityQuestionsRoutes);  // 安全问题管理（需管�
 app.use('/api/users', userRoutes);
 app.use('/api/world/spatial', worldSpatialRoutes);
 app.use('/api/world', worldRoutes);
+app.use('/api/world', worldGroundRoutes);
 app.use('/api/shop', shopRoutes);
 app.use('/api/plot', plotRoutes);
 app.use('/api/skills', skillRoutes);

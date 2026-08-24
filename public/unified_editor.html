@@ -1093,6 +1093,21 @@
                         <div>• <b>OBJ</b>：需将 .obj + .mtl + 纹理图片打包为 ZIP 上传</div>
                         <div>• 单个文件 ≤100MB</div>
                     </div>
+                    <!-- 模型减面选项 -->
+                    <div style="margin-top: 10px; padding: 10px 12px; background: #f0f7ff; border: 1px solid #b3d4fc; border-radius: 6px; font-size: 12px; color: #333;">
+                        <div style="font-weight: 600; margin-bottom: 8px;">⚙️ 模型减面</div>
+                        <label style="margin-right: 16px; cursor: pointer;">
+                            <input type="radio" name="decimate-mode" value="auto" checked onchange="onDecimateModeChange(this.value)"> 自动减面（推荐）
+                        </label>
+                        <label style="cursor: pointer;">
+                            <input type="radio" name="decimate-mode" value="off" onchange="onDecimateModeChange(this.value)"> 不减面（保留全部细节）
+                        </label>
+                        <div style="margin-top: 8px; line-height: 1.9; color: #666;">
+                            💡 <b>为什么减面</b>：模型面数越高（超过5万面），大量复制摆放后 GPU 每帧渲染负担成倍增加，会导致游戏卡顿。<br>
+                            📌 <b>什么时候该减</b>：要批量复制的模型（建筑、树木、军事单位、场景道具）——远看无差别，性能提升数倍。<br>
+                            ⚠️ <b>减面的代价</b>：贴脸细看时小部件细节略减（面数约降85%）；不减面则保留全部细节，但复制多了会卡。上传后可在模型列表中随时切换。
+                        </div>
+                    </div>
                     <div id="upload-status" style="margin-top: 10px; font-size: 12px; color: #666;"></div>
                 </div>
 
@@ -5301,32 +5316,38 @@
                 const modelPath = obj.model_path;
 
                 if (modelType === 'gltf') {
-                    // 加载 GLB/GLTF
-                    const loader = new THREE.GLTFLoader();
-                    window.setupMeshoptLoader && window.setupMeshoptLoader(loader);
-                    loader.load(
-                        modelPath,
-                        (gltf) => {
-                            console.log('✅ GLTF模型加载成功:', modelPath);
-                            placeholder.remove(loaderMesh);
-                            placeholder.add(gltf.scene);
-                            
-                            // 启用阴影
-                            gltf.scene.traverse((child) => {
-                                if (child.isMesh) {
-                                    child.castShadow = true;
-                                    child.receiveShadow = true;
-                                }
-                            });
-                        },
-                        (progress) => {
-                            console.log('📦 加载进度:', (progress.loaded / progress.total * 100).toFixed(2) + '%');
-                        },
-                        (error) => {
-                            console.error('❌ GLTF加载失败:', error);
-                            loaderMaterial.color.set(0xff0000); // 改为红色表示失败
-                        }
-                    );
+                    // 加载 GLB/GLTF（先等 meshopt 解码器就绪，避免 meshopt 压缩模型红框）
+                    const ready = (window.ensureMeshoptReady ? window.ensureMeshoptReady() : Promise.resolve());
+                    ready.then(() => {
+                        const loader = new THREE.GLTFLoader();
+                        window.setupMeshoptLoader && window.setupMeshoptLoader(loader);
+                        loader.load(
+                            modelPath,
+                            (gltf) => {
+                                console.log('✅ GLTF模型加载成功:', modelPath);
+                                placeholder.remove(loaderMesh);
+                                placeholder.add(gltf.scene);
+                                
+                                // 启用阴影
+                                gltf.scene.traverse((child) => {
+                                    if (child.isMesh) {
+                                        child.castShadow = true;
+                                        child.receiveShadow = true;
+                                    }
+                                });
+                            },
+                            (progress) => {
+                                console.log('📦 加载进度:', (progress.loaded / progress.total * 100).toFixed(2) + '%');
+                            },
+                            (error) => {
+                                console.error('❌ GLTF加载失败:', error);
+                                loaderMaterial.color.set(0xff0000); // 改为红色表示失败
+                            }
+                        );
+                    }).catch((e) => {
+                        console.error('❌ meshopt 解码器就绪失败，模型加载中止:', e);
+                        loaderMaterial.color.set(0xff0000);
+                    });
                 } else if (modelType === 'obj') {
                     // 加载 OBJ（带材质和纹理）
                     const modelDir = modelPath.substring(0, modelPath.lastIndexOf('/') + 1);
@@ -6170,19 +6191,80 @@
             listContainer.innerHTML = uploadedModels.map(model => {
                 const fileName = model.file_name || '未知文件';
                 const fileType = fileName.split('.').pop().toUpperCase();
-                
+                const isDecimated = !!(model.is_decimated !== undefined ? model.is_decimated : String(model.path || '').endsWith('_dec.glb'));
+                const badge = isDecimated
+                    ? '<span style="display:inline-block;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:3px;padding:0 4px;font-size:10px;margin-left:6px;vertical-align:middle;">已减面</span>'
+                    : '<span style="display:inline-block;background:#fff8e1;color:#f57f17;border:1px solid #ffe082;border-radius:3px;padding:0 4px;font-size:10px;margin-left:6px;vertical-align:middle;">原版</span>';
+                const toggleBtn = isDecimated
+                    ? `<button onclick="toggleDecimation('${model.id}', 'restore'); event.stopPropagation();" title="还原为完整细节版" style="background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:4px;padding:2px 6px;font-size:11px;cursor:pointer;margin-right:4px;">🔄还原原版</button>`
+                    : `<button onclick="toggleDecimation('${model.id}', 'decimate'); event.stopPropagation();" title="减面以提升性能" style="background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;border-radius:4px;padding:2px 6px;font-size:11px;cursor:pointer;margin-right:4px;">✂️减面</button>`;
+
                 return `
                     <div class="object-item" onclick="addUploadedModelToScene('${model.path}', '${escapeHtml(fileName)}')">
                         <div class="object-info">
-                            <div class="object-name">${escapeHtml(fileName)}</div>
+                            <div class="object-name">${escapeHtml(fileName)}${badge}</div>
                             <div class="object-type">类型: ${fileType} | 点击添加到场景</div>
                         </div>
                         <div class="object-actions">
+                            ${toggleBtn}
                             <button class="icon-btn" onclick="deleteUploadedModel('${model.id}'); event.stopPropagation();" title="删除">🗑️</button>
                         </div>
                     </div>
                 `;
             }).join('');
+        }
+
+        // 切换模型的减面/还原状态
+        async function toggleDecimation(id, action) {
+            const model = uploadedModels.find(m => String(m.id) === String(id));
+            if (!model) return;
+
+            if (action === 'restore') {
+                if (!confirm('还原后该模型将恢复为完整细节版（高面数）。\n如果该模型在场景中复制了很多份，游戏可能会变卡。\n\n确定要还原吗？')) return;
+            } else if (action === 'decimate') {
+                if (!confirm('将对模型执行减面（面数约降85%），场景中所有已放置的该模型会同步切换。\n确定要减面吗？')) return;
+            }
+
+            try {
+                showNotification(action === 'decimate' ? '正在减面，请稍候...' : '正在还原...', 'info');
+                const response = await fetch(`/api/uploaded-models/${id}/${action}`, {
+                    method: 'POST'
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.error || '操作失败');
+                }
+                const result = await response.json();
+
+                if (result.success) {
+                    if (result.model) {
+                        const idx = uploadedModels.findIndex(m => String(m.id) === String(id));
+                        if (idx >= 0) uploadedModels[idx] = result.model;
+                    }
+                    updateUploadedModelsList();
+                    showNotification(result.message || '操作成功', (result.decimated || result.restored) ? 'success' : 'info');
+                    // 刷新模型库，同步场景中已放置对象的最新引用
+                    await refreshModelLibrary();
+                } else {
+                    throw new Error(result.error || result.message || '操作失败');
+                }
+            } catch (error) {
+                console.error('切换减面状态失败:', error);
+                showNotification('操作失败: ' + error.message, 'error');
+            }
+        }
+
+        // 获取当前选择的减面模式
+        function getDecimateMode() {
+            const el = document.querySelector('input[name="decimate-mode"]:checked');
+            return el ? el.value : 'auto';
+        }
+
+        // 减面模式切换提示
+        function onDecimateModeChange(value) {
+            if (value === 'off') {
+                showNotification('⚠️ 已选择不减面：将保留全部细节，但大量复制摆放可能导致场景卡顿', 'warning');
+            }
         }
 
         // 处理文件上传（支持批量）
@@ -6230,6 +6312,7 @@
 
                 const formData = new FormData();
                 formData.append('model', file);
+                formData.append('decimate', getDecimateMode());
 
                 const response = await fetch('/api/upload-model', {
                     method: 'POST',
@@ -6307,6 +6390,7 @@
                 files.forEach(file => {
                     formData.append('models', file);
                 });
+                formData.append('decimate', getDecimateMode());
 
                 const response = await fetch('/api/upload-models-batch', {
                     method: 'POST',
@@ -7837,14 +7921,18 @@
         function loadGLBModel(url, pos, scl) {
             return new Promise((resolve, reject) => {
                 if (typeof THREE === 'undefined' || !THREE.GLTFLoader) { reject(new Error('GLTFLoader不可用')); return; }
-                const loader = new THREE.GLTFLoader();
-                window.setupMeshoptLoader && window.setupMeshoptLoader(loader);
-                loader.load(url, (gltf) => {
-                    const model = gltf.scene;
-                    model.position.set(pos.x, pos.y, pos.z);
-                    model.scale.setScalar(scl);
-                    resolve(model);
-                }, undefined, reject);
+                // 先等 meshopt 解码器就绪，避免 meshopt 压缩模型报 setMeshoptDecoder 错误
+                const ready = (window.ensureMeshoptReady ? window.ensureMeshoptReady() : Promise.resolve());
+                ready.then(() => {
+                    const loader = new THREE.GLTFLoader();
+                    window.setupMeshoptLoader && window.setupMeshoptLoader(loader);
+                    loader.load(url, (gltf) => {
+                        const model = gltf.scene;
+                        model.position.set(pos.x, pos.y, pos.z);
+                        model.scale.setScalar(scl);
+                        resolve(model);
+                    }, undefined, reject);
+                }).catch(reject);
             });
         }
 

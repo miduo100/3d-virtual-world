@@ -332,6 +332,13 @@
             overflow-y: auto;
         }
 
+        /* 已上传模型/代码块/图片库列表加高，显示更多内容 */
+        #uploaded-models-list,
+        #threejs-code-list,
+        #img-library-grid {
+            max-height: 60vh;
+        }
+
         .object-item {
             padding: 10px;
             margin-bottom: 6px;
@@ -1928,6 +1935,11 @@
             <span class="nav-text" data-i18n="worldEditor.nav.3dgs">高斯</span>
             <span class="nav-tooltip" data-i18n="worldEditor.nav.3dgsTooltip">✨ 高斯场景库</span>
         </div>
+        <div class="nav-item" id="nav-ground" onclick="switchPanel('ground')">
+            🟩
+            <span class="nav-text" data-i18n="worldEditor.nav.ground">地块</span>
+            <span class="nav-tooltip" data-i18n="worldEditor.nav.groundTooltip">🟩 地块设置</span>
+        </div>
     </div>
 
     <!-- ===== 右侧内容面板 ===== -->
@@ -1948,10 +1960,33 @@
                 </button>
                 <div id="upload-status" style="margin-top: 8px; font-size: 11px; color: #666;"></div>
                 <div style="margin-top: 10px; padding: 10px 12px; background: #f8f9fa; border-radius: 6px; font-size: 11px; color: #666; line-height: 1.6;">
-                    <div style="font-weight: 600; color: #333; margin-bottom: 5px;" data-i18n="worldEditor.panelModels.formatTitle">💡 上传格式说明</div>
-                    <div data-i18n="worldEditor.panelModels.formatGlb">• GLB / GLTF：直接上传（推荐）</div>
-                    <div data-i18n="worldEditor.panelModels.formatObj">• OBJ：需将 .obj + .mtl + 纹理图片打包为 ZIP 上传</div>
-                    <div data-i18n="worldEditor.panelModels.formatSize">• 单个文件 ≤100MB</div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
+                        <span style="font-weight: 600; color: #333;" data-i18n="worldEditor.panelModels.formatTitle">💡 上传格式说明</span>
+                        <span id="format-toggle" onclick="toggleFormatInfo()" style="cursor: pointer; color: #2b7de9; user-select: none; white-space: nowrap;" aria-expanded="false"><span data-i18n="worldEditor.panelModels.formatToggle">💬 格式说明</span> <span id="format-toggle-arrow">▾</span></span>
+                    </div>
+                    <div id="format-info" style="display: none; margin-top: 2px;">
+                        <div data-i18n="worldEditor.panelModels.formatGlb">• GLB / GLTF：直接上传（推荐）</div>
+                        <div data-i18n="worldEditor.panelModels.formatObj">• OBJ：需将 .obj + .mtl + 纹理图片打包为 ZIP 上传</div>
+                        <div data-i18n="worldEditor.panelModels.formatSize">• 单个文件 ≤100MB</div>
+                    </div>
+                </div>
+                <!-- 模型减面选项 -->
+                <div style="margin-top: 10px; padding: 10px 12px; background: #f0f7ff; border: 1px solid #b3d4fc; border-radius: 6px; font-size: 11px; color: #333;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                        <span style="font-weight: 600;" data-i18n="worldEditor.panelModels.decimateTitle">⚙️ 模型减面</span>
+                        <span id="decimate-toggle" onclick="toggleDecimateInfo()" style="cursor: pointer; color: #2b7de9; user-select: none; white-space: nowrap;" aria-expanded="false"><span data-i18n="worldEditor.panelModels.decimateToggle">💬 减面说明</span> <span id="decimate-toggle-arrow">▾</span></span>
+                    </div>
+                    <label style="margin-right: 16px; cursor: pointer;">
+                        <input type="radio" name="decimate-mode" value="auto" checked onchange="onDecimateModeChange(this.value)"> <span data-i18n="worldEditor.panelModels.decimateAuto">自动减面（推荐）</span>
+                    </label>
+                    <label style="cursor: pointer;">
+                        <input type="radio" name="decimate-mode" value="off" onchange="onDecimateModeChange(this.value)"> <span data-i18n="worldEditor.panelModels.decimateOff">不减面（保留全部细节）</span>
+                    </label>
+                    <div id="decimate-info" style="display: none; margin-top: 8px; line-height: 1.9; color: #666;">
+                        <div>💡 <b data-i18n="worldEditor.panelModels.decimateWhyTitle">为什么减面</b><span data-i18n="worldEditor.panelModels.decimateWhyBody">：模型面数越高（超过5万面），大量复制摆放后 GPU 每帧渲染负担成倍增加，会导致游戏卡顿。</span></div>
+                        <div>📌 <b data-i18n="worldEditor.panelModels.decimateWhenTitle">什么时候该减</b><span data-i18n="worldEditor.panelModels.decimateWhenBody">：要批量复制的模型（建筑、树木、军事单位、场景道具）——远看无差别，性能提升数倍。</span></div>
+                        <div>⚠️ <b data-i18n="worldEditor.panelModels.decimateCostTitle">减面的代价</b><span data-i18n="worldEditor.panelModels.decimateCostBody">：贴脸细看时小部件细节略减（面数约降85%）；不减面则保留全部细节，但复制多了会卡。上传后可在模型列表中随时切换。</span></div>
+                    </div>
                 </div>
             </div>
 
@@ -2150,6 +2185,43 @@
                 <div class="object-list" id="dgs-file-list">
                     <div style="text-align:center; padding:15px; color:#999; font-size:12px;">加载中...</div>
                 </div>
+            </div>
+        </div>
+
+        <!-- 地块设置面板 -->
+        <div id="panel-ground" class="panel-view">
+            <div class="panel-title" data-i18n="worldEditor.panelGround.title">🟩 地块设置</div>
+
+            <div class="panel-section">
+                <div class="panel-section-title" data-i18n="worldEditor.panelGround.mainTitle">🌍 默认主地块</div>
+                <div class="property-group">
+                    <label class="property-label" data-i18n="worldEditor.panelGround.widthLabel">宽度 (X)</label>
+                    <input type="number" class="property-input" id="ground-width" min="10" max="10000" step="10" value="2000">
+                </div>
+                <div class="property-group">
+                    <label class="property-label" data-i18n="worldEditor.panelGround.depthLabel">深度 (Z)</label>
+                    <input type="number" class="property-input" id="ground-depth" min="10" max="10000" step="10" value="2000">
+                </div>
+                <div class="property-group">
+                    <label class="property-label" data-i18n="worldEditor.panelGround.gridSizeLabel">网格数量</label>
+                    <input type="number" class="property-input" id="ground-grid" min="1" max="500" step="1" value="100">
+                </div>
+                <div class="property-group">
+                    <label class="property-label" data-i18n="worldEditor.panelGround.colorLabel">地块颜色</label>
+                    <input type="color" class="property-input" id="ground-color" value="#2d5016" style="height:32px;padding:2px;">
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-section-title" data-i18n="worldEditor.panelGround.actionsTitle">⚡ 操作</div>
+                <button class="place-btn-save" style="width:100%; margin-bottom:8px;" onclick="applyGroundConfig()" data-i18n="worldEditor.panelGround.applyBtn">✅ 应用（预览）</button>
+                <button class="place-btn-cancel" style="width:100%;" onclick="saveGroundConfig()" data-i18n="worldEditor.panelGround.saveBtn">💾 保存到世界</button>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-section-title" data-i18n="worldEditor.panelGround.newTitle">🧱 新建地块</div>
+                <button class="tool-btn" style="width:100%;" onclick="showNotification(weT('panelGround.newComingSoon', '🚧 新建地块功能开发中，敬请期待'), 'info')" data-i18n="worldEditor.panelGround.newBtn">➕ 新建地块</button>
+                <div style="margin-top:8px; font-size:11px; color:#888; line-height:1.6;" data-i18n="worldEditor.panelGround.tip">💡 保存后，编辑器与主场景的地块都会按此尺寸生成。默认 2000×2000。</div>
             </div>
         </div>
 
@@ -2843,6 +2915,17 @@
                     <option value="en-US">English</option>
                 </select>
             </div>
+            <div class="status-item">
+                <select id="glb-load-level" onchange="applyGlbLoadLevel(this.value)" title="模型加载速度 / Load Speed" style="padding:5px 8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);border-radius:5px;color:#fff;font-size:12px;cursor:pointer;">
+                    <option value="fast">⚡快速</option>
+                    <option value="normal" selected>标准</option>
+                    <option value="slow">🐢慢速</option>
+                </select>
+            </div>
+            <div class="status-item">
+                <span>⏳</span>
+                <span class="status-badge" id="glb-load-progress">0</span>
+            </div>
         </div>
 
         <!-- 控制说明 -->
@@ -2851,6 +2934,7 @@
             <div data-i18n="worldEditor.hint.rotate">• 左键拖拽：旋转视角</div>
             <div data-i18n="worldEditor.hint.pan">• 右键拖拽：平移视角</div>
             <div data-i18n="worldEditor.hint.zoom">• 滚轮：缩放视角</div>
+            <div data-i18n="worldEditor.hint.wasd">• WASD 移动视角（空格 加速）</div>
             <div data-i18n="worldEditor.hint.select">• 点击对象：选择</div>
             <div data-i18n="worldEditor.hint.multiSelect">• Ctrl+点击：多选</div>
             <div data-i18n="worldEditor.hint.marquee">• Shift+拖拽 或 框选按钮：框选多个对象</div>
@@ -2885,6 +2969,7 @@
     <script src="js/customConfigPanel.js"></script>
     <script src="js/worldEditorThreejsCode.js"></script>
     <script src="js/worldEditor3dgs.js"></script>
+    <script src="js/worldEditorCameraMove.js"></script>
     <script>
         // ===== 全局变量 =====
         let scene, camera, renderer, controls, transformControls;
@@ -2892,6 +2977,13 @@
         let selectedObjects = [];
         let editMode = 'select';
         let raycaster, mouse;
+        let _suppressClickUntil = 0;   // 拖动变换控件结束后，短时间内抑制 click，防止误取消选中
+
+        // ===== 地块配置与对象（地块设置面板） =====
+        // 默认 2000×2000，与主场景 CONFIG.WORLD_SIZE*2 一致
+        let groundConfig = { width: 2000, depth: 2000, gridSize: 100, color: '#2d5016' };
+        let groundMesh = null;
+        let groundGridHelper = null;
 
         const API_BASE = window.location.origin + '/api/world';
 
@@ -3035,6 +3127,9 @@
             controls.panSpeed = 2.0;
             controls.rotateSpeed = 1.5;
 
+            // WASD 相机移动（W/S 前后、A/D 左右、空格 加速）
+            window.initWASDCameraMove(camera, controls);
+
 
             // 变换控制器
             transformControls = new THREE.TransformControls(camera, renderer.domElement);
@@ -3043,9 +3138,12 @@
             transformControls.addEventListener('dragging-changed', (event) => {
                 controls.enabled = !event.value;
                 
-                // 拖动结束时自动保存
-                if (!event.value && selectedObjects.length > 0) {
-                    autoSaveObjectTransform();
+                // 拖动结束时自动保存，并抑制紧接着派发的 click（避免被误判为"点击空白处"取消选中）
+                if (!event.value) {
+                    _suppressClickUntil = Date.now() + 300;
+                    if (selectedObjects.length > 0) {
+                        autoSaveObjectTransform();
+                    }
                 }
             });
             
@@ -3075,28 +3173,34 @@
             directionalLight.shadow.mapSize.height = 2048;
             scene.add(directionalLight);
 
-            // 地面
-            const groundGeometry = new THREE.PlaneGeometry(500, 500);
-            const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x90ee90 });
-            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-            ground.rotation.x = -Math.PI / 2;
-            ground.receiveShadow = true;
-            scene.add(ground);
-
-            // 网格辅助线
-            const gridHelper = new THREE.GridHelper(500, 100, 0x888888, 0xcccccc);
-            gridHelper.position.y = 0.01;
-            scene.add(gridHelper);
+            // 地块（尺寸由 groundConfig 决定，可在"地块"面板中调整）
+            createGround(groundConfig);
 
             // 射线检测
             raycaster = new THREE.Raycaster();
             mouse = new THREE.Vector2();
 
-            // 事件监听 - 在容器上监听以捕获所有点击
+            // 事件监听 - canvas 点击会冒泡到 container，只绑一次避免双重触发
             container.addEventListener('click', onMouseClick);
-            renderer.domElement.addEventListener('click', onMouseClick);
             window.addEventListener('resize', onWindowResize);
             window.addEventListener('keydown', onKeyDown);
+
+            // ===== 拖拽旋转/平移后抑制误触发的 click =====
+            // 浏览器只要 mousedown/mouseup 在同一元素上就派发 click（与移动距离无关），
+            // 而 onMouseClick 会做全场景 raycast——松手瞬间卡顿的根因。
+            // 位移超过 8px 视为"拖拽"而非"点击"，拖拽结束 600ms 内抑制拾取。
+            let _dragStartX = 0, _dragStartY = 0, _dragDown = false;
+            renderer.domElement.addEventListener('pointerdown', (e) => {
+                if (e.button === 0) { _dragDown = true; _dragStartX = e.clientX; _dragStartY = e.clientY; }
+            }, { passive: true });
+            renderer.domElement.addEventListener('pointerup', (e) => {
+                if (_dragDown && e.button === 0) {
+                    if (Math.abs(e.clientX - _dragStartX) > 8 || Math.abs(e.clientY - _dragStartY) > 8) {
+                        _suppressClickUntil = Date.now() + 600;
+                    }
+                    _dragDown = false;
+                }
+            }, { passive: true });
 
             // 动画循环
             animate();
@@ -3130,6 +3234,8 @@
                 }
             }
             controls.update();
+            window.tickWASDCameraMove(); // WASD 相机移动驱动（需在 controls.update 之后）
+            updateRangeLoading(); // 范围加载巡检：按相机距离按需加载/隐藏对象
             if (window.onEditorGaussianTick) window.onEditorGaussianTick(camera, renderer); // 渲染前驱动高斯预览更新
             renderer.render(scene, camera);
             if (window.onMediaAnimateTick) window.onMediaAnimateTick();
@@ -3152,7 +3258,116 @@
         let lastClickTime = 0;
         let lastClickObject = null;
 
+        // 轻量拾取代理：raycast 只检测每个对象一个不可见包围盒（12 个三角形），
+        // 绝不递归真实高模子树做三角形相交——彻底消除"松手卡顿"。
+        // 代理必须覆盖"对象整体"而非"第一个子模型"：GLB 占位符的第一个子节点是
+        // 1×1×1 加载盒，若拿它当包围球，点击树冠会穿过去命中后面对象的代理（误选）。
+        // 因此用 computeObjectSphere 求整体包围球并缓存，模型挂载后 invalidatePickCaches 失效重建。
+        const _pickMatInv = new THREE.Matrix4();
+        const _pickVec = new THREE.Vector3();
+        const _pickBox = new THREE.Box3(); // 世界 AABB 临时
+        const _pickBox2 = new THREE.Box3(); // 单 mesh 世界 AABB 临时
+        const _pickCorner = new THREE.Vector3(); // 角点变换临时
+        const _pickSize = new THREE.Vector3(); // AABB 尺寸临时
+
+        // 计算对象整体包围球（mesh 局部空间）：union 所有子 mesh 变换到世界后的实际 AABB，
+        // 再取外接球。不依赖几何原始半径/局部缩放——对"缩放异常/单位巨大"的 GLB 也准确。
+        // 只遍历节点（O(节点数)），不遍历顶点，对高模也毫秒级。
+        function computeObjectSphere(mesh) {
+            mesh.updateWorldMatrix(true, true);
+            const box = _pickBox.makeEmpty();
+            let has = false;
+            mesh.traverse((c) => {
+                if (!c.isMesh || !c.geometry) return;
+                c.geometry.computeBoundingBox();
+                const bb = c.geometry.boundingBox;
+                if (!bb || !isFinite(bb.min.x) || !isFinite(bb.max.x)) return; // 无顶点/异常几何跳过
+                c.updateWorldMatrix(true, false);
+                // 把几何 AABB 的 8 个角点变换到世界空间，union 成世界 AABB
+                _pickBox2.makeEmpty();
+                _pickCorner.set(bb.min.x, bb.min.y, bb.min.z).applyMatrix4(c.matrixWorld); _pickBox2.expandByPoint(_pickCorner);
+                _pickCorner.set(bb.max.x, bb.min.y, bb.min.z).applyMatrix4(c.matrixWorld); _pickBox2.expandByPoint(_pickCorner);
+                _pickCorner.set(bb.min.x, bb.max.y, bb.min.z).applyMatrix4(c.matrixWorld); _pickBox2.expandByPoint(_pickCorner);
+                _pickCorner.set(bb.min.x, bb.min.y, bb.max.z).applyMatrix4(c.matrixWorld); _pickBox2.expandByPoint(_pickCorner);
+                _pickCorner.set(bb.max.x, bb.max.y, bb.min.z).applyMatrix4(c.matrixWorld); _pickBox2.expandByPoint(_pickCorner);
+                _pickCorner.set(bb.max.x, bb.min.y, bb.max.z).applyMatrix4(c.matrixWorld); _pickBox2.expandByPoint(_pickCorner);
+                _pickCorner.set(bb.min.x, bb.max.y, bb.max.z).applyMatrix4(c.matrixWorld); _pickBox2.expandByPoint(_pickCorner);
+                _pickCorner.set(bb.max.x, bb.max.y, bb.max.z).applyMatrix4(c.matrixWorld); _pickBox2.expandByPoint(_pickCorner);
+                box.union(_pickBox2);
+                has = true;
+            });
+            if (!has) return null;
+            // 世界 AABB 的外接球（实际渲染尺寸）
+            const center = box.getCenter(_pickVec);
+            const radius = box.getSize(_pickSize).length() / 2;
+            // 中心转到 mesh 局部空间（代理挂在 mesh 下）
+            center.applyMatrix4(_pickMatInv.copy(mesh.matrixWorld).invert());
+            // 代理边长按 mesh 根缩放换算回局部尺寸，保证世界尺寸覆盖
+            const e = mesh.matrixWorld.elements;
+            const sx = Math.sqrt(e[0] * e[0] + e[1] * e[1] + e[2] * e[2]);
+            const sy = Math.sqrt(e[4] * e[4] + e[5] * e[5] + e[6] * e[6]);
+            const sz = Math.sqrt(e[8] * e[8] + e[9] * e[9] + e[10] * e[10]);
+            const s = Math.max(sx, sy, sz) || 1;
+            return { center, radius: radius / s };
+        }
+
+        // 统计对象子树总顶点数（缓存；模型挂载后随 _pickSphere 一起失效）
+        function countMeshVerts(mesh) {
+            if (mesh.userData._vertexCount != null) return mesh.userData._vertexCount;
+            let count = 0;
+            mesh.traverse((c) => {
+                if (!c.isMesh || !c.geometry) return;
+                const g = c.geometry;
+                if (g.index) count += g.index.count;
+                else if (g.attributes && g.attributes.position) count += g.attributes.position.count;
+            });
+            mesh.userData._vertexCount = count;
+            return count;
+        }
+
+        // 真实模型挂载/几何变化后调用：让整体包围球与顶点数缓存失效重建
+        function invalidatePickCaches(woOrMesh) {
+            const mesh = woOrMesh && woOrMesh.mesh ? woOrMesh.mesh : woOrMesh;
+            if (!mesh) return;
+            mesh.userData._pickSphere = null;
+            mesh.userData._vertexCount = null;
+        }
+
+        function getPickProxy(wo) {
+            const mesh = wo.mesh;
+            if (!mesh) return null;
+            let sph = mesh.userData._pickSphere;
+            if (!sph) {
+                sph = computeObjectSphere(mesh);
+                if (!sph) return null; // 对象还没有任何几何（极早期）
+                mesh.userData._pickSphere = sph;
+            }
+            const r = Math.max(sph.radius, 0.1);
+            let proxy = mesh.userData._pickProxy;
+            if (!proxy) {
+                proxy = new THREE.Mesh(
+                    new THREE.BoxGeometry(r, r, r),
+                    new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide })
+                );
+                proxy.visible = false; // 隐藏仍可拾取（r128 不检查 visible）
+                proxy.userData.objectId = wo.id;
+                proxy.userData.isPickProxy = true; // 精确判优时跳过代理自身交点（代理是包围盒，轮廓常大于模型）
+                mesh.add(proxy);
+                mesh.userData._pickProxy = proxy;
+            }
+            proxy.position.copy(sph.center);
+            // 对象加载后包围球变化时重建代理尺寸
+            if (Math.abs(proxy.geometry.parameters.width - r) > 0.01) {
+                proxy.geometry.dispose();
+                proxy.geometry = new THREE.BoxGeometry(r, r, r);
+            }
+            return proxy;
+        }
+
         function onMouseClick(event) {
+            // 拖动变换控件结束后的 click 是拖动产生的，直接忽略（防止误取消选中）
+            if (Date.now() < _suppressClickUntil) return;
+
             // 忽略来自UI面板的点击
             const target = event.target;
             if (target.closest('#panel-content') || target.closest('#canvas-toolbar') || target.closest('.status-bar')) {
@@ -3166,25 +3381,59 @@
             mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
             raycaster.setFromCamera(mouse, camera);
-            
-            // 只检测worldObjects中的对象
-            const selectableObjects = worldObjects.map(obj => obj.mesh).filter(Boolean);
-            
-            if (selectableObjects.length === 0) {
+
+            // 轻量拾取：只检测每个对象的包围盒代理（12 三角形/个），
+            // 不递归真实高模子树，避免全场景三角形相交检测卡死主线程
+            const proxies = [];
+            for (let i = 0; i < worldObjects.length; i++) {
+                const wo = worldObjects[i];
+                if (!wo || !wo.mesh) continue;
+                const proxy = getPickProxy(wo);
+                if (proxy) proxies.push(proxy);
+            }
+
+            if (proxies.length === 0) {
                 console.log('⚠️ 没有可选择的对象');
                 return;
             }
-            
-            const intersects = raycaster.intersectObjects(selectableObjects, true);
+
+            // 粗筛：收集所有命中代理（按距离升序），不递归真实高模子树
+            const intersects = raycaster.intersectObjects(proxies, false);
 
             if (intersects.length > 0) {
-                // 找到最顶层的对象
-                let targetObject = intersects[0].object;
-                while (targetObject.parent && !targetObject.userData.objectId) {
-                    targetObject = targetObject.parent;
+                // 精确判优（两阶段拾取）：对最近的 ≤3 个候选对象用真实模型做三角形检测，
+                // 取最近真实交点，避免代理盒重叠/相邻时误选。
+                // 顶点数超阈值的巨型模型跳过精确检测（避免主线程卡顿），用代理距离兜底。
+                const PICK_REFINE_MAX_VERTS = 200000;
+                const refineLimit = Math.min(intersects.length, 3);
+                let bestObjectId = null;
+                let bestDist = Infinity;
+                for (let i = 0; i < refineLimit; i++) {
+                    let targetObject = intersects[i].object;
+                    while (targetObject.parent && !targetObject.userData.objectId) {
+                        targetObject = targetObject.parent;
+                    }
+                    const candId = targetObject.userData.objectId;
+                    if (!candId) continue;
+
+                    const worldObj = worldObjects.find(obj => obj.id === candId);
+                    let pickDist = intersects[i].distance;
+                    if (worldObj && worldObj.mesh && countMeshVerts(worldObj.mesh) <= PICK_REFINE_MAX_VERTS) {
+                        // 精确检测：排除拾取代理自身的交点（代理是立方体包围盒，轮廓常大于模型，
+                        // 不排除会"点A→命中A的代理罩子→距离最近→误选A"）。
+                        // 真实模型未命中则淘汰该候选，避免大代理罩子抢选（如 324 边长 129.8 的罩子）
+                        const hits = raycaster.intersectObject(worldObj.mesh, true)
+                            .filter(h => !h.object.userData.isPickProxy);
+                        if (hits.length > 0) pickDist = hits[0].distance;
+                        else pickDist = Infinity;
+                    }
+                    if (pickDist < bestDist) {
+                        bestDist = pickDist;
+                        bestObjectId = candId;
+                    }
                 }
 
-                const objectId = targetObject.userData.objectId;
+                const objectId = bestObjectId;
                 console.log('🖱️ 点击对象:', objectId);
                 
                 if (objectId) {
@@ -3232,6 +3481,83 @@
             } else if (event.ctrlKey && event.key === 'd') {
                 copySelectedGroupAware();
                 event.preventDefault();
+            }
+        }
+
+        // ===== 地块管理 =====
+        function createGround(cfg) {
+            // 移除旧地块/网格（释放 GPU 资源）
+            if (groundMesh) {
+                scene.remove(groundMesh);
+                groundMesh.geometry.dispose();
+                groundMesh.material.dispose();
+                groundMesh = null;
+            }
+            if (groundGridHelper) {
+                scene.remove(groundGridHelper);
+                groundGridHelper.geometry.dispose();
+                groundGridHelper.material.dispose();
+                groundGridHelper = null;
+            }
+
+            const groundGeometry = new THREE.PlaneGeometry(cfg.width, cfg.depth);
+            const groundMaterial = new THREE.MeshLambertMaterial({ color: new THREE.Color(cfg.color) });
+            groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
+            groundMesh.rotation.x = -Math.PI / 2;
+            groundMesh.receiveShadow = true;
+            scene.add(groundMesh);
+
+            const gridHelper = new THREE.GridHelper(Math.max(cfg.width, cfg.depth), cfg.gridSize, 0x888888, 0xcccccc);
+            gridHelper.position.y = 0.01;
+            groundGridHelper = gridHelper;
+            scene.add(groundGridHelper);
+        }
+
+        // 从服务器加载地块配置
+        async function loadGroundConfig() {
+            try {
+                const res = await fetch(`${API_BASE}/ground-config`);
+                const data = await res.json();
+                if (data.success && data.config) {
+                    groundConfig = { ...groundConfig, ...data.config };
+                    document.getElementById('ground-width').value = groundConfig.width;
+                    document.getElementById('ground-depth').value = groundConfig.depth;
+                    document.getElementById('ground-grid').value = groundConfig.gridSize;
+                    document.getElementById('ground-color').value = groundConfig.color;
+                    createGround(groundConfig);
+                }
+            } catch (e) {
+                console.warn('加载地块配置失败:', e);
+            }
+        }
+
+        // 应用表单值到编辑器场景（仅预览，不落库）
+        function applyGroundConfig() {
+            groundConfig.width = parseFloat(document.getElementById('ground-width').value) || 2000;
+            groundConfig.depth = parseFloat(document.getElementById('ground-depth').value) || 2000;
+            groundConfig.gridSize = parseInt(document.getElementById('ground-grid').value, 10) || 100;
+            groundConfig.color = document.getElementById('ground-color').value || '#2d5016';
+            createGround(groundConfig);
+            showNotification(weT('panelGround.applied', '🟩 地块已更新（预览）'), 'success');
+        }
+
+        // 保存地块配置到服务器（编辑器与主场景同步生效）
+        async function saveGroundConfig() {
+            applyGroundConfig();
+            try {
+                const res = await fetch(`${API_BASE}/ground-config`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(groundConfig)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showNotification(weT('panelGround.saved', '✅ 地块配置已保存，编辑器与主场景将同步生效'), 'success');
+                } else {
+                    showNotification(weT('panelGround.saveError', '❌ 保存失败'), 'error');
+                }
+            } catch (e) {
+                showNotification('❌ 保存失败: ' + e.message, 'error');
             }
         }
 
@@ -3292,6 +3618,20 @@
             }
         }
 
+        // ===== 范围加载参数：占位符常驻，真实模型按相机距离按需加载 =====
+        const EDITOR_LOAD_RADIUS = 120;    // 进入此半径才加载真实模型
+        const EDITOR_UNLOAD_RADIUS = 240;  // 超出此半径切换回占位符显示（占位符常驻）
+        let EDITOR_RANGE_SCAN_MS = 400;  // 范围巡检节流（随档位切换）
+        let EDITOR_MAX_LOAD_PER_SCAN = 1; // 单次巡检最多触发加载数（随档位切换：快速=10 标准=3 慢速=1）
+        console.log('✅ [范围加载优化 v2] 已启用：相机运动抑制 + 档位联动供应 + 分帧克隆 + 队列节流');
+        let _lastRangeScanAt = 0;
+        const _rangeScanVec = new THREE.Vector3(); // 复用向量，避免每帧 GC
+        // 相机运动检测：旋转/平移/惯性（damping 衰减）期间不触发新加载，相机静止 3 帧后才允许范围加载
+        let _camStillFrames = 0;
+        let _camInit = false;
+        let _camLastX = 0, _camLastY = 0, _camLastZ = 0;
+        let _camLastTX = 0, _camLastTY = 0, _camLastTZ = 0;
+
         // ===== 创建3D网格 =====
         function createMeshFromObject(obj) {
             const type = obj.type || 'unknown';
@@ -3330,24 +3670,8 @@
                         const boxMat = new THREE.MeshBasicMaterial({ color: 0x00aaff, wireframe: true });
                         placeholder.add(new THREE.Mesh(boxGeo, boxMat));
                         
-                        // 异步加载真实几何体
-                        fetch('/api/geometry-building/' + buildingId)
-                            .then(function(r) { return r.json(); })
-                            .then(function(data) {
-                                if (data.success && data.building && data.building.geometry_data) {
-                                    var components = data.building.geometry_data.components || [];
-                                    if (components.length > 0) {
-                                        var realMesh = GeometryRenderer.renderFromComponents(components, THREE);
-                                        // 清除占位符
-                                        while (placeholder.children.length > 0) {
-                                            placeholder.remove(placeholder.children[0]);
-                                        }
-                                        placeholder.add(realMesh);
-                                        console.log('✅ 编辑器几何体加载成功:', buildingId);
-                                    }
-                                }
-                            })
-                            .catch(function(e) { console.warn('编辑器加载几何体失败:', e); });
+                        // 范围加载：真实几何体由 updateRangeLoading 按相机距离触发
+                        placeholder.userData.pendingGeometry = buildingId;
                         
                         return placeholder;
                     }
@@ -3397,12 +3721,18 @@
                     if (cached && cached.scene) {
                         const inst = cloneModelForInstancing(cached.scene);
                         inst.userData.sharedModel = true;
-                        placeholder.remove(loaderMesh);
+                        // 范围加载：占位符隐藏保留（visible 切换），供远处恢复占位符
+                        loaderMesh.visible = false;
+                        placeholder.userData._loaderMesh = loaderMesh;
+                        placeholder.userData._realMesh = inst;
+                        placeholder.userData._showReal = true;
                         placeholder.add(inst);
+                        invalidatePickCaches(placeholder);
                         console.log('✅ 从缓存加载模型:', modelPath);
                     } else {
-                        // 2) 缓存未命中：进入串行队列，同时只加载 1 个 GLB，避免并发解析打爆 CPU
-                        enqueueGlbLoad({ placeholder, loaderMesh, obj, modelPath });
+                        // 2) 缓存未命中：范围加载，进入 EDITOR_LOAD_RADIUS 后才入队。
+                        //    串行队列同时只加载 1 个 GLB，避免并发解析打爆 CPU
+                        placeholder.userData.pendingGlb = { obj, modelPath, loaderMesh };
                     }
                 } else if (modelType === 'obj') {
                     // 性能优化：OBJ 同样走缓存复用，刷新场景不重复解析、不累积泄漏
@@ -3410,7 +3740,11 @@
                     if (objCached && objCached.scene) {
                         const objInst = cloneModelForInstancing(objCached.scene);
                         objInst.userData.sharedModel = true;
-                        placeholder.remove(loaderMesh);
+                        // 范围加载：占位符隐藏保留（visible 切换），供远处恢复占位符
+                        loaderMesh.visible = false;
+                        placeholder.userData._loaderMesh = loaderMesh;
+                        placeholder.userData._realMesh = objInst;
+                        placeholder.userData._showReal = true;
                         placeholder.add(objInst);
                         console.log('✅ 从缓存加载OBJ模型:', modelPath);
                         return placeholder;
@@ -3438,11 +3772,16 @@
                                 modelPath,
                                 (object) => {
                                     console.log('✅ OBJ模型加载成功（带材质）:', modelPath);
-                                    placeholder.remove(loaderMesh);
+                                    // 范围加载：占位符隐藏保留，供远处恢复占位符
+                                    loaderMesh.visible = false;
+                                    placeholder.userData._loaderMesh = loaderMesh;
                                     addToEditorModelCache(modelPath, object);
                                     const objInst = cloneModelForInstancing(object);
                                     objInst.userData.sharedModel = true;
+                                    placeholder.userData._realMesh = objInst;
+                                    placeholder.userData._showReal = true;
                                     placeholder.add(objInst);
+                                    invalidatePickCaches(placeholder);
                                     
                                     object.traverse((child) => {
                                         if (child.isMesh) {
@@ -3478,11 +3817,16 @@
                                             child.material = new THREE.MeshLambertMaterial({ color: 0xcccccc });
                                         }
                                     });
-                                    placeholder.remove(loaderMesh);
+                                    // 范围加载：占位符隐藏保留，供远处恢复占位符
+                                    loaderMesh.visible = false;
+                                    placeholder.userData._loaderMesh = loaderMesh;
                                     addToEditorModelCache(modelPath, object);
                                     const objInst = cloneModelForInstancing(object);
                                     objInst.userData.sharedModel = true;
+                                    placeholder.userData._realMesh = objInst;
+                                    placeholder.userData._showReal = true;
                                     placeholder.add(objInst);
+                                    invalidatePickCaches(placeholder);
                                 },
                                 undefined,
                                 (error) => {
@@ -3500,9 +3844,8 @@
             // 3DGS 高斯场景：占位 + 异步加载真实 PLY 点云
             if (type === 'gaussian_splat') {
                 const group = createGaussianSplatPlaceholder(obj);
-                if (window.editorGaussianLoadIntoGroup) {
-                    window.editorGaussianLoadIntoGroup(obj, group);
-                }
+                // 范围加载：真实 PLY 点云由 updateRangeLoading 按相机距离触发
+                group.userData.pendingGaussian = obj;
                 return group;
             }
 
@@ -3516,6 +3859,172 @@
             mesh.castShadow = true;
             mesh.receiveShadow = true;
             return mesh;
+        }
+
+        // ===== 范围加载：占位符常驻，真实模型按相机距离按需加载 =====
+        // 选中/双击定位的对象无视距离强制加载；超出 EDITOR_UNLOAD_RADIUS 隐藏，回程自动恢复
+        function triggerRealLoad(wo, urgent) {
+            if (!wo || !wo.mesh) return;
+            const p = wo.mesh.userData || {};
+            if (p.pendingGlb && p.pendingGlb.modelPath) {
+                enqueueGlbLoad({ placeholder: wo.mesh, loaderMesh: p.pendingGlb.loaderMesh, obj: p.pendingGlb.obj, modelPath: p.pendingGlb.modelPath }, urgent);
+                p.pendingGlb = null;
+            } else if (p.pendingGeometry) {
+                loadGeometryBuilding(wo.mesh, p.pendingGeometry);
+                p.pendingGeometry = null;
+            } else if (p.pendingGaussian) {
+                if (window.editorGaussianLoadIntoGroup) {
+                    window.editorGaussianLoadIntoGroup(p.pendingGaussian, wo.mesh);
+                }
+                p.pendingGaussian = null;
+            }
+            wo.loaded = true; // 标记已尝试加载（失败也不重复重试）
+        }
+
+        // 选中/定位时强制加载（无视距离），urgent=true 插队优先
+        function forceLoadObject(wo, urgent) {
+            if (!wo || wo.loaded || !wo.mesh) return;
+            triggerRealLoad(wo, urgent);
+        }
+
+        // 范围巡检：相机 120m 内显示真实模型；超出 240m 切换回占位符；占位符始终可见
+        function updateRangeLoading() {
+            const now = performance.now();
+            if (now - _lastRangeScanAt < EDITOR_RANGE_SCAN_MS) return;
+            _lastRangeScanAt = now;
+            // 相机运动检测：旋转/平移/惯性（damping 衰减）期间不触发新加载，
+            // 避免"甩动视角后一批 GLB 下载完成回调集中执行"造成主线程冻结。
+            // 只做可见性切换（showReal/showPlaceholder），相机静止 3 帧后才允许入队加载。
+            const cp = camera.position;
+            if (!_camInit) {
+                _camInit = true;
+                _camLastX = cp.x; _camLastY = cp.y; _camLastZ = cp.z;
+                _camLastTX = controls.target.x; _camLastTY = controls.target.y; _camLastTZ = controls.target.z;
+                _camStillFrames = 3; // 首次巡检直接允许加载
+            } else {
+                const moved = Math.abs(cp.x - _camLastX) + Math.abs(cp.y - _camLastY) + Math.abs(cp.z - _camLastZ)
+                    + Math.abs(controls.target.x - _camLastTX) + Math.abs(controls.target.y - _camLastTY) + Math.abs(controls.target.z - _camLastTZ);
+                _camLastX = cp.x; _camLastY = cp.y; _camLastZ = cp.z;
+                _camLastTX = controls.target.x; _camLastTY = controls.target.y; _camLastTZ = controls.target.z;
+                if (moved > 0.0005) _camStillFrames = 0;
+                else _camStillFrames = Math.min(_camStillFrames + 1, 3);
+            }
+            const cameraStill = _camStillFrames >= 3;
+            const cam = camera.position;
+            let loadedThisScan = 0; // 单次巡检最多触发 EDITOR_MAX_LOAD_PER_SCAN 个加载，摊开加载
+            for (let i = 0; i < worldObjects.length; i++) {
+                const wo = worldObjects[i];
+                if (!wo.mesh) continue;
+                if (selectedObjects.indexOf(wo) >= 0) {
+                    // 选中 → 强制加载并显示真实模型（无视距离），插队优先
+                    forceLoadObject(wo, true);
+                    showReal(wo);
+                    continue;
+                }
+                const wp = wo.mesh.getWorldPosition(_rangeScanVec);
+                const d = cam.distanceTo(wp);
+                if (!wo.loaded) {
+                    if (d <= EDITOR_LOAD_RADIUS && cameraStill && loadedThisScan < EDITOR_MAX_LOAD_PER_SCAN) {
+                        triggerRealLoad(wo);
+                        loadedThisScan++;
+                    }
+                    // 远处未加载 → 占位符一直显示中，无需处理
+                } else if (d > EDITOR_UNLOAD_RADIUS) {
+                    showPlaceholder(wo); // 远处 → 切换回占位符
+                } else if (d <= EDITOR_LOAD_RADIUS) {
+                    showReal(wo);        // 近处 → 显示真实模型
+                }
+                // 120m~240m 渐变区：保持当前显示，避免往返抖动
+            }
+        }
+
+        // 显示真实模型、隐藏占位符
+        function showReal(wo) {
+            if (!wo.mesh) return;
+            const u = wo.mesh.userData || {};
+            // 高斯特殊：点云由外部模块加载，需动态检测是否已就绪
+            if (u.objectType === 'gaussian_splat') {
+                const kids = wo.mesh.children;
+                const hasReal = kids.some(function (c) {
+                    const ud = c.userData || {};
+                    return !ud.gsPlaceholder && !ud.gsProgress;
+                });
+                if (hasReal) {
+                    u._showReal = true;
+                    kids.forEach(function (c) {
+                        const ud = c.userData || {};
+                        if (ud.gsPlaceholder) c.visible = false;
+                        else if (!ud.gsProgress) c.visible = true;
+                    });
+                } else {
+                    u._showReal = true; // 点云未就绪：保持占位符，仅记录意图
+                }
+                return;
+            }
+            if (u._showReal === true) return;
+            u._showReal = true;
+            if (u._realMesh) u._realMesh.visible = true;
+            if (u._loaderMesh) u._loaderMesh.visible = false;
+            if (u._phEls) u._phEls.forEach(function (e) { e.visible = false; });
+        }
+
+        // 显示占位符、隐藏真实模型（占位符始终在场景中，远处不渲染真实模型）
+        function showPlaceholder(wo) {
+            if (!wo.mesh) return;
+            const u = wo.mesh.userData || {};
+            if (u.objectType === 'gaussian_splat') {
+                wo.mesh.children.forEach(function (c) {
+                    const ud = c.userData || {};
+                    if (ud.gsPlaceholder) c.visible = true;
+                    else if (!ud.gsProgress) c.visible = false; // 隐藏真实点云
+                });
+                ensureGaussianPlaceholder(wo.mesh);
+                u._showReal = false;
+                return;
+            }
+            if (u._showReal === false) return;
+            u._showReal = false;
+            if (u._realMesh) u._realMesh.visible = false;
+            if (u._loaderMesh) u._loaderMesh.visible = true;
+            if (u._phEls) u._phEls.forEach(function (e) { e.visible = true; });
+        }
+
+        // 3DGS 占位盒在加载后被 3DGS 模块移除，远处恢复时重建轻量线框盒
+        function ensureGaussianPlaceholder(group) {
+            if (!group) return;
+            for (let i = 0; i < group.children.length; i++) {
+                if (group.children[i].userData && group.children[i].userData.gsPlaceholder) return;
+            }
+            const box = new THREE.Mesh(
+                new THREE.BoxGeometry(3, 3, 3),
+                new THREE.MeshBasicMaterial({ color: 0xa78bfa, wireframe: true })
+            );
+            box.userData.gsPlaceholder = true;
+            group.add(box);
+        }
+
+        // geometry_building: 从 API 拉取 components 渲染真实几何（由范围巡检触发）
+        function loadGeometryBuilding(placeholder, buildingId) {
+            if (!placeholder || !buildingId) return;
+            fetch('/api/geometry-building/' + buildingId)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success && data.building && data.building.geometry_data) {
+                        var components = data.building.geometry_data.components || [];
+                        if (components.length > 0) {
+                            var realMesh = GeometryRenderer.renderFromComponents(components, THREE);
+                            // 占位符隐藏保留（visible 切换），供远处恢复占位符
+                            var phEls = [];
+                            placeholder.children.forEach(function (c) { c.visible = false; phEls.push(c); });
+                            placeholder.userData._phEls = phEls;
+                            placeholder.userData._realMesh = realMesh;
+                            placeholder.userData._showReal = true;
+                            placeholder.add(realMesh);
+                            console.log('✅ 编辑器几何体加载成功:', buildingId);
+                        }
+                    }
+                })
+                .catch(function(e) { console.warn('编辑器加载几何体失败:', e); });
         }
 
         // 创建 3DGS 高斯场景占位（紫色线框立方体 + 中心点，与主场景占位一致）
@@ -3552,6 +4061,7 @@
             if (!selectedObjects.includes(worldObj)) {
                 selectedObjects.push(worldObj);
                 highlightObject(worldObj.mesh, true);
+                forceLoadObject(worldObj); // 选中即加载真实模型（无视距离）
             }
 
             updateSelection();
@@ -3570,6 +4080,7 @@
             } else {
                 selectedObjects.push(worldObj);
                 highlightObject(worldObj.mesh, true);
+                forceLoadObject(worldObj); // 选中即加载真实模型（无视距离）
             }
             updateSelection();
         }
@@ -4454,11 +4965,30 @@
             return iconMap[type?.toLowerCase()] || iconMap['unknown'];
         }
 
-        function updateObjectList() {
+        function updateObjectList(skipScroll) {
             const listContainer = document.getElementById('scene-object-list');
             
             if (worldObjects.length === 0) {
                 listContainer.innerHTML = '<div class="loading">' + weT('list.noObjects', '暂无对象') + '</div>';
+                return;
+            }
+
+            // 已渲染且数量一致 → 仅切换选中样式，避免每次点击全量 innerHTML 重建（选中卡顿根因之一）
+            const existingItems = listContainer.querySelectorAll('.scene-object-item');
+            if (existingItems.length === worldObjects.length && existingItems.length > 0) {
+                existingItems.forEach(el => {
+                    const id = Number(el.getAttribute('data-id'));
+                    el.classList.toggle('selected', selectedObjects.some(o => o.id === id));
+                });
+                document.getElementById('object-count').textContent = worldObjects.length;
+                if (!skipScroll && selectedObjects.length > 0) {
+                    const selectedObj = selectedObjects[0];
+                    const selectedEl = listContainer.querySelector(`[data-id="${selectedObj.id}"]`);
+                    if (selectedEl) {
+                        selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                }
+                updateRightObjectList(skipScroll);
                 return;
             }
 
@@ -4490,7 +5020,7 @@
             document.getElementById('object-count').textContent = worldObjects.length;
 
             // 自动滚动到选中的对象
-            if (selectedObjects.length > 0) {
+            if (!skipScroll && selectedObjects.length > 0) {
                 const selectedObj = selectedObjects[0];
                 const selectedEl = listContainer.querySelector(`[data-id="${selectedObj.id}"]`);
                 if (selectedEl) {
@@ -4499,13 +5029,13 @@
             }
 
             // 同时更新右侧面板的对象列表
-            updateRightObjectList();
+            updateRightObjectList(skipScroll);
         }
 
         // ===== 右侧场景面板 =====
 
         // 更新右侧面板对象列表
-        function updateRightObjectList() {
+        function updateRightObjectList(skipScroll) {
             const listContainer = document.getElementById('right-object-list');
             const countEl = document.getElementById('right-object-count');
 
@@ -4520,6 +5050,28 @@
                 return;
             }
 
+            // 已渲染且数量一致 → 仅切换选中样式，避免全量 innerHTML 重建
+            //（选中频繁触发，全量重建两个列表是点击选中的主要开销）
+            const existingRightItems = listContainer.querySelectorAll('.right-object-item');
+            if (existingRightItems.length === worldObjects.length && existingRightItems.length > 0) {
+                existingRightItems.forEach(el => {
+                    const id = Number(el.getAttribute('data-id'));
+                    const isSel = selectedObjects.some(o => o.id === id);
+                    el.classList.toggle('selected', isSel);
+                    const check = el.querySelector('.right-object-check');
+                    if (check) check.classList.toggle('checked', isSel);
+                });
+                countEl.textContent = worldObjects.length;
+                if (!skipScroll && selectedObjects.length > 0) {
+                    const selectedObj = selectedObjects[0];
+                    const selectedEl = listContainer.querySelector(`[data-id="${selectedObj.id}"]`);
+                    if (selectedEl) {
+                        selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                }
+                return;
+            }
+
             listContainer.innerHTML = worldObjects.map(obj => {
                 const isSelected = selectedObjects.includes(obj);
                 const type = obj.data?.type || 'unknown';
@@ -4531,7 +5083,7 @@
                          onclick="selectObjectByIdRightPanel(${obj.id}, event)"
                          data-id="${obj.id}">
                         <div class="right-object-check ${isSelected ? 'checked' : ''}"
-                             onclick="toggleRightObjectSelection(${obj.id}); event.stopPropagation();"
+                             onclick="event.stopPropagation(); toggleRightObjectSelection(${obj.id});"
                              title="${weT('list.selectToggle', '选择')}">✓</div>
                         <div class="right-object-icon">${icon}</div>
                         <div class="right-object-info">
@@ -4549,7 +5101,7 @@
             countEl.textContent = worldObjects.length;
 
             // 自动滚动到选中的对象
-            if (selectedObjects.length > 0) {
+            if (!skipScroll && selectedObjects.length > 0) {
                 const selectedObj = selectedObjects[0];
                 const selectedEl = listContainer.querySelector(`[data-id="${selectedObj.id}"]`);
                 if (selectedEl) {
@@ -4575,30 +5127,38 @@
             });
         }
 
-        // 在右侧面板选中对象
+        // 在右侧面板定位对象（点击整行仅定位相机并跟随，不打勾、不改变选中状态）
         function selectObjectByIdRightPanel(id, event) {
             const obj = worldObjects.find(o => o.id === id);
             if (obj) {
-                if (event.ctrlKey || event.metaKey) {
-                    toggleSelection(obj);
-                } else {
-                    selectObject(obj, false);
-                }
-                // 定位相机并更新属性面板
+                // 仅定位相机并更新属性面板，不改变勾选状态（复选框不打勾）
                 focusObject(id);
                 updateRightPropsPanel(obj);
-                // 更新列表中的选中状态
-                updateRightObjectList();
             }
         }
 
-        // 点击复选框：切换勾选状态（多选，不影响其他已选对象）
+        // 点击复选框：切换勾选状态（多选，不影响其他已选对象；不定位相机、不滚动列表）
         function toggleRightObjectSelection(id) {
             const obj = worldObjects.find(o => o.id === id);
             if (!obj) return;
-            // 复用 toggleSelection：选中就取消、未选就加入，天然多选
-            toggleSelection(obj);
-            updateRightObjectList();
+            // 手动切换选中状态（等价于 toggleSelection，但跳过相机定位/列表滚动）
+            const index = selectedObjects.indexOf(obj);
+            if (index >= 0) {
+                selectedObjects.splice(index, 1);
+                highlightObject(obj.mesh, false);
+            } else {
+                selectedObjects.push(obj);
+                highlightObject(obj.mesh, true);
+            }
+            // 更新变换控制器与选中计数
+            if (selectedObjects.length === 1) {
+                transformControls.attach(selectedObjects[0].mesh);
+            } else {
+                transformControls.detach();
+            }
+            document.getElementById('selected-count').textContent = selectedObjects.length;
+            // 刷新两侧列表（跳过自动滚动）
+            updateObjectList(true);
         }
 
         // 定位相机到对象
@@ -4962,6 +5522,7 @@
                 camera.position.set(pos.x + 20, pos.y + 15, pos.z + 20);
                 controls.target.copy(pos);
                 controls.update();
+                forceLoadObject(obj, true); // 双击定位 → 无视距离强制加载真实模型，插队优先
             }
         }
 
@@ -5043,6 +5604,13 @@
                 const fileType = fileName.split('.').pop().toUpperCase();
                 const escapedDisplay = escapeHtml(displayName);
                 const escapedFile = escapeHtml(fileName);
+                const isDecimated = !!(model.is_decimated !== undefined ? model.is_decimated : String(model.path || '').endsWith('_dec.glb'));
+                const badge = isDecimated
+                    ? '<span style="display:inline-block;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:3px;padding:0 4px;font-size:10px;margin-left:6px;vertical-align:middle;">已减面</span>'
+                    : '<span style="display:inline-block;background:#fff8e1;color:#f57f17;border:1px solid #ffe082;border-radius:3px;padding:0 4px;font-size:10px;margin-left:6px;vertical-align:middle;">原版</span>';
+                const toggleBtn = isDecimated
+                    ? `<button onclick="toggleDecimation('${model.id}', 'restore'); event.stopPropagation();" title="${weT('uploadedModels.restoreTitle', '还原为完整细节版')}" style="background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:4px;padding:2px 6px;font-size:11px;cursor:pointer;margin-right:4px;">🔄还原原版</button>`
+                    : `<button onclick="toggleDecimation('${model.id}', 'decimate'); event.stopPropagation();" title="${weT('uploadedModels.decimateTitle', '减面以提升性能')}" style="background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;border-radius:4px;padding:2px 6px;font-size:11px;cursor:pointer;margin-right:4px;">✂️减面</button>`;
 
                 return `
                     <div class="object-item draggable-model" 
@@ -5052,10 +5620,11 @@
                          onclick="addUploadedModelToScene('${model.path}', '${escapedDisplay}')"
                          ondragstart="onModelDragStart(event, '${model.path}', '${escapedDisplay}')">
                         <div class="object-info">
-                            <div class="object-name" title="${escapedFile}">${escapedDisplay}</div>
+                            <div class="object-name" title="${escapedFile}">${escapedDisplay}${badge}</div>
                             <div class="object-type">${weTp('list.modelTypeHint', {type: fileType}, '类型: ' + fileType + ' | 点击或拖拽到画布')}</div>
                         </div>
                         <div class="object-actions">
+                            ${toggleBtn}
                             <button class="icon-btn" onclick="deleteUploadedModel('${model.id}'); event.stopPropagation();" title="${weT('list.actionDelete', '删除')}">🗑️</button>
                         </div>
                     </div>
@@ -5124,6 +5693,80 @@
             });
         }
 
+        // 获取当前选择的减面模式
+        function getDecimateMode() {
+            const el = document.querySelector('input[name="decimate-mode"]:checked');
+            return el ? el.value : 'auto';
+        }
+
+        // 减面模式切换提示
+        function onDecimateModeChange(value) {
+            if (value === 'off') {
+                showNotification(weT('uploadedModels.decimateOffWarning', '⚠️ 已选择不减面：将保留全部细节，但大量复制摆放可能导致场景卡顿'), 'warning');
+            }
+        }
+
+        // 抽屉式展开/收起（通用）
+        function toggleDrawer(infoId, arrowId, toggleId) {
+            const info = document.getElementById(infoId);
+            const arrow = document.getElementById(arrowId);
+            const toggle = toggleId ? document.getElementById(toggleId) : null;
+            if (!info || !arrow) return;
+            const isOpen = info.style.display !== 'none';
+            info.style.display = isOpen ? 'none' : 'block';
+            arrow.textContent = isOpen ? '▾' : '▴';
+            if (toggle) toggle.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+        }
+
+        // 减面说明抽屉
+        function toggleDecimateInfo() {
+            toggleDrawer('decimate-info', 'decimate-toggle-arrow', 'decimate-toggle');
+        }
+
+        // 上传格式说明抽屉
+        function toggleFormatInfo() {
+            toggleDrawer('format-info', 'format-toggle-arrow', 'format-toggle');
+        }
+
+        // 切换模型的减面/还原状态
+        async function toggleDecimation(id, action) {
+            const model = uploadedModels.find(m => String(m.id) === String(id));
+            if (!model) return;
+
+            if (action === 'restore') {
+                if (!confirm(weT('uploadedModels.restoreConfirm', '还原后该模型将恢复为完整细节版（高面数）。\n如果该模型在场景中复制了很多份，游戏可能会变卡。\n\n确定要还原吗？'))) return;
+            } else if (action === 'decimate') {
+                if (!confirm(weT('uploadedModels.decimateConfirm', '将对模型执行减面（面数约降85%），场景中所有已放置的该模型会同步切换。\n确定要减面吗？'))) return;
+            }
+
+            try {
+                showNotification(action === 'decimate' ? weT('uploadedModels.decimating', '正在减面，请稍候...') : weT('uploadedModels.restoring', '正在还原...'), 'info');
+                const response = await fetch(`/api/uploaded-models/${id}/${action}`, {
+                    method: 'POST'
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.error || weT('uploadedModels.operationFailed', '操作失败'));
+                }
+                const result = await response.json();
+
+                if (result.success) {
+                    if (result.model) {
+                        const idx = uploadedModels.findIndex(m => String(m.id) === String(id));
+                        if (idx >= 0) uploadedModels[idx] = result.model;
+                    }
+                    updateUploadedModelsList();
+                    showNotification(result.message || weT('uploadedModels.operationSuccess', '操作成功'), (result.decimated || result.restored) ? 'success' : 'info');
+                    await loadUploadedModels();
+                } else {
+                    throw new Error(result.error || result.message || weT('uploadedModels.operationFailed', '操作失败'));
+                }
+            } catch (error) {
+                console.error('切换减面状态失败:', error);
+                showNotification(weTp('uploadedModels.operationFailedWithError', {message: error.message}, '操作失败: ' + error.message), 'error');
+            }
+        }
+
         // 处理文件上传（支持批量）
         async function handleModelUpload(event) {
             const files = Array.from(event.target.files);
@@ -5170,6 +5813,7 @@
                 const displayName = document.getElementById('upload-model-name')?.value?.trim() || '';
                 const formData = new FormData();
                 formData.append('model', file);
+                formData.append('decimate', getDecimateMode());
                 if (displayName) {
                     formData.append('display_name', displayName);
                 }
@@ -5253,6 +5897,7 @@
                         : '';
                     displayNames.push(name);
                 });
+                formData.append('decimate', getDecimateMode());
                 if (displayNames.some(n => n)) {
                     formData.append('display_names', JSON.stringify(displayNames));
                 }
@@ -5432,6 +6077,7 @@
         // ===== 初始化 =====
         window.addEventListener('DOMContentLoaded', () => {
             initThreeJS();
+            loadGroundConfig(); // 加载地块配置（默认 2000×2000）
             loadWorldObjects(); // 会自动添加出生点
             loadUploadedModels(); // 加载已上传的模型列表
             loadThreejsCodeBlocks(); // 加载 Three.js 代码库
@@ -5558,14 +6204,14 @@
         // ===== 抽屉导航面板切换 =====
         function switchPanel(panelName) {
             // 更新左侧导航选中状态
-            const navItems = ['models', 'threejs-code', 'scene', 'images', 'videos', 'live', '3dgs', 'props'];
+            const navItems = ['models', 'threejs-code', 'scene', 'images', 'videos', 'live', '3dgs', 'ground', 'props'];
             navItems.forEach(item => {
                 const el = document.getElementById('nav-' + item);
                 if (el) el.classList.toggle('active', item === panelName);
             });
 
             // 切换右侧内容面板
-            const panelViews = ['models', 'threejs-code', 'scene', 'images', 'videos', 'live', '3dgs', 'props'];
+            const panelViews = ['models', 'threejs-code', 'scene', 'images', 'videos', 'live', '3dgs', 'ground', 'props'];
             panelViews.forEach(view => {
                 const el = document.getElementById('panel-' + view);
                 if (el) el.classList.toggle('active', view === panelName);
@@ -6761,77 +7407,294 @@
 
         // 递归浅克隆：共享 geometry/material（多实例只占一份 GPU 内存）
         function cloneModelForInstancing(root) {
-            const clone = root.clone(); // 浅克隆，不复制 children/geometry/material
-            clone.children = [];
+            const clone = cloneNodeShallow(root);
             for (let i = 0; i < root.children.length; i++) {
                 clone.add(cloneModelForInstancing(root.children[i]));
             }
             return clone;
         }
 
-        // 模型串行加载队列：同时只加载 1 个 GLB
-        function enqueueGlbLoad(task) {
-            glbLoadQueue.push(task);
+        // 浅克隆单节点：copy(source, false) 不递归复制 children，
+        // geometry/material 为共享引用。避免 Object3D.clone() 默认递归深克隆的巨大浪费
+        function cloneNodeShallow(node) {
+            if (node && node.copy) {
+                const n = new node.constructor();
+                n.copy(node, false); // recursive=false：只复制自身属性，不复制 children
+                return n;
+            }
+            const c = node.clone();
+            c.children = [];
+            return c;
+        }
+
+        // 分帧浅克隆：每帧最多克隆 4ms，避免大场景树一次性递归克隆阻塞主线程
+        // （甩动视角后多个模型连续同步克隆是旋转结束卡顿的重要来源之一）
+        function cloneModelForInstancingAsync(root, onDone) {
+            const jobs = [{ src: root, dstParent: null }];
+            let clonedRoot = null;
+            const step = () => {
+                const start = performance.now();
+                while (jobs.length > 0 && performance.now() - start < 4) {
+                    const job = jobs.shift();
+                    const node = cloneNodeShallow(job.src);
+                    if (job.dstParent) job.dstParent.add(node);
+                    else clonedRoot = node;
+                    for (let i = 0; i < job.src.children.length; i++) {
+                        jobs.push({ src: job.src.children[i], dstParent: node });
+                    }
+                }
+                if (jobs.length > 0) {
+                    requestAnimationFrame(step);
+                } else if (onDone) {
+                    onDone(clonedRoot);
+                }
+            };
+            requestAnimationFrame(step);
+        }
+
+        // ===== 加载速度档位：快速（并发全开）/ 标准 / 慢速（低配电脑）=====
+        const GLB_LOAD_LEVELS = {
+            fast:   { label: '⚡ 快速', concurrency: 20, parseConcurrency: 20, interval: 0,   parseInterval: 0   },
+            normal: { label: '标准',   concurrency: 3,  parseConcurrency: 2,  interval: 80,  parseInterval: 180 },
+            slow:   { label: '🐢 慢速', concurrency: 1,  parseConcurrency: 1,  interval: 400, parseInterval: 700 }
+        };
+        let GLB_CONCURRENCY = 3;      // 下载并发数（随档位切换）
+        let GLB_PARSE_CONCURRENCY = 2; // 解析并发数（随档位切换）
+        let GLB_QUEUE_INTERVAL = 50;  // 下载队列间隔 ms（随档位切换）
+        let GLB_PARSE_INTERVAL = 10;  // 解析队列间隔 ms（随档位切换：快速=0 标准=180 慢速=700）
+        let glbActiveCount = 0;
+        let glbLoadedCount = 0;       // 已挂载完成的模型数（进度显示）
+
+        // 切换加载档位：立即生效并记忆到 localStorage
+        function applyGlbLoadLevel(level) {
+            if (!GLB_LOAD_LEVELS[level]) level = 'normal';
+            GLB_CONCURRENCY = GLB_LOAD_LEVELS[level].concurrency;
+            GLB_PARSE_CONCURRENCY = GLB_LOAD_LEVELS[level].parseConcurrency;
+            GLB_QUEUE_INTERVAL = GLB_LOAD_LEVELS[level].interval;
+            GLB_PARSE_INTERVAL = GLB_LOAD_LEVELS[level].parseInterval;
+            // 档位联动范围加载节奏：快速档一次多喂几个、扫得快；慢速档保持单个慢扫防低配卡顿
+            if (level === 'fast') { EDITOR_MAX_LOAD_PER_SCAN = 10; EDITOR_RANGE_SCAN_MS = 100; }
+            else if (level === 'normal') { EDITOR_MAX_LOAD_PER_SCAN = 3; EDITOR_RANGE_SCAN_MS = 250; }
+            else { EDITOR_MAX_LOAD_PER_SCAN = 1; EDITOR_RANGE_SCAN_MS = 500; }
+            try { localStorage.setItem('world_editor_glb_load_level', level); } catch (e) {}
+            const sel = document.getElementById('glb-load-level');
+            if (sel) sel.value = level;
+            console.log(`⚡ 加载模式:「${GLB_LOAD_LEVELS[level].label}」下载并发=${GLB_CONCURRENCY} 解析并发=${GLB_PARSE_CONCURRENCY} 下载间隔=${GLB_QUEUE_INTERVAL}ms 解析间隔=${GLB_PARSE_INTERVAL}ms`);
+        }
+        // 初始化：恢复上次保存的档位
+        try {
+            const savedLevel = localStorage.getItem('world_editor_glb_load_level');
+            if (savedLevel && GLB_LOAD_LEVELS[savedLevel]) applyGlbLoadLevel(savedLevel);
+        } catch (e) {}
+
+        // 模型加载队列：支持并发加载；urgent=true 时插队（用户点击选中的模型优先）
+        function enqueueGlbLoad(task, urgent) {
+            if (urgent) glbLoadQueue.unshift(task);
+            else glbLoadQueue.push(task);
             if (!glbLoadingActive) processGlbQueue();
         }
 
         function processGlbQueue() {
             glbLoadingActive = true;
-            const runNext = () => {
-                if (glbLoadQueue.length === 0) {
-                    glbLoadingActive = false;
-                    return;
+            const pump = () => {
+                while (glbLoadQueue.length > 0 && glbActiveCount < GLB_CONCURRENCY) {
+                    const task = glbLoadQueue.shift();
+                    glbActiveCount++;
+                    // 60s 超时兜底：任何任务（下载/解析/降级/克隆）异常卡住都不能阻塞队列后续模型
+                    let settled = false;
+                    const finish = () => {
+                        if (settled) return;
+                        settled = true;
+                        clearTimeout(timer);
+                        glbActiveCount--;
+                        setTimeout(pump, GLB_QUEUE_INTERVAL);
+                    };
+                    const timer = setTimeout(() => {
+                        console.warn('⚠️ 模型加载超时(60s)，跳过:', task.modelPath);
+                        finish();
+                    }, 60000);
+                    loadGlbModel(task).then(finish, finish);
                 }
-                const task = glbLoadQueue.shift();
-                loadGlbModel(task).finally(runNext);
+                if (glbLoadQueue.length === 0 && glbActiveCount === 0) {
+                    glbLoadingActive = false;
+                }
             };
-            runNext();
+            pump();
         }
 
-        function loadGlbModel({ placeholder, loaderMesh, obj, modelPath }) {
-            return new Promise((resolve) => {
-                // 排队期间可能已被其它任务加载入缓存
-                const cached = editorModelCache.get(modelPath);
-                if (cached && cached.scene) {
-                    const inst = cloneModelForInstancing(cached.scene);
-                    inst.userData.sharedModel = true;
-                    placeholder.remove(loaderMesh);
-                    placeholder.add(inst);
-                    resolve();
-                    return;
+        // ===== 解析并发队列：GLTFLoader.parse 是主线程 CPU 密集任务，按档位限制并发 =====
+        const glbParseQueue = [];
+        let glbParseActiveCount = 0;
+        function enqueueGlbParse(task) {
+            glbParseQueue.push(task);
+            pumpGlbParse();
+        }
+        async function pumpGlbParse() {
+            // meshopt 解码器就绪后再 parse：setupMeshoptLoader 是 .then 异步注册，
+            // 而 loader.parse 是同步的，meshopt 压缩模型(EXT_meshopt_compression)
+            // 会报 'setMeshoptDecoder must be called' → 红框。就绪后全局缓存，只等一次。
+            if (!window.__meshoptReadyChecked) {
+                window.__meshoptReadyChecked = true;
+                if (window.ensureMeshoptReady) {
+                    try { await window.ensureMeshoptReady(); }
+                    catch (e) { console.warn('⚠️ meshopt 解码器未就绪，meshopt 压缩模型可能解析失败:', e); }
                 }
+            }
+            while (glbParseActiveCount < GLB_PARSE_CONCURRENCY && glbParseQueue.length > 0) {
+                const { buffer, modelPath, placeholder, loaderMesh } = glbParseQueue.shift();
+                glbParseActiveCount++;
+                let settled = false;
+                const done = () => {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timer);
+                    glbParseActiveCount--;
+                    setTimeout(pumpGlbParse, GLB_PARSE_INTERVAL);
+                };
+                // 60s 超时兜底：解析/克隆异常卡住不能阻塞整个解析队列
+                const timer = setTimeout(() => {
+                    console.warn('⚠️ 模型解析超时(60s)，跳过:', modelPath);
+                    done();
+                }, 60000);
                 const loader = new THREE.GLTFLoader();
                 window.setupMeshoptLoader && window.setupMeshoptLoader(loader);
                 const dracoLoader = new THREE.DRACOLoader();
                 dracoLoader.setDecoderPath('https://unpkg.com/three@0.128.0/examples/js/libs/draco/');
                 loader.setDRACOLoader(dracoLoader);
-                loader.load(
-                    modelPath,
+                loader.parse(buffer, modelPath,
                     (gltf) => {
-                        console.log('✅ GLTF模型加载成功:', modelPath);
-                        // 纹理降级：4K→1K，几何体完全不动，形状轮廓不变
-                        downsizeSceneTextures(gltf.scene, EDITOR_TEXTURE_MAX_SIZE);
-                        // 入缓存（限制条目数，超限淘汰最旧）
-                        addToEditorModelCache(modelPath, gltf.scene);
-                        // 为当前对象克隆实例
-                        const inst = cloneModelForInstancing(gltf.scene);
-                        inst.userData.sharedModel = true;
-                        placeholder.remove(loaderMesh);
-                        placeholder.add(inst);
-                        resolve();
-                    },
-                    (progress) => {
-                        if (progress.total > 0) {
-                            console.log('📦 GLTF加载进度:', (progress.loaded / progress.total * 100).toFixed(2) + '%');
+                        try {
+                            console.log('✅ GLTF模型解析成功:', modelPath);
+                            // 纹理降级：4K→1K，几何体完全不动，形状轮廓不变。
+                            // rAF 分帧异步执行，避免多个 GLB 回调集中同步重采样阻塞主线程
+                            downsizeSceneTexturesAsync(gltf.scene, EDITOR_TEXTURE_MAX_SIZE);
+                            addToEditorModelCache(modelPath, gltf.scene);
+                            // 分帧浅克隆实例：避免大场景树一次性同步克隆阻塞主线程。
+                            // 克隆期间保持 loaderMesh 显示，完成后无缝切换并结束本任务
+                            cloneModelForInstancingAsync(gltf.scene, (inst) => {
+                                try {
+                                    inst.userData.sharedModel = true;
+                                    // 范围加载：占位符隐藏保留，供远处恢复占位符
+                                    loaderMesh.visible = false;
+                                    placeholder.userData._loaderMesh = loaderMesh;
+                                    placeholder.userData._realMesh = inst;
+                                    placeholder.userData._showReal = true;
+                                    placeholder.add(inst);
+                                    invalidatePickCaches(placeholder);
+                                } catch (e) {
+                                    console.error('❌ 克隆实例挂载失败:', e);
+                                }
+                                glbLoadedCount++;
+                                updateGlbLoadProgress();
+                                done();
+                            });
+                        } catch (e) {
+                            console.error('❌ GLTF解析后处理失败:', e);
+                            done();
                         }
                     },
                     (error) => {
-                        console.error('❌ GLTF加载失败:', error);
+                        console.error('❌ GLTF解析失败:', error);
                         if (loaderMesh && loaderMesh.material) loaderMesh.material.color.set(0xff0000);
-                        resolve();
+                        done();
                     }
                 );
+            }
+        }
+
+        // 加载进度显示：统计已挂载完成的模型数
+        function updateGlbLoadProgress() {
+            const el = document.getElementById('glb-load-progress');
+            if (el) el.textContent = glbLoadedCount;
+        }
+
+        // 下载/解析分离：GLB_CONCURRENCY 只管并发下载（fetch 不占主线程，浏览器连接池自动调度），
+        // 解析走上面的串行队列，避免多个大模型同时解析卡死主线程。
+        function loadGlbModel({ placeholder, loaderMesh, obj, modelPath }) {
+            return new Promise((resolve) => {
+                // 排队期间可能已被其它任务加载入缓存
+                const cached = editorModelCache.get(modelPath);
+                if (cached && cached.scene) {
+                    // 缓存命中：分帧克隆，避免大场景树同步克隆阻塞主线程
+                    cloneModelForInstancingAsync(cached.scene, (inst) => {
+                        inst.userData.sharedModel = true;
+                        // 范围加载：占位符隐藏保留，供远处恢复占位符
+                        loaderMesh.visible = false;
+                        placeholder.userData._loaderMesh = loaderMesh;
+                        placeholder.userData._realMesh = inst;
+                        placeholder.userData._showReal = true;
+                        placeholder.add(inst);
+                        resolve();
+                    });
+                    return;
+                }
+                // 阶段1：并发下载（占满带宽，不阻塞主线程）
+                fetch(modelPath)
+                    .then((r) => {
+                        if (!r.ok) throw new Error('HTTP ' + r.status);
+                        return r.arrayBuffer();
+                    })
+                    .then((buffer) => {
+                        // 阶段2：解析入队（串行执行）；下载已完成，立即释放并发槽位
+                        enqueueGlbParse({ buffer, modelPath, placeholder, loaderMesh });
+                        resolve();
+                    })
+                    .catch((error) => {
+                        console.error('❌ GLTF下载失败:', error, modelPath);
+                        if (loaderMesh && loaderMesh.material) loaderMesh.material.color.set(0xff0000);
+                        resolve();
+                    });
             });
+        }
+
+        // 异步分帧纹理降级：每帧最多处理 8ms，不阻塞主线程。
+        // 实例通过浅克隆共享材质，替换 gltf.scene 的材质纹理后所有实例自动生效。
+        function downsizeSceneTexturesAsync(root, maxSize) {
+            if (!root) return;
+            const slots = ['map','normalMap','roughnessMap','metalnessMap','aoMap','emissiveMap','bumpMap','alphaMap','specularMap','lightMap'];
+            const jobs = [];
+            root.traverse((child) => {
+                if (!child.isMesh) return;
+                const mats = Array.isArray(child.material) ? child.material : [child.material];
+                for (let i = 0; i < mats.length; i++) {
+                    const mat = mats[i];
+                    if (!mat) continue;
+                    for (let s = 0; s < slots.length; s++) {
+                        const tex = mat[slots[s]];
+                        // 防御：个别 GLB 的纹理对象没有 userData（非标准 Texture），访问前兜底
+                        if (tex && tex.image && tex.image.width > maxSize && !(tex.userData && tex.userData._downsized)) {
+                            if (!tex.userData) tex.userData = {};
+                            tex.userData._downsized = true; // 共享纹理只降级一次
+                            jobs.push({ mat, slot: slots[s], tex });
+                        }
+                    }
+                }
+            });
+            if (jobs.length === 0) return;
+            let idx = 0;
+            const step = () => {
+                const start = performance.now();
+                while (idx < jobs.length && performance.now() - start < 8) {
+                    const job = jobs[idx++];
+                    try {
+                        const newTex = downsizeTexture(job.tex, maxSize);
+                        if (newTex) {
+                            job.mat[job.slot] = newTex;
+                            // 旧纹理延迟释放，避免被同帧渲染引用时报 GL 错误
+                            const oldTex = job.tex;
+                            setTimeout(() => {
+                                if (oldTex && oldTex.dispose) {
+                                    try { oldTex.dispose(); } catch (e) {}
+                                }
+                            }, 1000);
+                        }
+                    } catch (e) {
+                        console.warn('[纹理降级] 分帧处理失败:', e && e.message);
+                    }
+                }
+                if (idx < jobs.length) requestAnimationFrame(step);
+            };
+            requestAnimationFrame(step);
         }
 
         // 纹理降级：把超过 maxSize 的贴图用 Canvas 重采样到目标尺寸

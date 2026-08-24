@@ -11,6 +11,7 @@ const { pool } = require('../database/db');
 const AdmZip = require('adm-zip');
 const { compressIfNeeded } = require('../services/modelAutoCompress');
 const { compressTextures } = require('../services/textureCompress');
+const { decimateIfNeeded } = require('../services/modelDecimate');
 
 // 配置文件上传
 const storage = multer.diskStorage({
@@ -58,8 +59,8 @@ router.post('/upload-model', upload.single('model'), async (req, res) => {
     }
 
     const fileName = req.file.originalname;
-    const savedFileName = req.file.filename;
-    const fileSize = req.file.size;
+    let savedFileName = req.file.filename;
+    let fileSize = req.file.size;
     const fileType = path.extname(fileName).toLowerCase().replace('.', '');
     let filePath = `/models/uploaded/${savedFileName}`;
 
@@ -112,6 +113,18 @@ router.post('/upload-model', upload.single('model'), async (req, res) => {
       }
     }
 
+    // 减面：默认自动（>15万面才减），用户上传时可选择 off 跳过
+    const decimateMode = req.body.decimate || 'auto';
+    let decimation = null;
+    if (fileType === 'glb') {
+      decimation = await decimateIfNeeded(req.file.path, { mode: decimateMode });
+      if (decimation.decimated) {
+        savedFileName = path.basename(decimation.decimatedPath);
+        filePath = `/models/uploaded/${savedFileName}`;
+        fileSize = (await fs.stat(decimation.decimatedPath)).size;
+      }
+    }
+
     // 用户自定义名称（可选）
     const displayName = req.body.display_name || null;
 
@@ -136,9 +149,11 @@ router.post('/upload-model', upload.single('model'), async (req, res) => {
 
     // 自动压缩：大尺寸 GLB 用 gltfpack 压缩 + 纹理二级压缩（失败自动跳过，不阻断上传）
     if (fileType === 'glb') {
-      const compression = await compressIfNeeded(req.file.path, fileSize);
+      // 压缩目标是实际生效的文件（减面版则压缩减面版，原始 .glb 保留原质量供还原）
+      const modelAbs = decimation && decimation.decimated ? decimation.decimatedPath : req.file.path;
+      const compression = await compressIfNeeded(modelAbs, fileSize);
       let finalSize = compression.compressed ? compression.compressedSize : fileSize;
-      const texture = await compressTextures(req.file.path, { maxSize: 2048 });
+      const texture = await compressTextures(modelAbs, { maxSize: 2048 });
       if (texture.compressed) finalSize = texture.newSize;
       if (finalSize !== fileSize) {
         await pool.query('UPDATE uploaded_models SET file_size = $1 WHERE id = $2',
@@ -148,6 +163,7 @@ router.post('/upload-model', upload.single('model'), async (req, res) => {
       result.rows[0].compression = compression;
       result.rows[0].textureCompression = { compressed: texture.compressed, reason: texture.reason, originalSize: texture.originalSize, newSize: texture.newSize };
     }
+    result.rows[0].decimation = decimation;
 
     res.json({
       success: true,
@@ -183,8 +199,8 @@ router.post('/upload-models-batch', upload.array('models', 20), async (req, res)
     for (const file of req.files) {
       try {
         const fileName = file.originalname;
-        const savedFileName = file.filename;
-        const fileSize = file.size;
+        let savedFileName = file.filename;
+        let fileSize = file.size;
         const fileType = path.extname(fileName).toLowerCase().replace('.', '');
         let filePath = `/models/uploaded/${savedFileName}`;
 
@@ -228,6 +244,18 @@ router.post('/upload-models-batch', upload.array('models', 20), async (req, res)
           }
         }
 
+        // 减面：默认自动（>15万面才减），用户上传时可选择 off 跳过（批量统一模式）
+        const decimateMode = req.body.decimate || 'auto';
+        let decimation = null;
+        if (fileType === 'glb') {
+          decimation = await decimateIfNeeded(file.path, { mode: decimateMode });
+          if (decimation.decimated) {
+            savedFileName = path.basename(decimation.decimatedPath);
+            filePath = `/models/uploaded/${savedFileName}`;
+            fileSize = (await fs.stat(decimation.decimatedPath)).size;
+          }
+        }
+
         // 批量上传时的 display_name（通过 req.body.display_names JSON数组传入）
         let displayName = null;
         if (req.body.display_names) {
@@ -261,9 +289,11 @@ router.post('/upload-models-batch', upload.array('models', 20), async (req, res)
         let compression = null;
         let textureCompression = null;
         if (fileType === 'glb') {
-          compression = await compressIfNeeded(file.path, fileSize);
+          // 压缩目标是实际生效的文件（减面版则压缩减面版，原始 .glb 保留原质量供还原）
+          const modelAbs = decimation && decimation.decimated ? decimation.decimatedPath : file.path;
+          compression = await compressIfNeeded(modelAbs, fileSize);
           let finalSize = compression.compressed ? compression.compressedSize : fileSize;
-          textureCompression = await compressTextures(file.path, { maxSize: 2048 });
+          textureCompression = await compressTextures(modelAbs, { maxSize: 2048 });
           if (textureCompression.compressed) finalSize = textureCompression.newSize;
           if (finalSize !== fileSize) {
             await pool.query('UPDATE uploaded_models SET file_size = $1 WHERE id = $2',
@@ -271,6 +301,7 @@ router.post('/upload-models-batch', upload.array('models', 20), async (req, res)
             result.rows[0].file_size = finalSize;
           }
         }
+        result.rows[0].decimation = decimation;
 
         results.push({
           success: true,
@@ -326,7 +357,7 @@ router.get('/uploaded-models', async (req, res) => {
     
     const result = await pool.query(query);
 
-    // 补充磁盘实际大小（压缩后文件在磁盘上的真实字节数）
+    // 补充磁盘实际大小（压缩后文件在磁盘上的真实字节数）+ 减面状态派生字段
     for (const row of result.rows) {
       try {
         const filePath = path.join(__dirname, '../../public', row.path || '');
@@ -335,6 +366,10 @@ router.get('/uploaded-models', async (req, res) => {
       } catch (e) {
         row.disk_size = null;
       }
+      const p = String(row.path || '');
+      row.is_decimated = p.endsWith('_dec.glb');
+      row.original_path = row.is_decimated ? p.replace('_dec.glb', '.glb') : null;
+      row.original_file_name = row.is_decimated ? String(row.saved_file_name || '').replace('_dec.glb', '.glb') : null;
     }
 
     res.json({
@@ -405,6 +440,107 @@ router.delete('/uploaded-models/:id', async (req, res) => {
       error: '删除失败',
       details: error.message
     });
+  }
+});
+
+/**
+ * POST /api/uploaded-models/:id/decimate
+ * 对已上传模型执行减面（当初上传时选了不减面，现在想减）
+ * 输出 xxx_dec.glb 新文件，原始文件保留；并同步更新场景中所有引用该模型的 world_objects
+ */
+router.post('/uploaded-models/:id/decimate', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const modelQuery = await pool.query('SELECT * FROM uploaded_models WHERE id = $1', [id]);
+    if (modelQuery.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '模型不存在' });
+    }
+    const model = modelQuery.rows[0];
+
+    if (model.file_type !== 'glb') {
+      return res.status(400).json({ success: false, error: '仅 GLB 模型支持减面' });
+    }
+    if (String(model.path).endsWith('_dec.glb')) {
+      return res.json({ success: true, message: '该模型已是减面版', model, skipped: 'already' });
+    }
+
+    const absPath = path.join(__dirname, '../../public', model.path);
+    const dec = await decimateIfNeeded(absPath, { mode: 'on' }); // 手动触发，小模型也强制减（无效自动回退）
+
+    if (!dec.decimated) {
+      const reasonMsg = {
+        'low-poly': '该模型面数较少，无需减面',
+        'not-reduced': '减面未生效（输出面数未减少），已保留原文件',
+        'no-output': '减面失败（无输出），已保留原文件',
+        'error': '减面失败，已保留原文件'
+      }[dec.reason] || '减面跳过';
+      return res.json({ success: true, message: reasonMsg, decimated: false, reason: dec.reason });
+    }
+
+    const decStat = await fs.stat(dec.decimatedPath);
+    const newSavedName = path.basename(dec.decimatedPath);
+    const newFilePath = `/models/uploaded/${newSavedName}`;
+
+    await pool.query(
+      `UPDATE uploaded_models SET saved_file_name = $1, path = $2, file_size = $3, updated_at = NOW() WHERE id = $4`,
+      [newSavedName, newFilePath, decStat.size, id]
+    );
+    // 同步场景中所有已放置的该模型对象指向减面版
+    await pool.query('UPDATE world_objects SET model_path = $1 WHERE model_path = $2', [newFilePath, model.path]);
+
+    const updated = (await pool.query('SELECT * FROM uploaded_models WHERE id = $1', [id])).rows[0];
+    console.log(`✂️ 模型减面成功: ID ${id}, ${dec.origTris} → ${dec.newTris} 面`);
+    res.json({
+      success: true,
+      message: `减面成功: ${dec.origTris.toLocaleString()} → ${dec.newTris.toLocaleString()} 面`,
+      model: updated,
+      decimated: true
+    });
+  } catch (error) {
+    console.error('❌ 减面失败:', error);
+    res.status(500).json({ success: false, error: '减面失败', details: error.message });
+  }
+});
+
+/**
+ * POST /api/uploaded-models/:id/restore
+ * 还原已上传模型的原版（觉得减面后模糊时切回完整细节）
+ * 仅改引用回到原始 .glb，_dec.glb 文件保留；并同步更新场景中所有引用该模型的 world_objects
+ */
+router.post('/uploaded-models/:id/restore', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const modelQuery = await pool.query('SELECT * FROM uploaded_models WHERE id = $1', [id]);
+    if (modelQuery.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '模型不存在' });
+    }
+    const model = modelQuery.rows[0];
+
+    if (!String(model.path).endsWith('_dec.glb')) {
+      return res.json({ success: true, message: '该模型已是原版，无需还原', model, skipped: 'already' });
+    }
+
+    const originalPath = String(model.path).replace('_dec.glb', '.glb');
+    const originalName = String(model.saved_file_name).replace('_dec.glb', '.glb');
+    const absOriginal = path.join(__dirname, '../../public', originalPath);
+    const stat = await fs.stat(absOriginal).catch(() => null);
+    if (!stat) {
+      return res.status(404).json({ success: false, error: '原始文件不存在，无法还原' });
+    }
+
+    await pool.query(
+      `UPDATE uploaded_models SET saved_file_name = $1, path = $2, file_size = $3, updated_at = NOW() WHERE id = $4`,
+      [originalName, originalPath, stat.size, id]
+    );
+    // 同步场景中所有已放置的该模型对象回到完整细节版
+    await pool.query('UPDATE world_objects SET model_path = $1 WHERE model_path = $2', [originalPath, model.path]);
+
+    const updated = (await pool.query('SELECT * FROM uploaded_models WHERE id = $1', [id])).rows[0];
+    console.log(`🔄 模型已还原原版: ID ${id}`);
+    res.json({ success: true, message: '已还原为完整细节版', model: updated, restored: true });
+  } catch (error) {
+    console.error('❌ 还原模型失败:', error);
+    res.status(500).json({ success: false, error: '还原失败', details: error.message });
   }
 });
 
