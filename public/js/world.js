@@ -1641,6 +1641,11 @@ class World {
   removePlayer(characterId) {
     const playerData = this.players.get(characterId);
     if (playerData && playerData.group) {
+      // 清理骨骼物理实例
+      if (playerData.group.userData && playerData.group.userData.bonePhysics) {
+        try { playerData.group.userData.bonePhysics.dispose(); } catch (e) {}
+        playerData.group.userData.bonePhysics = null;
+      }
       this.scene.remove(playerData.group);
       this.players.delete(characterId);
       console.log(`[World] 已移除玩家 ${characterId}`);
@@ -2340,6 +2345,24 @@ class World {
               characterGroup.userData.cameraBone = cameraBone;
               console.log(`📷 [GLB] 摄像机已绑定到骨骼「${cameraBoneName}」`);
             }
+          }
+
+          // ── 骨骼物理：Dynamic Bone 风格，头发/尾巴/裙子/胸部等跟随移动飘动 ──
+          try {
+            if (typeof window.initBonePhysics === 'function' && model) {
+              const bp = window.initBonePhysics(model, {
+                gravity: 4.0,
+                damping: 0.15,
+                stiffness: 15,
+                elasticity: 1.2
+              });
+              if (bp) {
+                characterGroup.userData.bonePhysics = bp;
+                console.log('[BonePhysics] ✅ 已为模型启用骨骼物理（头发/尾巴/裙子等将跟随移动飘动）');
+              }
+            }
+          } catch (e) {
+            console.warn('[BonePhysics] 初始化异常:', e);
           }
         };
         requestAnimationFrame(fitModel);
@@ -7469,6 +7492,10 @@ class World {
         if (ud.glbMixer) ud.glbMixer.update(dt);
         // 共享动画 mixer（所有独立动画 GLB 共用，绑定在角色模型上）
         if (ud.sharedMixer && ud.sharedMixer !== ud.glbMixer) ud.sharedMixer.update(dt);
+        // 骨骼物理更新（在动画 mixer 之后、渲染之前，驱动头发/尾巴/裙子等飘动）
+        if (ud.bonePhysics && typeof ud.bonePhysics.update === 'function') {
+          ud.bonePhysics.update(dt);
+        }
       });
     }
 
