@@ -2168,13 +2168,31 @@ class World {
           model.scale.set(1, 1, 1);
           model.traverse(c => { c.updateMatrix(); c.updateMatrixWorld(true); });
 
+          // 计算包围盒（区分 SkinnedMesh 和普通 Mesh）
+          // 关键修复：SkinnedMesh 用顶点本身（不应用 matrixWorld）算包围盒
+          // 原因：SkinnedMesh 渲染时 boneInverse 会抵消 bone.matrixWorld 中的 Armature.scale，
+          // 所以渲染时顶点不会被 Armature.scale 缩放。若用 matrixWorld 算包围盒，
+          // 会把 Armature.scale(常见为 9) 误算进 maxDim，导致 scale 被错误缩小 N 倍。
           const box = new THREE.Box3();
+          const _tmpV = new THREE.Vector3();
           model.traverse(c => {
             if (c.isMesh && c.geometry) {
-              c.geometry.computeBoundingBox();
-              const mb = c.geometry.boundingBox.clone();
-              mb.applyMatrix4(c.matrixWorld);
-              box.union(mb);
+              if (c.isSkinnedMesh) {
+                // SkinnedMesh：用顶点本身（不应用 matrixWorld）
+                const pos = c.geometry.attributes.position;
+                if (pos) {
+                  for (let i = 0; i < pos.count; i++) {
+                    _tmpV.fromBufferAttribute(pos, i);
+                    box.expandByPoint(_tmpV);
+                  }
+                }
+              } else {
+                // 普通 Mesh：用 matrixWorld（保持原逻辑）
+                c.geometry.computeBoundingBox();
+                const mb = c.geometry.boundingBox.clone();
+                mb.applyMatrix4(c.matrixWorld);
+                box.union(mb);
+              }
             }
           });
           const size = new THREE.Vector3();
@@ -2186,14 +2204,24 @@ class World {
           const scale = (maxDim > 0.001 ? targetH / maxDim : 1);
           console.log(`✅ [GLB] 玩家${characterId} 原始尺寸=${maxDim.toFixed(4)}米 目标高度=${targetH}米 缩放=${scale.toFixed(4)}`);
 
-          // 先计算基础偏移（基于未缩放的模型）
+          // 先计算基础偏移（基于未缩放的模型，同样区分 SkinnedMesh）
           const nb = new THREE.Box3();
           model.traverse(c => {
             if (c.isMesh && c.geometry) {
-              c.geometry.computeBoundingBox();
-              const mb = c.geometry.boundingBox.clone();
-              mb.applyMatrix4(c.matrixWorld);
-              nb.union(mb);
+              if (c.isSkinnedMesh) {
+                const pos = c.geometry.attributes.position;
+                if (pos) {
+                  for (let i = 0; i < pos.count; i++) {
+                    _tmpV.fromBufferAttribute(pos, i);
+                    nb.expandByPoint(_tmpV);
+                  }
+                }
+              } else {
+                c.geometry.computeBoundingBox();
+                const mb = c.geometry.boundingBox.clone();
+                mb.applyMatrix4(c.matrixWorld);
+                nb.union(mb);
+              }
             }
           });
           let offsetX = -((nb.min.x + nb.max.x) / 2);
