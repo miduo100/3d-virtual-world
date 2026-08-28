@@ -13,6 +13,7 @@ const { query } = require('../../database/db');
 const { uploadAnimLib, uploadSound } = require('./uploads');
 const multer = require('multer');
 const path = require('path');
+const { fixAnimUpAxis } = require('./fixAnimUpAxis');
 
 // 创建支持多种文件类型的上传中间件（用于编辑）
 const fs = require('fs');
@@ -532,6 +533,70 @@ router.post('/anim-library/detach-platform', async (req, res) => {
   } catch (e) {
     console.error('[anim-library detach-platform POST]', e.message);
     res.status(500).json({ error: '取消关联失败: ' + e.message });
+  }
+});
+
+/**
+ * POST /api/character-templates/anim-library/:id/fix-up-axis
+ * 检测并修复自定义上传动作的"趴地"问题（Hips 朝向补偿）
+ * Body: { anim_url?: string }
+ *   anim_url 可选；若提供则修复该具体动画文件，否则修复模板该动作列关联的文件
+ */
+router.post('/anim-library/:id/fix-up-axis', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { anim_url } = req.body || {};
+
+    // 取模板（含模型 glb_url 与动作列）
+    const tmplResult = await query(
+      'SELECT * FROM character_templates WHERE id = $1',
+      [id]
+    );
+    if (tmplResult.rows.length === 0) {
+      return res.status(404).json({ error: '角色模板不存在' });
+    }
+    const tmpl = tmplResult.rows[0];
+    if (!tmpl.glb_url) {
+      return res.status(400).json({ error: '模板未配置模型文件，无法计算补偿' });
+    }
+
+    const modelPath = path.join(__dirname, '../../../public' + tmpl.glb_url);
+
+    // 确定要修复的动画文件
+    let animUrl = anim_url;
+    if (!animUrl) {
+      return res.status(400).json({ error: '缺少 anim_url 参数' });
+    }
+
+    const animPath = path.join(__dirname, '../../../public' + animUrl);
+
+    const result = fixAnimUpAxis(modelPath, animPath);
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    if (!result.detected) {
+      return res.json({
+        success: true,
+        detected: false,
+        fixedChannels: result.fixedChannels,
+        fixedFrames: result.fixedFrames,
+        message: result.note || '未检测到趴地问题，无需修复',
+      });
+    }
+
+    res.json({
+      success: true,
+      detected: true,
+      fixedChannels: result.fixedChannels,
+      fixedFrames: result.fixedFrames,
+      backupPath: result.backupPath,
+      message: `已修复 ${result.fixedFrames} 帧，请刷新预览`,
+    });
+  } catch (e) {
+    console.error('[anim-library fix-up-axis]', e.message);
+    res.status(500).json({ error: '修复失败: ' + e.message });
   }
 });
 

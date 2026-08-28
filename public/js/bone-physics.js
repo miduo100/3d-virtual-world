@@ -45,6 +45,7 @@
     stiffness: 15,      // 距离约束强度（速率），越大链越"硬"（不易拉长变形）
     elasticity: 1.2,    // 弹性回拉强度（速率），越大越贴动画（越"硬"），越小越飘
     iterations: 1,      // 距离约束迭代次数
+    maxAngle: 110,      // 单骨骼最大旋转角（度），防止 bind 造型与重力方向冲突时翻转
     rootInPhysics: false, // 根骨骼（父非物理）是否也参与物理摆动
     // 名称分组参数：先匹配的组覆盖默认参数
     groups: [
@@ -52,8 +53,8 @@
       { match: /breast/i, gravity: 0.8, stiffness: 25, elasticity: 5, damping: 0.22, rootInPhysics: true },
       // 马尾 / 尾巴：明显拖拽
       { match: /(ponytail|_tail|tail\.)/i, gravity: 5.0, stiffness: 12, elasticity: 1.0, damping: 0.13 },
-      // 裙子：重力主导，自然下垂
-      { match: /skirt/i, gravity: 6.0, stiffness: 12, elasticity: 0.8, damping: 0.14 },
+      // 裙子：轻重力 + 强回拉，静止时贴合绑定造型，转动时才飘
+      { match: /skirt/i, gravity: 1.2, stiffness: 12, elasticity: 2.8, damping: 0.14 },
       // 呆毛：轻、弹、灵动
       { match: /ahoge/i, gravity: 2.0, stiffness: 22, elasticity: 3.5, damping: 0.1 },
       // 兽耳：轻微摆动
@@ -219,6 +220,31 @@
     // 按深度排序（父先于子）
     this._particles.sort(function (a, b) { return a.depth - b.depth; });
 
+    // 计算每个物理骨骼的"延伸方向"（骨骼自身局部空间单位向量）。
+    // 关键：旋转骨骼 quaternion 只改变"本骨骼→子骨骼"的方向（不改变本骨骼自身位置），
+    // 因此摆动基准必须是"本骨骼→物理子骨骼"的方向；末端骨骼无物理子，沿用"父→本骨骼"方向。
+    // 同时记录"物理子粒子"，供旋转应用阶段取一致的参考点。
+    var childByParent = new Map();
+    this._particles.forEach(function (q) {
+      if (q.parent) childByParent.set(q.parent, q);
+    });
+    this._particles.forEach(function (q) {
+      var child = childByParent.get(q.bone);
+      q.childParticle = child || null;
+      var dir;
+      if (child) {
+        dir = child.bone.position.clone(); // "本骨骼→子骨骼"局部方向
+      } else {
+        // 末端：把"父→本骨骼"方向转到本骨骼自身空间（bind 姿态）
+        dir = q.bone.position.clone();
+        if (dir.lengthSq() > 0.000001) {
+          dir.applyQuaternion(q.bindLocalQuat.clone().invert());
+        }
+      }
+      if (dir.lengthSq() < 0.000001) dir.set(0, 0, 1); // 兜底方向
+      q.extendDir = dir.normalize();
+    });
+
     if (this._particles.length) {
       console.log('[BonePhysics] 初始化完成：物理骨骼 ' + this._particles.length + ' 个');
       this._initialized = true;
@@ -319,7 +345,12 @@
       p.pos.copy(v2);
     }
 
-    // 5. 旋转应用：旋转子骨骼使"父→子"方向指向物理方向
+    // 5. 旋转应用：旋转骨骼自身，使其"延伸方向"从基础姿态方向对齐到物理方向
+    //    注意：旋转骨骼 quaternion 只改变"本骨骼→子骨骼"方向（不改变自身位置），
+    //    因此 v1 取"本骨骼→物理子骨骼"的延伸方向（build 时算好的 extendDir）；
+    //    v2 的参考点必须与 v1 保持一致（都从本骨骼出发）：
+    //      - 有物理子：物理方向 = 子粒子位置 − 本骨骼世界位置
+    //      - 末端骨骼：物理方向 = 本骨骼粒子位置 − 父锚点
     for (i = 0; i < this._particles.length; i++) {
       p = this._particles[i];
       if (p.isRoot && !p.participates) continue;
@@ -328,22 +359,47 @@
       // 父骨骼世界旋转（动画后，应用物理前）
       var fp = this._map.get(p.parent);
       var fWorldQuat = fp ? fp.animQuat : this._q1.setFromRotationMatrix(p.parent.matrixWorld);
-      // 父锚点：父是物理 → 父物理位置；否则父动画位置
-      var anchor = fp ? fp.pos : (worldPos(p.parent, v3));
-      var fAnimPos = fp ? fp.animPos : v3;
+      var fWorldQuatInv = this._q2.copy(fWorldQuat).invert();
 
-      // rest 方向（动画状态，父局部空间）
-      v1.copy(p.animPos).sub(fAnimPos).normalize();
-      v1.applyQuaternion(this._q2.copy(fWorldQuat).invert());
-      // 物理方向（物理状态，父局部空间）
-      v2.copy(p.pos).sub(anchor).normalize();
-      v2.applyQuaternion(this._q3.copy(fWorldQuat).invert());
+      // 基础姿态下的延伸方向（父局部空间）：局部延伸方向 × 基础姿态
+      v1.copy(p.extendDir).applyQuaternion(p.baseLocalQuat);
+      if (v1.lengthSq() < 0.000001) continue;
 
-      if (v1.lengthSq() > 0.000001 && v2.lengthSq() > 0.000001) {
-        this._q1.setFromUnitVectors(v1, v2);
-        // 应用到骨骼局部旋转（保持动画基础姿态）
-        p.bone.quaternion.copy(p.baseLocalQuat).multiply(this._q1);
+      // 物理目标方向（父局部空间），参考点与 v1 一致（都从本骨骼出发）
+      var pChild = p.childParticle;
+      if (pChild) {
+        // 有物理子：目标 = 子粒子位置 − 本骨骼世界位置
+        worldPos(p.bone, v3);
+        v2.copy(pChild.pos).sub(v3);
+      } else {
+        // 末端：目标 = 本骨骼粒子位置 − 父骨骼动画位置（bind 位置）。
+        // 统一与"有物理子"分支的基准一致（都相对 bind 位置），摆动才能平滑传播到末端；
+        // 若用父粒子位置，父粒子与末端粒子同步滞后、相减后方向不变，末端将不转、摆动被截断。
+        worldPos(p.parent, v3);
+        v2.copy(p.pos).sub(v3);
       }
+      v2.applyQuaternion(fWorldQuatInv);
+      if (v2.lengthSq() < 0.000001) continue;
+      v2.normalize();
+
+      this._q1.setFromUnitVectors(v1, v2);
+      // 角度钳制：部分装饰骨骼（如贴身的缎带）bind 造型与重力方向夹角极大，
+      // 直接对齐会整体翻折，视觉上像"反穿"。限制单骨骼旋转角避免翻转。
+      var maxRad = this.options.maxAngle * Math.PI / 180;
+      if (maxRad < Math.PI) {
+        var halfAng = Math.acos(Math.min(1, Math.abs(this._q1.w))); // 旋转半角
+        if (halfAng > maxRad * 0.5) {
+          // 保留旋转轴、按比例缩小旋转角
+          var axis = this._v3.set(this._q1.x, this._q1.y, this._q1.z);
+          if (axis.lengthSq() > 1e-12) {
+            axis.normalize();
+            var s = Math.sin(maxRad * 0.5);
+            this._q1.set(axis.x * s, axis.y * s, axis.z * s, Math.cos(maxRad * 0.5));
+          }
+        }
+      }
+      // 左乘：在父局部空间下叠加物理旋转，同时保留基础姿态
+      p.bone.quaternion.copy(this._q1).multiply(p.baseLocalQuat);
     }
 
     // 6. 应用旋转后的世界矩阵（渲染需要）

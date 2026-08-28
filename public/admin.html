@@ -7493,10 +7493,12 @@
         <div style="background:rgba(0,0,0,0.28);border:1px solid var(--border);border-radius:7px;padding:10px">
           <div style="font-size:11px;color:var(--green);font-weight:700;margin-bottom:7px">${labelText}</div>
           ${existingUrl && !isPending
-            ? `<div style="font-size:10px;color:var(--blue);margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${existingUrl}">
+            ? `<div style="font-size:10px;color:var(--blue);margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(existingUrl)}">
                 ✅ ${fileName}
-                <button onclick="_clearAnimField('${key}')"
+                <button onclick="_clearAnimField('${escapeJs(key)}')"
                   style="margin-left:5px;background:#c0392b;border:none;color:#fff;border-radius:3px;padding:1px 5px;cursor:pointer;font-size:10px">✕</button>
+                <button type="button" onclick="AnimUpAxisFixer.fix('${escapeJs(key)}', '${escapeJs(existingUrl || '')}', '${escapeJs(_currentTmplId || '')}', this)"
+                  style="margin-left:4px;background:#e67e22;border:none;color:#fff;border-radius:3px;padding:1px 6px;cursor:pointer;font-size:10px">🔧 ${_tchT('adminCharacters.animFixBtn', '检测修复')}</button>
                </div>`
             : isPending
             ? `<div style="font-size:10px;color:#e74c3c;margin-bottom:5px">${_tchT('adminCharacters.animWillDelete')}</div>`
@@ -10760,6 +10762,8 @@ async function initBoneEditor() {
     <!-- 多平台动作库功能 -->
     <script src="js/animLibMenu.js"></script>
     <script src="js/multiPlatformAnimLib.js"></script>
+    <!-- 动作趴地检测修复 -->
+    <script src="js/animUpAxisFixer.js?v=20260828c"></script>
     
     <!-- 国际化语言切换 -->
     <script>

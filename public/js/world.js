@@ -501,6 +501,11 @@ class World {
    * @param {THREE.Object3D} obj - 要添加到场景的对象
    */
   _addModelToScene(obj) {
+    // 【修复】SkinnedMesh 去蒙皮：带骨骼动画的模型（如 LittlestTokyo 街道场景）加载后，
+    // 骨骼矩阵与顶点不匹配会把顶点渲染到远离 pivot 的位置（产生幻影石头），
+    // 且 setFromObject 计算包围盒会包含远处骨骼导致视锥剔除闪烁。
+    // 世界对象不使用骨骼动画，统一烘焙为静态网格（顶点固定在 bind pose 位置）。
+    this._bakeSkinsToStatic(obj);
     this.scene.add(obj);
     // 批量延迟编译：同一帧内的多次add合并为一次compile
     if (!this._pendingShaderCompile) {
@@ -513,6 +518,36 @@ class World {
         }
         this._pendingShaderCompile = false;
       });
+    }
+  }
+
+  /**
+   * 将模型树中的 SkinnedMesh 烘焙为静态网格（移除蒙皮与骨骼）
+   * - 顶点固定在 bind pose 位置，不再被骨骼矩阵"甩"到远处
+   * - 移除骨骼节点，setFromObject 包围盒不再包含远处骨骼（消除视锥剔除闪烁）
+   * @param {THREE.Object3D} obj
+   */
+  _bakeSkinsToStatic(obj) {
+    const bones = [];
+    obj.traverse((node) => {
+      if (node.isBone) {
+        bones.push(node);
+      } else if (node.isSkinnedMesh) {
+        node.skeleton = null;
+        node.isSkinnedMesh = false;
+        const mats = Array.isArray(node.material) ? node.material : [node.material];
+        for (let i = 0; i < mats.length; i++) {
+          if (mats[i]) mats[i].skinning = false;
+        }
+        if (node.geometry) {
+          node.geometry.computeBoundingBox();
+          node.geometry.computeBoundingSphere();
+        }
+      }
+    });
+    for (let i = 0; i < bones.length; i++) {
+      const bone = bones[i];
+      if (bone.parent) bone.parent.remove(bone);
     }
   }
 
@@ -2260,7 +2295,15 @@ class World {
           if (savedParent) savedParent.add(model);
           else characterGroup.add(model);
           model.position.set(offsetX, offsetY, offsetZ);
-          model.traverse(child => { if (child.isMesh) child.castShadow = true; });
+          model.traverse(child => {
+            if (child.isMesh) {
+              child.castShadow = true;
+              // 【修复】SkinnedMesh 关闭视锥剔除：动画/骨骼物理每帧驱动顶点，
+              // 而 geometry.boundingSphere 是 bind pose 静态计算的，剔除判定与实际渲染位置脱节，
+              // 导致他人视角下衣服/眼睛/头随视角/距离变化被误剔除（逐件消失）。
+              if (child.isSkinnedMesh) child.frustumCulled = false;
+            }
+          });
 
           // 记录 GLB 模型的贴地偏移量，供 player.js 修正 playerHeight
           // GLB 模型原点已通过 offsetY 贴地，characterGroup.position.y 应为 0（地面）
