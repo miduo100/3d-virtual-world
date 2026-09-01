@@ -351,6 +351,7 @@
             <div style="font-size: 10px; color: var(--muted); margin-top: 4px; line-height: 1.5;">
               ${_alT('adminAnimLib.withoutSkinTip1')}<br>
               ${_alT('adminAnimLib.withoutSkinTip2')}
+              <div style="color:#e67e22;margin-top:2px">${_alT('adminAnimLib.yUpTip')}</div>
             </div>
           </div>
           <div class="form-group">

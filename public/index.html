@@ -1401,6 +1401,10 @@
   <script src="js/bone-platforms-config.js"></script>
   <script src="js/bone-platforms-adapter.js"></script>
   <script src="js/anim-retarget-helper.js"></script>
+  <!-- 畸形双骨骼链修复（GLTFLoader 去重后缀导致 SkinnedMesh 绑到副本链） -->
+  <script src="js/duplicateBoneChainFixer.js"></script>
+  <!-- 动作库动画骨骼约定托底补偿（模型 rest 约定与 Mixamo 动作库不一致时自动补偿） -->
+  <script src="js/animConventionCompensator.js"></script>
   
   <script src="js/animLoader.js"></script>
   <!-- 骨骼物理引擎（Dynamic Bone 风格，头发/尾巴/裙子等跟随移动飘动） -->

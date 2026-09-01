@@ -2987,6 +2987,7 @@
             <span data-i18n="adminCharacters.infoGlbTip1">📌 T-pose 基础模型，只负责角色外形/皮肤，不含动作。动作在「动作配置」标签页中单独上传配置。</span>
             <br><span data-i18n="adminCharacters.infoGlbTip2">💡 选择正确的来源平台可自动适配骨骼映射。</span>
             <br><span data-i18n="adminCharacters.infoGlbTip3Prefix">🔗 FBX转GLB用这个：</span><a href="https://metool.online/zh/3d/modelConvert/" target="_blank" style="color:#4a90d9;" data-i18n="adminCharacters.infoGlbTip3Link">点击进入 metool.online</a>
+            <br><span data-i18n="adminCharacters.infoGlbTipYup" style="color:#e67e22">⚠️ Blender 导出 glTF 时请【勾选】「+Y 向上」，否则模型会躺倒。模型与动作必须用同一种设置（都勾选或都不勾选），混用会导致角色趴地。</span>
           </div>
           <div id="tmpl-glb-current" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
         </div>
@@ -3037,6 +3038,7 @@
       <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;background:rgba(0,255,0,0.05);border:1px solid rgba(0,255,0,0.15);border-radius:7px;padding:10px">
         🎬 每个角色单独配置动作 GLB，互不影响，延展性最强。<br>
         推荐使用 <b>Mixamo</b> 导出 <b>Without Skin</b> 的 GLB 文件。点击「💾 保存动作」提交所有更改。
+        <div data-i18n="adminCharacters.animYupTip" style="margin-top:6px;color:#e67e22">⚠️ Blender 导出 glTF 时请【取消勾选】「+Y 向上」，否则角色播放时会趴地躺倒。若上传后发现趴地，点动作卡片上的「🔧 检测修复」可自动修正。</div>
       </div>
 
       <!-- 动作分组 -->
@@ -8497,21 +8499,11 @@ async function initBoneEditor() {
     if (noGlbTip) noGlbTip.style.display = 'none';
     if (wrap) { wrap.style.display = 'flex'; }
 
-    // 如已初始化，重新加载模型
-    if (_boneEditor) {
-      // 清理旧资源
-      if (_boneEditor.scene) {
-        _boneEditor.boneMarkers.forEach(marker => {
-          if (_boneEditor.scene) _boneEditor.scene.remove(marker);
-        });
-        _boneEditor.boneMarkers = [];
-        _boneEditor.allBones = [];
-      }
-      if (_boneEditor._rafId) {
-        cancelAnimationFrame(_boneEditor._rafId);
-        _boneEditor._rafId = null;
-      }
-    }
+    // 如已初始化，先彻底销毁旧编辑器（renderer + 模型 + 纹理 + WebGL 上下文）。
+    // 以前这里只清了 markers/rafId 就 new 一个新 renderer，旧上下文一直泄漏；
+    // 累积到 Chrome 的 16 个上限后会强制丢弃旧上下文，
+    // 使 GLTFLoader 的纹理加载抛 TypeError: Failed to fetch（[BoneEditor] GLB 解析失败）。
+    _destroyBoneEditor(true);
 
     // 动态加载 Three.js（admin.html 不含 Three.js，按需注入）
     await _waitForTHREE();
@@ -8905,15 +8897,50 @@ async function initBoneEditor() {
     }
   }
 
-  function _destroyBoneEditor() {
+  function _destroyBoneEditor(replaceCanvas) {
     if (!_boneEditor) return;
     try {
-      cancelAnimationFrame(_boneEditor._rafId);
-      _boneEditor.renderer.dispose();
-      _boneEditor.scene.clear();
-    } catch(e) {}
+      if (_boneEditor._rafId) cancelAnimationFrame(_boneEditor._rafId);
+      // 释放场景内所有 geometry / material / texture，避免 GPU 显存泄漏
+      if (_boneEditor.scene) {
+        _boneEditor.scene.traverse(function (obj) {
+          if (obj.geometry && obj.geometry.dispose) obj.geometry.dispose();
+          const mats = Array.isArray(obj.material) ? obj.material : (obj.material ? [obj.material] : []);
+          mats.forEach(function (m) {
+            ['map', 'normalMap', 'bumpMap', 'roughnessMap', 'metalnessMap',
+             'aoMap', 'emissiveMap', 'alphaMap', 'envMap', 'lightMap'].forEach(function (k) {
+              if (m[k] && m[k].dispose) m[k].dispose();
+            });
+            if (m.dispose) m.dispose();
+          });
+        });
+        _boneEditor.scene.clear();
+      }
+      if (_boneEditor.renderer) {
+        _boneEditor.renderer.dispose();
+        // dispose() 不会归还 WebGL 上下文，必须显式 forceContextLoss()，
+        // 否则每次点开本 Tab 都泄漏一个上下文，累积到 16 个后 Chrome 强制丢弃旧上下文
+        // （WARNING: Too many active WebGL contexts），导致纹理加载失败。
+        if (_boneEditor.renderer.forceContextLoss) _boneEditor.renderer.forceContextLoss();
+      }
+    } catch(e) { console.warn('[BoneEditor] 释放资源失败:', e); }
     _boneEditor = null;
     closeBonePopup();
+
+    // forceContextLoss() 之后该 canvas 无法再取到新的 WebGL 上下文，需要时换一个干净的
+    if (replaceCanvas) {
+      try {
+        const oldCanvas = document.getElementById('bone-canvas');
+        if (oldCanvas && oldCanvas.parentNode) {
+          const fresh = document.createElement('canvas');
+          fresh.id = 'bone-canvas';
+          fresh.style.width = '100%';
+          fresh.style.height = '100%';
+          fresh.style.display = 'block';
+          oldCanvas.parentNode.replaceChild(fresh, oldCanvas);
+        }
+      } catch (e) { console.warn('[BoneEditor] 重建 canvas 失败:', e); }
+    }
   }
 
   async function saveBoneMap() {

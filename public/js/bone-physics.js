@@ -29,12 +29,16 @@
 (function () {
   'use strict';
 
-  // ===== 物理骨骼关键词（小写匹配） =====
-  var PHYSICS_KEYWORDS = [
-    'hair', 'tail', 'skirt', 'cape', 'ribbon', 'bun', 'breast',
-    'ahoge', 'kemomimi', 'bell', 'dress', 'fringe', 'bang',
-    'ear', 'tassel', 'sash', 'hem', 'coat', 'ponytail',
-    'twin', 'cloth', 'muscle', 'cloth_'
+  // ===== 物理骨骼匹配模式（正则，大小写不敏感） =====
+  // ⚠️ 必须用正则而非裸子串：子串匹配会把 "ForeArm" 里的 ear 命中，
+  //    导致 mixamorigLeftForeArm / mixamorigRightForeArm 被误判为兽耳骨骼，
+  //    每帧被物理旋转覆盖 → 前臂僵死不动（表现为手臂僵硬）。
+  //    因此 'ear' 用词边界 \b，其余保持子串语义以兼容原有模型。
+  var PHYSICS_PATTERNS = [
+    /hair/i, /tail/i, /skirt/i, /cape/i, /ribbon/i, /bun/i, /breast/i,
+    /ahoge/i, /kemomimi/i, /bell/i, /dress/i, /fringe/i, /bang/i,
+    /\bear\b/i, /tassel/i, /sash/i, /hem/i, /coat/i, /ponytail/i,
+    /twin/i, /cloth/i, /muscle/i
   ];
 
   // ===== 默认参数 =====
@@ -106,11 +110,11 @@
     return merged;
   };
 
-  // 判断骨骼名是否为物理骨骼
+  // 判断骨骼名是否为物理骨骼（正则匹配，'ear' 走词边界避免误伤 ForeArm）
   BonePhysics.prototype._isPhysicsBone = function (name) {
-    var lower = (name || '').toLowerCase();
-    for (var i = 0; i < PHYSICS_KEYWORDS.length; i++) {
-      if (lower.indexOf(PHYSICS_KEYWORDS[i]) !== -1) return true;
+    var n = name || '';
+    for (var i = 0; i < PHYSICS_PATTERNS.length; i++) {
+      if (PHYSICS_PATTERNS[i].test(n)) return true;
     }
     return false;
   };

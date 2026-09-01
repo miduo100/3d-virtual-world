@@ -15,6 +15,7 @@ const fsSync = require('fs');
 const { query } = require('../../database/db');
 const { fileHash } = require('./utils');
 const { upload, uploadSound, uploadSkillAnim } = require('./uploads');
+const { compressCharGlb } = require('./charTextureCompress');
 
 // GET /api/character-templates  获取所有模板（公开接口）
 router.get('/', async (req, res) => {
@@ -177,6 +178,9 @@ router.post('/', upload.fields([
     if (req.files?.glb_file?.[0]) {
       const f = req.files.glb_file[0];
       glb_url = `/uploads/character-templates/${f.filename}`;
+      // 角色模板纹理压缩（4K→2K），失败自动跳过、不阻断上传
+      await compressCharGlb(f.path, 'char-template-create');
+      // 压缩后再算 hash，保证 glb_hash 与磁盘上的最终文件一致
       glb_hash = await fileHash(f.path);
     }
     if (req.files?.thumbnail?.[0]) {
@@ -371,6 +375,9 @@ router.put('/:id', upload.fields([
       const f = req.files.glb_file[0];
       if (old.glb_url) fs.unlink(path.join(__dirname, '../../public', old.glb_url)).catch(() => {});
       glb_url = `/uploads/character-templates/${f.filename}`;
+      // 角色模板纹理压缩（4K→2K），失败自动跳过、不阻断上传
+      await compressCharGlb(f.path, 'char-template-update');
+      // 压缩后再算 hash，保证 glb_hash 与磁盘上的最终文件一致
       glb_hash = await fileHash(f.path);
     }
     if (req.files?.thumbnail?.[0]) {

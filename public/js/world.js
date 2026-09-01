@@ -2195,6 +2195,21 @@ class World {
 
         // 用独立临时容器 + 逐mesh包围盒 + 单位自动修正
         const fitModel = () => {
+          // 【修复】畸形双骨骼链：GLTFLoader 会给重复骨骼名自动加 _N 去重后缀，
+          // 若某个 SkinnedMesh 的 skin.joints 指向了副本链，动画轨道（原始名、无后缀）
+          // 就永远驱动不到它，身体会停在 bind pose，表现为「手臂扭曲/变形」。
+          // 副本骨骼是主骨骼的同名子节点且本地变换为单位矩阵（世界矩阵与主骨骼一致），
+          // 因此可安全地把 SkinnedMesh 换绑回主链，inverseBindMatrices 无需重算。
+          if (window.DuplicateBoneChainFixer && typeof window.DuplicateBoneChainFixer.fix === 'function') {
+            try {
+              const _chainFix = window.DuplicateBoneChainFixer.fix(model);
+              if (_chainFix && _chainFix.fixed) {
+                console.log(`🔗 [BoneChainFix] 已修复畸形双骨骼链：${_chainFix.fixedMeshes} 个 mesh / ${_chainFix.changedBones} 根骨骼换绑到主链（副本骨骼 ${_chainFix.dupBones} 根）`);
+              }
+            } catch (e) {
+              console.warn('[BoneChainFix] 修复异常，已忽略:', e);
+            }
+          }
           const savedParent = model.parent;
           const tempRoot = new THREE.Object3D();
           tempRoot.add(model);
@@ -2588,6 +2603,12 @@ class World {
           clip = window.AnimRetargetHelper.processAnimClip(clip, model, type) || clip;
         }
         clip.tracks = clip.tracks.filter(t => !t.name.endsWith('.position'));
+        // 骨骼约定托底补偿：模型骨骼 rest 约定与动作库标准不一致时
+        //（如 UpLeg=X180° vs 标准 Z180°，实测 Kipfel 裙子收起+前倾案），
+        // 对 quaternion 轨道逐骨骼做 q'=P×q×K 补偿；标准约定模型零干预
+        if (window.AnimConventionCompensator) {
+          window.AnimConventionCompensator.processClip(clip, model, type);
+        }
       }
 
       sharedMixer.uncacheClip(clip);

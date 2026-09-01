@@ -66,6 +66,17 @@ _extracted_script.js
 # Temp check scripts
 temp_check_*.js
 _check_*.js
+tmp_check_*.js
+tmp_verify_*.js
+browser_anim_drive_check.js
+browser_debug_suffix.js
+browser_diag2.js
+browser_fix_skeleton.js
+browser_fix_suffix.js
+browser_forearm_check.js
+
+# Local diagnostic tool (not deployed with source)
+public/js/skirtDiag.js
 
 # Server error logs
 *.err
