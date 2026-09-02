@@ -112,13 +112,15 @@ const threejsImportRoutes = require('./routes/threejsImport');
 const securityQuestionsRoutes = require('./routes/securityQuestions');
 const subscriptionRoutes = require('./routes/subscription');
 const worldSpatialRoutes = require('./routes/worldSpatial');
+const { worldWriteGuard } = require('./middleware/worldWriteGuard');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', securityQuestionsRoutes);  // 安全问题管理（需管理员认证）
 app.use('/api/users', userRoutes);
 app.use('/api/world/spatial', worldSpatialRoutes);
-app.use('/api/world', worldRoutes);
-app.use('/api/world', worldGroundRoutes);
+// 世界内容写操作仅管理员可用（GET 在守卫内部放行，联邦跨域读取不受影响）
+app.use('/api/world', worldWriteGuard, worldRoutes);
+app.use('/api/world', worldWriteGuard, worldGroundRoutes);
 app.use('/api/shop', shopRoutes);
 app.use('/api/plot', plotRoutes);
 app.use('/api/skills', skillRoutes);

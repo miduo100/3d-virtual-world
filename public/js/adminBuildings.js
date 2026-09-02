@@ -240,7 +240,10 @@ async function saveBuildingChanges(event) {
 
     const response = await fetch(`/api/world/objects/${worldObjectId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + (localStorage.getItem('adminToken') || '')
+      },
       body: JSON.stringify({
         position_x: posX,
         position_y: posY,
@@ -305,7 +308,10 @@ async function removeWorldObject(worldObjectId) {
 
   try {
     const response = await fetch(`/api/world/objects/${worldObjectId}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: {
+        'Authorization': 'Bearer ' + (localStorage.getItem('adminToken') || '')
+      }
     });
 
     const data = await response.json();

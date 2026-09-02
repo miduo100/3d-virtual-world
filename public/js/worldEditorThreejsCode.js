@@ -135,7 +135,10 @@
 
             const response = await fetch('/api/world/objects', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (localStorage.getItem('adminToken') || '')
+                },
                 body: JSON.stringify({
                     type: 'threejs_code',
                     name: data.block.name || name,

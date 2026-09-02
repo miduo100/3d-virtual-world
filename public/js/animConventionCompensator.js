@@ -249,9 +249,19 @@
         c.scale.set(1, 1, 1);
       });
       model.updateMatrixWorld(true);
+      // 【修复 2026-09-02】折叠必须发生在 model 本地坐标系：
+      // w(IBM⁻¹) 是 gltf 场景本地系（GLTFLoader 绑定时模型在原点，不含外部摆放），
+      // 而 node.parent.matrixWorld 是世界系（含 characterGroup 的摆放平移）。
+      // 两者直接相乘会把玩家 Group 的世界位置揉进骨根局部平移——实测「谁到发疯」
+      // Hips.localPos 被写成 ≈ -groupPos/scale = (17.87,-8.16,-2.29)，骨架被钉死在
+      // 场景原点附近：mesh 容器跟随玩家移动，蒙皮顶点却留在原点 → 玩家"透明"。
+      // 解法：把父矩阵先经 model.matrixWorld⁻¹ 变换到 model 本地系再求逆折叠。
+      // 模型未入场景/Group 在原点时 model.matrixWorld≈单位，退化为原行为，兼容。
+      var _invModel = new T.Matrix4().copy(model.matrixWorld).invert();
       worlds.forEach(function (w, node) {
-        var pm = node.parent.matrixWorld.clone().invert();
-        new T.Matrix4().multiplyMatrices(pm, w).decompose(node.position, node.quaternion, node.scale);
+        var parentLocal = new T.Matrix4().multiplyMatrices(_invModel, node.parent.matrixWorld);
+        new T.Matrix4().multiplyMatrices(new T.Matrix4().copy(parentLocal).invert(), w)
+          .decompose(node.position, node.quaternion, node.scale);
       });
       model.updateMatrixWorld(true);
       console.log('[AnimComp] 🔧 检测到容器残留旋转导致 rest 躺倒（双重轴转换），已下沉归一：' +

@@ -8,6 +8,38 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>创世虚拟世界CRM系统 - 世界编辑器</title>
+    <script>
+      // 编辑器需后台登录态（与 admin.html 同源，共享 localStorage）
+      if (!localStorage.getItem('adminToken')) { location.replace('/admin_login.html'); }
+      window.__editorAuthHeaders = function (extra) {
+        return Object.assign({ 'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + (localStorage.getItem('adminToken') || '') }, extra || {});
+      };
+      // 兜底：自动为本页所有 /api/world 非 GET 请求注入 token
+      // （覆盖 ${API_BASE} 拼接、url 变量、fetch().then() 等各种写法，避免遗漏）
+      (function () {
+        var _fetch = window.fetch;
+        window.fetch = function (input, init) {
+          try {
+            var url = typeof input === 'string' ? input : ((input && input.url) || '');
+            var method = String((init && init.method) ||
+              (typeof input !== 'string' && input && input.method) || 'GET').toUpperCase();
+            if (url.indexOf('/api/world') !== -1 &&
+                method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+              init = init || {};
+              var src = init.headers ||
+                (typeof input !== 'string' && input ? input.headers : undefined) || undefined;
+              var headers = new Headers(src);
+              if (!headers.has('Authorization')) {
+                headers.set('Authorization', 'Bearer ' + (localStorage.getItem('adminToken') || ''));
+              }
+              init.headers = headers;
+            }
+          } catch (e) { console.warn('[editorAuth] fetch 包装失败:', e); }
+          return _fetch.call(this, input, init);
+        };
+      })();
+    </script>
     <style>
         * {
             margin: 0;
@@ -3547,7 +3579,7 @@
             try {
                 const res = await fetch(`${API_BASE}/ground-config`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: __editorAuthHeaders(),
                     body: JSON.stringify(groundConfig)
                 });
                 const data = await res.json();
@@ -5485,7 +5517,7 @@
                 obj.mesh.position.y = -minY;
                 
                 // 更新数据库中的位置
-                fetch(`/api/world-objects/${id}`, {
+                fetch(`/api/world/objects/${id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -5493,7 +5525,12 @@
                         position_y: obj.mesh.position.y,
                         position_z: obj.mesh.position.z
                     })
-                }).then(() => {
+                }).then(r => {
+                    // 必须判定 HTTP 状态与业务 success，否则 404 也会走 then 造成"假成功"
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                }).then(data => {
+                    if (!data.success) throw new Error(data.error || '保存失败');
                     showNotification(weTp('place.landed', {name: obj.data.name || '对象'}, `已落地：${obj.data.name || '对象'}`), 'success');
                 }).catch(err => {
                     console.error('落地失败:', err);
@@ -5978,9 +6015,7 @@
                 // 保存到数据库
                 const response = await fetch('/api/world/objects', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: __editorAuthHeaders(),
                     body: JSON.stringify({
                         type: 'uploaded_model',
                         name: modelName,
@@ -7003,7 +7038,7 @@
 
                 const res = await fetch('/api/world/objects', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: __editorAuthHeaders(),
                     body: JSON.stringify({
                         type: item.type === 'image' ? 'media_image' : 'media_video',
                         name: item.name.substring(0, 60),
@@ -7216,7 +7251,7 @@
             try {
                 const res = await fetch('/api/world/objects', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: __editorAuthHeaders(),
                     body: JSON.stringify({
                         type: item.type === 'image' ? 'media_image' : 'media_video',
                         name: item.name.substring(0, 60),
@@ -7260,7 +7295,7 @@
             try {
                 const res = await fetch('/api/world/objects', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: __editorAuthHeaders(),
                     body: JSON.stringify({
                         type: 'gaussian_splat',
                         name: item.name.substring(0, 60),
