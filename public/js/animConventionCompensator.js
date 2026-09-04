@@ -26,7 +26,10 @@
  *       （骨骼世界绑定不变 → IBM 零破坏）、网格随容器清零整体剥离多余旋转。
  *   A 类「动画约定不匹配」：rest 渲染正常但骨骼局部坐标系与动作库不同
  *       （Kipfel 类中段骨骼翻面；zhu 类抵消型根旋转）→ 动画轨道 P×q×K 补偿。
- *   两类兼有的模型（谁到发疯：双重转换 + 肢体骨翻面）→ 先归一再补偿。
+ *   C 类「动画侧容器轴向」（v2.1，实测案例 线上转换的GLB）：动画文件自身骨架
+ *       容器也带 Armature+90°（动画由角色 GLB 导出），模型侧归一后该旋转暴露
+ *       → Hips 轨道「窄幅大偏移」→ 左乘 corr = hipsBind × mean⁻¹ 对齐中性姿态。
+ *   多类兼有的模型 → 先 B 归一、再 C 轴向、最后 A 的 P/K 细节补偿。
  *
  * 安全边界：
  *   - 只处理带 mixamorigHips 骨骼的模型（mofx 等其它命名体系自动跳过）
@@ -55,6 +58,17 @@
   var BOX_MIN_SIZE = 0.05;
   /** 容器节点旋转超过此角度（度）才纳入归一候选 */
   var CONTAINER_ROT_DEG = 5;
+
+  /** ── 动画侧容器轴向补偿（C 类暴露层，v2.1）参数 ──
+   *  模型侧容器旋转下沉归一后，若动画文件自身的骨架容器也带同样旋转
+   *  （动画由「Armature+90°X 角色 GLB」导出），Hips 轨道帧值相对归一后模型
+   *  bind 呈「窄幅大偏移」（实测 线上转换的GLB idle：86.3°±0.3°）→ 播放躺倒。
+   *  触发判据（全模板扫描校准，verify_s5_hips_scan.mjs）：
+   *   - 仅 sunk 模型（模型侧已归一，动画侧旋转才会暴露）
+   *   - Hips 轨道逐帧偏移 min > 60°（标准 mixamo 站姿偏移实测 43.3°，间隔充足）
+   *   - 偏移带宽 max-min < 12°（窄幅=恒定轴向特征；舞蹈类动作内容实测带宽 170°） */
+  var ANIM_AXIS_MIN_DEG = 60;
+  var ANIM_AXIS_BAND_DEG = 12;
 
   /** 标准约定表：'骨骼名': [局部qx,qy,qz,qw, 标准父世界qx,qy,qz,qw]
    *  生成自 拿剑武士 char-1779180094927-135896146.glb（scripts/gen_animcomp_table.mjs）。
@@ -392,6 +406,47 @@
       var comp = buildCompensation(info);
       if (!comp.matched) return { compensated: false, reason: 'no matched bones' };
 
+      // C 类：动画侧容器轴向补偿（v2.1）——先对齐 Hips 中性姿态再做 P/K 细节补偿。
+      // P/K 对 Hips 是恒等（归一后父世界=I、表内 Hips 世界=I、L=I），两层不冲突。
+      // 补偿式（Node 已验证 lie→stand，scripts/verify_online_anim_side.mjs）：
+      //   corr = hipsBind × mean⁻¹；每帧 q' = corr × q（mean = 帧值四元数平均）
+      var axisFixed = 0;
+      try {
+        if (info.sink && info.sink.ok) {
+          var hipsTrack = null;
+          for (var ti = 0; ti < clip.tracks.length; ti++) {
+            if (clip.tracks[ti].name === 'mixamorigHips.quaternion') { hipsTrack = clip.tracks[ti]; break; }
+          }
+          if (hipsTrack && hipsTrack.times.length >= 2) {
+            var hipsBind = info.L.get('mixamorigHips');
+            if (hipsBind) {
+              var hn = hipsTrack.times.length, hv = hipsTrack.values;
+              var aq = new T.Quaternion(), acc = { x: 0, y: 0, z: 0, w: 0 };
+              var mn = Infinity, mx = -Infinity;
+              for (var hi = 0; hi < hn; hi++) {
+                aq.set(hv[hi * 4], hv[hi * 4 + 1], hv[hi * 4 + 2], hv[hi * 4 + 3]);
+                var dev = angleDeg(hipsBind.clone().invert().multiply(aq));
+                if (dev < mn) mn = dev;
+                if (dev > mx) mx = dev;
+                acc.x += aq.x; acc.y += aq.y; acc.z += aq.z; acc.w += aq.w;
+              }
+              if (mn > ANIM_AXIS_MIN_DEG && (mx - mn) < ANIM_AXIS_BAND_DEG) {
+                var mean = new T.Quaternion(acc.x, acc.y, acc.z, acc.w).normalize();
+                var corr = hipsBind.clone().multiply(mean.clone().invert());
+                for (var hj = 0; hj < hn; hj++) {
+                  aq.set(hv[hj * 4], hv[hj * 4 + 1], hv[hj * 4 + 2], hv[hj * 4 + 3]);
+                  aq.premultiply(corr);
+                  hv[hj * 4] = aq.x; hv[hj * 4 + 1] = aq.y; hv[hj * 4 + 2] = aq.z; hv[hj * 4 + 3] = aq.w;
+                }
+                axisFixed = hn;
+                console.log('[AnimComp] 🔁 检测到动画侧容器轴向偏移（Hips 偏移 ' +
+                  mn.toFixed(0) + '~' + mx.toFixed(0) + '° 窄幅），已对 ' + hn + ' 帧左乘轴向补偿');
+              }
+            }
+          }
+        }
+      } catch (eAx) { /* 静默降级：走原轨道 */ }
+
       // 标准约定：零干预（每个模型只提示一次，避免刷屏）
       if (comp.maxDev <= TRIGGER_DEG) {
         doneClips.add(clip);
@@ -424,8 +479,8 @@
       doneClips.add(clip);
       console.log('[AnimComp] ⚠️ 检测到非标准骨骼约定（' + comp.worst + ' 偏差 ' +
         comp.maxDev.toFixed(0) + '°），已补偿 ' + (type || 'anim') + ' \'' + clip.name +
-        '\'：' + bonesHit + ' 骨 / ' + frames + ' 关键帧');
-      return { compensated: true, bones: bonesHit, frames: frames };
+        '\'：' + bonesHit + ' 骨 / ' + frames + ' 关键帧' + (axisFixed ? '（另 Hips 轴向 ' + axisFixed + ' 帧）' : ''));
+      return { compensated: true, bones: bonesHit, frames: frames, axisFixed: axisFixed };
     } catch (e) {
       // 托底原则：任何异常都不阻塞动画播放
       console.warn('[AnimComp] 补偿异常，走原始动画:', e && e.message);
@@ -435,7 +490,7 @@
 
   root.AnimConventionCompensator = {
     processClip: processClip,
-    version: '2.0.0',
+    version: '2.1.0',
     // 诊断接口（控制台排查用）
     _diag: function (model) {
       var info = getModelBind(model);

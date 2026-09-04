@@ -538,7 +538,11 @@ class World {
       if (node.isBone) {
         bones.push(node);
       } else if (node.isSkinnedMesh) {
-        node.skeleton = null;
+        // 【r185 修复 2026-09-04】不再置 skeleton=null：r151+ SkinnedMesh.getVertexPosition
+        // （raycast/computeBoundingBox 路径）会调 applyBoneTransform 读 skeleton.bones，
+        // 置空后偶发 "Cannot read properties of null (reading 'bones')"（r128 无此方法
+        // 所以旧版安全）。烘焙时骨骼处于 bind（boneMW×IBM=I），保留 skeleton 引用
+        // 则 getVertexPosition = 恒等变换，与"顶点固定在 bind pose"的烘焙语义完全一致。
         node.isSkinnedMesh = false;
         const mats = Array.isArray(node.material) ? node.material : [node.material];
         for (let i = 0; i < mats.length; i++) {
