@@ -13,7 +13,7 @@
     "init-ai-scenes": "node src/init_ai_scenes_db.js"
   },
   "dependencies": {
-    "@types/three": "^0.183.1",
+    "@types/three": "^0.185.4",
     "adm-zip": "^0.5.16",
     "axios": "^1.13.6",
     "bcryptjs": "^3.0.3",
@@ -35,7 +35,7 @@
     "tailwind-merge": "^2.1.0",
     "tailwindcss-animate": "^1.0.7",
     "tencentcloud-sdk-nodejs": "^4.1.189",
-    "three": "^0.183.2",
+    "three": "^0.185.1",
     "uuid": "^9.0.1",
     "ws": "^8.14.2"
   },
