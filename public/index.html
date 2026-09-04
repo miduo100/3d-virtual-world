@@ -12,11 +12,12 @@
   <meta name="keywords" content="虚拟世界,3D游戏,Three.js,CRM系统,在线游戏">
 
   <!-- import map：将 ESM 加载器（FBXLoader 等）内部的裸 'three' 指向本地桥接模块，
-       复用页面全局 UMD THREE，避免双实例冲突。必须位于任何 type="module" 脚本之前 -->
+       复用页面全局 UMD THREE，避免双实例冲突。必须位于任何 type="module" 脚本之前。
+       r185 阶段 2：?v=185 破缓存（shim 导出清单已按 r185 + postprocessing 6.39.4 重生成） -->
   <script type="importmap">
   {
     "imports": {
-      "three": "/js/lib/three-shim.js"
+      "three": "/js/lib/three-shim.js?v=185"
     }
   }
   </script>

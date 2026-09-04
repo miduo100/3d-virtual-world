@@ -14,14 +14,14 @@ const AnimLoader = (() => {
   'use strict';
 
   // ========== 配置 ==========
-  // FBXLoader 为 three@0.160.0 的 ESM 模块，必须用 import() 动态加载
+  // FBXLoader 为 three@0.185.1 的 ESM 模块，必须用 import() 动态加载
   // （其内部对 'three' 的引用由 index.html 的 import map 指向 /js/lib/three-shim.js，
-  //  从而复用页面全局 UMD THREE，避免双实例冲突）。
-  // 注意：r160 已无 inflate.module.min.js（改用 fflate.module.js），且 FBXLoader 内部
-  //  依赖的相对路径（../libs/fflate.module.js、../curves/NURBSCurve.js 等）在本地 three-examples 目录内相对解析。
+  //  从而复用页面全局 r185 bundle 的 THREE，避免双实例冲突）。
+  // 注意：FBXLoader 内部依赖的相对路径（../libs/fflate.module.js、../curves/NURBSCurve.js）
+  // 在本地 three-examples 目录内相对解析；?v=185 破缓存（r185 阶段 2 起版本参数与主 bundle 对齐）。
   const CONFIG = {
     DEBUG: true,
-    FBX_LOADER_CDN: '/js/lib/three-examples/loaders/FBXLoader.js'
+    FBX_LOADER_CDN: '/js/lib/three-examples/loaders/FBXLoader.js?v=185'
   };
 
   // 缓存已创建的 FBXLoader 实例（ESM 导入，不挂全局）

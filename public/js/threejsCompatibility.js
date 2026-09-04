@@ -303,6 +303,57 @@
   // ---- Three.js 版本桥接 ----
 
   /**
+   * r128 旧颜色 API → r152+ colorSpace 行为桥（r185 阶段 2 新增，幂等，仅补缺失属性）
+   * 背景：旧代码 `renderer.outputEncoding = THREE.sRGBEncoding` / `texture.encoding = THREE.sRGBEncoding`
+   * 在 r152+ 只是给实例挂死属性、颜色行为不生效。A 层 bundle 已保留 sRGBEncoding=3001 常量防 throw，
+   * 这里进一步在原型上定义 accessor，把旧 encoding 赋值真正映射到 outputColorSpace / colorSpace，
+   * 使数据库存量代码块与用户粘贴的 r128 示例恢复正确的颜色行为（不落库改数据）。
+   * - WebGLRenderer.prototype.outputEncoding = 3001/3000 → outputColorSpace
+   * - Texture.prototype.encoding = 3001/3000 → colorSpace
+   * - physicallyCorrectLights / useLegacyLights → 静默 no-op（r165 起 legacy 光照已移除，无法还原旧行为，
+   *   真实视觉差异由阶段 4 光强标定统一处理）
+   */
+  function bridgeLegacyEncodingAPI(THREE) {
+    if (!THREE) return;
+    try {
+      const SRGB = 3001, LINEAR = 3000;
+      const SRGB_CS = THREE.SRGBColorSpace || 'srgb';
+      const LINEAR_CS = THREE.LinearSRGBColorSpace || 'srgb-linear';
+      const mapColorSpace = function (v) {
+        if (v === SRGB || v === 'srgb' || v === SRGB_CS) return SRGB_CS;
+        if (v === LINEAR || v === 'srgb-linear' || v === LINEAR_CS) return LINEAR_CS;
+        return undefined; // 未知旧值（如 GammaEncoding 3007）不映射，保持 three 默认
+      };
+      var RProto = THREE.WebGLRenderer && THREE.WebGLRenderer.prototype;
+      if (RProto && !('outputEncoding' in RProto)) {
+        Object.defineProperty(RProto, 'outputEncoding', {
+          configurable: true,
+          get: function () { return this.outputColorSpace === SRGB_CS ? SRGB : LINEAR; },
+          set: function (v) { const cs = mapColorSpace(v); if (cs) this.outputColorSpace = cs; }
+        });
+      }
+      if (RProto && !('physicallyCorrectLights' in RProto)) {
+        Object.defineProperty(RProto, 'physicallyCorrectLights', {
+          configurable: true, get: function () { return true; }, set: function () {}
+        });
+      }
+      if (RProto && !('useLegacyLights' in RProto)) {
+        Object.defineProperty(RProto, 'useLegacyLights', {
+          configurable: true, get: function () { return false; }, set: function () {}
+        });
+      }
+      var TProto = THREE.Texture && THREE.Texture.prototype;
+      if (TProto && !('encoding' in TProto)) {
+        Object.defineProperty(TProto, 'encoding', {
+          configurable: true,
+          get: function () { return this.colorSpace === SRGB_CS ? SRGB : LINEAR; },
+          set: function (v) { const cs = mapColorSpace(v); if (cs) this.colorSpace = cs; }
+        });
+      }
+    } catch (e) { /* 原型加固失败不阻断预览 */ }
+  }
+
+  /**
    * 在 THREE 原型的基础上补齐一些常见缺失，同时 world 模式下桩化高阶对象
    */
   function patchTHREE(THREE, mode) {
@@ -313,6 +364,9 @@
     if (!patched.Math && patched.MathUtils) {
       patched.Math = patched.MathUtils;
     }
+
+    // r152 颜色管理迁移桥（r185 阶段 2）：outputEncoding/texture.encoding/legacy 光照开关
+    bridgeLegacyEncodingAPI(THREE);
 
     if (mode === 'world') {
       // WebGLRenderTarget 在 world 模式下没有真实渲染意义，返回一个持有 texture 的占位对象

@@ -234,9 +234,9 @@
     <script src="js/platform-ui.js"></script>
     <script src="js/glb-texture-fixer.js"></script>
 
-    <script src="https://cdn.jsdelivr.net/npm/three@0.137.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.137.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.137.0/examples/js/loaders/GLTFLoader.js"></script>
+    <!-- r185 升级阶段 2：CDN 0.137（UMD + examples/js）收敛到本地 r185 bundle；
+         OrbitControls / GLTFLoader / Timer 均为 bundle 命名空间成员（THREE.OrbitControls 等） -->
+    <script src="js/lib/three.min.js?v=185"></script>
     <script src="js/ai-factory-presets.js"></script>
     <script src="js/ai-factory-player.js"></script>
     <script src="js/ai-factory.js"></script>

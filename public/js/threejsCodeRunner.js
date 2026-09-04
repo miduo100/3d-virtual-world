@@ -619,7 +619,11 @@
       if (typeof createGeometry === 'function') {
         try {
           const g = createGeometry(THREE, captureScene);
-          if (g) captureScene.add(g);
+          // 修复（r185 阶段 2 验收发现）：world 模式下 THREE2.Scene 被替换为共享捕获组，
+          // 入口函数内 `new THREE.Scene()` 再 return 该对象时 g === captureScene，
+          // 原代码 add(g) 即 add 自身 → "object can't be added as a child of itself"。
+          // 跳过即可：其子节点本来就已直接挂进捕获组。
+          if (g && g !== captureScene) captureScene.add(g);
         } catch (e) {
           console.error('[ThreeJSCodeRunner] createGeometry 调用失败:', e);
         }
@@ -677,7 +681,8 @@
                   // 异步入口函数（内部 await GLTFLoader 等）：resolve 后再加入
                   pvObj.then(function (obj) {
                     try {
-                      if (obj && obj.isObject3D) pvScene.add(obj);
+                      // 同款自引用守卫：入口可能原样返回传入的 pvScene
+                      if (obj && obj.isObject3D && obj !== pvScene) pvScene.add(obj);
                     } catch (e) {}
                   }).catch(function (e) {
                     console.error('[ThreeJSCodeRunner] 异步入口函数失败:', e);
@@ -686,7 +691,7 @@
                   // 入口函数直接返回 Scene：替换渲染场景，避免 Scene 嵌套
                   pvScene = pvObj;
                 } else if (pvObj && pvObj.isObject3D) {
-                  pvScene.add(pvObj);
+                  if (pvObj !== pvScene) pvScene.add(pvObj);
                 }
               } catch (ce) {
                 console.error('[ThreeJSCodeRunner] 入口函数调用失败:', ce);

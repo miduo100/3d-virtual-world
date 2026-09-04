@@ -277,11 +277,12 @@
     });
   </script>
 <!-- Three.js ESM Import Maps (用于 postprocessing 等库的裸模块解析) -->
+<!-- r185 升级阶段 2：'three' 指向本地 three-shim（复用全局 r185 bundle，杜绝双 THREE 实例），
+     不再引用 CDN 0.158 ESM（与本地 UMD 并存违反版本单一来源红线）；'three/' 子路径无使用方，已移除 -->
 <script type="importmap">
 {
   "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js",
-    "three/": "https://cdn.jsdelivr.net/npm/three@0.158.0/"
+    "three": "/js/lib/three-shim.js?v=185"
   }
 }
 </script>
@@ -1984,8 +1985,9 @@
 
       async function _loadThreeJSPreviewDeps(code) {
         // 按需惰性加载：只有代码里检测到相关关键字才尝试加载，避免城堡等不需要这些库的代码刷屏 console。
-        // 注意：importmap 把 ESM three 指向 r158，而 RGBFormat 在 r152 已移除，老版 postprocessing 6.x 必失败；
-        // 实际用到后处理的代码会退化为桩（runner 内已有兜底），没用到时则不产生任何 warn。
+        // r185 升级阶段 2：postprocessing 升 6.39.4（peer three >=0.168 <0.186），本地 vendor 优先，
+        // 'three' 由 importmap 解析到 /js/lib/three-shim.js（复用全局 r185 实例，无双实例）；
+        // 旧 6.15.1/6.10.0 是 r158 时代产物（依赖已移除的 RGBFormat），已从候选中删除。
         var needPP = !window.__threejsPPDone && code &&
           /postprocessing|EffectComposer|RenderPass|BloomPass|GaussianPass|AfterimagePass|HalftonePass/i.test(code);
         var needTP = !window.__threejsTPDone && code &&
@@ -1994,8 +1996,8 @@
         if (needPP) {
           window.__threejsPPDone = true;
           const ppVersions = [
-            'https://cdn.jsdelivr.net/npm/postprocessing@6.15.1/build/postprocessing.esm.js',
-            'https://cdn.jsdelivr.net/npm/postprocessing@6.10.0/build/postprocessing.esm.js'
+            '/js/lib/three-r185/postprocessing.esm.js?v=185',
+            'https://cdn.jsdelivr.net/npm/postprocessing@6.39.4/build/index.js'
           ];
           for (let i = 0; i < ppVersions.length; i++) {
             try {

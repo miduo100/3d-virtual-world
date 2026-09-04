@@ -676,9 +676,9 @@
         let chatHistory = [];
         
         // API基础路径
-        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-            ? 'http://localhost:3000' 
-            : '';
+        // 修复（r185 阶段 2 验收发现）：localhost 分支原硬编码 3000，实际服务端口为 3002，
+        // 导致 AI 供应商列表 fetch 连接拒绝（"Failed to fetch"）。生产分支本就走同源 ''，统一为同源最稳。
+        const API_BASE = '';
         
         // ============================================
         // 初始化
@@ -797,10 +797,15 @@
             const select = document.getElementById('provider-select');
             
             try {
-                const response = await fetch(`${API_BASE}/api/admin/ai-providers`);
+                // 修复（r185 阶段 2 验收发现）：原调用不存在的 /api/admin/ai-providers（恒 401）。
+                // 实际公开端点为 /api/ai-providers/providers，返回 { success, providers: [...] }，
+                // 字段为 display_name / provider_name / provider_type（页面原用的 name/type 不存在）。
+                const response = await fetch(`${API_BASE}/api/ai-providers/providers`);
                 if (!response.ok) throw new Error('获取供应商列表失败');
                 
-                const providers = await response.json();
+                const data = await response.json();
+                const providers = (data && Array.isArray(data.providers) ? data.providers : [])
+                    .filter(p => p.is_enabled !== false);
                 
                 // 清空并重新填充
                 select.innerHTML = '';
@@ -813,8 +818,8 @@
                 providers.forEach(provider => {
                     const option = document.createElement('option');
                     option.value = provider.id;
-                    option.textContent = `${provider.name}`;
-                    option.dataset.type = provider.type;
+                    option.textContent = `${provider.display_name || provider.provider_name || provider.name || ''}`;
+                    option.dataset.type = provider.provider_type || provider.type || '';
                     select.appendChild(option);
                 });
                 

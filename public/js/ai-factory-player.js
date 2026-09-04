@@ -17,7 +17,7 @@
         currentModel: null,
         currentAnimation: null,
         mixer: null,
-        clock: null,
+        timer: null,
         isPlaying: false,
         isLooping: true,
         playbackSpeed: 1.0,
@@ -71,8 +71,8 @@
             // 添加坐标轴辅助
             this.addHelpers();
             
-            // 时钟
-            this.clock = new THREE.Clock();
+            // 时钟（r185 阶段 2：Clock r183 起弃用，改用 Timer，需每帧先 update() 再 getDelta()）
+            this.timer = new THREE.Timer();
             
             // 开始渲染循环
             this.animate();
@@ -682,10 +682,16 @@
             if (this.controls) {
                 this.controls.update();
             }
-            
+
+            // 更新计时器（Timer 要求每帧 update()，与播放状态解耦，
+            // 避免暂停恢复后首帧 delta 巨大导致动画跳变）
+            if (this.timer) {
+                this.timer.update();
+            }
+
             // 更新动画混合器
             if (this.mixer && this.isPlaying) {
-                const delta = this.clock.getDelta();
+                const delta = this.timer.getDelta();
                 this.mixer.update(delta * this.playbackSpeed);
             }
             
