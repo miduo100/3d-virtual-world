@@ -17,6 +17,7 @@ import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // 展开为普通对象（esbuild IIFE globalName 导出即此对象）
 const NS = Object.assign({}, THREE);
@@ -29,11 +30,16 @@ NS.MTLLoader = MTLLoader;
 NS.OrbitControls = OrbitControls;
 NS.TransformControls = TransformControls;
 NS.FBXLoader = FBXLoader;
+NS.BufferGeometryUtils = BufferGeometryUtils;
 
 // ===== A 层垫片：旧别名/常量兜底（仅防 throw，不实现旧行为）=====
 if (NS.MathUtils && !NS.Math) NS.Math = NS.MathUtils;        // THREE.Math → MathUtils（r148 移除）
 if (NS.sRGBEncoding === undefined) NS.sRGBEncoding = 3001;   // r152 移除的旧常量，保留数字语义
 if (NS.LinearEncoding === undefined) NS.LinearEncoding = 3000;
+// r151 起 mergeBufferGeometries 更名为 mergeGeometries，保留旧名别名
+if (NS.BufferGeometryUtils && !NS.BufferGeometryUtils.mergeBufferGeometries && NS.BufferGeometryUtils.mergeGeometries) {
+  NS.BufferGeometryUtils.mergeBufferGeometries = NS.BufferGeometryUtils.mergeGeometries;
+}
 
 // 显式挂全局 window.THREE。
 // 原因：esbuild IIFE 的 globalName 载体拿到的是模块导出对象（含 default 包装），

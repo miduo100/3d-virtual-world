@@ -1367,53 +1367,8 @@
         <source src="https://assets.mixkit.co/sfx/preview/mixkit-interface-error-alert-2586.mp3" type="audio/mpeg">
     </audio>
 
-    <!-- Three.js 核心库 - 多CDN备选方案 -->
+    <!-- Three.js 核心库 - 本地 r185 bundle 优先（原 r128 多 CDN 备选机制已在 r185 升级阶段 3 移除） -->
     <script>
-        // CDN备选列表
-        const cdnOptions = [
-            {
-                name: 'unpkg',
-                base: 'https://unpkg.com/three@0.128.0',
-                scripts: [
-                    '/build/three.min.js',
-                    '/examples/js/loaders/GLTFLoader.js',
-                    '/examples/js/loaders/OBJLoader.js',
-                    '/examples/js/loaders/MTLLoader.js',
-                    '/examples/js/controls/OrbitControls.js',
-                    '/examples/js/controls/TransformControls.js',
-                    '/examples/js/utils/BufferGeometryUtils.js'
-                ]
-            },
-            {
-                name: 'jsdelivr',
-                base: 'https://cdn.jsdelivr.net/npm/three@0.128.0',
-                scripts: [
-                    '/build/three.min.js',
-                    '/examples/js/loaders/GLTFLoader.js',
-                    '/examples/js/loaders/OBJLoader.js',
-                    '/examples/js/loaders/MTLLoader.js',
-                    '/examples/js/controls/OrbitControls.js',
-                    '/examples/js/controls/TransformControls.js',
-                    '/examples/js/utils/BufferGeometryUtils.js'
-                ]
-            },
-            {
-                name: 'cdnjs',
-                scripts: [
-                    'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
-                    'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/GLTFLoader.js',
-                    'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/OBJLoader.js',
-                    'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/MTLLoader.js',
-                    'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/controls/OrbitControls.js',
-                    'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/controls/TransformControls.js',
-                    'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/utils/BufferGeometryUtils.js'
-                ]
-            }
-        ];
-
-        let currentCdnIndex = 0;
-        let loadedScripts = 0;
-
         function loadScript(url) {
             return new Promise((resolve, reject) => {
                 const script = document.createElement('script');
@@ -1430,116 +1385,16 @@
             });
         }
 
-        async function loadAllScripts(cdn) {
-            const scripts = cdn.base 
-                ? cdn.scripts.map(s => cdn.base + s)
-                : cdn.scripts;
-            
-            console.log(`🔄 从 ${cdn.name} CDN 顺序加载脚本...`);
-            
-            // 顺序加载（而不是并行），确保依赖关系正确
-            for (let i = 0; i < scripts.length; i++) {
-                await loadScript(scripts[i]);
-                
-                // 第一个脚本加载后，验证THREE是否存在
-                if (i === 0 && typeof THREE === 'undefined') {
-                    throw new Error('THREE core library not loaded');
-                }
-                
-                // 给浏览器一点时间来解析和初始化
-                await new Promise(resolve => setTimeout(resolve, 50));
-            }
-            
-            console.log(`✅ ${cdn.name} CDN 所有脚本加载成功`);
-        }
-
-        async function tryLoadThreeJS() {
-            for (let i = 0; i < cdnOptions.length; i++) {
-                try {
-                    console.log(`🔄 尝试从 ${cdnOptions[i].name} CDN 加载...`);
-                    await loadAllScripts(cdnOptions[i]);
-                    
-                    // 验证THREE.js是否正确加载
-                    if (typeof THREE !== 'undefined') {
-                        console.log('✅ Three.js 加载成功，版本:', THREE.REVISION);
-                        
-                        // 验证所有必要的组件
-                        const required = ['GLTFLoader', 'OBJLoader', 'MTLLoader', 'OrbitControls', 'TransformControls'];
-                        const missing = required.filter(name => typeof THREE[name] === 'undefined');
-                        
-                        if (missing.length > 0) {
-                            console.warn('⚠️ 缺少组件:', missing.join(', '));
-                            // 显示警告通知
-                            showNotification(`⚠️ 部分Three.js组件加载失败: ${missing.join(', ')}，部分功能可能受限`, 'info');
-                        } else {
-                            console.log('✅ 所有Three.js组件已加载');
-                        }
-                        
-                        window.threeJSLoaded = true;
-                        
-                        // 加载geometryTemplates.js
-                        const geometryScript = document.createElement('script');
-                        geometryScript.src = 'js/geometryTemplates.js';
-                        geometryScript.onload = () => console.log('✅ geometryTemplates.js 加载成功');
-                        geometryScript.onerror = () => console.warn('⚠️ geometryTemplates.js 加载失败');
-                        document.head.appendChild(geometryScript);
-                        
-                        // 加载AI预览面板模块
-                        const aiPreviewScript = document.createElement('script');
-                        aiPreviewScript.src = 'js/modules/ai-preview.js';
-                        aiPreviewScript.onload = () => console.log('✅ ai-preview.js 加载成功');
-                        aiPreviewScript.onerror = () => console.warn('⚠️ ai-preview.js 加载失败');
-                        document.head.appendChild(aiPreviewScript);
-                        
-                        // 加载输入验证模块
-                        const inputValidationScript = document.createElement('script');
-                        inputValidationScript.src = 'js/modules/input-validation.js';
-                        inputValidationScript.onload = () => console.log('✅ input-validation.js 加载成功');
-                        inputValidationScript.onerror = () => console.warn('⚠️ input-validation.js 加载失败');
-                        document.head.appendChild(inputValidationScript);
-                        
-                        // 加载性能优化模块
-                        const performanceScript = document.createElement('script');
-                        performanceScript.src = 'js/modules/performance-optimization.js';
-                        performanceScript.onload = () => console.log('✅ performance-optimization.js 加载成功');
-                        performanceScript.onerror = () => console.warn('⚠️ performance-optimization.js 加载失败');
-                        document.head.appendChild(performanceScript);
-                        
-                        // 加载用户体验模块
-                        const userExperienceScript = document.createElement('script');
-                        userExperienceScript.src = 'js/modules/user-experience.js';
-                        userExperienceScript.onload = () => {
-                            console.log('✅ user-experience.js 加载成功');
-                            if (typeof initUserExperience === 'function') {
-                                initUserExperience();
-                            }
-                        };
-                        userExperienceScript.onerror = () => console.warn('⚠️ user-experience.js 加载失败');
-                        document.head.appendChild(userExperienceScript);
-                        
-                        return;
-                    }
-                } catch (error) {
-                    console.warn(`⚠️ ${cdnOptions[i].name} CDN 失败:`, error.message);
-                    if (i < cdnOptions.length - 1) {
-                        console.log('🔄 尝试下一个CDN...');
-                        // 清理已加载的脚本
-                        window.THREE = undefined;
-                    }
-                }
-            }
-
-            // 所有CDN都失败
-            console.error('❌ 所有CDN都无法加载Three.js');
+        function showLoadFailure(detail) {
             document.body.innerHTML = `
                 <div style="display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; color: #c62828;">
                     <div style="text-align: center; max-width: 600px; padding: 20px;">
                         <h2>⚠️ 资源加载失败</h2>
-                        <p>无法从任何CDN加载Three.js库，请检查：</p>
+                        <p>无法从本服务器加载 Three.js（${detail}），请检查：</p>
                         <ul style="text-align: left; margin: 20px auto; display: inline-block;">
-                            <li>网络连接是否正常</li>
-                            <li>是否能访问国际网站</li>
-                            <li>防火墙或代理设置</li>
+                            <li>应用服务器是否正常运行</li>
+                            <li><code>js/lib/three.min.js?v=185</code> 是否可访问</li>
+                            <li>浏览器控制台的网络错误详情</li>
                         </ul>
                         <button onclick="location.reload()" style="padding: 10px 20px; font-size: 16px; cursor: pointer; background: #667eea; color: white; border: none; border-radius: 5px; margin-top: 20px;">
                             重新加载
@@ -1549,14 +1404,89 @@
             `;
         }
 
+        async function loadThreeLocal() {
+            try {
+                await loadScript('js/lib/three.min.js?v=185');
+            } catch (e) {
+                showLoadFailure('bundle 加载失败');
+                return;
+            }
+
+            if (typeof THREE === 'undefined') {
+                showLoadFailure('THREE 未定义');
+                return;
+            }
+
+            console.log('✅ Three.js 加载成功，版本:', THREE.REVISION);
+
+            // 验证所有必要的组件（已合并入 bundle 命名空间）
+            const required = ['GLTFLoader', 'OBJLoader', 'MTLLoader', 'OrbitControls', 'TransformControls', 'BufferGeometryUtils'];
+            const missing = required.filter(name => typeof THREE[name] === 'undefined');
+
+            if (missing.length > 0) {
+                console.warn('⚠️ 缺少组件:', missing.join(', '));
+                showNotification(`⚠️ 部分Three.js组件加载失败: ${missing.join(', ')}，部分功能可能受限`, 'info');
+            } else {
+                console.log('✅ 所有Three.js组件已加载');
+            }
+
+            window.threeJSLoaded = true;
+
+            // 加载geometryTemplates.js
+            const geometryScript = document.createElement('script');
+            geometryScript.src = 'js/geometryTemplates.js';
+            geometryScript.onload = () => console.log('✅ geometryTemplates.js 加载成功');
+            geometryScript.onerror = () => console.warn('⚠️ geometryTemplates.js 加载失败');
+            document.head.appendChild(geometryScript);
+
+            // AI预览面板：页面内联已含完整实现（sendAIPreviewMessage/_renderThreejsInPreview 等 6 函数），
+            // 旧模块 js/modules/ai-preview.js 为冗余双实现且顶层 let 与页面全局声明冲突
+            // （"Identifier 'previewChatHistory' has already been declared" 导致整个模块 SyntaxError），故不再加载。
+
+            // 加载输入验证模块
+            const inputValidationScript = document.createElement('script');
+            inputValidationScript.src = 'js/modules/input-validation.js';
+            inputValidationScript.onload = () => console.log('✅ input-validation.js 加载成功');
+            inputValidationScript.onerror = () => console.warn('⚠️ input-validation.js 加载失败');
+            document.head.appendChild(inputValidationScript);
+
+            // 加载性能优化模块
+            const performanceScript = document.createElement('script');
+            performanceScript.src = 'js/modules/performance-optimization.js';
+            performanceScript.onload = () => console.log('✅ performance-optimization.js 加载成功');
+            performanceScript.onerror = () => console.warn('⚠️ performance-optimization.js 加载失败');
+            document.head.appendChild(performanceScript);
+
+            // 加载用户体验模块
+            const userExperienceScript = document.createElement('script');
+            userExperienceScript.src = 'js/modules/user-experience.js';
+            userExperienceScript.onload = () => {
+                console.log('✅ user-experience.js 加载成功');
+                if (typeof initUserExperience === 'function') {
+                    initUserExperience();
+                }
+            };
+            userExperienceScript.onerror = () => console.warn('⚠️ user-experience.js 加载失败');
+            document.head.appendChild(userExperienceScript);
+        }
+
         // 开始加载
-        tryLoadThreeJS();
+        loadThreeLocal();
     </script>
     <script>
         // ===== 全局变量 =====
         let scene, camera, renderer, controls, transformControls;
         let currentSceneObjects = []; // AI生成的场景对象
         let worldObjects = []; // 世界中的所有对象
+
+        // 统一创建带 DRACO 解码器的 GLTFLoader（本地 decoder，meshopt 由调用处按需追加）
+        function newGLTFLoader() {
+            const loader = new THREE.GLTFLoader();
+            const dracoLoader = new THREE.DRACOLoader();
+            dracoLoader.setDecoderPath('/js/libs/draco/');
+            loader.setDRACOLoader(dracoLoader);
+            return loader;
+        }
         let selectedObjects = [];
         let currentSceneData = null;
         let editMode = 'select';
@@ -1692,7 +1622,8 @@
                 }
             });
             
-            scene.add(transformControls);
+            // r169+ TransformControls 不再是 Object3D，gizmo 通过 getHelper() 加入场景（旧版直接 add 自身）
+            scene.add(transformControls.getHelper ? transformControls.getHelper() : transformControls);
 
             // 光照
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -1876,8 +1807,9 @@
                 }
                 
                 // 使用GLTFLoader加载模型
-                const loader = new THREE.GLTFLoader();
-                
+                const loader = newGLTFLoader();
+                window.setupMeshoptLoader && window.setupMeshoptLoader(loader);
+
                 const loadPromise = new Promise((resolve, reject) => {
                     let fullPath = modelPath;
                     if (!modelPath.startsWith('http') && !modelPath.startsWith('/')) {
@@ -2079,7 +2011,9 @@
                     </div>
                 `).join('');
 
-                document.getElementById('apiStatus').innerHTML = statusHTML;
+                // apiStatus 面板元素在当前页面 DOM 中不存在（存量结构变化），判空跳过渲染
+                const apiStatusEl = document.getElementById('apiStatus');
+                if (apiStatusEl) apiStatusEl.innerHTML = statusHTML;
 
                 if (!data.has_any_provider) {
                     showStatus('⚠️ 未配置任何AI提供商，将使用默认场景模板', 'info');
@@ -5351,7 +5285,7 @@
                     // 加载 GLB/GLTF（先等 meshopt 解码器就绪，避免 meshopt 压缩模型红框）
                     const ready = (window.ensureMeshoptReady ? window.ensureMeshoptReady() : Promise.resolve());
                     ready.then(() => {
-                        const loader = new THREE.GLTFLoader();
+                        const loader = newGLTFLoader();
                         window.setupMeshoptLoader && window.setupMeshoptLoader(loader);
                         loader.load(
                             modelPath,
@@ -7954,7 +7888,7 @@
                 // 先等 meshopt 解码器就绪，避免 meshopt 压缩模型报 setMeshoptDecoder 错误
                 const ready = (window.ensureMeshoptReady ? window.ensureMeshoptReady() : Promise.resolve());
                 ready.then(() => {
-                    const loader = new THREE.GLTFLoader();
+                    const loader = newGLTFLoader();
                     window.setupMeshoptLoader && window.setupMeshoptLoader(loader);
                     loader.load(url, (gltf) => {
                         const model = gltf.scene;

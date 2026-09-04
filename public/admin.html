@@ -10030,9 +10030,10 @@ async function initBoneEditor() {
       function addModelTransformControls() {
         if (!calibrationModel) return;
 
-        // 移除旧的控制器
+        // 移除旧的控制器（r169+ TransformControls 不是 Object3D，移除/添加均需经 getHelper() 的 gizmo）
         if (modelTransformControls) {
-          calibrationScene.remove(modelTransformControls);
+          const oldHelper = modelTransformControls.getHelper ? modelTransformControls.getHelper() : modelTransformControls;
+          calibrationScene.remove(oldHelper);
           modelTransformControls.dispose();
         }
 
@@ -10040,11 +10041,11 @@ async function initBoneEditor() {
         modelTransformControls = new THREE.TransformControls(calibrationCamera, calibrationRenderer.domElement);
         modelTransformControls.attach(calibrationModel);
         modelTransformControls.setMode('translate'); // 只允许平移
-        calibrationScene.add(modelTransformControls);
+        calibrationScene.add(modelTransformControls.getHelper ? modelTransformControls.getHelper() : modelTransformControls);
         
         // 确保控制器可见且可交互
         modelTransformControls.enabled = true;
-        modelTransformControls.visible = true;
+        if (modelTransformControls.getHelper) modelTransformControls.getHelper().visible = true;
         console.log('TransformControls 已创建并附加到模型:', modelTransformControls);
 
         // 监听变换事件
@@ -10128,9 +10129,10 @@ async function initBoneEditor() {
           };
         }
 
-        // 移除旧插槽和控制器
+        // 移除旧插槽和控制器（r169+ TransformControls 不是 Object3D，移除需经 getHelper()）
         if (socketTransformControls) {
-          calibrationScene.remove(socketTransformControls);
+          const oldSocketHelper = socketTransformControls.getHelper ? socketTransformControls.getHelper() : socketTransformControls;
+          calibrationScene.remove(oldSocketHelper);
           socketTransformControls.dispose();
           socketTransformControls = null;
         }
@@ -10193,7 +10195,7 @@ async function initBoneEditor() {
         // 添加TransformControls
         socketTransformControls = new THREE.TransformControls(calibrationCamera, calibrationRenderer.domElement);
         socketTransformControls.attach(weaponSocket);
-        calibrationScene.add(socketTransformControls);
+        calibrationScene.add(socketTransformControls.getHelper ? socketTransformControls.getHelper() : socketTransformControls);
 
         // 初始化旋转滑块：应用已保存的旋转值
         if (weaponSocketConfig.rightHand.rotation) {

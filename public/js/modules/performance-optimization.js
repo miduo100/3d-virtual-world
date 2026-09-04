@@ -197,7 +197,7 @@ const sceneOptimizer = {
                 });
                 
                 try {
-                    const mergedGeometry = BufferGeometryUtils.mergeBufferGeometries(geometries, true);
+                    const mergedGeometry = (THREE.BufferGeometryUtils || BufferGeometryUtils).mergeBufferGeometries(geometries, true);
                     const mergedMesh = new THREE.Mesh(mergedGeometry, material);
                     scene.add(mergedMesh);
                     console.log(`✅ 合并了 ${meshes.length} 个网格`);
