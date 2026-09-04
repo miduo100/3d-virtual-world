@@ -234,7 +234,7 @@ esbuild 输出：
 | 阶段 | 状态 | 已完成内容 | 遗留问题 / 下次入口 |
 |---|---|---|---|
 | 规划与规范 | ✅ 完成 | 三轮全仓排查（版本矩阵/分水岭/命中点/无碍项/风险矩阵），规范 v2 落盘，11 条红线 | 无 |
-| 阶段 0 基线 | 🔶 进行中 | ①npm 升级完成：three 0.185.1 + @types/three 0.185.4，REVISION=185 验证通过；②旧 API 扫描器完成：`scripts/scan-three-legacy-api.js`（234 文件/13.8 万行，业务区 must-fix 78 处：outputEncoding×3、physicallyCorrectLights×2、texture.encoding×6、PCFSoft×3、Clock×1、CDN/examples-js 引用×54，完整清单见 `scripts/_scan_legacy_report.txt`）；③GLB 扩展扫描完成：`scripts/scan-glb-extensions.js`，350 个 GLB，**spec/gloss 风险 0**，全部扩展（meshopt/quantization/texture_transform/specular 等）为 r185 标准支持 | 剩余：playwright 视觉基线截图集（主世界 3 机位 + 7 编辑器页）＝会话 2；完成后阶段 0 即验收（业务区 must-fix 清零发生在阶段 1，阶段 0 验收口径=扫描器产出完整清单） |
+| 阶段 0 基线 | ✅ 完成 | ①npm 升级完成：three 0.185.1 + @types/three 0.185.4，REVISION=185 验证通过；②旧 API 扫描器完成：`scripts/scan-three-legacy-api.js`（234 文件/13.8 万行，业务区 must-fix 78 处：outputEncoding×3、physicallyCorrectLights×2、texture.encoding×6、PCFSoft×3、Clock×1、CDN/examples-js 引用×54，完整清单见 `scripts/_scan_legacy_report.txt`）；③GLB 扩展扫描完成：`scripts/scan-glb-extensions.js`，350 个 GLB，**spec/gloss 风险 0**，全部扩展（meshopt/quantization/texture_transform/specular 等）为 r185 标准支持；④视觉基线截图完成（会话 2）：`scripts/capture_baseline_r128.js`（参数化输出目录，r185 后重跑生成对照组），10 张 PNG（1600×900 DPR=1 headless swiftshader WebGL）→ `Screenshot/baseline_r128/`，覆盖：world_editor / unified_editor / character_editor / animation_puppeteer / ai_scene_generator / ai_motion_factory / admin_dashboard + 主世界 3 机位（默认/yaw/yaw+pitch）。测试账号 `baseline_shot / Baseline#185`（仅截图专用，离线管理员表）。test_gaussian.html 跳过：全项目无 .ply 样本（`public/scenes/3dgs/` 为空目录） | 无 |
 | 阶段 1 核心 | ⬜ 未开始 | — | — |
 | 阶段 2 垫片 | ⬜ 未开始 | — | — |
 | 阶段 3 编辑器群 | ⬜ 未开始 | — | — |
