@@ -1383,6 +1383,8 @@
 
   <!-- Three.js 核心库 - 本地加载 -->
   <script src="i18n/i18n.js"></script>
+  <!-- WebGL2 能力检测与友好降级（r163 起不再支持 WebGL1，旧设备全屏提示；须先于 three 加载以便 window.stop 省流量） -->
+  <script src="js/webgl2Guard.js?v=185"></script>
   <script src="js/lib/three.min.js?v=185"></script>
   <script src="js/lib/GLTFLoader.js?v=185"></script>
   <script src="js/lib/DRACOLoader.js?v=185"></script>

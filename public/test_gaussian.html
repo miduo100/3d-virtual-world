@@ -83,7 +83,7 @@ canvas{display:block}
     var loaded = false;
 
     async function loadScene() {
-        el('f-msg').textContent = '开始下载 83.8MB PLY…';
+        el('f-msg').textContent = '开始下载 PLY…';
         el('f-msg').className = '';
         try {
             var data = await window.GaussianSplatLoader.loadPLY(PLY_URL, {
