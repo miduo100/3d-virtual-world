@@ -300,7 +300,10 @@ class BuildingManager {
       }
     });
     
-    this.world.scene.add(this.transformControls);
+    // r169+ TransformControls 为 Controls 派生（非 Object3D），需 add(getHelper())；旧版直接 add(controls)
+    this.world.scene.add(
+      this.transformControls.getHelper ? this.transformControls.getHelper() : this.transformControls
+    );
   }
   
   /**

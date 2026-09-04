@@ -58,6 +58,7 @@ Thumbs.db
 
 # Backups
 *.bak
+public/js/lib/_backup_r128/
 
 # Misc
 $null

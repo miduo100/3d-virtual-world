@@ -50,9 +50,9 @@ class World {
     this.renderer.shadowMap.enabled = false; // 保持阴影禁用以维持性能
     console.log('☀️ 阴影系统: 禁用（平衡性能和质量）');
     
-    // 启用伽马校正以获得更准确的颜色
-    this.renderer.outputEncoding = THREE.sRGBEncoding;
-    this.renderer.physicallyCorrectLights = false;
+    // 启用 sRGB 输出（r152+: outputEncoding → outputColorSpace；physicallyCorrectLights 已于 r165 移除，
+    // 光照物理化的视觉校准按升级规划在阶段 4 统一处理）
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     
     // 极致性能优化
     this.renderer.sortObjects = false;
@@ -67,7 +67,6 @@ class World {
     
     // 禁用不必要的渲染特性
     this.renderer.localClippingEnabled = false;
-    this.renderer.physicallyCorrectLights = false;
     
     // 启用视锥体剔除（超宽屏性能提升40%）
     this.camera.updateMatrixWorld();
@@ -8359,7 +8358,7 @@ class World {
       loader.load(
         obj.model_path,
         (tex) => {
-          tex.encoding = THREE.sRGBEncoding;
+          tex.colorSpace = THREE.SRGBColorSpace;
           mat.map = tex;
           mat.color.set(0xffffff);
           mat.opacity = 1;
@@ -8450,7 +8449,7 @@ class World {
 
       video.addEventListener('loadedmetadata', () => {
         const vTex = new THREE.VideoTexture(video);
-        vTex.encoding = THREE.sRGBEncoding;
+        vTex.colorSpace = THREE.SRGBColorSpace;
         mat.map = vTex;
         mat.color.set(0xffffff);
         mat.needsUpdate = true;

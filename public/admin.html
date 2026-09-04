@@ -231,10 +231,10 @@
       if (threeJsLoaded) return Promise.resolve();
       return new Promise((resolve, reject) => {
         const scripts = [
-          'js/lib/three.min.js',
-          'js/lib/OrbitControls.js',
-          'js/lib/TransformControls.js',
-          'js/lib/GLTFLoader.js'
+          'js/lib/three.min.js?v=185',
+          'js/lib/OrbitControls.js?v=185',
+          'js/lib/TransformControls.js?v=185',
+          'js/lib/GLTFLoader.js?v=185'
         ];
         let loaded = 0;
         scripts.forEach(src => {
@@ -8518,7 +8518,7 @@ async function initBoneEditor() {
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     renderer.setSize(W, H, false);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.outputEncoding = THREE.sRGBEncoding !== undefined ? THREE.sRGBEncoding : 3001;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     // Scene & Camera
     const scene = new THREE.Scene();
@@ -8713,10 +8713,10 @@ async function initBoneEditor() {
       
       // 动态注入 Three.js（使用本地文件，加载速度更快）
       const scripts = [
-        'js/lib/three.min.js',
-        'js/lib/GLTFLoader.js',
-        'js/lib/OrbitControls.js',
-        'js/lib/TransformControls.js'
+        'js/lib/three.min.js?v=185',
+        'js/lib/GLTFLoader.js?v=185',
+        'js/lib/OrbitControls.js?v=185',
+        'js/lib/TransformControls.js?v=185'
       ];
       
       const inject = (src) => new Promise(res => {

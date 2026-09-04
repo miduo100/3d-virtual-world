@@ -38,8 +38,8 @@ canvas{display:block}
     <button id="btn-toggle">释放内存 (dispose)</button>
 </div>
 
-<script src="js/lib/three.min.js"></script>
-<script src="js/lib/OrbitControls.js"></script>
+<script src="js/lib/three.min.js?v=185"></script>
+<script src="js/lib/OrbitControls.js?v=185"></script>
 <script src="js/gaussianSplatLoader.js"></script>
 <script src="js/gaussianSplatRenderer.js"></script>
 <script>
@@ -48,11 +48,11 @@ canvas{display:block}
     var PLY_URL = '/scenes/3dgs/scene-1786835882322-897112501.ply';
     var el = function (id) { return document.getElementById(id); };
 
-    // ---- 渲染器(r128) ----
+    // ---- 渲染器(r185) ----
     var renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.outputEncoding = THREE.sRGBEncoding; // 与主世界 world.js 一致
+    renderer.outputColorSpace = THREE.SRGBColorSpace; // 与主世界 world.js 一致
     document.getElementById('app').appendChild(renderer.domElement);
 
     var scene = new THREE.Scene();

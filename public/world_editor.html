@@ -7903,7 +7903,8 @@
                 newTex.magFilter = texture.magFilter;
                 newTex.minFilter = THREE.LinearMipmapLinearFilter;
                 newTex.generateMipmaps = true;
-                newTex.encoding = texture.encoding;
+                // 双兼容：world_editor 阶段 3 前仍为 CDN r128（encoding），迁移后走 colorSpace
+                if ('colorSpace' in texture) newTex.colorSpace = texture.colorSpace; else newTex.encoding = texture.encoding;
                 newTex.flipY = texture.flipY;
                 newTex.repeat.copy(texture.repeat);
                 newTex.offset.copy(texture.offset);
@@ -8029,7 +8030,8 @@
                     const loader = new THREE.TextureLoader();
                     loader.crossOrigin = 'anonymous';
                     loader.load(url, (tex) => {
-                        tex.encoding = THREE.sRGBEncoding;
+                        // 双兼容：world_editor 阶段 3 前仍为 CDN r128（encoding），迁移后走 colorSpace
+                        if ('colorSpace' in tex) tex.colorSpace = THREE.SRGBColorSpace; else tex.encoding = THREE.sRGBEncoding;
                         mesh.material.map = tex;
                         mesh.material.color.set(0xffffff);
                         mesh.material.needsUpdate = true;
@@ -8068,7 +8070,8 @@
                     return new Promise(resolve => {
                         video.addEventListener('loadedmetadata', () => {
                             const vTex = new THREE.VideoTexture(video);
-                            vTex.encoding = THREE.sRGBEncoding;
+                            // 双兼容：world_editor 阶段 3 前仍为 CDN r128（encoding），迁移后走 colorSpace
+                            if ('colorSpace' in vTex) vTex.colorSpace = THREE.SRGBColorSpace; else vTex.encoding = THREE.sRGBEncoding;
                             mesh.material.map = vTex;
                             mesh.material.color.set(0xffffff);
                             mesh.material.needsUpdate = true;

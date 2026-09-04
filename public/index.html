@@ -1382,12 +1382,12 @@
 
   <!-- Three.js 核心库 - 本地加载 -->
   <script src="i18n/i18n.js"></script>
-  <script src="js/lib/three.min.js"></script>
-  <script src="js/lib/GLTFLoader.js"></script>
-  <script src="js/lib/DRACOLoader.js"></script>
-  <script src="js/lib/OBJLoader.js"></script>
-  <script src="js/lib/MTLLoader.js"></script>
-  <script src="js/lib/TransformControls.js"></script>
+  <script src="js/lib/three.min.js?v=185"></script>
+  <script src="js/lib/GLTFLoader.js?v=185"></script>
+  <script src="js/lib/DRACOLoader.js?v=185"></script>
+  <script src="js/lib/OBJLoader.js?v=185"></script>
+  <script src="js/lib/MTLLoader.js?v=185"></script>
+  <script src="js/lib/TransformControls.js?v=185"></script>
   
   <!-- 直接加载JS源文件（开发模式，无需打包） -->
   <script src="js/config.js"></script>
@@ -1420,7 +1420,7 @@
   <script src="js/worldObjectBounds.js"></script>
   <script src="js/worldTextureOptimizer.js"></script>
   <script src="js/worldInstanceMerger_v2.js"></script>
-  <script src="js/frameBudgetScheduler.js"></script>
+  <!-- frameBudgetScheduler.js 引用移除：该文件从未存在（git 历史为空），每次加载 404 -->
   <script src="js/worldLoadingOptimizer.js"></script>
   <script src="js/worldSpatialManager.js"></script>
   <script src="js/gaussianSplatLoader.js"></script>

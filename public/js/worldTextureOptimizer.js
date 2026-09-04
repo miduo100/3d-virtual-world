@@ -76,7 +76,7 @@
       newTex.magFilter = texture.magFilter;
       newTex.minFilter = THREE.LinearMipmapLinearFilter;
       newTex.generateMipmaps = true;
-      newTex.encoding = texture.encoding;
+      newTex.colorSpace = texture.colorSpace;
       newTex.flipY = texture.flipY;
       newTex.repeat.copy(texture.repeat);
       newTex.offset.copy(texture.offset);
