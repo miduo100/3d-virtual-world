@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/License-Subscription-blue.svg)](./LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-≥18-green.svg)](https://nodejs.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-≥17-blue.svg)](https://www.postgresql.org)
-[![Three.js](https://img.shields.io/badge/Three.js-0.183-black.svg)](https://threejs.org)
+[![Three.js](https://img.shields.io/badge/Three.js-0.185-black.svg)](https://threejs.org)
 [![在线演示](https://img.shields.io/badge/在线演示-miduo100.com-orange.svg)](https://miduo100.com/)
 
 ![演示视频](./Screenshot/shipin.gif)
@@ -131,7 +131,7 @@
 
 | 层级 | 技术 |
 |------|------|
-| **前端 3D** | Three.js 0.183, WebGL |
+| **前端 3D** | Three.js 0.185, WebGL2 |
 | **前端 UI** | React 18（管理后台）, Vanilla JS（世界页）|
 | **后端** | Express.js 4.18 (Node.js) |
 | **数据库** | PostgreSQL ≥ 17 |
@@ -441,6 +441,7 @@ API 地址错误或服务未启动，检查：
 | [LICENSE](./LICENSE) | 许可证 |
 | [专利公开文档](./PATENT_DISCLOSURE.md) | 防御性技术公开 |
 | [Patent Disclosure](./PATENT_DISCLOSURE_EN.md) | 英文专利公开文档 |
+| [Three.js r185 升级规划与规范](./Three.js-r185-升级规划与规范.md) | r128 → r185 升级总纲：阶段进度表、11 条红线、兼容三层防线与验收记录 |
 
 ---
 

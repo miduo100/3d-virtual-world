@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/License-Subscription-blue.svg)](./LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-≥18-green.svg)](https://nodejs.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-≥17-blue.svg)](https://www.postgresql.org)
-[![Three.js](https://img.shields.io/badge/Three.js-0.183-black.svg)](https://threejs.org)
+[![Three.js](https://img.shields.io/badge/Three.js-0.185-black.svg)](https://threejs.org)
 [![Live Demo](https://img.shields.io/badge/Live_Demo-miduo100.com-orange.svg)](https://miduo100.com/)
 
 ![Demo](./Screenshot/shipin.gif)
@@ -131,7 +131,7 @@ Have you noticed that the current internet is bound by layers of constraints? Af
 
 | Layer | Technology |
 |------|------|
-| **Frontend 3D** | Three.js 0.183, WebGL |
+| **Frontend 3D** | Three.js 0.185, WebGL2 |
 | **Frontend UI** | React 18 (admin console), Vanilla JS (world page)|
 | **Backend** | Express.js 4.18 (Node.js) |
 | **Database** | PostgreSQL ≥ 17 |
@@ -441,6 +441,7 @@ Check if Nginx has WebSocket proxy configured (see Nginx config above).
 | [LICENSE](./LICENSE) | License |
 | [专利公开文档](./PATENT_DISCLOSURE.md) | Defensive technical disclosure (Chinese) |
 | [Patent Disclosure](./PATENT_DISCLOSURE_EN.md) | English patent disclosure |
+| [Three.js r185 Upgrade Spec](./Three.js-r185-升级规划与规范.md) | Three.js r128 → r185 upgrade plan, stage progress and compatibility rules (Chinese) |
 
 ---
 
