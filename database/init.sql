@@ -786,6 +786,7 @@ CREATE TABLE IF NOT EXISTS world_objects (
   world_id VARCHAR(100),
   video_props JSONB DEFAULT '{"autoplay":false,"muted":true,"loop":false}',
   custom_config JSONB DEFAULT NULL,
+  is_locked BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -58,6 +58,9 @@
   const tmp2 = new THREE.Matrix4();
   const playerPos = new THREE.Vector3();
   const _dist = new THREE.Vector3(); // 复用距离计算
+  const _quat = new THREE.Quaternion();   // 单位四元数（占位方块不做旋转）
+  const _posV = new THREE.Vector3();      // compose 用：位置
+  const _scaleV = new THREE.Vector3(1, 1, 1); // compose 用：缩放
 
   function findWorld() {
     return (typeof window !== 'undefined' && window.gameWorld) || null;
@@ -135,6 +138,13 @@
 
     for (let i = 0; i < instances.length; i++) {
       instances[i].model.updateMatrixWorld(true);
+      // 顺带注册包围盒：合批源模型被摘出场景后不再走 cullUnmerged 的注册路径，
+      // 这里补一次，保证同源半径可用于合批组的表面距离判定
+      const B = window.WorldObjectBounds;
+      if (B) {
+        const entry = world.generatedBuildings.get(instances[i].id);
+        B.ensure(instances[i].id, instances[i].model, entry ? entry.data : null);
+      }
     }
 
     const group = new THREE.Group();
@@ -174,6 +184,7 @@
 
     mergedGroups.set(url, {
       group,
+      url,
       sourceIds: new Set(instances.map((i) => i.id)),
       meshCount: templates.length,
       instanceCount: count,
@@ -253,8 +264,9 @@
 
   function cullUnmerged(world, playerPos, maxDistSq) {
     if (!world || !world.generatedBuildings || !world.scene) return 0;
+    const B = window.WorldObjectBounds;
     let hidden = 0;
-    world.generatedBuildings.forEach((entry) => {
+    world.generatedBuildings.forEach((entry, id) => {
       if (!entry || !entry.model) return;
       const model = entry.model;
       // 占位符不参与视距裁剪：只要有模型的位置就保持显示，维持空间内容感
@@ -265,10 +277,29 @@
       }
       // 已合批源模型已从场景摘除且不带裁剪标记 → 由合批组 im.count 控制，跳过
       if (!model.parent && !model.userData[CULL_MARK]) return;
-      const p = model.position;
-      if (!p) return;
-      const dx = p.x - playerPos.x, dy = p.y - playerPos.y, dz = p.z - playerPos.z;
-      if (dx * dx + dy * dy + dz * dz <= maxDistSq) {
+
+      let dSq;
+      if (B) {
+        // 按【玩家到模型表面】的距离判定，而非到锚点的距离：
+        // 大模型（半径上百米）用锚点判定会出现"人已在模型里、模型却被裁掉"
+        let obj = entry.data;
+        if (!obj) {
+          // data 缺失（增量/WebSocket 直入队的对象）时挂一个一次性 stub，避免每帧新建
+          obj = entry.__boundsStub || (entry.__boundsStub = { id: id, position_x: 0, position_z: 0 });
+        } else if (obj.id === undefined) obj.id = id;
+        B.ensure(id, model, obj);
+        dSq = B.surfaceDistSq(obj, playerPos.x, playerPos.z);
+        // 刚加载完成的模型给一段宽限：占位符不受裁剪，真模型一替换上来就被裁，
+        // 观感是"下载完反而消失"，这里让它至少显示 GRACE_MS
+        if (dSq > maxDistSq && B.isInGrace(entry, model)) dSq = 0;
+      } else {
+        const p = model.position;
+        if (!p) return;
+        const dx = p.x - playerPos.x, dy = p.y - playerPos.y, dz = p.z - playerPos.z;
+        dSq = dx * dx + dy * dy + dz * dz;
+      }
+
+      if (dSq <= maxDistSq) {
         // 玩家靠近：加回场景并清除标记
         if (!model.parent) {
           world.scene.add(model);
@@ -303,29 +334,39 @@
   // 收集所有"当前无真实渲染"的位置并写入共享占位方块，返回方块实例数
   function syncFarBoxes(world, playerPos, maxDistSq) {
     const farBox = ensureFarBoxIm();
+    const B = window.WorldObjectBounds;
     let farCount = 0;
     // 1) 未合批真模型：被视距裁剪摘除的（不在场景且带 CULL_MARK）
     if (world && world.generatedBuildings) {
-      world.generatedBuildings.forEach((entry) => {
+      world.generatedBuildings.forEach((entry, id) => {
         if (!entry || !entry.model || entry.isPlaceholder) return; // 占位符自身显示
         const model = entry.model;
         if (!model.parent && !model.userData[CULL_MARK]) return;   // 合批源，跳过
         if (model.parent) return;                                  // 正在渲染，跳过
         if (farCount < 8192) {
-          tmp2.setPosition(model.position.x, model.position.y, model.position.z);
+          // 占位方块按模型半径缩放，大模型在远处也保留体积感（上限 20 倍）
+          const s = B ? Math.min(Math.max(B.radiusOf(id) / 10, 1), 20) : 1;
+          _posV.set(model.position.x, model.position.y, model.position.z);
+          _scaleV.set(s, s, s);
+          tmp2.compose(_posV, _quat, _scaleV);
           farBox.setMatrixAt(farCount++, tmp2);
         }
       });
     }
-    // 2) 合批组被裁剪实例（红军等）：距离 > 渲染半径 的实例
+    // 2) 合批组被裁剪实例（红军等）：到模型表面距离 > 渲染半径 的实例
     mergedGroups.forEach((rec) => {
       const positions = rec.instancePositions;
+      const r = B ? B.radiusByUrl(rec.url) : 0;
+      const s = Math.min(Math.max(r / 10, 1), 20);
       for (let i = 0; i < positions.length; i++) {
         const dx = positions[i].x - playerPos.x;
         const dy = positions[i].y - playerPos.y;
         const dz = positions[i].z - playerPos.z;
-        if (dx * dx + dy * dy + dz * dz > maxDistSq && farCount < 8192) {
-          tmp2.setPosition(positions[i].x, positions[i].y, positions[i].z);
+        const surface = Math.sqrt(dx * dx + dy * dy + dz * dz) - r;
+        if (surface > MAX_RENDER_DIST && farCount < 8192) {
+          _posV.set(positions[i].x, positions[i].y, positions[i].z);
+          _scaleV.set(s, s, s);
+          tmp2.compose(_posV, _quat, _scaleV);
           farBox.setMatrixAt(farCount++, tmp2);
         }
       }
@@ -363,14 +404,19 @@
     // 统一远距占位方块：任何"当前无真实渲染"的位置都显示，含合批组被裁剪实例
     syncFarBoxes(world, playerPos, maxDistSq);
 
+    const B = window.WorldObjectBounds;
+
     mergedGroups.forEach((rec) => {
       const positions = rec.instancePositions;
+      // 同源实例尺寸一致，用该模型的外接半径把判定从"锚点"改为"模型表面"
+      const r = B ? B.radiusByUrl(rec.url) : 0;
       const visibleIndices = [];
       for (let i = 0; i < positions.length; i++) {
         const dx = positions[i].x - playerPos.x;
         const dy = positions[i].y - playerPos.y;
         const dz = positions[i].z - playerPos.z;
-        if (dx * dx + dy * dy + dz * dz <= maxDistSq) {
+        const surface = Math.sqrt(dx * dx + dy * dy + dz * dz) - r;
+        if (surface <= MAX_RENDER_DIST) {
           visibleIndices.push(i);
         }
       }

@@ -328,6 +328,48 @@
             margin: 0 4px;
         }
 
+        /* ===== 对象锁定（锁定/解锁按钮、锁定行提示色）===== */
+        .scene-object-item .lock-btn,
+        .right-object-item .lock-btn {
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.1);
+            transition: all 0.2s;
+            padding: 0;
+        }
+        .scene-object-item .obj-actions .lock-btn,
+        .right-object-item .right-object-actions .lock-btn {
+            margin: 0;
+            flex: 0 0 auto;
+        }
+        .lock-btn.locked {
+            background: rgba(240, 173, 78, 0.35);
+        }
+        .lock-btn.arming {
+            background: #e74c3c;
+            color: #fff;
+            animation: lockArmPulse 0.6s infinite alternate;
+        }
+        @keyframes lockArmPulse {
+            from { opacity: 1; }
+            to { opacity: 0.55; }
+        }
+        .scene-object-item.locked-row {
+            border-color: rgba(240, 173, 78, 0.9);
+            background: #fff8e6;
+        }
+        .right-object-item.locked-row {
+            border-color: rgba(240, 173, 78, 0.7);
+            background: rgba(240, 173, 78, 0.16);
+        }
+
         /* 顶部状态栏（右侧信息） */
         .status-bar {
             position: absolute;
@@ -2911,6 +2953,9 @@
             <button class="canvas-tool-btn" id="ctb-delete" onclick="deleteSelectedGroupAware()" title="删除" data-i18n-title="worldEditor.toolbar.delete">
                 🗑️
             </button>
+            <button class="canvas-tool-btn" id="ctb-lock" onclick="EditorObjectLock.lockSelectedObjects()" title="锁定选中对象（锁定后不可编辑/移动/删除）" data-i18n-title="worldEditor.toolbar.lock">
+                🔒
+            </button>
             <div class="canvas-tool-separator"></div>
             <button class="canvas-tool-btn" id="ctb-marquee" onclick="toggleMarqueeMode()" title="框选" data-i18n-title="worldEditor.toolbar.marquee">
                 🔲
@@ -3002,6 +3047,7 @@
     <script src="js/worldEditorThreejsCode.js"></script>
     <script src="js/worldEditor3dgs.js"></script>
     <script src="js/worldEditorCameraMove.js"></script>
+    <script src="js/editorObjectLock.js"></script>
     <script>
         // ===== 全局变量 =====
         let scene, camera, renderer, controls, transformControls;
@@ -3471,6 +3517,13 @@
                 if (objectId) {
                     const worldObj = worldObjects.find(obj => obj.id === objectId);
                     if (worldObj) {
+                        // 锁定对象：点击仅提示，不进入选择
+                        if (window.EditorObjectLock && window.EditorObjectLock.isLocked(worldObj)) {
+                            window.EditorObjectLock.notifyLocked(worldObj);
+                            lastClickTime = Date.now();
+                            lastClickObject = objectId;
+                            return;
+                        }
                         const now = Date.now();
                         const isDoubleClick = (now - lastClickTime < 300) && (lastClickObject === objectId);
                         
@@ -4086,6 +4139,11 @@
 
         // ===== 对象选择 =====
         function selectObject(worldObj, multiSelect = false, triggerClick = false) {
+            // 锁定对象不允许被选中
+            if (window.EditorObjectLock && window.EditorObjectLock.isLocked(worldObj)) {
+                window.EditorObjectLock.notifyLocked(worldObj);
+                return;
+            }
             if (!multiSelect) {
                 deselectAll();
             }
@@ -4105,6 +4163,11 @@
         }
 
         function toggleSelection(worldObj) {
+            // 锁定对象不允许被选中
+            if (window.EditorObjectLock && window.EditorObjectLock.isLocked(worldObj)) {
+                window.EditorObjectLock.notifyLocked(worldObj);
+                return;
+            }
             const index = selectedObjects.indexOf(worldObj);
             if (index >= 0) {
                 selectedObjects.splice(index, 1);
@@ -4118,6 +4181,8 @@
         }
 
         function deselectAll() {
+            // 取消选择/切换选择目标时重置解锁确认态（3 秒两击窗口）
+            if (window.EditorObjectLock) window.EditorObjectLock.disarmUnlock();
             selectedObjects.forEach(obj => {
                 if (obj.mesh) highlightObject(obj.mesh, false);
             });
@@ -4127,7 +4192,12 @@
 
         function selectAll() {
             deselectAll();
-            worldObjects.forEach(obj => {
+            // 锁定对象不参与全选
+            const selectable = worldObjects.filter(obj => !(window.EditorObjectLock && window.EditorObjectLock.isLocked(obj)));
+            if (selectable.length !== worldObjects.length) {
+                showNotification('🔒 已跳过 ' + (worldObjects.length - selectable.length) + ' 个锁定对象', 'info');
+            }
+            selectable.forEach(obj => {
                 selectedObjects.push(obj);
                 highlightObject(obj.mesh, true);
             });
@@ -4135,6 +4205,29 @@
         }
 
         function updateSelection() {
+            // 锁定保护：任何途径混入选中集的已锁定对象一律剔除
+            //（点击/框选/全选/勾选/解组回选等最终都汇合到此函数，此处兜底保证永不被编辑）
+            if (window.EditorObjectLock && selectedObjects.length > 0) {
+                const hasLocked = selectedObjects.some(o => window.EditorObjectLock.isLocked(o));
+                if (hasLocked) {
+                    const origCount = selectedObjects.length;
+                    const kept = [];
+                    selectedObjects.forEach(o => {
+                        if (window.EditorObjectLock.isLocked(o)) {
+                            if (o.mesh) highlightObject(o.mesh, false);
+                        } else {
+                            kept.push(o);
+                        }
+                    });
+                    selectedObjects = kept;
+                    // 提示跳过（节流 1.2s，避免框选反复触发刷屏）
+                    const now = Date.now();
+                    if (!window.__weLockNotifyAt || now - window.__weLockNotifyAt > 1200) {
+                        window.__weLockNotifyAt = now;
+                        showNotification('🔒 已自动跳过 ' + (origCount - kept.length) + ' 个锁定对象', 'info');
+                    }
+                }
+            }
             // 更新变换控制器
             if (selectedObjects.length === 1) {
                 transformControls.attach(selectedObjects[0].mesh);
@@ -4999,15 +5092,18 @@
 
         function updateObjectList(skipScroll) {
             const listContainer = document.getElementById('scene-object-list');
-            
+            const lockDirty = !!window.__weLockDirty;
+            window.__weLockDirty = false;
+
             if (worldObjects.length === 0) {
                 listContainer.innerHTML = '<div class="loading">' + weT('list.noObjects', '暂无对象') + '</div>';
                 return;
             }
 
             // 已渲染且数量一致 → 仅切换选中样式，避免每次点击全量 innerHTML 重建（选中卡顿根因之一）
+            // 锁定状态变更（__weLockDirty）时跳过快路径，强制全量重建以刷新锁按钮图标
             const existingItems = listContainer.querySelectorAll('.scene-object-item');
-            if (existingItems.length === worldObjects.length && existingItems.length > 0) {
+            if (!lockDirty && existingItems.length === worldObjects.length && existingItems.length > 0) {
                 existingItems.forEach(el => {
                     const id = Number(el.getAttribute('data-id'));
                     el.classList.toggle('selected', selectedObjects.some(o => o.id === id));
@@ -5029,19 +5125,22 @@
                 const type = obj.data?.type || 'unknown';
                 const name = obj.data?.name || weT('props.objectPrefix', '对象 #') + obj.id;
                 const icon = getObjectIcon(type);
+                const locked = window.EditorObjectLock ? window.EditorObjectLock.isLocked(obj) : false;
+                const lockBtn = window.EditorObjectLock ? window.EditorObjectLock.renderLockButton(obj) : '';
                 
                 return `
-                    <div class="scene-object-item ${isSelected ? 'selected' : ''}" 
+                    <div class="scene-object-item ${isSelected ? 'selected' : ''} ${locked ? 'locked-row' : ''}" 
                          onclick="selectObjectById(${obj.id}, event)"
                          data-id="${obj.id}">
                         <div class="obj-icon">${icon}</div>
                         <div class="obj-info">
-                            <div class="obj-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
+                            <div class="obj-name" title="${escapeHtml(name)}">${locked ? '🔒 ' : ''}${escapeHtml(name)}</div>
                             <div class="obj-meta">
                                 <span class="obj-id">${obj.id}</span>
                             </div>
                         </div>
                         <div class="obj-actions">
+                            ${lockBtn}
                             <button class="action-btn" onclick="downloadObject(${obj.id}); event.stopPropagation();" title="${weT('list.actionPlace', '落地')}">📍</button>
                             <button class="action-btn delete" onclick="deleteObjectById(${obj.id}); event.stopPropagation();" title="${weT('list.actionDelete', '删除')}">🗑️</button>
                         </div>
@@ -5070,6 +5169,8 @@
         function updateRightObjectList(skipScroll) {
             const listContainer = document.getElementById('right-object-list');
             const countEl = document.getElementById('right-object-count');
+            const lockDirty = !!window.__weLockDirty;
+            window.__weLockDirty = false;
 
             if (worldObjects.length === 0) {
                 listContainer.innerHTML = `
@@ -5084,8 +5185,9 @@
 
             // 已渲染且数量一致 → 仅切换选中样式，避免全量 innerHTML 重建
             //（选中频繁触发，全量重建两个列表是点击选中的主要开销）
+            // 锁定状态变更（__weLockDirty）时跳过快路径，强制全量重建以刷新锁按钮图标
             const existingRightItems = listContainer.querySelectorAll('.right-object-item');
-            if (existingRightItems.length === worldObjects.length && existingRightItems.length > 0) {
+            if (!lockDirty && existingRightItems.length === worldObjects.length && existingRightItems.length > 0) {
                 existingRightItems.forEach(el => {
                     const id = Number(el.getAttribute('data-id'));
                     const isSel = selectedObjects.some(o => o.id === id);
@@ -5109,9 +5211,11 @@
                 const type = obj.data?.type || 'unknown';
                 const name = obj.data?.name || weT('props.objectPrefix', '对象 #') + obj.id;
                 const icon = getObjectIcon(type);
+                const locked = window.EditorObjectLock ? window.EditorObjectLock.isLocked(obj) : false;
+                const lockBtn = window.EditorObjectLock ? window.EditorObjectLock.renderLockButton(obj) : '';
 
                 return `
-                    <div class="right-object-item ${isSelected ? 'selected' : ''}"
+                    <div class="right-object-item ${isSelected ? 'selected' : ''} ${locked ? 'locked-row' : ''}"
                          onclick="selectObjectByIdRightPanel(${obj.id}, event)"
                          data-id="${obj.id}">
                         <div class="right-object-check ${isSelected ? 'checked' : ''}"
@@ -5119,10 +5223,11 @@
                              title="${weT('list.selectToggle', '选择')}">✓</div>
                         <div class="right-object-icon">${icon}</div>
                         <div class="right-object-info">
-                            <div class="right-object-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
+                            <div class="right-object-name" title="${escapeHtml(name)}">${locked ? '🔒 ' : ''}${escapeHtml(name)}</div>
                             <div class="right-object-type">${type.toUpperCase()} · ID: ${obj.id}</div>
                         </div>
                         <div class="right-object-actions">
+                            ${lockBtn}
                             <button class="right-object-btn locate" onclick="focusObjectRightPanel(${obj.id}); event.stopPropagation();" title="${weT('list.actionLocate', '定位')}">📍</button>
                             <button class="right-object-btn delete" onclick="deleteObjectByIdRightPanel(${obj.id}); event.stopPropagation();" title="${weT('list.actionDelete', '删除')}">🗑️</button>
                         </div>
@@ -5165,6 +5270,12 @@
             if (obj) {
                 // 仅定位相机并更新属性面板，不改变勾选状态（复选框不打勾）
                 focusObject(id);
+                // 锁定对象：允许只读定位，但不打开可编辑属性表单
+                if (window.EditorObjectLock && window.EditorObjectLock.isLocked(obj)) {
+                    window.EditorObjectLock.notifyLocked(obj);
+                    updateRightPropsPanel(null);
+                    return;
+                }
                 updateRightPropsPanel(obj);
             }
         }
@@ -5173,6 +5284,11 @@
         function toggleRightObjectSelection(id) {
             const obj = worldObjects.find(o => o.id === id);
             if (!obj) return;
+            // 锁定对象不允许被勾选
+            if (window.EditorObjectLock && window.EditorObjectLock.isLocked(obj)) {
+                window.EditorObjectLock.notifyLocked(obj);
+                return;
+            }
             // 手动切换选中状态（等价于 toggleSelection，但跳过相机定位/列表滚动）
             const index = selectedObjects.indexOf(obj);
             if (index >= 0) {
@@ -5202,6 +5318,11 @@
         function deleteObjectByIdRightPanel(id) {
             const obj = worldObjects.find(o => o.id === id);
             if (!obj) return;
+            // 锁定对象禁止删除
+            if (window.EditorObjectLock && window.EditorObjectLock.isLocked(obj)) {
+                window.EditorObjectLock.notifyLocked(obj);
+                return;
+            }
 
             // 直接删除，不重复确认（删除单个对象不需要再次确认）
             if (obj.mesh) scene.remove(obj.mesh);
@@ -5225,7 +5346,9 @@
 
         // 右侧面板全选
         function selectAllRightPanel() {
-            selectedObjects = [...worldObjects];
+            // 锁定对象不参与全选
+            const selectable = worldObjects.filter(obj => !(window.EditorObjectLock && window.EditorObjectLock.isLocked(obj)));
+            selectedObjects = [...selectable];
             updateSelection();
             updateRightObjectList();
         }
@@ -5571,10 +5694,14 @@
 
         async function deleteObjectById(id) {
             const obj = worldObjects.find(o => o.id === id);
-            if (obj) {
-                selectObject(obj, false);
-                await deleteSelected();
+            if (!obj) return;
+            // 锁定对象禁止删除
+            if (window.EditorObjectLock && window.EditorObjectLock.isLocked(obj)) {
+                window.EditorObjectLock.notifyLocked(obj);
+                return;
             }
+            selectObject(obj, false);
+            await deleteSelected();
         }
 
         function filterObjects(searchTerm) {

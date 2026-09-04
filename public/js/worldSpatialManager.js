@@ -19,6 +19,9 @@
   const API_BASE = '/api/world/spatial/around';
   const INITIAL_RADIUS = 600;   // 首次拉取半径（米）
   const CELL_SIZE = 400;        // 增量轮询的网格粒度（米）
+  // 大模型外扩量（米）：后端按锚点做方框查询，大模型的锚点可能远在模型之外，
+  // 不外扩的话玩家走到模型跟前，这条记录还没被拉进 allWorldObjects，永远不会加载
+  const BOUNDS_MARGIN = 200;
   const POLL_INTERVAL = 2500;   // 轮询间隔（ms）
   const FETCH_LIMIT = 500;      // 单次请求上限（与后端 MAX_LIMIT 对齐）
   const MAX_OBJECTS = 5000;     // 全图对象安全阀
@@ -131,17 +134,17 @@
         const extra = [];
         for (const t of ['geometry_building', 'geometry_nature', 'media_image', 'media_video', 'threejs_code', 'gaussian_splat']) {
           try {
-            const objs = await this._fetchAroundAll(pos.x, pos.z, INITIAL_RADIUS, t);
+            const objs = await this._fetchAroundAll(pos.x, pos.z, INITIAL_RADIUS + BOUNDS_MARGIN, t);
             extra.push(...objs);
           } catch (e) { /* 单项失败不阻断 */ }
         }
         // 2) uploaded_model 翻页拉全（红军+旧模型都拉回，由 merger 视距裁剪控制渲染）
         try {
-          const ups = await this._fetchAroundAll(pos.x, pos.z, INITIAL_RADIUS, 'uploaded_model');
+          const ups = await this._fetchAroundAll(pos.x, pos.z, INITIAL_RADIUS + BOUNDS_MARGIN, 'uploaded_model');
           extra.push(...ups);
         } catch (e) { /* 失败不阻断 */ }
         // 3) 常规拉取（广告位等）
-        const json = await this._fetchAround(pos.x, pos.z, INITIAL_RADIUS);
+        const json = await this._fetchAround(pos.x, pos.z, INITIAL_RADIUS + BOUNDS_MARGIN);
         if (json.success) {
           const merged = [...extra, ...(json.objects || [])];
           const seen = new Set();
@@ -189,7 +192,7 @@
       if (cell === this._lastCell) return;
       this.pending = true;
       try {
-        const objs = await this._fetchAroundAll(pos.x, pos.z, CELL_SIZE);
+        const objs = await this._fetchAroundAll(pos.x, pos.z, CELL_SIZE + BOUNDS_MARGIN);
         this._lastCell = cell;
         this.loadedCells.add(cell);
         this._merge(objs);

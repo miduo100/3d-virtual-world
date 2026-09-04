@@ -125,6 +125,8 @@ class World {
     this.baseLoadInterval = 100; // 加载间隔（ms）
     this.loadInterval = 100; // 当前加载间隔
     this.maxLoadingQueueSize = 200; // 最大加载队列大小
+    this._loadedAt = new Map(); // 对象 id → 加载完成时间戳（最短存活时间用）
+    this.minObjectLifetimeMs = 60000; // 对象最短存活时间（ms），防阈值边缘反复卸载/重载
     this.objectsPerFrame = 3; // 每帧处理的对象数量
     this.loadingPhase = 'initial'; // 加载阶段：initial, nearby, distant
     this.lastPhaseChange = 0; // 上次阶段变化时间
@@ -507,6 +509,10 @@ class World {
     // 世界对象不使用骨骼动画，统一烘焙为静态网格（顶点固定在 bind pose 位置）。
     this._bakeSkinsToStatic(obj);
     this.scene.add(obj);
+    // 记录入场景时刻：合批模块据此给"刚加载完"的模型一段视距裁剪宽限，
+    // 避免占位符可见、真模型一替换上来就被裁掉的观感突变
+    if (!obj.userData) obj.userData = {};
+    obj.userData.__addedAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
     // 批量延迟编译：同一帧内的多次add合并为一次compile
     if (!this._pendingShaderCompile) {
       this._pendingShaderCompile = true;
@@ -2436,12 +2442,8 @@ class World {
           // ── 骨骼物理：Dynamic Bone 风格，头发/尾巴/裙子/胸部等跟随移动飘动 ──
           try {
             if (typeof window.initBonePhysics === 'function' && model) {
-              const bp = window.initBonePhysics(model, {
-                gravity: 4.0,
-                damping: 0.15,
-                stiffness: 15,
-                elasticity: 1.2
-              });
+              // 参数统一走 public/js/bonePhysicsConfig.js，可在控制台用 window.BonePhysicsTuning 实时热调
+              const bp = window.initBonePhysics(model);
               if (bp) {
                 characterGroup.userData.bonePhysics = bp;
                 console.log('[BonePhysics] ✅ 已为模型启用骨骼物理（头发/尾巴/裙子等将跟随移动飘动）');
@@ -3091,6 +3093,28 @@ class World {
   }
 
   /**
+   * 世界对象到玩家的距离平方（水平面 XZ）
+   *
+   * 口径说明：优先走 WorldObjectBounds 的【表面距离】（玩家到模型世界包围盒的
+   * 最近距离，盒内为 0），解决大模型"人已站在模型边缘/内部，系统却判定为远"
+   * 的问题；模块未加载时退回原来的锚点（position_x/z）中心距离，行为不变。
+   *
+   * @param {object} obj 世界对象数据行
+   * @param {number} px 玩家 x
+   * @param {number} pz 玩家 z
+   * @returns {number} 距离平方
+   */
+  _surfaceDistSq(obj, px, pz) {
+    const B = (typeof window !== 'undefined') ? window.WorldObjectBounds : null;
+    if (B && typeof B.surfaceDistSq === 'function') {
+      return B.surfaceDistSq(obj, px, pz);
+    }
+    const dx = px - (obj.position_x || 0);
+    const dz = pz - (obj.position_z || 0);
+    return dx * dx + dz * dz;
+  }
+
+  /**
    * 根据距离动态加载和卸载对象
    */
   updateObjectLoading() {
@@ -3124,9 +3148,10 @@ class World {
         // 已失败3次的对象不再重复入队，避免无限重试
         if ((this.loadRetryCount.get(obj.id) || 0) >= 3) continue;
         
-        const dx = px - (obj.position_x || 0);
-        const dz = pz - (obj.position_z || 0);
-        const distSq = dx * dx + dz * dz;
+        // 距离口径：优先按【玩家到模型表面】判定（WorldObjectBounds），
+        // 大模型用锚点判定会导致"人已到模型边上却始终不加载"。
+        // 模块缺失时自动退回原中心点逻辑。
+        const distSq = this._surfaceDistSq(obj, px, pz);
         
         if (distSq < loadDistSq) {
           const isInQueue = this.loadingQueue.some(q => q.id === obj.id);
@@ -3148,9 +3173,13 @@ class World {
       
       this.allWorldObjects.forEach(obj => {
         if (this.loadedObjects.has(obj.id)) {
-          const dx = px2 - (obj.position_x || 0);
-          const dz = pz2 - (obj.position_z || 0);
-          if (dx * dx + dz * dz > unloadDistSq) {
+          // 最短存活时间：大模型重建代价高（clone + 纹理重传 + 着色器编译），
+          // 防止玩家在阈值边缘来回走动造成反复"卸载→重载"的抖振
+          const loadedAt = this._loadedAt ? (this._loadedAt.get(obj.id) || 0) : 0;
+          if (loadedAt && (Date.now() - loadedAt) < this.minObjectLifetimeMs) return;
+          // 同样按【玩家到模型表面】判定，避免大模型在玩家还没离开边缘时就被卸载
+          const dSq = this._surfaceDistSq(obj, px2, pz2);
+          if (dSq > unloadDistSq) {
             objectsToUnload.push(obj);
           }
         }
@@ -3280,6 +3309,13 @@ class World {
       const aIsLarge = sizeA > this.LARGE_MODEL_THRESHOLD;
       const bIsLarge = sizeB > this.LARGE_MODEL_THRESHOLD;
       
+      // 大模型例外：已进入加载半径（按模型表面算）的大模型不再被压到队尾，
+      // 否则玩家走到模型跟前，它还在等前面所有小模型加载完（体感"很久才显示"）
+      const nearA = aIsLarge && pp && this._surfaceDistSq(a, pp.x, pp.z) < this.loadDistance * this.loadDistance;
+      const nearB = bIsLarge && pp && this._surfaceDistSq(b, pp.x, pp.z) < this.loadDistance * this.loadDistance;
+      if (nearA && !nearB) return -1;
+      if (!nearA && nearB) return 1;
+      
       if (!aIsLarge && bIsLarge) return -1;  // a小b大，a优先
       if (aIsLarge && !bIsLarge) return 1;   // a大b小，b优先
       
@@ -3366,6 +3402,7 @@ class World {
         try {
           // 先标记为已加载，防止重复入队
           this.loadedObjects.add(objToLoad.id);
+          this._loadedAt.set(objToLoad.id, Date.now());
           
           // 防御：loadMethod 缺失或不是函数时（增量分页/WebSocket 直接入队的对象），
           // 按 type 推导加载方法；推导不出则跳过，避免连续失败重试刷屏
@@ -3544,6 +3581,8 @@ class World {
    * 卸载对象
    */
   unloadObject(obj) {
+    // 清掉存活时间戳，避免 _loadedAt 随反复卸载/重载无限增长
+    if (this._loadedAt) this._loadedAt.delete(obj.id);
     
     // 根据对象类型卸载
     switch (obj.type) {

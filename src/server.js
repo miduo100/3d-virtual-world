@@ -78,6 +78,7 @@ const { initializeDatabase, query } = require('./database/db');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const worldRoutes = require('./routes/world');
+const worldLockRoutes = require('./routes/worldLock');
 const worldGroundRoutes = require('./routes/worldGround');
 const shopRoutes = require('./routes/shop');
 const plotRoutes = require('./routes/plot');
@@ -120,6 +121,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/world/spatial', worldSpatialRoutes);
 // 世界内容写操作仅管理员可用（GET 在守卫内部放行，联邦跨域读取不受影响）
 app.use('/api/world', worldWriteGuard, worldRoutes);
+app.use('/api/world', worldWriteGuard, worldLockRoutes);
 app.use('/api/world', worldWriteGuard, worldGroundRoutes);
 app.use('/api/shop', shopRoutes);
 app.use('/api/plot', plotRoutes);
