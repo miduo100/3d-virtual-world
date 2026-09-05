@@ -512,8 +512,17 @@ class World {
     // 避免占位符可见、真模型一替换上来就被裁掉的观感突变
     if (!obj.userData) obj.userData = {};
     obj.userData.__addedAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-    // 批量延迟编译：同一帧内的多次add合并为一次compile
-    if (!this._pendingShaderCompile) {
+    // 【2026-09-05 卡顿治理】真模型"预热后显示"：先隐藏 → compileAsync 异步预热
+    // 着色器/纹理 → 下一帧统一显示，消除"模型白闪一下才正常"的首帧观感；
+    // 模型确认可见后再渐缩对应占位方块（removePlaceholder 挂的 600ms 兜底自然失效）。
+    if (window.PlaceholderField && this.renderer.compileAsync) {
+      window.PlaceholderField.reveal(obj, this.renderer, this.camera, this.scene, function (o) {
+        const wid = o && o.userData && o.userData.worldObjectId;
+        // wid 缺失时交给 removePlaceholder 的 600ms 兜底定时器收盒子
+        if (wid !== undefined && wid !== null) window.PlaceholderField.fadeOutAndHide(wid);
+      });
+    } else if (!this._pendingShaderCompile) {
+      // 兜底：模块缺失时保留旧的延迟编译逻辑
       this._pendingShaderCompile = true;
       requestAnimationFrame(() => {
         try {
@@ -1987,29 +1996,21 @@ class World {
     return characterGroup;
   }
 
-  // 获取角色校准参数
-  async _getCharacterCalibration(characterId) {
+  // 获取角色校准参数（注意：传入的是模板ID selectedTemplateId，不是 characters 表的 id）
+  async _getCharacterCalibration(templateId) {
+    // 查模板校准端点（/api/character-templates/:id/calibration）
     try {
-      // 首先尝试从character数据中获取校准参数
-      const characterData = await API.getCharacter(characterId);
-      if (characterData && characterData.character && characterData.character.calibration) {
-        console.log(`✅ [Calibration] 从角色数据中获取校准参数:`, characterData.character.calibration);
-        return characterData.character.calibration;
-      }
-      
-      // 如果角色数据中没有，尝试从专门的校准API获取
-      try {
-        const calibrationData = await API.get(`/character-templates/${characterId}/calibration`);
-        console.log(`✅ [Calibration] 从校准API获取参数:`, calibrationData);
-        return calibrationData;
-      } catch (e) {
-        console.warn(`⚠️ [Calibration] 校准API调用失败:`, e.message);
-        return null;
+      const calibrationData = await API.get(`/character-templates/${templateId}/calibration`);
+      if (calibrationData && calibrationData.success && calibrationData.calibration &&
+          calibrationData.calibration.calibration_config &&
+          Object.keys(calibrationData.calibration.calibration_config).length > 0) {
+        console.log(`✅ [Calibration] 从模板校准API获取参数:`, calibrationData.calibration.calibration_config);
+        return calibrationData.calibration.calibration_config;
       }
     } catch (e) {
-      console.warn(`⚠️ [Calibration] 获取校准参数失败:`, e.message);
-      return null;
+      console.warn(`⚠️ [Calibration] 模板校准API调用失败:`, e.message);
     }
+    return null;
   }
 
   // 加载 GLB 替换玩家方块人
@@ -3618,9 +3619,9 @@ class World {
               building.model.userData.label = null;
             }
             
-            // 如果是占位符，回收回对象池
+            // 如果是占位符：占位方块由 PlaceholderField 管理，直接隐藏即可
             if (building.isPlaceholder) {
-              this.recycleToPool('placeholders', building.model);
+              if (window.PlaceholderField) window.PlaceholderField.hide(obj.id);
             } else {
               // P1: 纹理释放改为引用计数（worldTextureOptimizer 统一管理），
               // 不再直接 dispose mat.map —— 否则会误杀其他实例共享的同源纹理
@@ -3647,14 +3648,18 @@ class World {
                 }
               });
             }
-            
+
             // 从地图中删除
             this.generatedBuildings.delete(obj.id);
-            
+
             // 从碰撞对象中移除，优先使用ID匹配
-            this.collisionObjects = this.collisionObjects.filter(collisionObj => 
+            this.collisionObjects = this.collisionObjects.filter(collisionObj =>
               collisionObj.id !== obj.id
             );
+
+            // 【2026-09-05 卡顿治理】真模型卸载后重新摆上占位方块（产品决策：
+            // 走远后世界对象以蓝盒子形式保留示意，走近再重新加载真模型）
+            this.addPlaceholderBuilding(obj.id, obj, 'loading');
             
           // 已卸载建筑对象（静默）
           }
@@ -3933,6 +3938,9 @@ class World {
     // 检查所有已加载的建筑（使用缓存Box3，避免每帧 setFromObject 递归遍历）
     this.generatedBuildings.forEach((building, id) => {
       if (building.model) {
+        // 着色器预热中的模型（PlaceholderField.reveal 控制）暂不参与可见性控制，
+        // 防止预热期间被此处强制 visible=true 提前暴露首帧白闪
+        if (building.model.userData && building.model.userData.__pendingReveal) return;
         // 缓存包围盒：只在首次或matrixWorld变化时重新计算
         if (!building._cachedBox3 || building.model.matrixWorldNeedsUpdate) {
           building._cachedBox3 = new THREE.Box3().setFromObject(building.model);
@@ -4681,26 +4689,25 @@ class World {
           this.loadedObjects.clear();
           this.loadingBatch = [];
           
-          // 两阶段加载策略：
-          // 阶段1：瞬间完成（<100ms）- 为所有有 model_path 的对象放置占位符，几何体建筑直接加载
-          // 阶段2：后台异步 - 逐个加载真实模型替换占位符
+          // 两阶段加载策略（2026-09-05 卡顿治理重构）：
+          // 阶段1：瞬间完成 —— 为【全部】世界对象摆放轻量占位方块（PlaceholderField
+          //        InstancedMesh：全图共用 1 个几何体 1 份材质 1 次 draw call，
+          //        不再创建名字标签/进度条，旧方案 400+ 占位符自身就是 1200+ draw call）
+          // 阶段2：真模型按【玩家-模型表面距离】由 updateObjectLoading 按需入队，
+          //        不再一次性全量塞入队列（旧行为绕过了 loadDistance 距离过滤，
+          //        导致 800m 外的模型也照样下载/加载/渲染——卡顿主因之一）
           
-          // 预先为所有有 model_path 的对象放置加载中占位符（蓝色方块+名称标签）
-          const modelsWithPath = this.allWorldObjects.filter(obj => 
-            obj.model_path && obj.model_path !== '' && 
-            !(obj.type && obj.type.startsWith('geometry_'))
-          );
-          if (modelsWithPath.length > 0) {
-            console.log(`🎯 两阶段加载：预先放置 ${modelsWithPath.length} 个模型占位符（几何体建筑将直接加载）`);
-            modelsWithPath.forEach(obj => {
+          if (window.PlaceholderField && this.allWorldObjects.length > 0) {
+            console.log(`🎯 两阶段加载：预先摆放 ${this.allWorldObjects.length} 个占位方块（InstancedMesh 单次绘制）`);
+            this.allWorldObjects.forEach(obj => {
               this.addPlaceholderBuilding(obj.id, obj, 'loading');
-              this.updateLargeModelProgress(obj.name || '模型', 0);
             });
           }
           
-          // 将所有世界对象填充到加载队列，开始动态加载
-          this.loadingQueue = [...this.allWorldObjects];
-          console.log(`🚀 开始动态加载 ${this.loadingQueue.length} 个对象`);
+          // 队列留空：由 updateObjectLoading（每30帧）按玩家与模型的【表面距离】
+          // （WorldObjectBounds 口径，大模型按边缘而非中心点判定）动态入队
+          this.loadingQueue = [];
+          console.log(`🚀 动态加载已启用（按距离入队，加载半径 ${this.loadDistance}m / 卸载半径 ${this.unloadDistance}m）`);
           
           // 延迟应用位置覆盖（等待所有对象加载完成）
           this._scheduleApplyTransformOverrides();
@@ -5429,131 +5436,44 @@ class World {
   }
 
   /**
-   * 添加占位符建筑（status='loading' 时显示加载中蓝色占位符+名称标签，status='failed' 时显示紫色错误占位符）
+   * 添加占位符建筑（2026-09-05 重构：代理到 PlaceholderField）
+   * - 全图占位方块共用一个 InstancedMesh（1 draw call），不再逐个建 mesh
+   * - 名字标签/进度条已按产品决策移除（近处有真模型时看不到、远处看不清）
+   * - status 参数保留兼容旧调用（loading/failed 统一显示蓝色方块）
    */
   addPlaceholderBuilding(id, buildingData, status = 'failed') {
-    // 【修复】遍历场景，移除所有同名占位符（防止对象池复用导致的残留）
-    const toRemove = [];
-    this.scene.traverse((child) => {
-      if (child.userData && child.userData.worldObjectId === id &&
-          child.userData.isLoadingPlaceholder !== undefined) {
-        toRemove.push(child);
-      }
-    });
-    toRemove.forEach(obj => {
-      this.scene.remove(obj);
-    });
-
-    // 【修复】如果已存在同id的旧占位符，先移除（防止两阶段加载重复创建）
-    const existingEntry = this.generatedBuildings.get(id);
-    if (existingEntry && existingEntry.isPlaceholder) {
-      this.scene.remove(existingEntry.model);
-      this.recycleToPool('placeholders', existingEntry.model);
+    if (!buildingData) return;
+    if (!window.PlaceholderField) return; // 模块未加载时静默跳过（不阻断加载链路）
+    if (!window.PlaceholderField.has(id)) {
+      window.PlaceholderField.init(this.scene);
+      window.PlaceholderField.show(
+        id,
+        buildingData.position_x || 0,
+        buildingData.position_y || 0,
+        buildingData.position_z || 0
+      );
     }
-
-    const { position_x, position_y, position_z, name } = buildingData;
-    const isLoading = status === 'loading';
-    
-    // 从对象池获取占位符
-    let placeholder = this.getFromPool('placeholders');
-    
-    // 如果对象池没有可用对象，创建新的
-    if (!placeholder) {
-      const geometry = new THREE.BoxGeometry(5, 6, 5);
-      const material = new THREE.MeshStandardMaterial({
-        color: isLoading ? 0x00ccff : 0x667eea,
-        emissive: isLoading ? 0x006688 : 0x333366,
-        transparent: true,
-        opacity: isLoading ? 0.5 : 0.7
-      });
-      placeholder = new THREE.Mesh(geometry, material);
-    } else {
-      // 重设材质颜色
-      if (placeholder.material) {
-        placeholder.material.color.set(isLoading ? 0x00ccff : 0x667eea);
-        placeholder.material.emissive.set(isLoading ? 0x006688 : 0x333366);
-        placeholder.material.opacity = isLoading ? 0.5 : 0.7;
-      }
-    }
-    
-    placeholder.position.set(position_x, position_y + 3, position_z);
-    placeholder.castShadow = true;
-    placeholder.receiveShadow = true;
-    placeholder.visible = true;
-    
-    this.scene.add(placeholder);
-    
-    // 添加名称标签（Canvas纹理+Sprite，避免DOM泄露）
-    if (isLoading && name) {
-      const label = this.createNameSprite(name);
-      if (label) {
-        label.position.y = 5; // 放在占位符顶部上方（调高为进度数字留空间）
-        placeholder.add(label);
-        placeholder.userData.label = label;
-      }
-      
-      // 添加进度数字 sprite（初始显示"下载中"，如有文件大小则显示预期大小）
-      const expectedSize = buildingData.file_size || 0;
-      const progressSprite = this.createProgressSprite(1, 'loading', expectedSize || null);
-      if (progressSprite) {
-        progressSprite.position.y = 0;
-        placeholder.add(progressSprite);
-        placeholder.userData.progressSprite = progressSprite;
-      }
-      
-      // 存储预期文件大小并立即启动模拟进度
-      const sanitizedId = name.replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '_');
-      const totalBytes = buildingData.file_size || 0;
-      console.log('[进度调试-1] addPlaceholderBuilding:', { name, rawFileSize: buildingData.file_size, totalBytes });
-      if (!this._modelExpectedBytes) this._modelExpectedBytes = new Map();
-      if (totalBytes > 0) this._modelExpectedBytes.set(sanitizedId, totalBytes);
-      this._startProgressSimulation(sanitizedId, name, totalBytes);
-    }
-    
-    // 设置 userData 用于射线选中的回退匹配
-    placeholder.userData.worldObjectId = id;
-    placeholder.userData.name = name;
-    placeholder.userData.isLoadingPlaceholder = isLoading;
-    
+    // generatedBuildings 记录保留（加载完成判断/替换占位符/卸载链路依赖此登记）
     this.generatedBuildings.set(id, {
-      model: placeholder,
+      model: null, // 占位方块在 PlaceholderField 内，不在此持有 mesh 引用
       data: buildingData,
       isPlaceholder: true,
-      isLoadingPlaceholder: isLoading
+      isLoadingPlaceholder: status === 'loading'
     });
-
-    console.log(`📦 占位符: ${name} (${isLoading ? '加载中' : '失败'})`);
   }
 
   /**
-   * 移除占位符并将占位符回收到对象池
+   * 移除占位符（2026-09-05 重构：代理到 PlaceholderField）
+   * 占位方块不立即消失——挂到真模型的 reveal 回调上，模型确认可见后再
+   * 渐缩消失（250ms），消除"盒子没了→模型白闪出现"的硬切换观感；
+   * 600ms 兜底超时防模型加载异常时盒子残留。
    */
   removePlaceholder(id) {
-    // 从 generatedBuildings 移除记录的引用
     const entry = this.generatedBuildings.get(id);
-    if (entry && entry.isPlaceholder) {
-      this.scene.remove(entry.model);
-      this.recycleToPool('placeholders', entry.model);
+    if (window.PlaceholderField) {
+      const model = (entry && !entry.isPlaceholder) ? entry.model : null;
+      window.PlaceholderField.hideAfterRevealOrTimeout(id, model);
     }
-
-    // 【新增】防御性清理：遍历场景，移除所有匹配 worldObjectId 的占位符对象
-    // 防止对象池复用导致残留的"幽灵占位符"（在场景中但不在 generatedBuildings 追踪中）
-    const toRemove = [];
-    this.scene.traverse((child) => {
-      if (child.userData && child.userData.worldObjectId === id &&
-          child.userData.isLoadingPlaceholder !== undefined) {
-        toRemove.push(child);
-      }
-    });
-    toRemove.forEach(obj => {
-      this.scene.remove(obj);
-      // 如果这个对象不是 generatedBuildings 里记录的那个，销毁它避免内存泄漏
-      if (obj !== (entry && entry.model)) {
-        if (obj.geometry) obj.geometry.dispose();
-        if (obj.material) obj.material.dispose();
-      }
-    });
-
     this.generatedBuildings.delete(id);
   }
 
@@ -5691,8 +5611,9 @@ class World {
       }
     }
     
+    // 【2026-09-05】新占位符机制（PlaceholderField）下 entry.model 为 null，
+    // 无实体可挂进度条 —— 静默返回（字节统计 _modelRealBytes 已在上方完成）
     if (!targetPlaceholder) {
-      console.log('[进度调试-3] 未找到占位符! 查找name=', name, ' 当前占位符列表:', [...this.generatedBuildings.entries()].filter(e => e[1].isPlaceholder).map(e => e[1].data?.name));
       return;
     }
     
@@ -5776,6 +5697,8 @@ class World {
     for (const [id, entry] of this.generatedBuildings.entries()) {
       if (entry.isPlaceholder && entry.isLoadingPlaceholder && entry.data && entry.data.name === name) {
         const placeholder = entry.model;
+        // 新占位符机制：占位方块无实体 mesh，无进度条可更新
+        if (!placeholder || !placeholder.userData) break;
         const oldSprite = placeholder.userData.progressSprite;
         if (oldSprite) {
           placeholder.remove(oldSprite);
@@ -5815,6 +5738,8 @@ class World {
     for (const [id, entry] of this.generatedBuildings.entries()) {
       if (entry.isPlaceholder && entry.isLoadingPlaceholder && entry.data && entry.data.name === name) {
         const placeholder = entry.model;
+        // 新占位符机制：占位方块无实体 mesh，跳过"完成"标记
+        if (!placeholder || !placeholder.userData) break;
         const oldSprite = placeholder.userData.progressSprite;
         if (oldSprite) {
           placeholder.remove(oldSprite);
@@ -6944,8 +6869,10 @@ class World {
   async addGeometryBuilding(worldObject) {
     console.log('添加几何体建筑:', worldObject);
     
-    // 检查是否已加载
-    if (this.generatedBuildings.has(worldObject.id)) {
+    // 检查是否已加载（占位符条目不算已加载——2026-09-05 全图占位方块会把
+    // 未加载对象登记为 isPlaceholder 条目，必须放行让真几何体正常构建）
+    const existingEntry = this.generatedBuildings.get(worldObject.id);
+    if (existingEntry && !existingEntry.isPlaceholder) {
       console.log('几何体建筑已加载，跳过:', worldObject.id);
       return;
     }
@@ -7247,8 +7174,9 @@ class World {
         return;
       }
 
-      // 检查是否已加载
-      if (this.generatedBuildings.has(id)) {
+      // 检查是否已加载（占位符条目不算——见 addGeometryBuilding 同款修复）
+      const existingEntry = this.generatedBuildings.get(id);
+      if (existingEntry && !existingEntry.isPlaceholder) {
         console.log('Three.js模型已存在，跳过:', id);
         return;
       }

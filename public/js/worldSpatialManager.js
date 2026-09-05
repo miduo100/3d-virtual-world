@@ -114,6 +114,14 @@
         this.loadedIds.add(o.id);
         target.push(o);
         added++;
+        // 【2026-09-05 卡顿治理】增量拉取的新对象也立即摆上占位方块
+        // （全图占位示意的一部分，真模型仍按距离由 updateObjectLoading 入队）
+        try {
+          if (this.world && typeof this.world.addPlaceholderBuilding === 'function' &&
+              window.PlaceholderField && !window.PlaceholderField.has(o.id)) {
+            this.world.addPlaceholderBuilding(o.id, o, 'loading');
+          }
+        } catch (e) { /* 摆放失败不阻断合并 */ }
       }
       if (added > 0) {
         console.log('[空间分页] 增量合并 ' + added + ' 个新对象，当前共 ' + target.length + ' 个');
@@ -143,8 +151,17 @@
           const ups = await this._fetchAroundAll(pos.x, pos.z, INITIAL_RADIUS + BOUNDS_MARGIN, 'uploaded_model');
           extra.push(...ups);
         } catch (e) { /* 失败不阻断 */ }
-        // 3) 常规拉取（广告位等）
-        const json = await this._fetchAround(pos.x, pos.z, INITIAL_RADIUS + BOUNDS_MARGIN);
+        // 3) 全图兜底拉取（翻页拉全）：占位方块需要"全图示意"（产品决策 2026-09-05），
+        //    名单本身每行仅几百字节、真模型加载仍由 updateObjectLoading 按距离入队，
+        //    全图名单不再与加载量挂钩。广告位等未指定类型的对象也在此拉回。
+        let json;
+        try {
+          const rest = await this._fetchAroundAll(pos.x, pos.z, 1000000);
+          json = { success: true, objects: rest };
+        } catch (e) {
+          // 全图拉取失败时退回原半径单次拉取
+          json = await this._fetchAround(pos.x, pos.z, INITIAL_RADIUS + BOUNDS_MARGIN);
+        }
         if (json.success) {
           const merged = [...extra, ...(json.objects || [])];
           const seen = new Set();
