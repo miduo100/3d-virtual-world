@@ -11,20 +11,24 @@
 
   const THREE = global.THREE;
 
-  // 世界模式下允许保留的标准材质清单
-  const STANDARD_MATERIALS = new Set([
-    'MeshBasicMaterial', 'MeshLambertMaterial', 'MeshStandardMaterial',
-    'MeshPhongMaterial', 'MeshPhysicalMaterial', 'MeshDepthMaterial',
-    'MeshNormalMaterial', 'MeshToonMaterial', 'LineBasicMaterial',
-    'LineDashedMaterial', 'PointsMaterial', 'SpriteMaterial',
-    'ShaderMaterial', 'RawShaderMaterial', 'ShadowMaterial'
-  ]);
+  // 世界模式下允许保留的标准材质标志位（three.js 原生材质均带 is*Material 只读标志，
+  // 不受 minified bundle 压缩 constructor.name 影响；r128/r185 three.min.js 下
+  // constructor.name 全是短名如 yn/ts/en，用名字匹配会永远失败导致全部材质被误降级）
+  const STANDARD_MATERIAL_FLAGS = [
+    'isMeshBasicMaterial', 'isMeshLambertMaterial', 'isMeshStandardMaterial',
+    'isMeshPhongMaterial', 'isMeshPhysicalMaterial', 'isMeshDepthMaterial',
+    'isMeshNormalMaterial', 'isMeshToonMaterial', 'isLineBasicMaterial',
+    'isLineDashedMaterial', 'isPointsMaterial', 'isSpriteMaterial',
+    'isShaderMaterial', 'isRawShaderMaterial', 'isShadowMaterial'
+  ];
 
-  // 判断材质是否为原生标准材质
+  // 判断材质是否为原生标准材质（含其子类实例）
   function isStandardMaterial(mat) {
     if (!mat) return false;
-    const name = mat.constructor && mat.constructor.name;
-    return STANDARD_MATERIALS.has(name);
+    for (let i = 0; i < STANDARD_MATERIAL_FLAGS.length; i++) {
+      if (mat[STANDARD_MATERIAL_FLAGS[i]]) return true;
+    }
+    return false;
   }
 
   // 已警告过的材质名（按会话去重，避免同类材质每个网格警告一次导致刷屏）

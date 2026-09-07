@@ -10,6 +10,7 @@
 const { query } = require('../database/db');
 const fs = require('fs');
 const path = require('path');
+const charAssets = require('./adminMaintenanceCharAssets');
 
 // ==================== 常量 ====================
 
@@ -35,6 +36,8 @@ const SCRIPTS_LIST = [
     description: '确保 14 种基础几何体建筑存在于 buildings 表', dangerous: false },
   { id: SCRIPT_IDS.VERIFY_DB, label: '数据库完整性验证', category: 'check',
     description: '检查关键表结构、必填字段、种子数据是否完整', dangerous: false },
+  // 角色资产清理（实现在 adminMaintenanceCharAssets.js）
+  ...charAssets.SCRIPT_ENTRIES,
 ];
 
 // ==================== 脚本 1: 清理无效 model_url ====================
@@ -365,4 +368,6 @@ module.exports = {
   cleanupOrphanObjects,
   refreshGeometryBuildings,
   verifyDbSchema,
+  cleanupOrphanCharModels: charAssets.cleanupOrphanCharacterModels,
+  cleanupOrphanCharAnims: charAssets.cleanupOrphanCharacterAnims,
 };

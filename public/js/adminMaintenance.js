@@ -44,6 +44,8 @@ window.MaintenancePage = (function() {
     check_broken_references: 'mtCheckBrokenReferences',
     cleanup_orphan_uploads: 'mtCleanupOrphanUploads',
     cleanup_orphan_objects: 'mtCleanupOrphanObjects',
+    cleanup_orphan_char_models: 'mtCleanupOrphanCharModels',
+    cleanup_orphan_char_anims: 'mtCleanupOrphanCharAnims',
     refresh_geometry_buildings: 'mtRefreshGeometryBuildings',
     verify_db_schema: 'mtVerifyDbSchema',
   };
@@ -104,6 +106,18 @@ window.MaintenancePage = (function() {
       category: 'cleanup', icon: '🪣',
       desc: '清理 world_objects 中引用不存在的 building_id/character_id 的记录',
       color: '#f0a030',
+    },
+    {
+      id: 'cleanup_orphan_char_models', label: '清理未引用角色模型',
+      category: 'cleanup', icon: '🧍',
+      desc: '扫描 character-templates 目录，清理已删除模板残留的 char-* 角色模型/缩略图。先预览再确认删除',
+      color: '#f85149',
+    },
+    {
+      id: 'cleanup_orphan_char_anims', label: '清理未引用角色动画',
+      category: 'cleanup', icon: '🎬',
+      desc: '扫描 anim-library 与 character-templates，清理未被任何模板/动作库引用的动画文件。先预览再确认删除',
+      color: '#f85149',
     },
     {
       id: 'refresh_geometry_buildings', label: '重新初始化基础几何体',
@@ -208,15 +222,15 @@ window.MaintenancePage = (function() {
 
   // ==================== 执行脚本 ====================
 
-  async function runScript(scriptId) {
+  async function runScript(scriptId, confirmReal = false) {
     const card = scriptCards.find((s) => s.id === scriptId);
     if (!card) return;
 
     // 危险操作需要二次确认
-    const dangerous = scriptId === 'cleanup_orphan_uploads';
-    if (dangerous) {
+    const dangerous = ['cleanup_orphan_uploads', 'cleanup_orphan_char_models', 'cleanup_orphan_char_anims'].includes(scriptId);
+    if (dangerous && !confirmReal) {
       const confirmed = confirm(
-        mtTp('adminMaintenance.mtConfirmDanger', { label: card.label }, '⚠️ 危险操作确认\n\n"' + card.label + '" 将删除 uploads/ 目录中的孤立文件。\n\n是否先预览模式查看？\n\n点击"确定"进入预览模式，点击"取消"放弃操作。')
+        mtTp('adminMaintenance.mtConfirmDanger', { label: card.label }, '⚠️ 危险操作确认\n\n"' + card.label + '" 将删除孤立文件。\n\n是否先预览模式查看？\n\n点击"确定"进入预览模式，点击"取消"放弃操作。')
       );
       if (!confirmed) return;
     }
@@ -225,18 +239,32 @@ window.MaintenancePage = (function() {
     setCardRunning(scriptId, true);
 
     try {
-      const body = dangerous ? { confirm: false } : {};
+      const body = dangerous ? { confirm: confirmReal === true } : {};
       const res = await authFetch(`${API_BASE}/${scriptId.replace(/_/g, '-')}`, {
         method: 'POST',
         body: JSON.stringify(body),
       });
       const data = await res.json();
 
-      if (res.ok) {
-        alert(mtTp('adminMaintenance.mtRunOk', { message: data.message || '操作成功' }, '✅ 执行完成\n\n' + (data.message || '操作成功')));
-      } else {
+      if (!res.ok) {
         alert(mtTp('adminMaintenance.mtRunFail', { message: data.error || '未知错误' }, '❌ 执行失败\n\n' + (data.error || '未知错误')));
+        return;
       }
+
+      // 危险脚本两段式：预览发现孤儿后，再次确认真删
+      if (dangerous && data.dryRun === true && (data.orphanCount || 0) > 0 && !confirmReal) {
+        const sample = (data.orphans || []).slice(0, 10).map(o => o.rel || o).join('\n');
+        const more = (data.orphans || []).length > 10 ? '\n...' : '';
+        const ok = confirm(
+          mtTp('adminMaintenance.mtConfirmRealDelete', { count: data.orphanCount, list: sample + more },
+            '🔍 预览发现 ' + data.orphanCount + ' 个孤立文件：\n\n' + sample + more + '\n\n确定永久删除吗？\n点击"确定"永久删除，点击"取消"保留文件。')
+        );
+        setCardRunning(scriptId, false);
+        if (ok) { await runScript(scriptId, true); }
+        return;
+      }
+
+      alert(mtTp('adminMaintenance.mtRunOk', { message: data.message || '操作成功' }, '✅ 执行完成\n\n' + (data.message || '操作成功')));
     } catch (e) {
       alert(mtTp('adminMaintenance.mtNetError', { message: e.message }, '❌ 网络错误\n\n' + e.message));
     } finally {

@@ -328,6 +328,38 @@
             margin: 0 4px;
         }
 
+        /* ===== 坐标跳转输入（工具按钮左侧）===== */
+        .coord-jump-group {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-right: 4px;
+        }
+        .coord-jump-group input {
+            width: 160px;
+            height: 30px;
+            padding: 0 8px;
+            border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 6px;
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            font-size: 12px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .coord-jump-group input:focus {
+            border-color: #667eea;
+            background: rgba(0,0,0,0.45);
+        }
+        .coord-jump-group input::placeholder {
+            color: rgba(255,255,255,0.4);
+        }
+        .coord-jump-group .canvas-tool-btn {
+            width: 30px;
+            height: 30px;
+            font-size: 14px;
+        }
+
         /* ===== 对象锁定（锁定/解锁按钮、锁定行提示色）===== */
         .scene-object-item .lock-btn,
         .right-object-item .lock-btn {
@@ -1501,6 +1533,7 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            min-height: 0;
         }
 
         .right-scene-list-header {
@@ -1544,6 +1577,7 @@
 
         .right-object-list {
             flex: 1;
+            min-height: 0;
             overflow-y: auto;
             padding: 10px;
         }
@@ -1718,6 +1752,7 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            min-height: 0;
             border-top: 1px solid rgba(255,255,255,0.1);
         }
 
@@ -1734,6 +1769,7 @@
 
         .right-props-content {
             flex: 1;
+            min-height: 0;
             overflow-y: auto;
             padding: 12px;
         }
@@ -1783,6 +1819,14 @@
             gap: 6px;
         }
 
+        /* 坐标输入框收窄：数字内容较短，无需均分占满整行 */
+        .right-prop-row .right-prop-input {
+            flex: 1 1 0;
+            max-width: 84px;
+            min-width: 0;
+            padding: 7px 6px;
+        }
+
         .right-prop-input {
             flex: 1;
             padding: 7px 10px;
@@ -1812,7 +1856,8 @@
 
         .right-props-tab {
             flex: 1;
-            padding: 7px;
+            min-width: 0;
+            padding: 7px 4px;
             border: none;
             border-radius: 6px;
             font-size: 11px;
@@ -1821,6 +1866,9 @@
             background: rgba(255,255,255,0.1);
             color: rgba(255,255,255,0.7);
             transition: all 0.2s;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .right-props-tab.active {
@@ -2937,6 +2985,14 @@
     <div id="canvas-container">
         <!-- 3D顶部工具栏 -->
         <div id="canvas-toolbar">
+            <!-- 坐标跳转输入（工具按钮左侧） -->
+            <div class="coord-jump-group">
+                <input type="text" id="coord-jump-input" placeholder="X, Y, Z" title="粘贴坐标（如 X:-26.3 Y:9.6 Z:0.0），回车跳转视角" onkeydown="handleCoordJumpKey(event)">
+                <button class="canvas-tool-btn" id="ctb-coord-jump" onclick="jumpToCoordInput()" title="视角跳转到该坐标（作为视角中心点）">
+                    📍
+                </button>
+            </div>
+            <div class="canvas-tool-separator"></div>
             <button class="canvas-tool-btn active" id="ctb-select" onclick="setEditMode('select')" title="选择并移动" data-i18n-title="worldEditor.toolbar.move">
                 ✋
             </button>
@@ -3033,7 +3089,7 @@
     <script src="js/geometryTemplates.js"></script>
     <script src="js/geometryRenderer.js"></script>
     <script src="js/threejsCompatibility.js"></script>
-    <script src="js/threejsWorldSanitizer.js"></script>
+    <script src="js/threejsWorldSanitizer.js?v=185fix1"></script>
     <script src="js/threejsCodeRunner.js"></script>
     <script src="js/customConfigRegistry.js"></script>
     <script src="js/customConfigApplier.js"></script>
@@ -3042,6 +3098,7 @@
     <script src="js/worldEditor3dgs.js"></script>
     <script src="js/worldEditorCameraMove.js"></script>
     <script src="js/editorObjectLock.js"></script>
+    <script src="js/worldEditorRightPanel.js?v=2"></script>
     <script>
         // ===== 全局变量 =====
         let scene, camera, renderer, controls, transformControls;
@@ -5686,6 +5743,42 @@
             camera.position.set(50, 40, 50);
             controls.target.set(0, 0, 0);
             controls.update();
+        }
+
+        // ===== 坐标跳转（工具栏输入框）=====
+        function handleCoordJumpKey(event) {
+            // 阻止编辑器全局快捷键（Delete/Backspace/F/Ctrl+A 等）在输入时触发
+            event.stopPropagation();
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                jumpToCoordInput();
+            }
+        }
+
+        function parseCoordInput(text) {
+            // 提取所有数字，兼容 "-26.3, 9.6, 0"、"X:-26.3 Y:9.6 Z:0.0"、"(26, 0, -9)" 等格式
+            const nums = (String(text || '').match(/-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g) || []).map(Number);
+            if (nums.length < 2) return null;
+            // 3 个数 = X,Y,Z；2 个数 = X,Z（Y 归 0，落在地面）
+            return new THREE.Vector3(nums[0], nums.length >= 3 ? nums[1] : 0, nums.length >= 3 ? nums[2] : nums[1]);
+        }
+
+        function jumpToCoordInput() {
+            const input = document.getElementById('coord-jump-input');
+            if (!input) return;
+            const target = parseCoordInput(input.value);
+            if (!target) {
+                showNotification(weT('coordJump.invalid', '⚠️ 请输入坐标，格式如 "X, Y, Z"'), 'warning');
+                return;
+            }
+            // 保持当前视角方向（相机相对观察点的偏移），只把观察点平移到目标坐标
+            const offset = camera.position.clone().sub(controls.target);
+            if (offset.lengthSq() < 0.01) offset.set(20, 15, 20); // 偏移退化时用默认俯视角
+            camera.position.copy(target).add(offset);
+            controls.target.copy(target);
+            controls.update();
+            const x = +target.x.toFixed(2), y = +target.y.toFixed(2), z = +target.z.toFixed(2);
+            showNotification(weTp('coordJump.moved', { x, y, z }, '📍 视角已跳转到 (' + x + ', ' + y + ', ' + z + ')'), 'success');
         }
 
         async function deleteObjectById(id) {

@@ -555,19 +555,26 @@ class GalleryRenderer {
      * 启动视频播放管理器（每500ms检测一次，不干扰渲染）
      */
     startVideoPlaybackManager() {
-        this._videoInterval = setInterval(() => {
-            this.updateVideoPlayback();
-        }, 500);
+        const fn = () => this.updateVideoPlayback();
+        // 接入 BgThrottle：页面后台时冻结视频检查（无模块时回退裸 setInterval）
+        if (window.BgThrottle) {
+            window.BgThrottle.every('gallery.video', 500, fn);
+            this._videoInterval = 'gallery.video'; // truthy 标记，兼容既有判断
+        } else {
+            this._videoInterval = setInterval(fn, 500);
+        }
     }
 
     /**
      * 停止视频播放管理器
      */
     stopVideoPlaybackManager() {
-        if (this._videoInterval) {
+        if (window.BgThrottle) {
+            window.BgThrottle.cancel('gallery.video');
+        } else if (this._videoInterval) {
             clearInterval(this._videoInterval);
-            this._videoInterval = null;
         }
+        this._videoInterval = null;
     }
 
     /**
@@ -635,12 +642,19 @@ class GalleryRenderer {
      * 启动区块检查器
      */
     startChunkChecker() {
-        this._chunkCheckInterval = setInterval(() => {
+        const fn = () => {
             if (this.isChecking) return;
             this.isChecking = true;
             this.checkAndLoadChunks();
             this.isChecking = false;
-        }, CHECK_INTERVAL);
+        };
+        // 接入 BgThrottle：页面后台时冻结区块检查（无模块时回退裸 setInterval）
+        if (window.BgThrottle) {
+            window.BgThrottle.every('gallery.chunk', CHECK_INTERVAL, fn);
+            this._chunkCheckInterval = 'gallery.chunk'; // truthy 标记
+        } else {
+            this._chunkCheckInterval = setInterval(fn, CHECK_INTERVAL);
+        }
     }
 
     /**

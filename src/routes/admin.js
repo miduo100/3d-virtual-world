@@ -4,7 +4,7 @@
  */
 const express = require('express');
 const router = express.Router();
-const { query } = require('../database/db');
+const { query, pool } = require('../database/db');
 const { authenticateAdminToken, logAdminAction } = require('../middleware/adminAuth');
 const configService = require('../services/configService');
 
@@ -57,19 +57,35 @@ router.put('/users/:userId/role', async (req, res) => {
 
 // 删除用户
 router.delete('/users/:userId', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { userId } = req.params;
 
-    // 删除用户的角色
-    await query('DELETE FROM characters WHERE user_id = $1', [userId]);
-    
+    await client.query('BEGIN');
+
+    // 清理无级联的可空外键引用（置 NULL 保留历史/审计数据）
+    await client.query('UPDATE teleport_history SET user_id = NULL WHERE user_id = $1', [userId]);
+    await client.query('UPDATE world_drops SET picked_by = NULL WHERE picked_by = $1', [userId]);
+    await client.query('UPDATE reward_codes SET claimed_by = NULL WHERE claimed_by = $1', [userId]);
+    await client.query('UPDATE portals SET created_by = NULL WHERE created_by = $1', [userId]);
+    await client.query('UPDATE ai_provider_configs SET updated_by = NULL WHERE updated_by = $1', [userId]);
+    await client.query('UPDATE ai_provider_audit_log SET changed_by = NULL WHERE changed_by = $1', [userId]);
+
+    // 删除用户的角色（其余表均有 ON DELETE CASCADE 自动清理）
+    await client.query('DELETE FROM characters WHERE user_id = $1', [userId]);
+
     // 删除用户
-    await query('DELETE FROM users WHERE id = $1', [userId]);
+    await client.query('DELETE FROM users WHERE id = $1', [userId]);
+
+    await client.query('COMMIT');
 
     res.json({ success: true, message: '用户删除成功' });
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('删除用户失败:', error);
-    res.status(500).json({ error: '删除失败' });
+    res.status(500).json({ error: '删除失败: ' + error.message });
+  } finally {
+    client.release();
   }
 });
 

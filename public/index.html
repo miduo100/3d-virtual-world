@@ -1386,6 +1386,7 @@
   <!-- WebGL2 能力检测与友好降级（r163 起不再支持 WebGL1，旧设备全屏提示；须先于 three 加载以便 window.stop 省流量） -->
   <script src="js/webgl2Guard.js?v=185"></script>
   <script src="js/lib/three.min.js?v=185"></script>
+  <script src="js/lib/three-mesh-bvh.min.js?v=1"></script>
   <script src="js/lib/GLTFLoader.js?v=185"></script>
   <script src="js/lib/DRACOLoader.js?v=185"></script>
   <script src="js/lib/OBJLoader.js?v=185"></script>
@@ -1419,14 +1420,20 @@
   <script src="js/modules/remote-anim-guard.js"></script>
   <script src="js/modules/passwordRecovery.js"></script>
   <script src="js/coordFormat.js"></script>
-  <script src="js/world.js"></script>
+  <script src="js/bgThrottle.js?v=1"></script>
+  <script src="js/entitySleepManager.js?v=1"></script>
+  <script src="js/lightPool.js?v=1"></script>
+  <script src="js/geometryBatcher.js?v=4"></script>
+  <script src="js/capsuleCollision.js?v=3"></script>
+  <script src="js/loadingProgress.js?v=6"></script>
+  <script src="js/world.js?v=3"></script>
   <script src="js/worldObjectBounds.js"></script>
   <script src="js/placeholderField.js?v=1"></script>
   <script src="js/worldTextureOptimizer.js"></script>
-  <script src="js/worldInstanceMerger_v2.js"></script>
+  <script src="js/worldInstanceMerger_v2.js?v=1"></script>
   <!-- frameBudgetScheduler.js 引用移除：该文件从未存在（git 历史为空），每次加载 404 -->
   <script src="js/worldLoadingOptimizer.js"></script>
-  <script src="js/worldSpatialManager.js"></script>
+  <script src="js/worldSpatialManager.js?v=1"></script>
   <script src="js/gaussianSplatLoader.js"></script>
   <script src="js/gaussianSplatRenderer.js"></script>
   <script src="js/world3dgs.js"></script>
@@ -1436,10 +1443,10 @@
   <script src="js/threejsCodeRunner.js"></script>
   <script src="js/customConfigRegistry.js"></script>
   <script src="js/customConfigApplier.js"></script>
-  <script src="js/galleryRenderer.js"></script>
+  <script src="js/galleryRenderer.js?v=1"></script>
   <script src="js/debug_controls.js"></script>
   
-  <script src="js/player.js"></script>
+  <script src="js/player.js?v=8"></script>
   <script src="js/voice.js"></script>
   <script src="js/websocket.js"></script>
   <script src="js/ui.js"></script>
@@ -1452,7 +1459,7 @@
   <script src="js/skillManager.js"></script>
   <script src="js/skillHUD.js"></script>
   <script src="js/uiControlManager.js"></script>
-  <script src="js/main.js"></script>
+  <script src="js/main.js?v=1"></script>
   <script src="js/worldGroundSync.js"></script>
   
   <!-- 国际化语言初始化 -->

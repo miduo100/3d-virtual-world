@@ -70,6 +70,16 @@ router.post('/cleanup-orphan-uploads', (req, res) => {
 router.post('/cleanup-orphan-objects', (req, res) =>
   runScript(scripts.cleanupOrphanObjects, res, scripts.SCRIPT_IDS.CLEANUP_ORPHAN_OBJECTS));
 
+router.post('/cleanup-orphan-char-models', (req, res) => {
+  const dryRun = req.body.confirm !== true;
+  runScript((log, update) => scripts.cleanupOrphanCharModels(log, update, dryRun), res, scripts.SCRIPT_IDS.CLEANUP_CHAR_MODELS);
+});
+
+router.post('/cleanup-orphan-char-anims', (req, res) => {
+  const dryRun = req.body.confirm !== true;
+  runScript((log, update) => scripts.cleanupOrphanCharAnims(log, update, dryRun), res, scripts.SCRIPT_IDS.CLEANUP_CHAR_ANIMS);
+});
+
 router.post('/refresh-geometry-buildings', (req, res) =>
   runScript(scripts.refreshGeometryBuildings, res, scripts.SCRIPT_IDS.REFRESH_GEOMETRY));
 

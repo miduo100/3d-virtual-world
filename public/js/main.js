@@ -64,11 +64,15 @@ if (typeof window !== 'undefined') {
   window.GAME_STATE = GAME_STATE;
 }
 
-// Update debug panel every 100ms
-setInterval(() => {
-  updateDebugPanel();
-  debugUpdateCounter++;
-}, 100);
+// Update debug panel every 100ms（接入 BgThrottle：页面后台时冻结）
+(function () {
+  const debugFn = () => {
+    updateDebugPanel();
+    debugUpdateCounter++;
+  };
+  if (window.BgThrottle) window.BgThrottle.every('main.debug', 100, debugFn);
+  else setInterval(debugFn, 100);
+})();
 
 window.addEventListener('load', async () => {
   try {
@@ -858,12 +862,14 @@ async function loadPortals() {
 }
 
 function startUIUpdates() {
-  // Update minimap every 500ms
-  setInterval(() => {
+  // Update minimap every 500ms（接入 BgThrottle：页面后台时冻结）
+  const minimapFn = () => {
     if (player && gameWorld) {
       UI.updateMinimap(player.position, Array.from(gameWorld.monsters.values()), []);
     }
-  }, 500);
+  };
+  if (window.BgThrottle) window.BgThrottle.every('main.minimap', 500, minimapFn);
+  else setInterval(minimapFn, 500);
 }
 
 function setupKeyboardShortcuts() {

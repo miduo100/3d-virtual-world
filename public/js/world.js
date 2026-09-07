@@ -519,19 +519,32 @@ class World {
       window.PlaceholderField.reveal(obj, this.renderer, this.camera, this.scene, function (o) {
         const wid = o && o.userData && o.userData.worldObjectId;
         // wid 缺失时交给 removePlaceholder 的 600ms 兜底定时器收盒子
-        if (wid !== undefined && wid !== null) window.PlaceholderField.fadeOutAndHide(wid);
-      });
-    } else if (!this._pendingShaderCompile) {
-      // 兜底：模块缺失时保留旧的延迟编译逻辑
-      this._pendingShaderCompile = true;
-      requestAnimationFrame(() => {
-        try {
-          this.renderer.compile(this.scene, this.camera);
-        } catch (e) {
-          // compile 在某些WebGL上下文状态下可能失败，静默处理
+        if (wid !== undefined && wid !== null) {
+          window.PlaceholderField.fadeOutAndHide(wid);
+          // 【进度条】预热完成、模型真实上屏 → 渲染确认
+          if (window.LoadingProgress) window.LoadingProgress.confirmRendered(wid);
         }
-        this._pendingShaderCompile = false;
       });
+    } else {
+      // 兜底：模块缺失时保留旧的延迟编译逻辑
+      // 【进度条】无 reveal 路径：下一帧确认（userData.worldObjectId 在调用点同步补上）
+      if (window.LoadingProgress && obj && obj.userData) {
+        requestAnimationFrame(() => {
+          const wid = obj.userData && obj.userData.worldObjectId;
+          if (wid !== undefined && wid !== null) window.LoadingProgress.confirmRendered(wid);
+        });
+      }
+      if (!this._pendingShaderCompile) {
+        this._pendingShaderCompile = true;
+        requestAnimationFrame(() => {
+          try {
+            this.renderer.compile(this.scene, this.camera);
+          } catch (e) {
+            // compile 在某些WebGL上下文状态下可能失败，静默处理
+          }
+          this._pendingShaderCompile = false;
+        });
+      }
     }
   }
 
@@ -1220,18 +1233,26 @@ class World {
    * 更新加载状态
    */
   updateLoadingStatus(loaded, total) {
+    // 【2026-09-05 进度条重构】旧口径（loaded/全图 total）已废弃——两阶段加载下
+    // 远处对象永不加载，分母错位导致进度条永远卡 ~34.5%。改由 LoadingProgress
+    // 引擎接管：分母=半径内兴趣集（队列/批次），单对象=下载字节+渲染确认双分量。
+    if (window.LoadingProgress) {
+      window.LoadingProgress.sync(this);
+      return;
+    }
+    // 回退：引擎缺失时保留旧行为
     this.loadingStatus.loaded = loaded;
     this.loadingStatus.total = total;
     this.loadingStatus.progress = total > 0 ? (loaded / total) * 100 : 0;
     this.loadingStatus.isLoading = loaded < total;
-    
+
     // 触发加载状态更新事件（简化版）
     if (window.dispatchEvent) {
       window.dispatchEvent(new CustomEvent('worldLoadingUpdate', {
         detail: this.loadingStatus
       }));
     }
-    
+
     console.log(`📊 加载进度: ${loaded}/${total} (${this.loadingStatus.progress.toFixed(1)}%)`);
   }
 
@@ -1239,6 +1260,12 @@ class World {
    * 显示加载进度条
    */
   showLoadingProgress() {
+    // 【2026-09-05 进度条重构】顶部条 UI 完全由 LoadingProgress 引擎管理
+    // （任务集口径 + 下载/渲染双分量）；引擎缺失时走旧 DOM 逻辑兜底。
+    if (window.LoadingProgress) {
+      window.LoadingProgress.sync(this);
+      return;
+    }
     // 创建加载进度条容器
     if (!document.getElementById('loading-progress-container')) {
       const container = document.createElement('div');
@@ -1651,6 +1678,16 @@ class World {
   getGroundHeight(position) {
     let maxHeight = 0; // Ground level
 
+    // 🎯 模型表面碰撞（胶囊 + BVH）：向下射线取上传模型真实表面高度（顶面/斜坡/平台）
+    if (window.CapsuleCollision && window.CapsuleCollision.isEnabled()) {
+      try {
+        const surf = window.CapsuleCollision.getGroundHeight(position.x, position.y, position.z);
+        if (surf !== null && surf > maxHeight) maxHeight = surf;
+      } catch (e) {
+        console.warn('[CapsuleCollision] getGroundHeight 查询异常:', e && e.message);
+      }
+    }
+
     // Check collision with all objects
     for (const obj of this.collisionObjects) {
       // 🎯 通用方案：兼容所有类型和所有尺寸格式
@@ -1698,6 +1735,12 @@ class World {
       if (playerData.group.userData && playerData.group.userData.bonePhysics) {
         try { playerData.group.userData.bonePhysics.dispose(); } catch (e) {}
         playerData.group.userData.bonePhysics = null;
+      }
+      // 【2026-09-05 卡顿治理】归还灯池租用的点光（光剑灯等），保持灯数恒定
+      if (window.LightPool) {
+        const _sl = playerData.group.userData && playerData.group.userData.swordLight;
+        if (_sl) window.LightPool.releaseLight(_sl);
+        window.LightPool.release(playerData.group);
       }
       this.scene.remove(playerData.group);
       this.players.delete(characterId);
@@ -1918,9 +1961,21 @@ class World {
         laserSwordGroup.add(glow);
 
         // 点光源（照亮周围环境）
-        swordLight = new THREE.PointLight(_bladeColor, _lightInt, 3);
-        swordLight.position.z = -(0.1 + _bladeLen / 2);
-        laserSwordGroup.add(swordLight);
+        // 【2026-09-05 卡顿治理】改走点光灯池：灯数恒定，避免玩家进出触发挥全场景着色器重编译
+        if (window.LightPool) {
+          swordLight = window.LightPool.acquire(laserSwordGroup, {
+            color: _bladeColor,
+            intensity: _lightInt,
+            distance: 3,
+            anchorPos: { z: -(0.1 + _bladeLen / 2) }
+          });
+        }
+        if (!swordLight) {
+          // 灯池不可用时回退旧行为
+          swordLight = new THREE.PointLight(_bladeColor, _lightInt, 3);
+          swordLight.position.z = -(0.1 + _bladeLen / 2);
+          laserSwordGroup.add(swordLight);
+        }
         // 更新 userData 引用（降级时可能已赋过 null）
         characterGroup.userData.swordBlade  = blade;
         characterGroup.userData.swordGlow   = glow;
@@ -2138,16 +2193,19 @@ class World {
         })();
         const _relaxMg = window.SelfContainedChar && window.SelfContainedChar.shouldRelaxModelGuard(characterGroup);
         if (!isSelf && window.RemoteModelGuard && !_isSameOrigin && !_relaxMg) {
-          try {
-            const _mgCheck = window.RemoteModelGuard.validateLoadedModel(model, { characterId, characterGroup, isSelf });
-            if (!_mgCheck.safe) {
-              console.warn('[World] ⛔ 玩家 ' + characterId + ' 模型复杂度过高: ' + _mgCheck.reason + '，降级为占位符');
-              window.RemoteModelGuard.createPlaceholder(characterGroup);
-              // 后续 setup（动画/武器/fitModel）继续执行，占位符兼容
+          (async () => {
+            try {
+              // validateLoadedModel 内部会先拉取服务端守卫配置（enabled 未开启时直接放行）
+              const _mgCheck = await window.RemoteModelGuard.validateLoadedModel(model, { characterId, characterGroup, isSelf });
+              if (!_mgCheck.safe) {
+                console.warn('[World] ⛔ 玩家 ' + characterId + ' 模型复杂度过高: ' + _mgCheck.reason + '，降级为占位符');
+                window.RemoteModelGuard.createPlaceholder(characterGroup);
+                // 后续 setup（动画/武器/fitModel）继续执行，占位符兼容
+              }
+            } catch (_mgErr) {
+              console.warn('[World] 模型守卫验证异常:', _mgErr.message);
             }
-          } catch (_mgErr) {
-            console.warn('[World] 模型守卫验证异常:', _mgErr.message);
-          }
+          })();
         }
 
         // 停止并清除旧的动画 mixers（防止旧 model 的动画继续更新）
@@ -3148,15 +3206,18 @@ class World {
       for (let i = 0; i < this.allWorldObjects.length; i++) {
         const obj = this.allWorldObjects[i];
         if (this.loadedObjects.has(obj.id)) continue;
-        
+        // 【2026-09-05】媒体对象走下方独立通道（不进主队列：避免被 GLB 队列阻塞，
+        // 也避免混队把几何体批量通道打成串行）
+        if (obj.type === 'media_image' || obj.type === 'media_video') continue;
+
         // 已失败3次的对象不再重复入队，避免无限重试
         if ((this.loadRetryCount.get(obj.id) || 0) >= 3) continue;
-        
+
         // 距离口径：优先按【玩家到模型表面】判定（WorldObjectBounds），
         // 大模型用锚点判定会导致"人已到模型边上却始终不加载"。
         // 模块缺失时自动退回原中心点逻辑。
         const distSq = this._surfaceDistSq(obj, px, pz);
-        
+
         if (distSq < loadDistSq) {
           const isInQueue = this.loadingQueue.some(q => q.id === obj.id);
           const isInBatch = this.loadingBatch.some(b => b.id === obj.id);
@@ -3164,6 +3225,32 @@ class World {
             this.loadingQueue.push(obj);
             if (this.loadingQueue.length >= this.maxLoadingQueueSize) break;
           }
+        }
+      }
+
+      // 【2026-09-05】媒体对象独立加载通道：按距离直接加载（轻量、无需排队），
+      // 卸载由 unloadObject 的 media 分支处理，形成"走近加载/走远卸载"闭环
+      if (!this._mediaLoadingSet) this._mediaLoadingSet = new Set();
+      for (let i = 0; i < this.allWorldObjects.length; i++) {
+        const mobj = this.allWorldObjects[i];
+        if (mobj.type !== 'media_image' && mobj.type !== 'media_video') continue;
+        if (this.loadedObjects.has(mobj.id) || this._mediaLoadingSet.has(mobj.id)) continue;
+        if ((this.loadRetryCount.get(mobj.id) || 0) >= 3) continue;
+        if (this._surfaceDistSq(mobj, px, pz) < loadDistSq) {
+          this._mediaLoadingSet.add(mobj.id);
+          this.loadedObjects.add(mobj.id);
+          this._loadedAt.set(mobj.id, Date.now());
+          this.loadMediaObject(mobj)
+            .then(() => {
+              // 【进度条】媒体加载完成即渲染就绪（图片上屏/视频可播）
+              if (window.LoadingProgress) window.LoadingProgress.confirmRendered(mobj.id);
+            })
+            .catch((e) => {
+              console.warn('[Media] 加载失败，允许重试:', mobj.name || mobj.id, e);
+              this.loadedObjects.delete(mobj.id);
+              this.loadRetryCount.set(mobj.id, (this.loadRetryCount.get(mobj.id) || 0) + 1);
+            })
+            .finally(() => { this._mediaLoadingSet.delete(mobj.id); });
         }
       }
     }
@@ -3179,8 +3266,14 @@ class World {
         if (this.loadedObjects.has(obj.id)) {
           // 最短存活时间：大模型重建代价高（clone + 纹理重传 + 着色器编译），
           // 防止玩家在阈值边缘来回走动造成反复"卸载→重载"的抖振
+          // 【2026-09-05 按类型区分】几何建筑本地重建零成本，媒体对象开销也低，
+          // 不必陪大模型等 60 秒——否则跑远后迟迟不卸载
           const loadedAt = this._loadedAt ? (this._loadedAt.get(obj.id) || 0) : 0;
-          if (loadedAt && (Date.now() - loadedAt) < this.minObjectLifetimeMs) return;
+          let _minLife = this.minObjectLifetimeMs;
+          const _ot = obj.type || '';
+          if (_ot.indexOf('geometry') === 0) _minLife = 5000;          // 几何类：本地生成，5 秒防抖即可
+          else if (_ot === 'media_image' || _ot === 'media_video') _minLife = 10000; // 媒体：10 秒
+          if (loadedAt && (Date.now() - loadedAt) < _minLife) return;
           // 同样按【玩家到模型表面】判定，避免大模型在玩家还没离开边缘时就被卸载
           const dSq = this._surfaceDistSq(obj, px2, pz2);
           if (dSq > unloadDistSq) {
@@ -3606,8 +3699,10 @@ class World {
               console.log('[World] 卸载对象时已解除变换控制器绑定:', obj.name || obj.id);
             }
             // 从场景中移除
+            // 【2026-09-05 卡顿治理】合批对象先从批次中移除实例（真实克隆本就不在场景中）
+            const __isBatched = window.GeometryBatcher && window.GeometryBatcher.unregister(obj.id);
             this.scene.remove(building.model);
-            
+
             // 移除标签并释放纹理
             if (building.model.userData.label) {
               const label = building.model.userData.label;
@@ -3618,10 +3713,13 @@ class World {
               }
               building.model.userData.label = null;
             }
-            
+
             // 如果是占位符：占位方块由 PlaceholderField 管理，直接隐藏即可
             if (building.isPlaceholder) {
               if (window.PlaceholderField) window.PlaceholderField.hide(obj.id);
+            } else if (__isBatched) {
+              // 【2026-09-05 卡顿治理】合批对象与缓存原件/其他实例共享材质，绝不能 dispose
+              // （geometry/材质仍被 InstancedMesh 批次与 modelCache 原件引用）
             } else {
               // P1: 纹理释放改为引用计数（worldTextureOptimizer 统一管理），
               // 不再直接 dispose mat.map —— 否则会误杀其他实例共享的同源纹理
@@ -3665,7 +3763,40 @@ class World {
           }
         }
         break;
-      
+
+      // 【2026-09-05】媒体对象（图片/视频）按距离卸载：
+      // 移除平面网格 + 释放纹理 + 清理视频元素与音频节点，
+      // 走远卸载、走近由 updateObjectLoading 重新入队 loadMediaObject，形成闭环
+      case 'media_image':
+      case 'media_video': {
+        const _mi = this._mediaMeshes && this._mediaMeshes.get(obj.id);
+        if (_mi && _mi.mesh) {
+          // 视频：暂停并清理元素与空间音频节点
+          const _video = this._videoElements && this._videoElements.get(obj.id);
+          if (_video) {
+            try { _video.pause(); _video.removeAttribute('src'); _video.load(); } catch (e) {}
+            this._videoElements.delete(obj.id);
+          }
+          if (this._videoAudioNodes && this._videoAudioNodes.has(obj.id)) {
+            try { this._videoAudioNodes.get(obj.id).disconnect(); } catch (e) {}
+            this._videoAudioNodes.delete(obj.id);
+          }
+          if (this._audioCtx && this._videoAudioNodes && !this._videoAudioNodes.size) {
+            // 所有视频音频节点都已清理时释放 AudioContext（下次按 F 会重建）
+            try { this._audioCtx.close(); } catch (e) {}
+            this._audioCtx = null;
+          }
+          this.scene.remove(_mi.mesh);
+          if (_mi.mesh.geometry) _mi.mesh.geometry.dispose();
+          if (_mi.mesh.material) {
+            if (_mi.mesh.material.map) _mi.mesh.material.map.dispose();
+            _mi.mesh.material.dispose();
+          }
+          this._mediaMeshes.delete(obj.id);
+        }
+      }
+        break;
+
       // 其他类型的对象卸载逻辑
       default:
         // 未处理的对象类型，静默跳过
@@ -4161,12 +4292,24 @@ class World {
     }
 
     // 4. 添加点光源（增强发光效果）
-    const portalLight = new THREE.PointLight(
-      portalType === 'remote' ? 0xff00ff : 0x00ffff,
-      2,
-      10
-    );
-    portalGroup.add(portalLight);
+    // 【2026-09-05 卡顿治理】改走点光灯池：灯数恒定，避免传送门加载卸载触发挥全场景着色器重编译
+    let portalLight = null;
+    if (window.LightPool) {
+      portalLight = window.LightPool.acquire(portalGroup, {
+        color: portalType === 'remote' ? 0xff00ff : 0x00ffff,
+        intensity: 2,
+        distance: 10
+      });
+    }
+    if (!portalLight) {
+      // 灯池不可用时回退旧行为
+      portalLight = new THREE.PointLight(
+        portalType === 'remote' ? 0xff00ff : 0x00ffff,
+        2,
+        10
+      );
+      portalGroup.add(portalLight);
+    }
 
     // 5. 创建名称标签
     const nameSprite = this.createPortalNameSprite(name, portalType);
@@ -4308,6 +4451,8 @@ class World {
   removePortal(portalId) {
     const portal = this.portals.get(portalId);
     if (portal) {
+      // 【2026-09-05 卡顿治理】归还灯池租用的点光
+      if (window.LightPool && portal.group) window.LightPool.release(portal.group);
       this.scene.remove(portal.group);
       this.portals.delete(portalId);
       console.log(`🚪 传送门已移除: ${portal.name}`);
@@ -5444,6 +5589,10 @@ class World {
   addPlaceholderBuilding(id, buildingData, status = 'failed') {
     if (!buildingData) return;
     if (!window.PlaceholderField) return; // 模块未加载时静默跳过（不阻断加载链路）
+    // 【2026-09-05 卡顿治理】真模型已加载（真实条目）时不再摆盒子，
+    // 否则增量摆盒会把已收掉的占位方块重新摆上、并把真实条目覆盖成占位条目
+    const __existingEntry = this.generatedBuildings.get(id);
+    if (__existingEntry && !__existingEntry.isPlaceholder) return;
     if (!window.PlaceholderField.has(id)) {
       window.PlaceholderField.init(this.scene);
       window.PlaceholderField.show(
@@ -5601,6 +5750,11 @@ class World {
     
     const displayValue = value > 0 ? value : (this._modelRealBytes.get(sanitizedId) || 0);
     const totalBytes = this._modelExpectedBytes.get(sanitizedId) || null;
+
+    // 【进度条】上报真实下载字节（引擎按对象名匹配任务集）
+    if (window.LoadingProgress) {
+      window.LoadingProgress.reportBytes(name, displayValue, totalBytes || 0);
+    }
     
     // 查找对应的占位符
     let targetPlaceholder = null;
@@ -6309,22 +6463,28 @@ class World {
         const size = new THREE.Vector3();
         box.getSize(size);
         
-        // 检查是否已存在相同位置的碰撞对象
-        const existingCollisionIndex = this.collisionObjects.findIndex(collisionObj => 
-          collisionObj.position && 
-          Math.abs(collisionObj.position.x - modelClone.position.x) < 0.1 &&
-          Math.abs(collisionObj.position.z - modelClone.position.z) < 0.1
+        // 检查是否已存在相同位置的碰撞对象（按模型锚点去重）
+        const existingCollisionIndex = this.collisionObjects.findIndex(collisionObj =>
+          collisionObj.anchor &&
+          Math.abs(collisionObj.anchor.x - modelClone.position.x) < 0.1 &&
+          Math.abs(collisionObj.anchor.z - modelClone.position.z) < 0.1
         );
-        
+
         if (existingCollisionIndex === -1) {
+          // 【修复】原用模型锚点当盒子中心，锚点偏离几何中心的 GLB 顶面高度会算错。
+          // 现存包围盒中心 + 精确 boundingBox（getGroundHeight 优先取 boundingBox.max.y）。
+          const center = new THREE.Vector3();
+          box.getCenter(center);
           this.collisionObjects.push({
             type: 'box',
-            position: modelClone.position.clone(),
-            size: { 
-              width: size.x, 
-              height: size.y, 
-              depth: size.z 
-            }
+            anchor: modelClone.position.clone(),
+            position: center,
+            size: {
+              width: size.x,
+              height: size.y,
+              depth: size.z
+            },
+            boundingBox: box.clone()
           });
         }
 
@@ -6607,8 +6767,15 @@ class World {
       portalGroup.add(particleRing);
 
       // 点光源
-      const light = new THREE.PointLight(0x00ccff, 0.8, 5);
-      portalGroup.add(light);
+      // 【2026-09-05 卡顿治理】改走点光灯池（灯数恒定）
+      let light = null;
+      if (window.LightPool) {
+        light = window.LightPool.acquire(portalGroup, { color: 0x00ccff, intensity: 0.8, distance: 5 });
+      }
+      if (!light) {
+        light = new THREE.PointLight(0x00ccff, 0.8, 5);
+        portalGroup.add(light);
+      }
 
       // 名称标签
       const nameSprite = this.createNameSprite(name || '广告位');
@@ -6633,6 +6800,10 @@ class World {
       // 设置 userData 用于射线选中的回退匹配
       portalGroup.userData.worldObjectId = id;
       portalGroup.userData.name = name;
+
+      // 【进度条】默认传送门直接 scene.add（绕过 _addModelToScene），
+      // 需单独渲染确认，否则进度条要干等 45s 超时（"淘宝网"广告位案）
+      if (window.LoadingProgress) window.LoadingProgress.confirmRendered(id);
 
       // 注册到 generatedBuildings（用于视锥剔除、管理）
       this.generatedBuildings.set(id, { model: portalGroup, data: { ...adSlotData, _meta: adMeta }, _isAdSlot: true });
@@ -6903,8 +7074,16 @@ class World {
         );
         
         // 添加到场景（预编译着色器）
-        this._addModelToScene(buildingGroup);
-        
+        // 【2026-09-05 卡顿治理】静态几何建筑优先走合批器（InstancedMesh），不合批才进场景
+        if (window.GeometryBatcher && window.GeometryBatcher.tryBatch(buildingGroup, worldObject)) {
+          // 合批路径不经过 _addModelToScene，需自行收掉占位方块
+          if (window.PlaceholderField) window.PlaceholderField.fadeOutAndHide(worldObject.id);
+          // 【进度条】合批即渲染就绪
+          if (window.LoadingProgress) window.LoadingProgress.confirmRendered(worldObject.id);
+        } else {
+          this._addModelToScene(buildingGroup);
+        }
+
         // 设置 userData 用于射线选中的回退匹配
         buildingGroup.userData.worldObjectId = worldObject.id;
         buildingGroup.userData.name = worldObject.name;
@@ -7071,7 +7250,15 @@ class World {
       }
 
       // 添加到场景（预编译着色器）
-      this._addModelToScene(modelClone);
+      // 【2026-09-05 卡顿治理】静态几何建筑优先走合批器（InstancedMesh），不合批才进场景
+      if (window.GeometryBatcher && window.GeometryBatcher.tryBatch(modelClone, worldObject)) {
+        // 合批路径不经过 _addModelToScene，需自行收掉占位方块
+        if (window.PlaceholderField) window.PlaceholderField.fadeOutAndHide(worldObject.id);
+        // 【进度条】合批即渲染就绪
+        if (window.LoadingProgress) window.LoadingProgress.confirmRendered(worldObject.id);
+      } else {
+        this._addModelToScene(modelClone);
+      }
 
       // 设置 userData 用于射线选中的回退匹配
       modelClone.userData.worldObjectId = worldObject.id;
@@ -7526,6 +7713,8 @@ class World {
     this.updateParticles(delta);
     this.updatePortals(delta);
     this._updateWeatherParticles(delta);
+    // 【2026-09-05 卡顿治理】灯池跟随位置同步（渲染前执行）
+    if (window.LightPool) window.LightPool.update();
     
     // 技能系统功能暂时禁用，需要初始化SkillSystem
     // // 渲染技能物品
@@ -7550,6 +7739,8 @@ class World {
       this.players.forEach((pd) => {
         const ud = pd.group?.userData;
         if (!ud) return;
+        // 【休眠】远程角色超距（>80m）时冻结动画/骨骼物理（entitySleepManager.js）
+        if (window.EntitySleepManager && window.EntitySleepManager.isSleeping(pd)) return;
         // 内置 glbMixer（模型自带动画时存在）
         if (ud.glbMixer) ud.glbMixer.update(dt);
         // 共享动画 mixer（所有独立动画 GLB 共用，绑定在角色模型上）

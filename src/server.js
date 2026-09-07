@@ -56,9 +56,10 @@ const staticCacheOptions = {
     if (filePath.match(/\.(png|jpg|jpeg|gif|glb|gltf|e8j|mp4|webm|svg|ico|webp)$/i)) {
       res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
     }
-    // HTML/JS/CSS 使用较短缓存（方便更新部署）
+    // HTML/JS/CSS 不强缓存：每次都向服务器协商校验（ETag 未变则 304 零负载）。
+    // 此前 max-age=3600 导致浏览器 1 小时内跑旧 JS，出现"改了代码用户端不生效"
     else if (filePath.match(/\.(html|js|css)$/i)) {
-      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.setHeader('Cache-Control', 'no-cache');
     }
     // 字体文件缓存30天
     else if (filePath.match(/\.(woff2?|ttf|otf|eot)$/i)) {

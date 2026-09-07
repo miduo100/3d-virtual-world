@@ -36,6 +36,7 @@
     "tailwindcss-animate": "^1.0.7",
     "tencentcloud-sdk-nodejs": "^4.1.189",
     "three": "~0.185.1",
+    "three-mesh-bvh": "^0.9.14",
     "uuid": "^9.0.1",
     "ws": "^8.14.2"
   },

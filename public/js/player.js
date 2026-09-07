@@ -316,8 +316,32 @@ class Player {
         movement.addScaledVector(cameraDirection, moveForward);
         movement.addScaledVector(cameraRight, moveRight);
 
-        this.position.add(movement);
-        
+        // 🎯 侧面碰撞检测（与第三人称分支保持一致，非飞行模式）
+        // 【修复】原第一人称分支直接 position.add(movement) 无任何碰撞检测，
+        // 可自由穿墙（含城堡墙体）；现复用与第三人称相同的回滚+单轴滑动逻辑。
+        if (!this.isFlying) {
+          const prevPosition = this.position.clone(); // 移动前位置（回滚锚点）
+          this.position.add(movement);
+          if (this.checkSideCollision(this.position)) {
+            // 完整移动被阻挡：以移动前位置为基准尝试单轴滑动
+            const tryX = prevPosition.clone();
+            tryX.x = this.position.x;
+            if (!this.checkSideCollision(tryX)) {
+              this.position.copy(tryX);          // 允许 X 方向移动（沿墙滑动）
+            } else {
+              const tryZ = prevPosition.clone();
+              tryZ.z = this.position.z;
+              if (!this.checkSideCollision(tryZ)) {
+                this.position.copy(tryZ);        // 允许 Z 方向移动（沿墙滑动）
+              } else {
+                this.position.copy(prevPosition); // 全挡：留在原地，绝不前进
+              }
+            }
+          }
+        } else {
+          this.position.add(movement);
+        }
+
         // Update player rotation to match movement direction if moving
         this.rotation = Math.atan2(cameraDirection.x, cameraDirection.z);
       }
@@ -468,30 +492,29 @@ class Player {
         movement.addScaledVector(cameraDirection, moveForward);
         movement.addScaledVector(cameraRight, moveRight);
 
-        this.position.add(movement);
-        
-        // 🎯 新增：侧面碰撞检测（非飞行模式）
+        // 🎯 侧面碰撞检测（非飞行模式）
+        // 【修复穿墙根因】原实现先 add 再检测、被挡时无回滚——斜着走向墙时位置
+        // 每帧仍前进 0.15，2~3 帧后胶囊沉入墙体内部（厚墙内部无面可碰即永久放行），
+        // 之后可从另一侧穿出。现改为：被挡时回滚到移动前位置，再尝试单轴滑动。
         if (!this.isFlying) {
-          const newPosition = this.position.clone();
-          
-          if (this.checkSideCollision(newPosition)) {
-            // 完整移动被阻挡，尝试沿墙滑动
-            
-            // 尝试只移动 X 方向
-            const posXOnly = this.position.clone();
-            posXOnly.x = newPosition.x;
-            if (!this.checkSideCollision(posXOnly)) {
-              this.position.x = newPosition.x;  // 允许X方向移动
-            }
-            
-            // 尝试只移动 Z 方向
-            const posZOnly = this.position.clone();
-            posZOnly.z = newPosition.z;
-            if (!this.checkSideCollision(posZOnly)) {
-              this.position.z = newPosition.z;  // 允许Z方向移动
+          const prevPosition = this.position.clone(); // 移动前位置（回滚锚点）
+          this.position.add(movement);
+          if (this.checkSideCollision(this.position)) {
+            // 完整移动被阻挡：以移动前位置为基准尝试单轴滑动
+            const tryX = prevPosition.clone();
+            tryX.x = this.position.x;
+            if (!this.checkSideCollision(tryX)) {
+              this.position.copy(tryX);          // 允许 X 方向移动（沿墙滑动）
+            } else {
+              const tryZ = prevPosition.clone();
+              tryZ.z = this.position.z;
+              if (!this.checkSideCollision(tryZ)) {
+                this.position.copy(tryZ);        // 允许 Z 方向移动（沿墙滑动）
+              } else {
+                this.position.copy(prevPosition); // 全挡：留在原地，绝不前进
+              }
             }
           }
-          // 如果无碰撞，保持完整移动（this.position.add(movement) 已执行）
         }
         
         // Don't auto-rotate player in third-person mode
@@ -511,7 +534,12 @@ class Player {
   checkSideCollision(position) {
     const playerRadius = 0.3;  // 玩家碰撞半径
     const playerHeight = 1.8;  // 玩家总高度
-    
+    // 脚底高度：GLB 角色 position.y 即脚底；方块人 position.y 在脚底上方 1.5
+    const isGlb = this.worldObject && this.worldObject.userData && this.worldObject.userData.isGlbLoaded;
+    const feetY = position.y - (isGlb ? 0 : 1.5);
+    // 登步容差：与 getGroundHeight 的 (topHeight - 1) 一致，顶面在此范围内视为可踏面
+    const STEP_UP_TOLERANCE = 1.0;
+
     for (const obj of this.world.collisionObjects) {
       if (!obj.position || !obj.size) continue;
       
@@ -521,6 +549,13 @@ class Player {
       const depth = obj.size.depth ?? obj.size.z ?? 0;
       
       if (width === 0 || height === 0 || depth === 0) continue;
+
+      // 🎯 可踏面豁免：顶面不高于脚底+登步容差的薄板（如出生点圆盘，高仅 0.1m）
+      // 是可以走上去/走下来的地面，不参与侧向阻挡。否则 GLB 角色（position.y=脚底）
+      // 站上圆盘后 y 恰落在碰撞盒 Y 范围内，水平移动被判"侧碰"整体回滚——
+      // 只能跳起（y 升出盒范围）才能移出。旧版无回滚逻辑时误报挡不住人，故未暴露。
+      const topY = obj.boundingBox ? obj.boundingBox.max.y : obj.position.y + height / 2;
+      if (topY <= feetY + STEP_UP_TOLERANCE) continue;
       
       // 扩展碰撞盒（加上玩家半径，实现更自然的碰撞）
       const halfWidth = width / 2 + playerRadius;
@@ -540,7 +575,16 @@ class Player {
         return true;  // 发生碰撞
       }
     }
-    
+
+    // 🎯 模型表面碰撞（胶囊 + BVH）：上传模型按真实网格侧向阻挡
+    if (window.CapsuleCollision && window.CapsuleCollision.isEnabled()) {
+      try {
+        if (window.CapsuleCollision.checkCapsule(position.x, feetY, position.z)) {
+          return true;
+        }
+      } catch (e) { /* 碰撞查询异常不阻塞移动 */ }
+    }
+
     return false;  // 无碰撞
   }
 
@@ -723,6 +767,9 @@ class Player {
       // Hide player model in first-person
       if (this.worldObject) {
         this.worldObject.visible = false;
+        // 同步模型朝向（本地不可见，但 broadcastPosition 广播的 rotation
+        // 读自 worldObject.rotation.y，不更新会导致其他玩家看不到转向）
+        this.worldObject.rotation.y = MOUSE.rotationY;
       }
       
       // First-person camera: use camera bone if available, otherwise use head level
@@ -741,8 +788,12 @@ class Player {
       camera.position.lerp(targetCameraPos, 0.1);
       
       // Set camera rotation directly from mouse rotation
+      // 视角连续性：第三人称相机在人物背后 (player − (sinθ,cosθ)·d, θ=MOUSE.rotationY)，
+      // 视线方向 = (sinθ,cosθ)；欧拉 yaw=θ 的相机 forward = (−sinθ,−cosθ) 恰好反向 180°，
+      // 因此第一人称 yaw 需 +π，保证按 C 切换瞬间朝向与第三人称人物朝向一致（前后移动不反转）。
+      // 注意 pitch 不要在此取反：main.js 输入层已按视角模式对 pitch 增量做过方向补偿。
       const euler = new THREE.Euler(0, 0, 0, 'YXZ');
-      euler.y = MOUSE.rotationY;
+      euler.y = MOUSE.rotationY + Math.PI;
       euler.x = MOUSE.rotationX;
       camera.quaternion.setFromEuler(euler);
     }

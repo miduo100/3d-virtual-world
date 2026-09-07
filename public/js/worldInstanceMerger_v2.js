@@ -382,6 +382,14 @@
   }
 
   // ===== 视距裁剪 =====
+  // 【性能节流】玩家未明显移动时降频：rAF 循环保留（60Hz 计数），但全量重算
+  // 只在「移动 >0.5m」或「每 10 帧周期刷新」时执行（周期刷新兜底处理
+  // 实例增删/重建等无位移变化，10 帧 ≈ 167ms，远低于视觉感知阈值）
+  let _cullRafCount = 0;
+  let _lastCullPos = null; // {x,y,z} 上次实际执行重算时的玩家位置
+  const CULL_REFRESH_EVERY = 10;   // 无位移时的周期重算间隔（帧）
+  const CULL_MOVE_DIST_SQ = 0.25;  // 位移门控阈值（0.5m 的平方）
+
   function runCull() {
     if (!enabled) {
       cullRaf = requestAnimationFrame(runCull);
@@ -392,6 +400,18 @@
       cullRaf = requestAnimationFrame(runCull);
       return;
     }
+    _cullRafCount++;
+    if (_lastCullPos) {
+      const dx = player.position.x - _lastCullPos.x;
+      const dy = player.position.y - _lastCullPos.y;
+      const dz = player.position.z - _lastCullPos.z;
+      const moved = (dx * dx + dy * dy + dz * dz) > CULL_MOVE_DIST_SQ;
+      if (!moved && (_cullRafCount % CULL_REFRESH_EVERY) !== 0) {
+        cullRaf = requestAnimationFrame(runCull);
+        return;
+      }
+    }
+    _lastCullPos = { x: player.position.x, y: player.position.y, z: player.position.z };
     playerPos.copy(player.position);
     const maxDistSq = MAX_RENDER_DIST * MAX_RENDER_DIST;
     let totalCulled = 0;

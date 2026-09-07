@@ -34,9 +34,10 @@ const RemoteModelGuard = (function() {
   // 统计（本次会话）
   var stats = { blocked: 0, passed: 0, totalSize: 0, sizeCount: 0 };
 
-  // 离线默认值
+  // 离线默认值（与服务端 modelGuard.js DEFAULTS 保持一致：
+  // enabled 默认关闭。配置拉取失败/未到达时必须放行，否则守卫永远误伤跨域模型）
   var FALLBACK = {
-    enabled: true,
+    enabled: false,
     max_file_size: 10,
     max_triangles: 50000,
     max_vertices: 30000,
@@ -136,8 +137,10 @@ const RemoteModelGuard = (function() {
    * @param {THREE.Object3D} scene gltf.scene
    * @param {object} ctx { characterId, characterGroup, isSelf }
    */
-  function validateLoadedModel(scene, ctx) {
-    var cfg = currentConfig || FALLBACK;
+  async function validateLoadedModel(scene, ctx) {
+    // 必须先拉取服务端配置（含 2 分钟缓存）；玩家 GLB 加载路径不经过
+    // shouldLoadRemoteModel，若不在此处拉取，currentConfig 永远为 null
+    var cfg = await fetchConfig();
     if (!cfg.enabled || ctx.isSelf) return { safe: true };
 
     var tri = 0, vert = 0, meshN = 0;

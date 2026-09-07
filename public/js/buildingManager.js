@@ -198,6 +198,8 @@ class BuildingManager {
       btn.textContent = '禁用编辑模式';
       btn.style.background = '#f44336';
       this.showAllBuildingLabels(true); // 显示所有建筑标签
+      // 【2026-09-05 卡顿治理】编辑模式需要逐对象真实网格（TransformControls/拾取），先还原合批
+      if (window.GeometryBatcher) window.GeometryBatcher.unbatchAll();
       UI.showNotification('🔧 管理员模式', '编辑模式已启用\n点击建筑进行编辑', 3000);
       
       // ========== 调试日志：管理员模式启用时输出完整状态 ==========
@@ -253,6 +255,8 @@ class BuildingManager {
       btn.style.background = '#4CAF50';
       this.showAllBuildingLabels(false); // 隐藏所有建筑标签
       this.deselectObject();
+      // 【2026-09-05 卡顿治理】编辑模式关闭，重新合批静态几何建筑
+      if (window.GeometryBatcher) window.GeometryBatcher.rebatchAll();
       UI.showNotification('🔧 管理员模式', '编辑模式已禁用', 2000);
     }
   }

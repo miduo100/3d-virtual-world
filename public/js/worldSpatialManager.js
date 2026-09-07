@@ -189,13 +189,17 @@
     startPolling() {
       if (this.started || this.pollTimer) return;
       this.started = true;
-      this.pollTimer = setInterval(() => this._poll(), POLL_INTERVAL);
+      // 接入 BgThrottle：页面后台时冻结增量轮询（无模块时回退裸 setInterval）
+      this.pollTimer = window.BgThrottle
+        ? window.BgThrottle.every('wsm.poll', POLL_INTERVAL, () => this._poll())
+        : setInterval(() => this._poll(), POLL_INTERVAL);
       console.log('[空间分页] 增量轮询已启动（网格 ' + CELL_SIZE + 'm / 间隔 ' + POLL_INTERVAL + 'ms）');
     }
 
     stopPolling() {
       if (this.pollTimer) {
-        clearInterval(this.pollTimer);
+        if (window.BgThrottle) window.BgThrottle.cancel('wsm.poll');
+        else clearInterval(this.pollTimer);
         this.pollTimer = null;
       }
       this.started = false;
