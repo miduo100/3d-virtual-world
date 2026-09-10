@@ -1662,6 +1662,30 @@
             window.addEventListener('resize', onWindowResize);
             window.addEventListener('keydown', onKeyDown);
 
+
+
+                        // 世界对象模型懒加载 / 缩略图异步队列
+            if (window.WorldObjectLazyLoader) {
+                window.WorldObjectLazyLoader.configure({
+                    createLoader: () => newGLTFLoader(),
+                    setupMeshopt: (loader) => window.setupMeshoptLoader && window.setupMeshoptLoader(loader),
+                    ensureMeshopt: () => (window.ensureMeshoptReady ? window.ensureMeshoptReady() : Promise.resolve()),
+                    onLoaded: (rec) => {
+                        if (window.ObjectThumbnails) window.ObjectThumbnails.refresh(rec.id);
+                    }
+                });
+            }
+            if (window.ObjectThumbnails) {
+                window.ObjectThumbnails.configure({
+                    generate: (key, force) => {
+                        const obj = worldObjects.find(o => String(o.id) === String(key));
+                        if (!obj) return null;
+                        if (force) thumbnailCache.delete(obj.id);
+                        return generateThumbnail(obj);
+                    }
+                });
+            }
+
             // 动画循环
             animate();
             
@@ -1671,9 +1695,11 @@
             }
         }
 
-        function animate() {
+                function animate() {
             requestAnimationFrame(animate);
             controls.update();
+            // 按需加载世界对象模型（内部按时间/位移节流）
+            if (window.WorldObjectLazyLoader) window.WorldObjectLazyLoader.update(camera);
             // 驱动 Three.js 代码块（独立 Demo 风格）的逐帧动画
             if (window.__threejsBlockFrames) {
                 for (let i = 0; i < window.__threejsBlockFrames.length; i++) {
@@ -5129,10 +5155,12 @@
 
                 if (data.success) {
                     // 清空现有世界对象
-                    worldObjects.forEach(obj => {
+                                        worldObjects.forEach(obj => {
                         if (obj.mesh) scene.remove(obj.mesh);
                     });
                     worldObjects = [];
+                    if (window.WorldObjectLazyLoader) window.WorldObjectLazyLoader.clear();
+                    if (window.ObjectThumbnails) window.ObjectThumbnails.clear();
 
                     // 加载新对象（所有对象都显示）
                     data.objects.forEach(obj => {
@@ -5268,135 +5296,36 @@
                 placeholder.rotation.set(obj.rotation_x || 0, obj.rotation_y || 0, obj.rotation_z || 0);
                 placeholder.scale.set(obj.scale_x || 1, obj.scale_y || 1, obj.scale_z || 1);
 
-                // 添加加载指示器
-                const loaderGeometry = new THREE.BoxGeometry(1, 1, 1);
+                // 添加占位指示盒（按对象缩放估算尺寸，远处也能看到、便于点选）
+                const absScale = Math.max(
+                    Math.abs(obj.scale_x || 1),
+                    Math.abs(obj.scale_y || 1),
+                    Math.abs(obj.scale_z || 1)
+                );
+                const boxSize = Math.max(1, Math.min(40, absScale * 2));
+                const loaderGeometry = new THREE.BoxGeometry(boxSize, boxSize, boxSize);
                 const loaderMaterial = new THREE.MeshBasicMaterial({ 
-                    color: 0x00ff00, 
+                    color: 0x00aa44, 
                     wireframe: true 
                 });
                 const loaderMesh = new THREE.Mesh(loaderGeometry, loaderMaterial);
                 placeholder.add(loaderMesh);
 
-                // 异步加载模型
-                const modelType = obj.model_type || 'gltf';
-                const modelPath = obj.model_path;
-
-                if (modelType === 'gltf') {
-                    // 加载 GLB/GLTF（先等 meshopt 解码器就绪，避免 meshopt 压缩模型红框）
-                    const ready = (window.ensureMeshoptReady ? window.ensureMeshoptReady() : Promise.resolve());
-                    ready.then(() => {
-                        const loader = newGLTFLoader();
-                        window.setupMeshoptLoader && window.setupMeshoptLoader(loader);
-                        loader.load(
-                            modelPath,
-                            (gltf) => {
-                                console.log('✅ GLTF模型加载成功:', modelPath);
-                                placeholder.remove(loaderMesh);
-                                placeholder.add(gltf.scene);
-                                
-                                // 启用阴影
-                                gltf.scene.traverse((child) => {
-                                    if (child.isMesh) {
-                                        child.castShadow = true;
-                                        child.receiveShadow = true;
-                                    }
-                                });
-                            },
-                            (progress) => {
-                                console.log('📦 加载进度:', (progress.loaded / progress.total * 100).toFixed(2) + '%');
-                            },
-                            (error) => {
-                                console.error('❌ GLTF加载失败:', error);
-                                loaderMaterial.color.set(0xff0000); // 改为红色表示失败
-                            }
-                        );
-                    }).catch((e) => {
-                        console.error('❌ meshopt 解码器就绪失败，模型加载中止:', e);
-                        loaderMaterial.color.set(0xff0000);
+                // 按需加载：登记到懒加载器，只加载相机附近/视锥内的模型
+                if (window.WorldObjectLazyLoader) {
+                    window.WorldObjectLazyLoader.register({
+                        id: obj.id,
+                        position: new THREE.Vector3(obj.position_x || 0, obj.position_y || 0, obj.position_z || 0),
+                        radius: Math.max(boxSize, 1),
+                        placeholder: placeholder,
+                        loaderMesh: loaderMesh,
+                        loaderMaterial: loaderMaterial,
+                        modelPath: obj.model_path,
+                        modelType: obj.model_type || 'gltf'
                     });
-                } else if (modelType === 'obj') {
-                    // 加载 OBJ（带材质和纹理）
-                    const modelDir = modelPath.substring(0, modelPath.lastIndexOf('/') + 1);
-                    const mtlFileName = 'material.mtl';  // 上传接口固定使用这个名称
-                    
-                    const mtlLoader = new THREE.MTLLoader();
-                    mtlLoader.setPath(modelDir);
-                    mtlLoader.setResourcePath(modelDir);  // 纹理文件也在这个目录
-                    
-                    console.log('📂 模型目录:', modelDir);
-                    console.log('📂 MTL文件名:', mtlFileName);
-                    
-                    mtlLoader.load(
-                        mtlFileName,
-                        (materials) => {
-                            console.log('✅ MTL材质加载成功');
-                            materials.preload();
-                            
-                            const objLoader = new THREE.OBJLoader();
-                            objLoader.setMaterials(materials);
-                            objLoader.load(
-                                modelPath,
-                                (object) => {
-                                    console.log('✅ OBJ模型加载成功（带材质）:', modelPath);
-                                    placeholder.remove(loaderMesh);
-                                    placeholder.add(object);
-                                    
-                                    // 启用阴影
-                                    object.traverse((child) => {
-                                        if (child.isMesh) {
-                                            child.castShadow = true;
-                                            child.receiveShadow = true;
-                                            console.log('🎨 材质:', child.material);
-                                        }
-                                    });
-                                },
-                                (progress) => {
-                                    if (progress.total > 0) {
-                                        console.log('📦 OBJ加载进度:', (progress.loaded / progress.total * 100).toFixed(2) + '%');
-                                    }
-                                },
-                                (error) => {
-                                    console.error('❌ OBJ加载失败:', error);
-                                    loaderMaterial.color.set(0xff0000);
-                                }
-                            );
-                        },
-                        (progress) => {
-                            if (progress.total > 0) {
-                                console.log('📦 MTL加载进度:', (progress.loaded / progress.total * 100).toFixed(2) + '%');
-                            }
-                        },
-                        (error) => {
-                            console.warn('⚠️ MTL文件加载失败，尝试仅加载OBJ（无纹理）:', error);
-                            const objLoader = new THREE.OBJLoader();
-                            objLoader.load(
-                                modelPath,
-                                (object) => {
-                                    console.log('✅ OBJ模型加载成功（无材质）:', modelPath);
-                                    placeholder.remove(loaderMesh);
-                                    placeholder.add(object);
-                                    
-                                    // 应用默认材质
-                                    object.traverse((child) => {
-                                        if (child.isMesh) {
-                                            child.material = new THREE.MeshLambertMaterial({ color: 0xcccccc });
-                                            child.castShadow = true;
-                                            child.receiveShadow = true;
-                                        }
-                                    });
-                                },
-                                undefined,
-                                (error) => {
-                                    console.error('❌ OBJ加载失败:', error);
-                                    loaderMaterial.color.set(0xff0000);
-                                }
-                            );
-                        }
-                    );
-                }
-
-                return placeholder;
-            }
+                } else {
+                    console.warn('⚠️ 懒加载器缺失，模型保持占位状态:', obj.model_path);
+                }}
 
             // 默认：创建一个简单的方块
             const geometry = new THREE.BoxGeometry(2, 2, 2);
@@ -5411,6 +5340,10 @@
         }
 
         function selectObject(worldObj, multiSelect = false) {
+            // 选中即优先加载，方便编辑远处对象
+            if (window.WorldObjectLazyLoader && worldObj && worldObj.id !== undefined) {
+                window.WorldObjectLazyLoader.prioritize(worldObj.id);
+            }
             if (!multiSelect) {
                 deselectAll();
             }
@@ -5931,6 +5864,12 @@
                 return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(iconSvg);
             }
 
+            // 模型尚未按需加载完成，先不生成缩略图（加载完成后回调会刷新）
+            if (obj.data.type === 'uploaded_model' &&
+                window.WorldObjectLazyLoader && !window.WorldObjectLazyLoader.isLoaded(obj.id)) {
+                return null;
+            }
+
             // 如果mesh还未加载完成，返回占位符
             if (!obj.mesh) {
                 const placeholderSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60">
@@ -6007,7 +5946,7 @@
                 const isSelected = selectedObjects.includes(obj);
                 const type = obj.data.type || 'unknown';
                 const name = obj.data.name || `对象 #${obj.id}`;
-                const thumbnailUrl = generateThumbnail(obj);
+                const thumbKey = JSON.stringify(obj.id);
                 // 确保ID被正确转义为字符串
                 const safeId = JSON.stringify(obj.id);
                 
@@ -6015,8 +5954,9 @@
                     <div class="object-item ${isSelected ? 'selected' : ''}" 
                          onclick="selectObjectById(${safeId}, event)"
                          style="display: flex; align-items: center; gap: 12px;">
-                        <img src="${thumbnailUrl}" 
-                             class="object-thumbnail"
+                        <img src="${window.ObjectThumbnails ? window.ObjectThumbnails.placeholder : ''}" 
+     data-thumb-key=${thumbKey}
+     class="object-thumbnail"
                              style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 2px solid #444; flex-shrink: 0;"
                              alt="缩略图">
                         <div class="object-info" style="flex: 1; min-width: 0;">
@@ -6031,7 +5971,10 @@
                 `;
             }).join('');
 
-            document.getElementById('object-count').textContent = worldObjects.length;
+                        document.getElementById('object-count').textContent = worldObjects.length;
+
+            // 缩略图交给异步队列生成（可见区域优先，避免上千次同步渲染卡死）
+            if (window.ObjectThumbnails) window.ObjectThumbnails.scan(listContainer);
         }
 
         function selectObjectById(id, event) {
@@ -8139,6 +8082,8 @@
   </div>
 </div>
 
+<script src="js/worldObjectLazyLoader.js?v=1"></script>
+<script src="js/objectThumbnailQueue.js?v=1"></script>
 <script src="js/meshoptSetup.js"></script>
 <script src="js/threejsCompatibility.js"></script>
 <script src="js/threejsCodeRunner.js"></script>

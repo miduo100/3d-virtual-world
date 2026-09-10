@@ -57,6 +57,10 @@ class World {
     // 极致性能优化
     this.renderer.sortObjects = false;
     this.renderer.autoClear = true;
+    // 【2026-09-08 卡顿治理】关闭着色器同步诊断（CDP 实测 getProgramInfoLog 占加载窗口
+    // 35.5% 主线程 CPU，Windows ANGLE 下每次诊断可达数百 ms）。代价：着色器编译错误
+    // 不再打印到控制台，仅影响开发期排错，不影响运行正确性。
+    this.renderer.debug.checkShaderErrors = false;
     this.renderer.info.autoReset = true; // 自动重置
     this.renderer.clearDepth(); // 清理深度缓冲
     this.renderer.setClearColor(0x87ceeb, 1); // 设置背景颜色
@@ -277,8 +281,15 @@ class World {
 
 
   setupScene() {
+    // 自定义天空（天空库）挂载：未启用时行为与以往完全一致
+    if (window.SkyManager) {
+      SkyManager.attach(this.scene, this.renderer);
+      SkyManager.fetchFallback();
+    }
     // Background - 默认晴天蓝天
-    this.scene.background = new THREE.Color(0x87ceeb);
+    this.scene.background = window.SkyManager
+      ? SkyManager.getBackground(0x87ceeb)
+      : new THREE.Color(0x87ceeb);
     this.scene.fog = new THREE.Fog(0x87ceeb, CONFIG.DRAW_DISTANCE, 10000);
 
     // 天气系统初始化
@@ -297,6 +308,9 @@ class World {
   setWeather(type, opts = {}) {
     const intensity = Math.min(100, Math.max(0, opts.intensity ?? 50)) / 100; // 0~1
     const wind      = Math.min(100, Math.max(0, opts.wind      ?? 20)) / 100;
+
+    // 自定义天空：随天气一起下发（sky 为 undefined 时保持当前天空不变）
+    if (window.SkyManager) SkyManager.applyConfig(opts.sky, type);
 
     // 相同天气也可能要更新强度，所以不早退
     this._clearWeatherParticles();
@@ -319,7 +333,10 @@ class World {
       storm: 0x20283a
     };
 
-    this.scene.background = new THREE.Color(SKY_COLORS[type] ?? 0x87ceeb);
+    // 选中自定义天空时用全景图/HDR，否则沿用天气纯色
+    this.scene.background = window.SkyManager
+      ? SkyManager.getBackground(SKY_COLORS[type] ?? 0x87ceeb)
+      : new THREE.Color(SKY_COLORS[type] ?? 0x87ceeb);
 
     if (type === 'fog') {
       // 强度影响雾密度
@@ -3191,13 +3208,49 @@ class World {
     
     const playerPosition = player.position;
     const currentTime = performance.now();
-    
+
     // 管理加载阶段（已简化，仅在需要时执行）
-    
-    // 检查加载队列大小，避免队列过长
-    if (this.loadingQueue.length >= this.maxLoadingQueueSize) {
-      // 队列已满，跳过添加新对象
+
+    // 【2026-09-09 A】传送检测：位置突变（单次扫描间隔内移动 >500m）时，
+    // 把队列中已不在新位置加载半径内的旧区域条目直接丢弃（玩家回来会重新入队），
+    // 避免传送后旧区域对象继续占据串行队列被逐个消费
+    if (!this._lastEnqueuePos) {
+      this._lastEnqueuePos = { x: playerPosition.x, z: playerPosition.z };
     } else {
+      const tdx = playerPosition.x - this._lastEnqueuePos.x;
+      const tdz = playerPosition.z - this._lastEnqueuePos.z;
+      if (tdx * tdx + tdz * tdz > 500 * 500) {
+        this._lastEnqueuePos.x = playerPosition.x;
+        this._lastEnqueuePos.z = playerPosition.z;
+        const tpLdSq = this.loadDistance * this.loadDistance;
+        const beforeTp = this.loadingQueue.length;
+        this.loadingQueue = this.loadingQueue.filter(o =>
+          this._surfaceDistSq(o, playerPosition.x, playerPosition.z) < tpLdSq
+        );
+        if (this.loadingQueue.length !== beforeTp) {
+          console.log(`[Queue] 🧹 检测到传送，丢弃旧区域排队对象 ${beforeTp - this.loadingQueue.length} 个（回来会重新入队）`);
+        }
+      } else {
+        this._lastEnqueuePos.x = playerPosition.x;
+        this._lastEnqueuePos.z = playerPosition.z;
+      }
+    }
+
+    // 检查加载队列大小，避免队列过长
+    // 【2026-09-09 B】队列满时不再直接跳过：先清理已出加载半径的排队条目
+    //（传送后旧区域残留），腾出空间让新区域对象能入队，避免旧队列堵死新区域
+    if (this.loadingQueue.length >= this.maxLoadingQueueSize) {
+      const fullLdSq = this.loadDistance * this.loadDistance;
+      const beforeFull = this.loadingQueue.length;
+      this.loadingQueue = this.loadingQueue.filter(o =>
+        this.loadedObjects.has(o.id) ||
+        this._surfaceDistSq(o, playerPosition.x, playerPosition.z) < fullLdSq
+      );
+      if (this.loadingQueue.length !== beforeFull) {
+        console.log(`[Queue] 🧹 队列已满，清理已出加载半径的排队对象 ${beforeFull - this.loadingQueue.length} 个`);
+      }
+    }
+    if (this.loadingQueue.length < this.maxLoadingQueueSize) {
       // 使用距离平方比较，避免 sqrt 开销
       const loadDistSq = this.loadDistance * this.loadDistance;
       const px = playerPosition.x;
@@ -3230,13 +3283,22 @@ class World {
 
       // 【2026-09-05】媒体对象独立加载通道：按距离直接加载（轻量、无需排队），
       // 卸载由 unloadObject 的 media 分支处理，形成"走近加载/走远卸载"闭环
+    }
+
+    // 【2026-09-09 B】媒体通道移出主队列分支：始终按当前距离检查（自带
+    // _mediaLoadingSet 防并发），不依赖主队列容量——主队列被旧区域塞满时
+    // 新区域的图片/视频照样能加载
+    {
       if (!this._mediaLoadingSet) this._mediaLoadingSet = new Set();
+      const mediaLdSq = this.loadDistance * this.loadDistance;
+      const mpx = playerPosition.x;
+      const mpz = playerPosition.z;
       for (let i = 0; i < this.allWorldObjects.length; i++) {
         const mobj = this.allWorldObjects[i];
         if (mobj.type !== 'media_image' && mobj.type !== 'media_video') continue;
         if (this.loadedObjects.has(mobj.id) || this._mediaLoadingSet.has(mobj.id)) continue;
         if ((this.loadRetryCount.get(mobj.id) || 0) >= 3) continue;
-        if (this._surfaceDistSq(mobj, px, pz) < loadDistSq) {
+        if (this._surfaceDistSq(mobj, mpx, mpz) < mediaLdSq) {
           this._mediaLoadingSet.add(mobj.id);
           this.loadedObjects.add(mobj.id);
           this._loadedAt.set(mobj.id, Date.now());
@@ -3415,7 +3477,14 @@ class World {
       
       if (!aIsLarge && bIsLarge) return -1;  // a小b大，a优先
       if (aIsLarge && !bIsLarge) return 1;   // a大b小，b优先
-      
+
+      // 【2026-09-08 面向优先】同层级内：玩家正面(±90°扇区)对象先加载，背后延后
+      if (pp && window.LoadFacing) {
+        const fA = window.LoadFacing.sector(a, pp);
+        const fB = window.LoadFacing.sector(b, pp);
+        if (fA !== fB) return fB - fA;
+      }
+
       // 同一层级内（两个小模型或两个大模型）按距离排序：近的优先
       if (pp) {
         const dax = pp.x - (a.position_x || 0), daz = pp.z - (a.position_z || 0);
@@ -4778,7 +4847,14 @@ class World {
           const priorityB = getPriority(sizeB, bIsLarge, bIsMedium);
           
           if (priorityA !== priorityB) return priorityA - priorityB;
-          
+
+          // 【2026-09-08 面向优先】同优先级内：玩家正面(±90°扇区)对象先加载，背后延后
+          if (window.LoadFacing && window.player && window.player.position) {
+            const fA0 = window.LoadFacing.sector(a, window.player.position);
+            const fB0 = window.LoadFacing.sector(b, window.player.position);
+            if (fA0 !== fB0) return fB0 - fA0;
+          }
+
           // 同级别按大小升序（小文件先加载）
           return sizeA - sizeB;
         });
@@ -5712,18 +5788,36 @@ class World {
         offset += chunk.length;
       }
 
-      this.gltfLoader.parse(
-        arrayBuffer.buffer,
-        '',
-        (gltf) => {
-          this._showCompleteOnPlaceholder(name);
-          if (onComplete) onComplete(gltf);
-        },
-        (error) => {
-          console.error(`❌ GLTFLoader.parse 失败:`, error);
-          if (onError) onError(error);
-        }
-      );
+      // 【2026-09-08 会话2】GLB 解析进 Worker（主线程零停顿）；动画/蒙皮/morph 等
+      // 不可序列化子集自动回退主线程 parse（fallbackLoader 已配 Draco+Meshopt）
+      if (window.GltfWorkerClient && window.GltfWorkerClient.parseBuffer) {
+        window.GltfWorkerClient.parseBuffer(
+          arrayBuffer.buffer,
+          { fallbackLoader: this.gltfLoader, static: true }
+        ).then(
+          (gltf) => {
+            this._showCompleteOnPlaceholder(name);
+            if (onComplete) onComplete(gltf);
+          },
+          (error) => {
+            console.error(`❌ GLTF 解析失败:`, error);
+            if (onError) onError(error);
+          }
+        );
+      } else {
+        this.gltfLoader.parse(
+          arrayBuffer.buffer,
+          '',
+          (gltf) => {
+            this._showCompleteOnPlaceholder(name);
+            if (onComplete) onComplete(gltf);
+          },
+          (error) => {
+            console.error(`❌ GLTFLoader.parse 失败:`, error);
+            if (onError) onError(error);
+          }
+        );
+      }
 
     } catch (error) {
       if (timedOut) return;

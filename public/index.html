@@ -265,13 +265,18 @@
       }
       
       #controls-hint > div:nth-child(2) {
-        grid-template-columns: 1fr 1fr !important;
-        gap: 6px 10px !important;
+        gap: 8px 16px !important;
         font-size: 11px !important;
         line-height: 1.5 !important;
       }
 
       /* 背包弹窗已使用 clamp() 实现真正响应式，无需手机端额外覆盖 */
+    }
+
+    /* 操作指南弹窗分组条目横排：标题独占一行，其余条目横向排列、放不下自动换行 */
+    #controls-hint > div:nth-child(2) > div > div:nth-child(n+2) {
+      display: inline;
+      margin-right: 14px;
     }
     
     /* 防止移动端双击缩放 */
@@ -801,11 +806,10 @@
       flex-direction: column;
     ">
       <div style="font-size: 20px; margin-bottom: 14px; font-weight: bold; flex-shrink: 0;" data-i18n="world.controls">🎮 操作指南</div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; text-align: left; font-size: 13px; line-height: 1.6; margin-bottom: 16px; overflow-y: auto; flex: 1; min-height: 0;">
+      <div style="display: flex; flex-wrap: wrap; gap: 12px 28px; text-align: left; font-size: 13px; line-height: 1.6; margin-bottom: 16px; overflow-y: auto; align-content: flex-start;">
         <div>
           <div style="color: #ffff00; font-weight: bold; margin-bottom: 4px;" data-i18n="world.firstPerson">📷 第一视角</div>
           <div>WASD - 移动</div>
-          <div>Q/E - 左右转</div>
           <div>鼠标 - 转向</div>
         </div>
         <div>
@@ -816,8 +820,7 @@
         </div>
         <div>
           <div style="color: #ff6666; font-weight: bold; margin-bottom: 4px;" data-i18n="world.combat">⚔️ 战斗</div>
-          <div>左键 - 挥剑砍杀</div>
-          <div>触摸 - 攻击怪物</div>
+          <div>触摸点击 - 攻击怪物</div>
         </div>
         <div>
           <div style="color: #66ffff; font-weight: bold; margin-bottom: 4px;" data-i18n="world.other">🔧 其他</div>
@@ -825,7 +828,7 @@
           <div>Shift - 冲刺</div>
           <div>C - 切换视角</div>
           <div>F - 交互</div>
-          <div>ESC - 重置视角</div>
+          <div>视角自动回到水平位置</div>
         </div>
       </div>
       <button id="close-controls-hint" style="
@@ -1422,13 +1425,19 @@
   <script src="js/coordFormat.js"></script>
   <script src="js/bgThrottle.js?v=1"></script>
   <script src="js/entitySleepManager.js?v=1"></script>
-  <script src="js/lightPool.js?v=1"></script>
+  <!-- 【2026-09-08 卡顿治理】灯池降容 8 盏 + 空闲期预绘制扫掠器 + 面向优先加载 -->
+  <script src="js/lightPool.js?v=2"></script>
+  <script src="js/preloadSweeper.js?v=2"></script>
+  <script src="js/loadFacing.js?v=1"></script>
   <script src="js/geometryBatcher.js?v=4"></script>
   <script src="js/capsuleCollision.js?v=3"></script>
+  <!-- 【2026-09-08 会话2】GLB 解析 Worker 客户端（worker 内 parse，主线程零停顿） -->
+  <script src="js/gltfWorkerClient.js?v=1"></script>
   <script src="js/loadingProgress.js?v=6"></script>
-  <script src="js/world.js?v=3"></script>
+  <script src="js/skyManager.js?v=1"></script>
+  <script src="js/world.js?v=6"></script>
   <script src="js/worldObjectBounds.js"></script>
-  <script src="js/placeholderField.js?v=1"></script>
+  <script src="js/placeholderField.js?v=4"></script>
   <script src="js/worldTextureOptimizer.js"></script>
   <script src="js/worldInstanceMerger_v2.js?v=1"></script>
   <!-- frameBudgetScheduler.js 引用移除：该文件从未存在（git 历史为空），每次加载 404 -->
@@ -1447,8 +1456,8 @@
   <script src="js/debug_controls.js"></script>
   
   <script src="js/player.js?v=8"></script>
-  <script src="js/voice.js"></script>
-  <script src="js/websocket.js"></script>
+  <script src="js/voice.js?v=2"></script>
+  <script src="js/websocket.js?v=3"></script>
   <script src="js/ui.js"></script>
   <script src="js/portalManager.js"></script>
   <script src="js/mobileControls.js"></script>
@@ -1457,9 +1466,12 @@
 
   <script src="js/soundManager.js"></script>
   <script src="js/skillManager.js"></script>
-  <script src="js/skillHUD.js"></script>
+  <script src="js/skillHUD.js?v=2"></script>
+  <script src="js/chatBubbles.js?v=2"></script>
+  <script src="js/nearbyChat.js?v=5"></script>
+  <script src="js/voiceChat.js?v=2"></script>
   <script src="js/uiControlManager.js"></script>
-  <script src="js/main.js?v=1"></script>
+  <script src="js/main.js?v=2"></script>
   <script src="js/worldGroundSync.js"></script>
   
   <!-- 国际化语言初始化 -->

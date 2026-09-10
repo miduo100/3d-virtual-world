@@ -45,7 +45,13 @@ const ANIM_KEY_LABELS = {
 router.get('/world-rules', async (req, res) => {
   try {
     const result = await query('SELECT * FROM world_rules ORDER BY created_at LIMIT 1');
-    res.json(result.rows[0] || null);
+    const rules = result.rows[0] || {};
+    // 附近语音"同时说话人数"上限（存于 system_config，随世界规则一并返回）
+    try {
+      const v = await query(`SELECT config_value FROM system_config WHERE config_key = 'voice_max_receivers'`);
+      rules.voice_max_users = parseInt(v.rows[0] && v.rows[0].config_value, 10) || 3;
+    } catch (_) { rules.voice_max_users = 3; }
+    res.json(rules);
   } catch (e) {
     console.error('Error fetching world rules:', e);
     res.status(500).json({ error: '获取世界规则失败' });
@@ -58,6 +64,7 @@ router.put('/world-rules', async (req, res) => {
     const {
       pvp_enabled, pve_enabled, allow_foreign_attack, damage_multiplier,
       allow_skill_types, max_foreign_level, respawn_enabled, friendly_fire, world_type,
+      voice_max_users,
     } = req.body;
 
     // world_type 联动更新 allow_skill_types
@@ -98,6 +105,17 @@ router.put('/world-rules', async (req, res) => {
           respawn_enabled ?? true, friendly_fire ?? false,
           world_type || 'normal',
         ]
+      );
+    }
+    // 同步"同时说话人数"上限到 system_config（voiceRelay 60s 缓存内生效，无需重启）
+    const VOICE_ALLOWED_COUNTS = [2, 3, 5, 7, 8, 10];
+    const voiceMax = parseInt(voice_max_users, 10);
+    if (VOICE_ALLOWED_COUNTS.includes(voiceMax)) {
+      await query(
+        `INSERT INTO system_config (config_key, config_value, description, updated_at)
+         VALUES ('voice_max_receivers', $1, '附近语音同时说话人数上限（可选 2/3/5/7/8/10，超出者自动切换文字模式）', CURRENT_TIMESTAMP)
+         ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value, updated_at = CURRENT_TIMESTAMP`,
+        [String(voiceMax)]
       );
     }
     res.json({ success: true, message: '世界规则已更新' });

@@ -27,7 +27,19 @@
   var BOX_Y_OFFSET = 3;                      // 盒子中心相对对象锚点抬高（与旧版一致）
   var MAX_INSTANCES = 2000;                  // 实例容量（world_objects 全图 + 增量余量）
   var FADE_MS = 250;                         // 渐缩时长
-  var REVEAL_TIMEOUT_MS = 600;               // "模型可见后再藏盒子"的兜底超时
+  var REVEAL_TIMEOUT_MS = 5000;              // "模型可见后再藏盒子"的兜底超时
+                                             // （2026-09-09 从 600ms 提高：超多 mesh 模型预热可能达数秒，
+                                             //   盒子提前收掉会留下一片空白，反而更像"模型没加载"）
+
+  // —— 预热批编译参数（2026-09-09）——
+  // 旧实现"每帧只编译 1 个 mesh"对多 mesh 模型是灾难：world_objects id=8392
+  //（model-1788498327710-939035107_dec.glb）2784 mesh / 仅 100 材质，逐 mesh 分帧
+  // = 2784 帧 ≈ 40~50 秒才显现。故改为：批编译 + 批大小自适应 + 单模型总时长上限。
+  var MIN_CHUNK = 8;                         // 每批最小 mesh 数
+  var MAX_CHUNK = 1024;                      // 每批最大 mesh 数
+  var BUDGET_MS = 60;                        // 单批耗时预算（超预算则缩小批）
+  var REVEAL_MAX_MS = 5000;                  // 单模型预热总时长上限：超时先显示、后台继续编译
+  var adaptiveChunk = MIN_CHUNK;             // 自适应批大小（跨模型保留经验值）
 
   // ===== 状态 =====
   var mesh = null;                 // InstancedMesh
@@ -208,34 +220,86 @@
     obj.visible = false;
     if (!obj.userData) obj.userData = {};
     obj.userData.__pendingReveal = true;
-    pendingReveal.push({ obj: obj, onShown: onShown });
+    pendingReveal.push({ obj: obj, onShown: onShown, renderer: renderer, camera: camera, scene: scene });
 
-    if (revealScheduled) return;
-    revealScheduled = true;
-    requestAnimationFrame(function () {
-      revealScheduled = false;
-      var batch = pendingReveal.splice(0, pendingReveal.length);
-      // 异步预热编译：新材质编译不阻塞当前帧
-      renderer.compileAsync(scene, camera).then(function () {
-        // 再等一帧，让纹理上传等首帧准备工作完成
-        requestAnimationFrame(function () {
-          for (var i = 0; i < batch.length; i++) {
-            var it = batch[i];
-            it.obj.visible = true;
-            it.obj.userData.__pendingReveal = false;
-            if (it.onShown) { try { it.onShown(it.obj); } catch (e) {} }
-          }
-        });
-      }).catch(function () {
-        // 编译失败兜底：直接显示
-        for (var i = 0; i < batch.length; i++) {
-          var it = batch[i];
-          it.obj.visible = true;
-          it.obj.userData.__pendingReveal = false;
-          if (it.onShown) { try { it.onShown(it.obj); } catch (e) {} }
-        }
+    // 【2026-09-09】批编译 + 批大小自适应（见 MIN_CHUNK 处注释）
+    if (!revealScheduled) {
+      revealScheduled = true;
+      requestAnimationFrame(revealTick);
+    }
+  }
+
+  function nowMs() {
+    return (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  }
+
+  function programCount(renderer) {
+    try {
+      return (renderer && renderer.info && renderer.info.programs) ? renderer.info.programs.length : -1;
+    } catch (e) { return -1; }
+  }
+
+  function revealTick() {
+    var item = pendingReveal.shift();
+    if (!item) { revealScheduled = false; return; }
+
+    var startedAt = nowMs();
+    var shown = false;
+
+    var showNow = function () {
+      if (shown) return;
+      shown = true;
+      item.obj.visible = true;
+      item.obj.userData.__pendingReveal = false;
+      if (item.onShown) { try { item.onShown(item.obj); } catch (e) {} }
+    };
+
+    var nextItem = function () {
+      // 让出一帧，给纹理上传等首帧准备工作留时间，再处理下一个模型
+      requestAnimationFrame(function () {
+        if (pendingReveal.length > 0) revealTick();
+        else revealScheduled = false;
       });
-    });
+    };
+
+    var targets = [];
+    if (item.obj.isMesh) targets.push(item.obj);
+    item.obj.traverse(function (o) { if (o.isMesh && o !== item.obj) targets.push(o); });
+    if (targets.length === 0) { showNow(); nextItem(); return; }
+
+    var idx = 0;
+    var step = function () {
+      if (idx >= targets.length) { showNow(); nextItem(); return; }
+      // 预热超时：先上屏（宁可首帧略卡，也不让用户对着空地久等），剩余在后台继续编译
+      if (!shown && nowMs() - startedAt > REVEAL_MAX_MS) showNow();
+
+      var end = Math.min(idx + adaptiveChunk, targets.length);
+      var batch = targets.slice(idx, end);
+      idx = end;
+
+      var t0 = nowMs();
+      var pBefore = programCount(item.renderer);
+      // 临时容器承载整批 mesh：renderer.compile 只 traverse children 收集材质
+      //（内部用 Set 去重），一次调用完成整批预热，避免 N 个独立轮询循环。
+      var holder = new THREE.Group();
+      holder.children = batch;
+
+      var done = function () {
+        holder.children = [];
+        var cost = nowMs() - t0;
+        var added = programCount(item.renderer) - pBefore;
+        if (added === 0) adaptiveChunk = MAX_CHUNK;   // 全是缓存命中 → 全速推进
+        else if (cost > BUDGET_MS) adaptiveChunk = Math.max(MIN_CHUNK, Math.floor(adaptiveChunk / 2));
+        else if (cost < BUDGET_MS * 0.4) adaptiveChunk = Math.min(MAX_CHUNK, adaptiveChunk * 2);
+        if (idx < targets.length) requestAnimationFrame(step);
+        else { showNow(); nextItem(); }
+      };
+
+      try {
+        item.renderer.compileAsync(holder, item.camera, item.scene).then(done, done);
+      } catch (e) { done(); }
+    };
+    step();
   }
 
   /**
@@ -276,6 +340,8 @@
     fadeOutAndHide: fadeOutAndHide,
     has: has,
     shownCount: shownCount,
+    pendingCount: function () { return pendingReveal.length; },
+    _debug: function () { return { adaptiveChunk: adaptiveChunk, pending: pendingReveal.length }; },
     reveal: reveal,
     hideAfterRevealOrTimeout: hideAfterRevealOrTimeout,
     dispose: dispose

@@ -114,6 +114,7 @@ const threejsImportRoutes = require('./routes/threejsImport');
 const securityQuestionsRoutes = require('./routes/securityQuestions');
 const subscriptionRoutes = require('./routes/subscription');
 const worldSpatialRoutes = require('./routes/worldSpatial');
+const skyRoutes = require('./routes/sky');
 const { worldWriteGuard } = require('./middleware/worldWriteGuard');
 
 app.use('/api/auth', authRoutes);
@@ -156,6 +157,7 @@ app.use('/api/admin/model-guard', modelGuardRoutes);  // 远程模型守卫管�
 app.use('/api/threejs-blocks', threejsCodeBlocksRoutes);  // Three.js 代码库路由（公开读，写需管理员）
 app.use('/api/threejs-blocks', threejsImportRoutes);    // Three.js URL导入路由（管理员）
 app.use('/api/subscription', subscriptionRoutes);  // 订阅管理路由
+app.use('/api/sky', skyRoutes.router);  // 天空库路由（列表公开读，上传/删除需管理员）
 
 // 公开模板接口：普通用户 Token 可访问（access_level=public 的激活模板）
 app.get('/api/public/character-templates', async (req, res) => {

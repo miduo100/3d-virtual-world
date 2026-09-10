@@ -17,6 +17,7 @@ const { v4: uuidv4 } = require('uuid');
 const { authenticateToken } = require('../middleware/auth');
 const { authenticateAdminToken } = require('../middleware/adminAuth');
 const trustManager = require('../services/federationTrustManager');
+const { checkRegistration } = require('../services/worldReachabilityChecker');
 
 // 初始化联邦系统
 let federationSystem = null;
@@ -602,6 +603,13 @@ router.post('/handshake', securityCheck, async (req, res) => {
       });
     }
 
+    // 注册资格检查：私网/非法 URL 立即拒绝（零网络 I/O），公网 URL 回拨验证
+    const hsCheck = await checkRegistration(req.body);
+    if (!hsCheck.allowed) {
+      console.warn(`⛔ [联邦] 握手请求被拒绝 (${hsCheck.code}): ${req.body.worldName} - ${req.body.worldUrl}`);
+      return res.json({ success: false, error: hsCheck.message, code: hsCheck.code });
+    }
+
     const clientIp = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || req.connection.socket.remoteAddress;
     const result = await trustManager.handleIncomingHandshake(req.body, clientIp, federationSystem);
 
@@ -910,6 +918,13 @@ router.post('/register-client', securityCheck, async (req, res) => {
         success: false,
         error: '无效的世界配置格式'
       });
+    }
+
+    // 注册资格检查：私网/非法 URL 立即拒绝（零网络 I/O），公网 URL 回拨验证
+    const regCheck = await checkRegistration(worldConfig);
+    if (!regCheck.allowed) {
+      console.warn(`⛔ [联邦] 客户端注册被拒绝 (${regCheck.code}): ${worldConfig.worldName} - ${worldConfig.worldUrl}`);
+      return res.json({ success: false, error: regCheck.message, code: regCheck.code });
     }
 
     console.log('📝 收到客户端世界注册:', worldConfig.worldName);

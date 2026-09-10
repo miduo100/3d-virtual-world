@@ -99,6 +99,15 @@ class WSClient {
         this.handleVoiceCommand(payload);
         break;
 
+      // 附近语音对讲（voiceChat.js 处理）
+      case 'VOICE_GRANTED':
+      case 'VOICE_DENIED':
+      case 'VOICE_PROBE_RESULT':
+      case 'VOICE_MESSAGE':
+      case 'VOICE_STATE':
+        if (window.voiceChat) window.voiceChat.handleServerMessage(type, payload);
+        break;
+
       case 'CHAT':
         this.handleChat(payload);
         break;
@@ -373,8 +382,12 @@ class WSClient {
   }
 
   static handleChat(payload) {
-    const { sender, message, timestamp } = payload;
+    const { sender, message, characterId } = payload;
     UI.addChatMessage(sender, message);
+    // 所有消息都在头顶显示气泡（包括自己的，服务器会回显给发送者）
+    if (characterId && window.nearbyBubbles) {
+      window.nearbyBubbles.show(characterId, sender, message);
+    }
   }
 
   static attemptReconnect() {

@@ -5,6 +5,7 @@
 
 const axios = require('axios');
 const { query } = require('./database/db');
+const { classifyUrlHost } = require('./services/worldReachabilityChecker');
 
 class CentralWorldConnector {
   constructor(federationSystem) {
@@ -26,6 +27,14 @@ class CentralWorldConnector {
     if (!this.autoCentralConnect) {
       console.log('ℹ️  自动连接已禁用，跳过');
       return { success: false, reason: 'disabled' };
+    }
+
+    // 握手也会向对方登记本世界的 URL，同样先做源头自检
+    const selfUrlForTrust = this.federationSystem.worldUrl;
+    const selfClsForTrust = classifyUrlHost(selfUrlForTrust);
+    if (selfClsForTrust.type !== 'public' && process.env.FEDERATION_ALLOW_PRIVATE !== '1') {
+      console.warn('⚠️  [联邦] 本世界 worldUrl 为内网/本机地址，跳过与中心世界的握手建信任');
+      return { success: false, reason: 'private_url' };
     }
 
     try {
@@ -79,6 +88,16 @@ class CentralWorldConnector {
   async registerToCentral() {
     if (!this.centralWorldUrl) {
       return { success: false, reason: 'no_central_url' };
+    }
+
+    // 发送前自检：本机 worldUrl 为内网/本机地址时不向中心世界发请求（源头屏蔽）
+    const selfUrl = this.federationSystem.worldUrl;
+    const selfCls = classifyUrlHost(selfUrl);
+    if (selfCls.type !== 'public' && process.env.FEDERATION_ALLOW_PRIVATE !== '1') {
+      console.warn('⚠️  [联邦] 本世界 worldUrl 为内网/本机地址，外部用户无法访问，跳过联邦注册:');
+      console.warn(`    ${selfUrl}`);
+      console.warn('    如需加入联邦，请配置公网域名或端口映射后，在管理后台重新保存世界设置');
+      return { success: false, reason: 'private_url' };
     }
 
     try {

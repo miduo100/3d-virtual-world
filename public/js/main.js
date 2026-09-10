@@ -667,14 +667,11 @@ async function initializeGame() {
     }
 
     // Initialize voice manager
+    // 注意：不再进世界自动开麦（隐私问题），语音技能识别由 V 键手动开关；
+    // 🎤 按钮由 voiceChat.js（附近语音对讲 PTT）接管
     try {
       voiceManager = new VoiceManager(player);
-      window.voiceManagerInstance = voiceManager; // 供 skillHUD 语音按钮使用
-      const hasMicrophone = await voiceManager.requestMicrophonePermission();
-      if (hasMicrophone) {
-        voiceManager.startListening();
-        UI.addChatMessage('系统', '语音识别已激活（中文）');
-      }
+      window.voiceManagerInstance = voiceManager; // 供 V 键语音识别开关使用
     } catch (voiceErr) {
       console.warn('[main] 语音管理器初始化失败:', voiceErr.message);
       // 语音失败不影响游戏继续运行
@@ -1133,12 +1130,14 @@ function setupKeyboardShortcuts() {
   document.addEventListener('keydown', (e) => {
     // V key to toggle voice
     if (e.key === 'v' || e.key === 'V') {
-      if (voiceManager.isListening) {
-        voiceManager.stopListening();
-        UI.addChatMessage('系统', '语音识别已暂停');
-      } else {
-        voiceManager.startListening();
-        UI.addChatMessage('系统', '语音识别已启用');
+      if (voiceManager) {
+        if (voiceManager.isListening) {
+          voiceManager.stopListening();
+          UI.addChatMessage('系统', '语音识别已暂停');
+        } else {
+          voiceManager.startListening();
+          UI.addChatMessage('系统', '语音识别已启用');
+        }
       }
     }
 

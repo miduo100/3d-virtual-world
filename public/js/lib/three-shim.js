@@ -13,6 +13,8 @@
  *  1. three@0.185.1 examples/jsm/loaders/FBXLoader.js
  *  2. three@0.185.1 examples/jsm/curves/NURBSCurve.js + NURBSUtils.js（Curve/Vector3/Vector4）
  *  3. postprocessing@6.39.4（peer: three >=0.168 <0.186，匹配 r185）
+ *  4. three@0.185.1 examples/jsm/loaders/EXRLoader.js（自定义天空 HDR 用：
+ *     DataTextureLoader / DataUtils / FloatType / HalfFloatType / RedFormat / RGFormat / RGBAFormat）
  *
  * 维护规则：升级 three 或 postprocessing 后，用脚本重新 diff 三方 import 符号并更新本清单。
  */
@@ -36,6 +38,8 @@ export const ColorManagement = THREE.ColorManagement;
 export const Curve = THREE.Curve;
 export const Data3DTexture = THREE.Data3DTexture;
 export const DataTexture = THREE.DataTexture;
+export const DataTextureLoader = THREE.DataTextureLoader;
+export const DataUtils = THREE.DataUtils;
 export const DepthStencilFormat = THREE.DepthStencilFormat;
 export const DepthTexture = THREE.DepthTexture;
 export const DirectionalLight = THREE.DirectionalLight;

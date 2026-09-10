@@ -426,6 +426,12 @@ class SkillHUD {
     const startVoice = (e) => {
       e.preventDefault();
       e.stopPropagation();
+      // 优先：附近语音对讲（PTT，由 voiceChat.js 提供并自行管理按钮状态）
+      const vc = window.voiceChat;
+      if (vc) {
+        vc.startTalk();
+        return;
+      }
       // 懒获取已有的VoiceManager实例（由main.js或voice.js创建）
       // 注意：skillHUD不应自行创建VoiceManager（需要完整player对象）
       const vm = window.voiceManagerInstance;
@@ -440,6 +446,11 @@ class SkillHUD {
 
     const stopVoice = (e) => {
       e.preventDefault();
+      const vc = window.voiceChat;
+      if (vc) {
+        vc.stopTalk();
+        return;
+      }
       const vm = window.voiceManagerInstance;
       if (vm && isListening) {
         vm.stopListening();

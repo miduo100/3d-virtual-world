@@ -5,6 +5,7 @@
 const WebSocket = require('ws');
 const { v4: uuidv4 } = require('uuid');
 const { query } = require('../database/db');
+const voiceRelay = require('./voiceRelay');
 
 let wss = null;
 
@@ -55,6 +56,7 @@ function setupWebSocketServer(httpServer) {
         
         activeConnections.delete(connectionId);
         playerPositions.delete(connectionId);
+        voiceRelay.handleDisconnect(connectionId);
         
         // 广播玩家离线
         if (playerData) {
@@ -79,6 +81,15 @@ function setupWebSocketServer(httpServer) {
     wss.on('error', (error) => {
       console.error('WebSocket server error:', error);
     });
+
+    // 注入语音中继模块所需的内部引用（避免循环 require）
+    voiceRelay.init({
+      activeConnections,
+      playerPositions,
+      calculateDistance,
+      broadcastToNearby,
+    });
+    voiceRelay.ensureDefaultConfig();
 
     console.log(`WebSocket server attached to HTTP server (shared port)`);
   } catch (error) {
@@ -110,16 +121,43 @@ function handleMessage(connectionId, ws, data) {
       handleVoiceCommand(connectionId, payload);
       break;
 
-    case 'CHAT':
-      broadcastToAll({
+    case 'VOICE_START':
+      voiceRelay.handleVoiceStart(connectionId, ws);
+      break;
+
+    case 'VOICE_PROBE':
+      voiceRelay.handleVoiceProbe(connectionId, ws);
+      break;
+
+    case 'VOICE_END':
+      voiceRelay.handleVoiceEnd(connectionId, ws);
+      break;
+
+    case 'VOICE_MESSAGE':
+      voiceRelay.handleVoiceMessage(connectionId, ws, payload);
+      break;
+
+    case 'CHAT': {
+      // 附近聊天：30m 内玩家可见，带服务端权威 characterId 供头顶气泡定位
+      const sender = playerPositions.get(connectionId);
+      const text = String(payload.message || '').slice(0, 200).trim();
+      if (!text) break;
+      const chatMessage = {
         type: 'CHAT',
         payload: {
-          sender: payload.sender,
-          message: payload.message,
+          sender: (sender && sender.characterName) || payload.sender || '未知',
+          characterId: (sender && sender.characterId) || null,
+          message: text,
           timestamp: new Date(),
         },
-      });
+      };
+      if (sender && sender.position) {
+        broadcastToNearby(sender.position, 30, chatMessage);
+      } else {
+        broadcastToAll(chatMessage);
+      }
       break;
+    }
 
     case 'PORTAL_CREATE':
       handlePortalCreate(connectionId, payload);
@@ -205,11 +243,16 @@ function handlePlayerJoin(connectionId, ws, payload) {
   // Send current world state to new player (含已在线玩家的 glbUrl 和当前天气)
   // 异步读取当前天气配置
   query('SELECT config_value FROM game_config WHERE config_key = \'world_weather\'')
-    .then(weatherResult => {
+    .then(async weatherResult => {
       let currentWeather = { type: 'clear', intensity: 50, wind: 20, auto_cycle: false, cycle_interval: 30 };
       if (weatherResult.rows.length > 0) {
         try { currentWeather = JSON.parse(weatherResult.rows[0].config_value); } catch(e) {}
       }
+      // 内联当前选中的自定义天空（新进玩家与在线玩家看到一致的天空）
+      try {
+        const { resolveSky } = require('../routes/sky');
+        currentWeather.sky = await resolveSky(currentWeather);
+      } catch(e) {}
       ws.send(JSON.stringify({
         type: 'WORLD_STATE',
         payload: {
@@ -311,15 +354,18 @@ function broadcastToAll(message) {
   });
 }
 
-function broadcastToNearby(sourcePosition, range, message) {
+function broadcastToNearby(sourcePosition, range, message, excludeConnectionId = null) {
   const data = JSON.stringify(message);
   let count = 0;
 
-  wss.clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      // Calculate distance (simplified)
-      const distance = calculateDistance(sourcePosition, { x: 0, y: 0, z: 0 });
-      if (distance <= range) {
+  // 按玩家真实位置计算距离（playerPositions 由 PLAYER_JOIN / POSITION_UPDATE 维护）
+  playerPositions.forEach((player, connectionId) => {
+    if (excludeConnectionId && connectionId === excludeConnectionId) return;
+    if (!player || !player.position) return;
+    const distance = calculateDistance(sourcePosition, player.position);
+    if (distance <= range) {
+      const client = activeConnections.get(connectionId);
+      if (client && client.readyState === WebSocket.OPEN) {
         client.send(data);
         count++;
       }

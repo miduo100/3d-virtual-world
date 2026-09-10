@@ -358,11 +358,11 @@
     </div>
     <div class="nav-divider"></div>
     <div class="nav-section-label">编辑器工具</div>
-    <div class="nav-item" onclick="window.open('/unified_editor.html','_blank')">
-      <span class="icon">🌍</span><span>统一编辑器 ↗</span>
-    </div>
     <div class="nav-item" onclick="window.open('/world_editor.html','_blank')">
       <span class="icon">🗺️</span><span>世界编辑器 ↗</span>
+    </div>
+    <div class="nav-item" onclick="window.open('/unified_editor.html','_blank')">
+      <span class="icon">🌍</span><span>统一编辑器 ↗</span>
     </div>
     <div class="nav-item" onclick="window.open('/character_editor.html','_blank')">
       <span class="icon">🤺</span><span>角色编辑器 ↗</span>
@@ -624,6 +624,27 @@
                 <input type="checkbox" id="wr-respawn" checked> <span data-i18n="adminWorld.allowRespawn">允许复活</span>
               </label>
             </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label data-i18n="adminWorld.voiceMaxUsersLabel">🎤 同时语音聊天人数上限</label>
+                <select id="wr-voice-max-users">
+                  <option value="2" data-i18n="adminWorld.voiceUsers2">2 人</option>
+                  <option value="3" data-i18n="adminWorld.voiceUsers3">3 人</option>
+                  <option value="5" data-i18n="adminWorld.voiceUsers5">5 人</option>
+                  <option value="7" data-i18n="adminWorld.voiceUsers7">7 人</option>
+                  <option value="8" data-i18n="adminWorld.voiceUsers8">8 人</option>
+                  <option value="10" data-i18n="adminWorld.voiceUsers10">10 人</option>
+                </select>
+              </div>
+              <div class="form-group"></div>
+            </div>
+            <div style="background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:var(--muted)">
+              <strong style="color:var(--yellow)" data-i18n="adminWorld.voiceCapacityTitle">💡 服务器承载说明</strong>
+              <div style="white-space:pre-line;line-height:1.7;margin-top:6px" data-i18n="adminWorld.voiceCapacityHint">语音为按住说话（PTT）半双工中继，单条 60s 语音约 240KB（≈43kbps 含 base64 开销），CPU 负载极轻，瓶颈在带宽。
+· 10 人同聊（按 3 人同时说话估算）：服务器出带宽 ≈ 1.3Mbps，1核2G / 3Mbps 最低配置即可；
+· 20 人同聊：≈ 2.6Mbps，建议 2核4G / 5Mbps 带宽以上；
+· 上限含义：30m 内最多 N 人同时开口，超出者自动切换文字模式。</div>
+            </div>
             <div style="background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:var(--muted)" data-i18n="adminWorld.animAlwaysPlayHint">
               💡 <strong style="color:var(--yellow)">动画永远播放</strong>，只有服务端效果被规则控制。外来访客在和平世界挥剑动作仍然有，但不扣血。
             </div>
@@ -694,6 +715,20 @@
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- 自定义天空（天空库） -->
+          <div style="background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+              <div>
+                <strong data-i18n="adminSky.skyTitle">🌌 天空</strong>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px" data-i18n="adminSky.skyHint">点选哪个天空，世界就用哪个（所有天气通用，天气只影响明暗与雾效）</div>
+              </div>
+              <button class="btn btn-sm" onclick="document.getElementById('sky-file-input').click()" data-i18n="adminSky.addSky">➕ 添加天空</button>
+            </div>
+            <input type="file" id="sky-file-input" accept=".jpg,.jpeg,.png,.exr" style="display:none" onchange="adminSkyUpload(this)">
+            <div id="sky-library" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+            <div id="sky-tip" style="font-size:11px;color:var(--muted);margin-top:8px" data-i18n="adminSky.skyTip">支持 2:1 等距柱状全景图（JPG/PNG）与 HDR（EXR，1K~4K 建议），单个文件 ≤30MB</div>
           </div>
 
           <!-- 预览提示 -->
@@ -3527,6 +3562,7 @@
 <script src="js/adminGallery.js" defer></script>
 <script src="js/adminFederationTrust.js" defer></script>
 <script src="js/adminProfile.js" defer></script>
+<script src="js/adminSky.js" defer></script>
 <script>
   // ===== 认证 =====
   document.addEventListener('DOMContentLoaded', function checkAdminAuth() {
@@ -7711,6 +7747,11 @@
       document.getElementById('wr-foreign-attack').checked = !!rules.allow_foreign_attack;
       document.getElementById('wr-friendly-fire').checked = !!rules.friendly_fire;
       document.getElementById('wr-respawn').checked = !!rules.respawn_enabled;
+      const vsel = document.getElementById('wr-voice-max-users');
+      if (vsel) {
+        vsel.value = String(rules.voice_max_users || 3);
+        if (!vsel.value) vsel.value = '3';
+      }
       const types = rules.allow_skill_types || [];
       document.getElementById('wr-allow-perform').checked = types.includes('perform');
       document.getElementById('wr-allow-build').checked = types.includes('build');
@@ -7757,6 +7798,7 @@
       friendly_fire: document.getElementById('wr-friendly-fire').checked,
       respawn_enabled: document.getElementById('wr-respawn').checked,
       allow_skill_types: skillTypes,
+      voice_max_users: parseInt(document.getElementById('wr-voice-max-users').value, 10) || 3,
     };
     try {
       const r = await fetch('/api/character-templates/world-rules', {
@@ -7802,6 +7844,8 @@
       document.getElementById('weather-broadcast-status').textContent =
         `当前存档天气：${WEATHER_LABELS[_currentWeatherType] || _currentWeatherType}` +
         (data.updated_at ? `，上次更新：${new Date(data.updated_at).toLocaleString()}` : '');
+      // 同步天空库（选中项存在天气配置的 sky 字段里）
+      if (window.adminSky && window.adminSky.onWeatherLoaded) window.adminSky.onWeatherLoaded(data);
     } catch(e) {
       showToast('加载天气配置失败: ' + e.message, 'error');
     }
@@ -7845,7 +7889,8 @@
       intensity:      parseInt(document.getElementById('weather-intensity').value),
       wind:           parseInt(document.getElementById('weather-wind').value),
       auto_cycle:     document.getElementById('weather-auto-cycle').checked,
-      cycle_interval: parseInt(document.getElementById('weather-cycle-interval').value)
+      cycle_interval: parseInt(document.getElementById('weather-cycle-interval').value),
+      sky_id:         (window.adminSky && window.adminSky.currentSkyId) ? window.adminSky.currentSkyId() : 'default'
     };
     try {
       const r = await fetch('/api/config/weather', {

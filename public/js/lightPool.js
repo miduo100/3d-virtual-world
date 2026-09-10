@@ -23,7 +23,8 @@
 (function () {
   'use strict';
 
-  const POOL_SIZE = 12;   // 常驻点光数量（涵盖：光剑×玩家数 + 附近传送门/广告位）
+  const POOL_SIZE = 8;   // 常驻点光数量（2026-09-08 实测单玩家峰值 inUse=6，8 盏留多人余量；
+                         // 12→8 使每个着色器程序的点光循环 -33%，首用编译耗时同步下降）
   const PARK_Y = -1000;   // 停泊高度（地下，不可见）
 
   function LightPool() {

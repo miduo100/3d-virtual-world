@@ -5,6 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../database/db');
+const { resolveSky } = require('./sky');
 let _getFederationSystem = null;
 let _getCentralConnector = null;
 // 延迟引入，避免循环依赖
@@ -185,6 +186,7 @@ router.put('/world-settings', async (req, res) => {
 
     // URL变更后：1) 广播通知所有已连接世界  2) 重新注册到中心世界
     const fs = getFederationSystem();
+    let federationWarning = null;
     if (fs) {
       // 1. 通知所有已连接的子世界（trusted_worlds）
       fs.broadcastWorldUrlChange().catch(err =>
@@ -192,15 +194,27 @@ router.put('/world-settings', async (req, res) => {
       );
 
       // 2. 重新注册到中心世界
+      //    本机 URL 为内网时 registerToCentral 会立即返回 private_url（不发请求），
+      //    可同步等待并把警告附带进保存响应；公网地址仍保持异步 fire-and-forget
+      const { classifyUrlHost } = require('../services/worldReachabilityChecker');
       const connector = getCentralConnector();
       if (connector) {
-        connector.registerToCentral().catch(err =>
-          console.warn('[config] 通知中心世界URL变更失败:', err.message)
-        );
+        if (classifyUrlHost(fs.worldUrl).type !== 'public' && process.env.FEDERATION_ALLOW_PRIVATE !== '1') {
+          const regRes = await connector.registerToCentral();
+          if (regRes && regRes.reason === 'private_url') {
+            console.warn('[config] 中心世界注册跳过：本世界 URL 为内网地址');
+            federationWarning = '当前世界地址为内网/本机地址，其他用户无法访问，未注册到联邦。' +
+              '如需加入联邦，请配置公网域名或端口映射后重新保存。';
+          }
+        } else {
+          connector.registerToCentral().catch(err =>
+            console.warn('[config] 通知中心世界URL变更失败:', err.message)
+          );
+        }
       }
     }
 
-    res.json({ success: true, message: '世界设置已保存' });
+    res.json({ success: true, message: '世界设置已保存', federationWarning });
   } catch (error) {
     console.error('保存世界设置失败:', error);
     res.status(500).json({ error: '保存世界设置失败', details: error.message });
@@ -216,14 +230,18 @@ router.get('/weather', async (req, res) => {
       'SELECT config_value FROM game_config WHERE config_key = \'world_weather\''
     );
     if (result.rows.length > 0) {
-      res.json(JSON.parse(result.rows[0].config_value));
+      const cfg = JSON.parse(result.rows[0].config_value);
+      cfg.sky = await resolveSky(cfg); // 内联当前选中的天空（null = 默认天空）
+      res.json(cfg);
     } else {
       res.json({
         type: 'clear',
         intensity: 50,
         wind: 20,
         auto_cycle: false,
-        cycle_interval: 30
+        cycle_interval: 30,
+        sky_id: 'default',
+        sky: null
       });
     }
   } catch (error) {
@@ -235,10 +253,24 @@ router.get('/weather', async (req, res) => {
 // 保存并广播天气配置（需要管理员token）
 router.put('/weather', async (req, res) => {
   try {
-    const { type, intensity, wind, auto_cycle, cycle_interval } = req.body;
+    const { type, intensity, wind, auto_cycle, cycle_interval, sky_id } = req.body;
     const validTypes = ['clear', 'rain', 'snow', 'fog', 'storm'];
     if (!validTypes.includes(type)) {
       return res.status(400).json({ error: '无效的天气类型' });
+    }
+
+    // 天空库选中项：'default'（默认天空）或 world_sky_presets.id
+    let skyId = 'default';
+    if (sky_id !== undefined && sky_id !== null && sky_id !== '' && sky_id !== 'default') {
+      const skyIdNum = parseInt(sky_id, 10);
+      if (!Number.isInteger(skyIdNum)) {
+        return res.status(400).json({ error: '无效的天空ID' });
+      }
+      const skyExists = await query('SELECT id FROM world_sky_presets WHERE id = $1', [skyIdNum]);
+      if (!skyExists.rows.length) {
+        return res.status(404).json({ error: '选中的天空不存在' });
+      }
+      skyId = skyIdNum;
     }
 
     const weatherConfig = {
@@ -247,6 +279,8 @@ router.put('/weather', async (req, res) => {
       wind:           Math.min(100, Math.max(0, parseInt(wind) || 20)),
       auto_cycle:     !!auto_cycle,
       cycle_interval: Math.min(120, Math.max(5, parseInt(cycle_interval) || 30)),
+      sky_id:         skyId,
+      sky:            await resolveSky({ sky_id: skyId }),
       updated_at:     new Date().toISOString()
     };
 

@@ -50,11 +50,19 @@ class VoiceManager {
 
     this.recognition.onerror = (event) => {
       console.error('Voice recognition error:', event.error);
+      // 错误反馈到聊天框（不再静默失败）
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        UI.addChatMessage('系统', '麦克风权限被拒绝，语音识别不可用');
+      } else if (event.error === 'network') {
+        UI.addChatMessage('系统', '语音识别服务网络异常（浏览器内置识别依赖外网服务）');
+      }
     };
 
     this.recognition.onend = () => {
       this.isListening = false;
       UI.showVoiceIndicator(false);
+      // 同步清理语音按钮的"监听中"样式（防止按钮假亮）
+      document.getElementById('skill-voice-btn')?.classList.remove('listening');
     };
   }
 
