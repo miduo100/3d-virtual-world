@@ -25,6 +25,9 @@
     RENDER_SHARE: 0.3,            // 单对象进度中"渲染确认"分量权重（份额固定，渲染前记 0）
     TASK_TIMEOUT_MS: 45000,       // 加载中任务超时（从进入 loadingBatch 起算）
     QUEUE_TIMEOUT_MS: 240000,     // 排队任务超时（从入队起算，防队列泄漏；串行队列消耗慢不算超时）
+    ORPHAN_MS: 20000,             // 【2026-09-11】孤儿任务宽限期：任务不在队列/批次且无渲染确认
+                                  // 超过此时长 → 强制完成。兜住一切漏挂确认钩子/被清理放弃的
+                                  // 加载路径（每扫常清、重试放弃、未覆盖分支），进度条永不假卡死
     SHOW_MIN_TASKS: 3,            // 重现阈值：未完成任务数 ≥ 3
     SHOW_MIN_WEIGHT: 2 * 1024 * 1024,   // 或未完成字节总量 ≥ 2MB
     SHOW_SINGLE_WEIGHT: 8 * 1024 * 1024,// 或单个对象 ≥ 8MB 立即弹
@@ -60,6 +63,7 @@
       bytes: 0,
       total: (obj && obj.file_size) || 0,
       startedAt: Date.now(),
+      lastSeenAt: Date.now(),  // 最近一次出现在队列/批次中的时刻（孤儿判定用）
       inBatch: false,   // 已进入 loadingBatch（真正开始加载）
       rendered: false,
       forced: false
@@ -273,6 +277,25 @@
       var bt = _tasks.get(bid);
       if (bt && !bt.inBatch) { bt.inBatch = true; bt.startedAt = Date.now(); }
     }
+
+    // 3.6 【2026-09-11】孤儿任务对账：仍在队列/批次中的任务刷新"最后可见"时刻；
+    // 不在队列/批次、又迟迟没有渲染确认的任务 = 被清理/放弃/漏挂钩子的加载路径，
+    // 超过 ORPHAN_MS 宽限期直接强制完成——宁可早关条（模型继续渐进出现），
+    // 也绝不让进度条假卡死
+    var _now = Date.now();
+    _tasks.forEach(function (t, tid) {
+      if (seen[tid]) { t.lastSeenAt = _now; return; }
+      if (t.rendered || t.forced) return;
+      var _lastSeen = t.lastSeenAt || t.startedAt;
+      if (_now - _lastSeen > CFG.ORPHAN_MS) {
+        t.forced = true;
+        try {
+          console.warn('[LoadingProgress] 孤儿任务强制完成（不在队列/批次且无渲染确认）:',
+            'id=' + tid, 'name=' + (t.obj && t.obj.name), 'type=' + (t.obj && t.obj.type),
+            'unseenMs=' + (_now - _lastSeen));
+        } catch (e) { /* 诊断日志绝不影响主流程 */ }
+      }
+    });
 
     if (!_visible || _tasks.size === 0) return;
 

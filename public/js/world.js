@@ -129,7 +129,7 @@ class World {
     this.loadInterval = 100; // 当前加载间隔
     this.maxLoadingQueueSize = 200; // 最大加载队列大小
     this._loadedAt = new Map(); // 对象 id → 加载完成时间戳（最短存活时间用）
-    this.minObjectLifetimeMs = 60000; // 对象最短存活时间（ms），防阈值边缘反复卸载/重载
+    this.minObjectLifetimeMs = 10000; // 对象最短存活时间（ms）【2026-09-11 抠门加载：60s→10s】只防 400m 边界高频卸载/重载循环；确定性离开（>800m/传送）不走此等待直接卸载
     this.objectsPerFrame = 3; // 每帧处理的对象数量
     this.loadingPhase = 'initial'; // 加载阶段：initial, nearby, distant
     this.lastPhaseChange = 0; // 上次阶段变化时间
@@ -172,6 +172,11 @@ class World {
     // 模型缓存 - 存储已加载的模型，避免重复加载
     this.modelCache = new Map(); // 模型缓存，key为模型路径，value为模型对象和最后使用时间
     this.maxModelCacheSize = 50; // 保留足够缓存，避免模型被频繁淘汰后重新加载
+    // 【2026-09-11 抠门加载】字节维度预算：条数上限对大模型不受控（50×20MB=1GB），
+    // 增加字节封顶，超限按 lastUsed 淘汰最旧条目；淘汰兜底 = IndexedDB(modelCacheDB)
+    // + 浏览器 HTTP 30 天强缓存（回来重载零流量，仅 Worker 后台重解析几十 ms）
+    this.maxModelCacheBytes = 150 * 1024 * 1024;
+    this._modelCacheBytes = 0;
     
     // 纹理压缩支持
     this.textureLoader = new THREE.TextureLoader();
@@ -3211,45 +3216,60 @@ class World {
 
     // 管理加载阶段（已简化，仅在需要时执行）
 
-    // 【2026-09-09 A】传送检测：位置突变（单次扫描间隔内移动 >500m）时，
-    // 把队列中已不在新位置加载半径内的旧区域条目直接丢弃（玩家回来会重新入队），
-    // 避免传送后旧区域对象继续占据串行队列被逐个消费
+    // 【2026-09-11 抠门加载 A】传送检测：位置突变（单次扫描间隔内移动 >500m）仅做标记。
+    // 队列清理已由下方"每扫常清"覆盖（此前仅传送跳变/队列满时清理，普通走远时
+    // 旧区域排队对象仍会被串行消费下载——纯浪费）；标记供本轮卸载判定
+    // "确定性离开立即卸载"使用
+    let teleportThisScan = false;
     if (!this._lastEnqueuePos) {
       this._lastEnqueuePos = { x: playerPosition.x, z: playerPosition.z };
     } else {
       const tdx = playerPosition.x - this._lastEnqueuePos.x;
       const tdz = playerPosition.z - this._lastEnqueuePos.z;
       if (tdx * tdx + tdz * tdz > 500 * 500) {
-        this._lastEnqueuePos.x = playerPosition.x;
-        this._lastEnqueuePos.z = playerPosition.z;
-        const tpLdSq = this.loadDistance * this.loadDistance;
-        const beforeTp = this.loadingQueue.length;
-        this.loadingQueue = this.loadingQueue.filter(o =>
-          this._surfaceDistSq(o, playerPosition.x, playerPosition.z) < tpLdSq
-        );
-        if (this.loadingQueue.length !== beforeTp) {
-          console.log(`[Queue] 🧹 检测到传送，丢弃旧区域排队对象 ${beforeTp - this.loadingQueue.length} 个（回来会重新入队）`);
+        teleportThisScan = true;
+        console.log('[Queue] 🧹 检测到传送：出半径排队对象本轮常清滤除，远处已加载对象立即卸载');
+        // 【进度条】在途批次中已出拦截半径的对象，其加载结果必然被丢弃，
+        // 进度条任务立即收敛（下载照常放完进 HTTP 缓存，不受影响），
+        // 否则大模型下载期间进度条会停在"剩余 1-2 个"数十秒
+        if (window.LoadingProgress) {
+          const __cancelSq = Math.pow(this.loadDistance * 1.5, 2);
+          this.loadingBatch.forEach(b => {
+            if (b && b.id != null &&
+                this._surfaceDistSq(b, playerPosition.x, playerPosition.z) >= __cancelSq) {
+              window.LoadingProgress.fail(b.id);
+            }
+          });
         }
-      } else {
-        this._lastEnqueuePos.x = playerPosition.x;
-        this._lastEnqueuePos.z = playerPosition.z;
+      }
+      this._lastEnqueuePos.x = playerPosition.x;
+      this._lastEnqueuePos.z = playerPosition.z;
+    }
+
+    // 【2026-09-11 抠门加载 B】每扫常清：出加载半径的排队条目直接出队（回来会
+    // 重新入队，零成本）。每 30 帧执行一次，队列上限 200 条，过滤开销可忽略
+    if (this.loadingQueue.length > 0) {
+      const purgeLdSq = this.loadDistance * this.loadDistance;
+      const beforePurge = this.loadingQueue.length;
+      const purgedIds = [];
+      this.loadingQueue = this.loadingQueue.filter(o => {
+        const __keep = this.loadedObjects.has(o.id) ||
+          this._surfaceDistSq(o, playerPosition.x, playerPosition.z) < purgeLdSq;
+        if (!__keep && o && o.id != null) purgedIds.push(o.id);
+        return __keep;
+      });
+      if (this.loadingQueue.length !== beforePurge) {
+        console.log(`[Queue] 🧹 清理已出加载半径的排队对象 ${beforePurge - this.loadingQueue.length} 个（回来会重新入队）`);
+        // 【进度条】被清掉的排队任务立即收敛——它们已不在队列，渲染确认钩子
+        // 永远不会来，不 fail 的话会在进度条任务集里等 240s 排队超时，
+        // 表现为"加载中 93.4%（剩余 N 个）"假卡死
+        if (window.LoadingProgress && purgedIds.length > 0) {
+          purgedIds.forEach(id => window.LoadingProgress.fail(id));
+        }
       }
     }
 
-    // 检查加载队列大小，避免队列过长
-    // 【2026-09-09 B】队列满时不再直接跳过：先清理已出加载半径的排队条目
-    //（传送后旧区域残留），腾出空间让新区域对象能入队，避免旧队列堵死新区域
-    if (this.loadingQueue.length >= this.maxLoadingQueueSize) {
-      const fullLdSq = this.loadDistance * this.loadDistance;
-      const beforeFull = this.loadingQueue.length;
-      this.loadingQueue = this.loadingQueue.filter(o =>
-        this.loadedObjects.has(o.id) ||
-        this._surfaceDistSq(o, playerPosition.x, playerPosition.z) < fullLdSq
-      );
-      if (this.loadingQueue.length !== beforeFull) {
-        console.log(`[Queue] 🧹 队列已满，清理已出加载半径的排队对象 ${beforeFull - this.loadingQueue.length} 个`);
-      }
-    }
+    // 队列容量闸门（常清已保证队列内条目都在半径内，此处仅防御性限流）
     if (this.loadingQueue.length < this.maxLoadingQueueSize) {
       // 使用距离平方比较，避免 sqrt 开销
       const loadDistSq = this.loadDistance * this.loadDistance;
@@ -3320,27 +3340,30 @@ class World {
     // 检查是否需要卸载（每次 updateObjectLoading 执行时检查）
     {
       const unloadDistSq = this.unloadDistance * this.unloadDistance;
+      // 【2026-09-11 抠门加载】确定性离开立即卸载：距玩家 >2×卸载半径（800m）
+      // 或本轮检测到传送时，跳过最短存活期——玩家明确走远，边界抖振不可能发生，
+      // 多等存活期纯属白占内存（字节已进 HTTP 强缓存，回来重载成本低）
+      const farUnloadSq = (this.unloadDistance * 2) * (this.unloadDistance * 2);
       const px2 = playerPosition.x;
       const pz2 = playerPosition.z;
       const objectsToUnload = [];
       
       this.allWorldObjects.forEach(obj => {
         if (this.loadedObjects.has(obj.id)) {
-          // 最短存活时间：大模型重建代价高（clone + 纹理重传 + 着色器编译），
-          // 防止玩家在阈值边缘来回走动造成反复"卸载→重载"的抖振
-          // 【2026-09-05 按类型区分】几何建筑本地重建零成本，媒体对象开销也低，
-          // 不必陪大模型等 60 秒——否则跑远后迟迟不卸载
-          const loadedAt = this._loadedAt ? (this._loadedAt.get(obj.id) || 0) : 0;
-          let _minLife = this.minObjectLifetimeMs;
-          const _ot = obj.type || '';
-          if (_ot.indexOf('geometry') === 0) _minLife = 5000;          // 几何类：本地生成，5 秒防抖即可
-          else if (_ot === 'media_image' || _ot === 'media_video') _minLife = 10000; // 媒体：10 秒
-          if (loadedAt && (Date.now() - loadedAt) < _minLife) return;
           // 同样按【玩家到模型表面】判定，避免大模型在玩家还没离开边缘时就被卸载
           const dSq = this._surfaceDistSq(obj, px2, pz2);
-          if (dSq > unloadDistSq) {
-            objectsToUnload.push(obj);
+          if (dSq <= unloadDistSq) return;
+          // 最短存活时间（防 400m 边界来回走造成卸载/重载高频循环；观感=多闪几次
+          // 模型↔盒子切换，已确认可接受，故存活期压缩到最小防抖窗口）
+          if (!teleportThisScan && dSq <= farUnloadSq) {
+            const loadedAt = this._loadedAt ? (this._loadedAt.get(obj.id) || 0) : 0;
+            let _minLife = this.minObjectLifetimeMs;
+            const _ot = obj.type || '';
+            if (_ot.indexOf('geometry') === 0) _minLife = 5000;          // 几何类：本地生成，5 秒防抖即可
+            else if (_ot === 'media_image' || _ot === 'media_video') _minLife = 10000; // 媒体：10 秒
+            if (loadedAt && (Date.now() - loadedAt) < _minLife) return;
           }
+          objectsToUnload.push(obj);
         }
       });
       
@@ -3566,6 +3589,17 @@ class World {
       
       const loadSingleObject = async (objToLoad) => {
         try {
+          // 【2026-09-11 抠门加载】启动前校验：等待串行队列期间玩家已离开拦截半径
+          // → 直接丢弃，不启动下载/解析（在标记已加载前判定，避免 add/delete 反复）
+          if (this._abortLoadOutOfRange(objToLoad)) {
+            this.loadingBatch = this.loadingBatch.filter(o => o.id !== objToLoad.id);
+            console.log(`[Queue] ⏭ 丢弃已出半径对象 ${objToLoad.name || objToLoad.id}，剩余队列=${this.loadingQueue.length}`);
+            if (this.loadingQueue.length > 0) {
+              setTimeout(() => this.processLoadingQueue(currentTime), 0);
+            }
+            return;
+          }
+          
           // 先标记为已加载，防止重复入队
           this.loadedObjects.add(objToLoad.id);
           this._loadedAt.set(objToLoad.id, Date.now());
@@ -3928,7 +3962,7 @@ class World {
    * 清理模型缓存
    */
   cleanupModelCache() {
-    // 限制模型缓存大小
+    // 限制模型缓存大小（条数维度）
     if (this.modelCache.size > this.maxModelCacheSize) {
       const modelsToRemove = Array.from(this.modelCache.entries())
         .sort((a, b) => a[1].lastUsed - b[1].lastUsed)
@@ -3937,13 +3971,19 @@ class World {
       modelsToRemove.forEach(([key, item]) => {
         // 只删除缓存引用，不 dispose GPU 资源
         // dispose 会使所有从该模型 clone 出的场景对象材质变白
-        this.modelCache.delete(key);
-        // P1: 通知 worldTextureOptimizer 同步淘汰同名缓存条目——
-        //     引用计数归零时真释放 GPU 资源（远离后内存回落的关键）
-        if (window.WorldTextureOptimizer) {
-          window.WorldTextureOptimizer.disposeModel(key);
-        }
+        // 【2026-09-11 抠门加载】统一走 _modelCacheEvict：字节预算回收 + 纹理引用计数联动
+        this._modelCacheEvict(key);
       });
+    }
+    // 【2026-09-11 抠门加载】字节维度淘汰：条数上限对大模型不受控，超字节预算
+    // 按 lastUsed 淘汰最旧条目，内存缓存永远有确定天花板
+    if (this._modelCacheBytes > this.maxModelCacheBytes) {
+      const byAge = Array.from(this.modelCache.entries())
+        .sort((a, b) => a[1].lastUsed - b[1].lastUsed);
+      for (const [key] of byAge) {
+        if (this._modelCacheBytes <= this.maxModelCacheBytes) break;
+        this._modelCacheEvict(key);
+      }
     }
   }
   
@@ -5073,9 +5113,46 @@ class World {
   /**
    * 将模型添加到缓存
    */
+  // 【2026-09-11 抠门加载】估算模型几何体的内存占用（字节数，不含纹理——
+  // 纹理由 worldTextureOptimizer 引用计数独立管理）
+  _estimateObj3DBytes(root) {
+    let bytes = 0;
+    root && root.traverse && root.traverse((child) => {
+      if (child.isMesh && child.geometry) {
+        const g = child.geometry;
+        if (g.attributes) {
+          for (const k in g.attributes) {
+            const attr = g.attributes[k];
+            if (attr && attr.array && attr.array.byteLength) bytes += attr.array.byteLength;
+          }
+        }
+        if (g.index && g.index.array && g.index.array.byteLength) bytes += g.index.array.byteLength;
+      }
+    });
+    return bytes;
+  }
+
+  // 【2026-09-11 抠门加载】统一淘汰口：删除缓存条目 + 回收字节预算 +
+  // 联动 worldTextureOptimizer 引用计数释放 GPU 资源
+  _modelCacheEvict(key) {
+    const item = this.modelCache.get(key);
+    if (!item) return;
+    this.modelCache.delete(key);
+    this._modelCacheBytes = Math.max(0, this._modelCacheBytes - (item._bytes || 0));
+    // P1: 通知 worldTextureOptimizer 同步淘汰同名缓存条目——
+    //     引用计数归零时真释放 GPU 资源（远离后内存回落的关键）
+    if (window.WorldTextureOptimizer) {
+      window.WorldTextureOptimizer.disposeModel(key);
+    }
+  }
+
   async addToModelCache(modelPath, model) {
-    // 检查缓存大小
-    if (this.modelCache.size >= this.maxModelCacheSize) {
+    // 【2026-09-11 抠门加载】入队前先算字节占用，供预算淘汰使用
+    const _entryBytes = this._estimateObj3DBytes(model);
+    
+    // 检查缓存大小（条数 + 字节双维度，超限淘汰最久未使用）
+    while (this.modelCache.size >= this.maxModelCacheSize ||
+           (this._modelCacheBytes + _entryBytes > this.maxModelCacheBytes && this.modelCache.size > 0)) {
       // 移除最久未使用的模型
       let oldestKey = null;
       let oldestTime = Infinity;
@@ -5088,15 +5165,19 @@ class World {
       });
       
       if (oldestKey) {
-        this.modelCache.delete(oldestKey);
+        this._modelCacheEvict(oldestKey);
+      } else {
+        break;
       }
     }
     
     // 添加到内存缓存
     this.modelCache.set(modelPath, {
       model: model,
-      lastUsed: Date.now()
+      lastUsed: Date.now(),
+      _bytes: _entryBytes
     });
+    this._modelCacheBytes += _entryBytes;
     
     // 存储到本地缓存
     try {
@@ -5589,6 +5670,8 @@ class World {
             optimizedModelPath,
             name,
             (gltf) => {
+              // 【2026-09-11 抠门加载】上屏前拦截：下载/解析期间玩家已离开 → 丢弃结果
+              if (this._abortLoadOutOfRange(buildingData)) { resolve(); return; }
               this.removePlaceholder(id);
               gltf.scene.traverse((child) => {
                 if (child.isMesh) {
@@ -5618,6 +5701,8 @@ class World {
             optimizedModelPath,
             name,
             (gltf) => {
+              // 【2026-09-11 抠门加载】上屏前拦截：下载/解析期间玩家已离开 → 丢弃结果
+              if (this._abortLoadOutOfRange(buildingData)) { resolve(); return; }
               this.removePlaceholder(id);
               gltf.scene.traverse((child) => {
                 if (child.isMesh) {
@@ -5700,6 +5785,33 @@ class World {
       window.PlaceholderField.hideAfterRevealOrTimeout(id, model);
     }
     this.generatedBuildings.delete(id);
+  }
+
+  /**
+   * 【2026-09-11 抠门加载】拦截半径判定 + 丢弃收尾：
+   * 玩家已离开拦截半径（1.5×加载距离，大于重入队半径 200m 防丢弃/入队循环，
+   * 小于卸载半径 400m 口径自洽）时，丢弃本次加载结果。
+   * 下载字节已完整进浏览器 HTTP 强缓存（零流量损失），跳过的是最贵的
+   * clone/上屏/着色器编译/纹理上传环节；从已加载集合移除，回来后可重新入队。
+   * 返回 true 表示已丢弃，调用方应立即结束本次加载流程（不得再触发上屏）。
+   */
+  _abortLoadOutOfRange(objData) {
+    if (!objData || objData.id == null) return false;
+    const _t = objData.type || '';
+    // 几何建筑本地生成零成本、媒体走独立轻量通道：不拦截
+    if (_t.indexOf('geometry') === 0 || _t === 'media_image' || _t === 'media_video') return false;
+    const pp = window.player && window.player.position;
+    if (!pp) return false;
+    const cancelDist = this.loadDistance * 1.5;
+    if (this._surfaceDistSq(objData, pp.x, pp.z) < cancelDist * cancelDist) return false;
+    console.log(`[FrugalLoad] 🧹 玩家已离开拦截半径，丢弃加载结果: ${objData.name || objData.id}`);
+    this.loadedObjects.delete(objData.id);
+    if (this._loadedAt) this._loadedAt.delete(objData.id);
+    // 恢复标准占位方块登记（盒子保留显示，loading 标记复位）
+    this.addPlaceholderBuilding(objData.id, objData);
+    // 进度条任务立即收敛（否则要等 45s 超时才强制完成）
+    if (window.LoadingProgress) window.LoadingProgress.fail(objData.id);
+    return true;
   }
 
   /**
@@ -6387,7 +6499,7 @@ class World {
         cachedModel.traverse(child => { if (child.isMesh) meshCount++; });
         if (meshCount === 0) {
           console.warn('⚠️ 缓存模型无效（无mesh），清除缓存重新加载:', model_path);
-          this.modelCache.delete(model_path);
+          this._modelCacheEvict(model_path);
           try { /* IndexedDB版本已升级，缓存已自动清除 */ } catch(e) {}
           // 继续走下面的加载逻辑
         } else {
@@ -6772,6 +6884,8 @@ class World {
             model_path,
             name,
             (gltf) => {
+              // 【2026-09-11 抠门加载】上屏前拦截：下载/解析期间玩家已离开 → 丢弃结果
+              if (this._abortLoadOutOfRange(modelData)) { resolve(); return; }
               console.log('✅ 大模型GLTF加载成功:', name);
               this.removePlaceholder(id);
               onModelLoaded(gltf.scene);
@@ -6794,6 +6908,8 @@ class World {
             model_path,
             name,
             (gltf) => {
+              // 【2026-09-11 抠门加载】上屏前拦截：下载/解析期间玩家已离开 → 丢弃结果
+              if (this._abortLoadOutOfRange(modelData)) { resolve(); return; }
               console.log('✅ GLTF模型加载成功');
               this.removePlaceholder(id);
               onModelLoaded(gltf.scene);
