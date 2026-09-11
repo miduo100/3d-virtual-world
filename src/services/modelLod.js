@@ -28,6 +28,20 @@ const MIN_SOURCE_TRIS = 5000;   // 源模型面数下限（低于此值不做 LO
 const MIN_OUTPUT_TRIS = 300;    // 输出面数下限（低于此值判无效）
 const MID_SUFFIX = '_mid.glb';
 const LOW_SUFFIX = '_lod.glb';
+// 低模收益余量：低模面数 ≥ 中模 × MARGIN 即判无效、不落盘。
+//
+// ⚠️ 必须保持 1（2026-09-11 阶段 5 用户决策，曾试过 0.95 后回退）：
+//   曾按「16/104 件低模与中模几乎等面（≥95%），落盘纯属浪费磁盘」加了 +5% 余量并清理了这 16 个文件，
+//   但实测代价不可接受 —— 前端 `worldInstanceMerger_v2.js` 的远界是
+//   `farLimit = (lodOn && lowReady) ? 400 : 200`，**低模文件缺失会直接把该组远界从 400m 回落到 200m**，
+//   200~400m 的实例不再渲染、只由蓝方块表示（规范 2.3 表格口径：低模未生成时回退蓝色占位方块）。
+//   实测受影响 16 个合批组 / 381 个实例（红军群主力：72、54、36×3、18×9 …）。
+//   → 结论：**低模文件存在本身就是 200~400m 带能否显示几何的开关**，
+//     即使面数收益≈0 也必须生成；省磁盘要另想办法（二期「LOD 复用高模贴图」）。
+const LOW_BENEFIT_MARGIN = 1;
+// 低模被收益闸门判无效后留下的标记文件：证明「这件产物的低模已判定无意义」，
+// 使 scanStatus 不再把它算作「待生成」（否则后台永远显示待生成、点一键生成也清不掉）
+const LOW_SKIP_SUFFIX = '_lod.skip.json';
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
 const UPLOAD_DIR = path.join(PUBLIC_DIR, 'models', 'uploaded');
 const MAX_WALK_DEPTH = 3;
@@ -81,9 +95,37 @@ function lodPaths(absPath) {
   return { base, midPath: path.join(dir, base + MID_SUFFIX), lowPath: path.join(dir, base + LOW_SUFFIX) };
 }
 
+/** 低模「已判定无收益」标记文件路径（与 lowPath 同目录同基准名） */
+function lowSkipPath(lowPath) {
+  return String(lowPath || '').replace(/\.glb$/i, '') + '.skip.json';
+}
+
+/** 以「变体基准名」为唯一身份的分组键：X.glb 与 X_dec.glb 共享同一组 _mid/_lod */
+function _variantKey(absPath) {
+  const p = lodPaths(absPath);
+  return (path.dirname(absPath) + '|' + p.base).toLowerCase();
+}
+
 /** 中/低模文件本身不可作为生成源 */
 function _isVariantSource(absPath) {
   return new RegExp(`(_mid|_lod)\\.glb$`, 'i').test(absPath || '');
+}
+
+/**
+ * 生成源解析（规范 2.2：「生成源 = 实际生效的文件，有 _dec 版时从 _dec 派生，保证与高模同源」）
+ *
+ * 背景（阶段 5 全量转换定位）：减面后原始 .glb 仍留在磁盘（供 restore 还原），
+ * 而 lodPaths 对 `X.glb` 与 `X_dec.glb` 推出的是**同一组** _mid/_lod 路径 →
+ * 谁先被处理谁就决定了变体的源。scanStatus 里「数据库行(生效) + 磁盘孤儿(原文件)」并存时
+ * 会命中此歧义（实测 20 组原文件排在 _dec 之前），故在此收敛：只要同名 _dec.glb 存在就用它。
+ * @returns {string} 实际用于生成的绝对路径
+ */
+function resolveLodSource(absPath) {
+  if (!absPath || typeof absPath !== 'string') return absPath;
+  if (/_dec\.glb$/i.test(absPath)) return absPath;
+  const decPath = absPath.replace(/\.glb$/i, '_dec.glb');
+  if (decPath !== absPath && fs.existsSync(decPath)) return decPath;
+  return absPath;
 }
 
 async function _safeUnlink(p) {
@@ -116,7 +158,7 @@ async function _generateOne(srcPath, dstPath, ratio, sourceTris, force, benefitR
       await _safeUnlink(tmpPath);
       return { status: 'failed', path: dstPath, reason: 'not-reduced', tris: outTris };
     }
-    if (benefitRef && benefitRef.tris > 0 && outTris >= benefitRef.tris) {
+    if (benefitRef && benefitRef.tris > 0 && outTris >= benefitRef.tris * (benefitRef.margin || 1)) {
       await _safeUnlink(tmpPath);
       return {
         status: 'failed', path: dstPath, reason: `no-benefit-vs-${benefitRef.label}`,
@@ -152,23 +194,39 @@ async function generateLodVariants(absPath, { force = false } = {}) {
     if (!fs.existsSync(absPath)) return { ...empty, skipped: true, reason: 'not-found' };
     if (_isVariantSource(absPath)) return { ...empty, skipped: true, reason: 'lod-variant-source' };
 
-    const sourceTris = countTrisExact(absPath);
+    // 规范 2.2：有名同名的 _dec.glb 时以它为准（原文件可能只是留作 restore 的历史副本）
+    const srcPath = resolveLodSource(absPath);
+    const sourceTris = countTrisExact(srcPath);
     const base = lodPaths(absPath);
-    const head = { ...empty, base: base.base, sourceTris };
+    const head = { ...empty, base: base.base, sourceTris, sourceUsed: srcPath };
 
     if (sourceTris <= 0) return { ...head, skipped: true, reason: 'not-glb-or-empty' };
     if (sourceTris < MIN_SOURCE_TRIS) return { ...head, skipped: true, reason: 'low-poly-source' };
 
     // 先中模，再以中模面数作为低模的收益参照（低模必须真的比中模更轻，否则不落盘）
     const variants = {};
-    variants.mid = await _generateOne(absPath, base.midPath, MID_RATIO, sourceTris, force);
+    variants.mid = await _generateOne(srcPath, base.midPath, MID_RATIO, sourceTris, force);
     const midTris = (variants.mid.status === 'generated' || variants.mid.status === 'exists')
       ? (variants.mid.tris || countTrisExact(base.midPath))
       : 0;
     variants.low = await _generateOne(
-      absPath, base.lowPath, LOW_RATIO, sourceTris, force,
-      midTris > 0 ? { tris: midTris, label: 'mid' } : null
+      srcPath, base.lowPath, LOW_RATIO, sourceTris, force,
+      midTris > 0 ? { tris: midTris, label: 'mid', margin: LOW_BENEFIT_MARGIN } : null
     );
+    // 低模「已判定无收益」标记：落盘成功则清除标记；被收益闸门拦下则留下标记；
+    // 其它失败原因（error / too-few-tris / not-reduced / no-output）不写标记 ——
+    // 那些是可能恢复的失败，应继续算作「待生成」以便重试。
+    const skipPath = lowSkipPath(base.lowPath);
+    if (variants.low.status === 'generated' || variants.low.status === 'exists') {
+      await _safeUnlink(skipPath);
+    } else if (String(variants.low.reason || '').startsWith('no-benefit-vs-')) {
+      try {
+        await fs.promises.writeFile(skipPath, JSON.stringify({
+          reason: variants.low.reason, midTris, lowTris: variants.low.tris || 0,
+          source: path.basename(srcPath), at: new Date().toISOString(),
+        }), 'utf8');
+      } catch (_) { /* 标记写失败不影响主流程，只影响状态显示 */ }
+    }
     const okStatus = ['generated', 'exists'];
     return {
       ...head,
@@ -180,10 +238,17 @@ async function generateLodVariants(absPath, { force = false } = {}) {
   }
 }
 
-/** 数据库 path 列（/models/uploaded/x.glb）→ 绝对路径 */
+/**
+ * 数据库 path 列（/models/uploaded/x.glb）→ 绝对路径
+ *
+ * ⚠️ 不能用 path.isAbsolute 判断：Windows 下 `path.isAbsolute('/models/x.glb')` 返回 **true**，
+ * 会让 web 路径被当成文件系统绝对路径原样返回 → existsSync 必然失败 →
+ * 数据库里所有模型都会被误判成「源文件缺失」（阶段 5 实测 missingSource=113 假数字，
+ * 数据库那半边统计形同死代码）。只有真正的盘符路径 / UNC 才原样使用。
+ */
 function _absFromDbPath(dbPath) {
   if (!dbPath || typeof dbPath !== 'string') return null;
-  if (path.isAbsolute(dbPath)) return dbPath;
+  if (/^[a-zA-Z]:[\\/]/.test(dbPath) || /^\\\\/.test(dbPath) || /^\/\//.test(dbPath)) return dbPath;
   return path.join(PUBLIC_DIR, dbPath.replace(/^[\\/]+/, ''));
 }
 
@@ -206,16 +271,26 @@ function _walkGlb(dir, depth, out) {
 
 /**
  * 扫描 uploaded_models + 磁盘，统计中低模覆盖情况
- * @returns {Promise<object>} { ok, dbError, total, midCount, lowCount, pending, lowPolySkipped, missingSource, models, pendingList }
+ *
+ * 统计口径（2026-09-11 阶段 5 用户确认修正）：
+ *   1. 以「变体基准名」为唯一身份 —— `X.glb` 与 `X_dec.glb` 共享同一组 `_mid/_lod`，算**一件产物**
+ *      （旧版按文件计数：后台「模型总数」显示 264，实际只有 118 件）；
+ *   2. 每件产物取**生效源** = 优先 `_dec.glb`（规范 2.2），无 `_dec` 时取数据库登记的那条，最后取磁盘文件；
+ *   3. `pending`（待生成）= 还能做的工作 —— 中模缺失，或低模缺失且**未被收益闸门判过无效**
+ *      （后者的标记文件 `_lod.skip.json` 由 generateLodVariants 写入）。
+ *      旧版把「低模判无效」的模型永久算作待生成，后台会一直显示待生成且点一键生成清不掉。
+ *
+ * @returns {Promise<object>} { ok, dbError, total, midCount, lowCount, pending, lowPolySkipped,
+ *                             lowBenefitSkipped, superseded, missingSource, models, pendingList }
  */
 async function scanStatus() {
-  const models = [];
+  const entries = [];
   const seen = new Set();
   const push = (absPath, name, id) => {
     const key = absPath.toLowerCase();
     if (seen.has(key)) return;
     seen.add(key);
-    models.push({ id: id || null, name, absPath });
+    entries.push({ id: id || null, name, absPath });
   };
 
   let dbError = null;
@@ -237,19 +312,38 @@ async function scanStatus() {
 
   _walkGlb(UPLOAD_DIR, 0, []).forEach((abs) => push(abs, path.basename(abs), null));
 
+  // 按变体基准名聚合（同一件产物的多个入口只算一件）
+  const groups = new Map();
+  entries.forEach((e) => {
+    const key = _variantKey(e.absPath);
+    let g = groups.get(key);
+    if (!g) { g = { key, entries: [] }; groups.set(key, g); }
+    g.entries.push(e);
+  });
+
   let midCount = 0;
   let lowCount = 0;
   let pending = 0;
   let lowPolySkipped = 0;
+  let lowBenefitSkipped = 0;
+  let superseded = 0;
   let missingSource = 0;
   const pendingList = [];
   const list = [];
 
-  models.forEach((m) => {
-    const { midPath, lowPath } = lodPaths(m.absPath);
-    const hasSource = fs.existsSync(m.absPath);
+  groups.forEach((g) => {
+    // 生效入口：_dec.glb 优先 → 数据库登记的那条 → 磁盘文件
+    const decEntry = g.entries.find((e) => /_dec\.glb$/i.test(e.absPath));
+    const dbEntry = g.entries.find((e) => e.id);
+    const eff = decEntry || dbEntry || g.entries[0];
+    superseded += g.entries.length - 1;
+
+    const srcPath = resolveLodSource(eff.absPath);
+    const { midPath, lowPath } = lodPaths(eff.absPath);
+    const hasSource = fs.existsSync(srcPath);
     const hasMid = fs.existsSync(midPath);
     const hasLow = fs.existsSync(lowPath);
+    const hasLowSkip = fs.existsSync(lowSkipPath(lowPath));
     if (hasMid) midCount += 1;
     if (hasLow) lowCount += 1;
 
@@ -260,27 +354,37 @@ async function scanStatus() {
     if (!hasSource) {
       missingSource += 1;
     } else {
-      if (!hasMid || !hasLow) {
-        sourceTris = countTrisExact(m.absPath);
+      // 低模缺失但已被收益闸门判无效 → 不是待生成（否则永远清不掉）
+      const lowUnresolved = !hasLow && !hasLowSkip;
+      if (!hasMid || lowUnresolved) {
+        sourceTris = countTrisExact(srcPath);
         if (sourceTris < MIN_SOURCE_TRIS) {
           lowPolySkipped += 1;
           notEligible = true;
         } else {
           isPending = true;
           pending += 1;
-          pendingList.push({ absPath: m.absPath, name: m.name });
+          pendingList.push({ absPath: eff.absPath, name: eff.name });
         }
       }
     }
 
-    list.push({ ...m, hasSource, hasMid, hasLow, sourceTris, pending: isPending, notEligible });
+    list.push({
+      id: eff.id, name: eff.name, absPath: eff.absPath, sourcePath: srcPath,
+      aliases: g.entries.length, hasSource, hasMid, hasLow, hasLowSkip,
+      sourceTris, pending: isPending, notEligible,
+    });
   });
+
+  lowBenefitSkipped = list.filter((m) => m.hasLowSkip && !m.hasLow).length;
 
   return {
     ok: true,
     dbError,
     dir: UPLOAD_DIR,
-    total: models.length,
+    total: groups.size,
+    superseded,
+    lowBenefitSkipped,
     midCount,
     lowCount,
     pending,
@@ -334,15 +438,19 @@ async function batchGenerateMissing({ limit = 3 } = {}) {
 
 module.exports = {
   lodPaths,
+  lowSkipPath,
+  resolveLodSource,
   generateLodVariants,
   scanStatus,
   batchGenerateMissing,
   countTrisExact,
   MID_RATIO,
   LOW_RATIO,
+  LOW_BENEFIT_MARGIN,
   MIN_SOURCE_TRIS,
   MIN_OUTPUT_TRIS,
   MID_SUFFIX,
   LOW_SUFFIX,
+  LOW_SKIP_SUFFIX,
   UPLOAD_DIR,
 };

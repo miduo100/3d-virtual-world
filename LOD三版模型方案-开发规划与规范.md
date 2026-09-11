@@ -28,7 +28,7 @@
 |---|---|---|
 | 红军区中心每帧三角数 | ~1380 万 | ≤ 200 万（-85%） |
 | 红军区 FPS（GTX 960） | 12~20 | 50~60 |
-| 磁盘占用 | 100% | +35%（中模 25% + 低模 10%） |
+| 磁盘占用 | 100% | ~~+35%~~ → **实测 +76.8%**（阶段 5 全量实测，见 2.3）|
 
 ---
 
@@ -41,6 +41,10 @@
 | 高模 | 原文件 / 已有的减面版 | `model-1787128677059-173733133.glb` 或 `..._dec.glb` |
 | 中模 | 基准名 + `_mid.glb` | `model-1787128677059-173733133_mid.glb` |
 | 低模 | 基准名 + `_lod.glb` | `model-1787128677059-173733133_lod.glb` |
+| 低模判定标记 | 基准名 + `_lod.skip.json` | `..._lod.skip.json`（旁路文件，记录低模被收益闸门判无效） |
+
+> 注意：`X.glb` 与 `X_dec.glb` 推导出的中/低模路径**完全相同**（同一件产物的两个入口），
+> 统计与生成都必须按「变体基准名」归并，不能按文件计数（见 2.2 实现约定）。
 
 **基准名推导规则（前后端必须完全一致）：**
 
@@ -59,10 +63,22 @@
 - 源模型面数 < 5000 时**不生成**中低模（收益为零，白占磁盘）
 - 输出面数 < 300 或未小于源文件 → 判定无效，删除输出并跳过
 - 生成源 = **实际生效的文件**（有 `_dec` 版时从 `_dec` 派生，保证与高模同源）
+  - **实现约定（阶段 5 收敛）**：`lodPaths` 对 `X.glb` 与 `X_dec.glb` 推出的是**同一组**变体路径，
+    而减面后原文件仍留在磁盘供 `restore` 使用 → 二者是「同一件产物的两个入口」。
+    因此 `generateLodVariants` 内部统一走 `resolveLodSource()`：**请求路径为普通 `.glb` 且同名
+    `_dec.glb` 存在时，一律改用 `_dec.glb` 作为生成源**（返回值新增 `sourceUsed` 字段说明实际源）。
+    注意此规则按规范原文以「文件是否存在」判定；若某模型被 `restore` 切回原版，变体仍由 `_dec` 派生
+    （视觉上仍是更轻的版本，不影响回退链），此边界待二期是否按 DB 生效路径判定。
 - 幂等：已存在的中/低模文件直接跳过（重复点击/重复上传不重复劳动）
 - **达成率是目标值、不是保证值**（2026-09-11 五样本实测）：gltfpack `-si` 受网格拓扑（边界/薄片）限制会提前停止简化，`-si 0.25` 实测 13.3%~36.9%、`-si 0.1` 实测 12.3%~21.0%（`-si 0.05` 也仍有卡在 21% 的模型）；`-km` 对达成率零影响、`-sa`（激进简化）只对部分模型有效。
   → 故验收口径为**相对达成**：**中模 < 源 且 ≤ 40%；低模 < 中模 且 ≤ 22%**
-- **收益闸门**：低模面数 ≥ 中模面数 → 判无效（`reason = no-benefit-vs-mid`），不落盘，渲染端回退中模
+- **收益闸门**：低模面数 ≥ 中模面数 × `LOW_BENEFIT_MARGIN` → 判无效（`reason = no-benefit-vs-mid`），不落盘。
+  - **`LOW_BENEFIT_MARGIN` 必须保持 1**（阶段 5 实测结论，见 2.3 第 7 条）：低模文件缺失会让该组合批组
+    的远界 `farLimit` 由 400m 回落到 200m（200~400m 只剩蓝方块），因此**即使面数收益 ≈0 也必须生成低模**；
+    加余量省磁盘的收益远小于该代价。
+  - 判定结果会落一个 `<base>_lod.skip.json` 标记文件（含 reason / midTris / 时间），
+    使 `scanStatus` 不再把「低模已判无效」的模型算作「待生成」；
+    低模成功生成时标记自动清除。此机制依赖的 schema 见 2.1（只新增旁路 json，不动数据库）。
 
 ### 2.3 渲染分带（按"玩家到模型表面"的距离，不是锚点距离）
 
@@ -86,6 +102,59 @@
 > 4. 低模**形同虚设**：21 个红军族模型中 14 个的 `_lod.glb` 与 `_mid.glb` 面数几乎相同
 >    （如 3876 vs 3875、5760 vs 5756），另 7 个被收益闸门直接拦下（200~400m 只剩蓝方块）。
 > 5. 磁盘成本远超预估：21 组 170.9MB → 442.1MB（**+271MB / +158.6%**，变体各自携带一份内嵌贴图）。
+
+> **阶段 5 全量实测补充（2026-09-11）**：
+> 统计口径：**全语料按「变体基准名」去重后扫磁盘**（`X.glb` 与 `X_dec.glb` 推出同一组变体，算一件）；
+> 共 **118 件**（含阶段 4 已生成的红军族 21 组），其中可生成 112 件、源面数 <5000 跳过 6 件。
+>
+> 1. **低模有实质价值 → 结论：保留低模**。104 件低模中 **82 件（78.8%）相对中模再降 ≥30%**；
+>    汇总 中模 1,242,682 面 → 低模 694,723 面 = **55.9%（降 44.1%）**；
+>    低模/源 中位数 17.9%、汇总 20.8%（同时满足规范 2.2 的 ≤22% 口径）。
+>    低模与中模几乎等面（≥95%）的 **16 件（15.4%）**，构成已定位：
+>    **13 件来自阶段 4 的红军族**（该族已被两次减面到 ~8k 面，低于 gltfpack 实用下限），
+>    另 **3 件来自本阶段**（5.4 万 / 5.9 万 / 7.9 万面的复杂模型，gltfpack 简化到下限）——
+>    即阶段 4 看到的「14/21 几乎相同」属**红军族特性**，不代表全量语料。
+> 2. **中模达成**：111 件中模/源 中位数 **36.1%**、最大 97.8%（约 79% 落在 20~40%）。
+>    2 件 >90%（5.9 万 / 7.9 万面的复杂模型，gltfpack 几乎无法简化）仍会落盘，收益近零但不影响正确性。
+> 3. **磁盘：1558.4MB → 2755.5MB（+1197.0MB / +76.8%）**，远超预估的 +35%。
+>    根因：变体各自携带一份**内嵌贴图**，文件体积几乎与面数无关
+>    （如 79,090→77,327 面即 −2%，体积仍是同量级）。→ 二期「LOD 复用高模贴图」是唯一有效手段；
+>    分期看：新增中模 622.4MB、新增低模 574.6MB，源文件 1287.3MB 未变。
+>    ⚠️ 注意「取消低模省磁盘」这条路走不通：**低模文件缺失会让该组远界由 400m 回落 200m，
+>    200~400m 直接变蓝方块**（不是回退中模），见第 7 条。
+> 4. **生成源歧义（本阶段修复的 bug）**：`lodPaths` 对 `X.glb` 与 `X_dec.glb` 推出的是**同一组**
+>    `_mid/_lod` 路径，而减面后的原文件仍留在磁盘（供 restore 还原）→ **谁先被处理谁就决定了变体的源**。
+>    全量转换实测有 **20 组**「原文件排在 `_dec` 之前」，会从**错的源**派生变体（后续 `_dec` 只报 exists）。
+>    已按规范 2.2 收敛到 `generateLodVariants` 内部：**同名 `_dec.glb` 存在时一律以它为生成源**。
+> 5. **剩余待生成全部可解释**：修正统计口径前是 15 条（其中 14 条只是 `X.glb`/`X_dec.glb` 的重复入口，
+>    实为 7 件「中模已有、低模被收益闸门拦下」的模型，`no-benefit-vs-mid`）；
+>    1 条 = 输入为 **Draco 压缩 GLB**，gltfpack 不支持解析（工具链限制，非代码缺陷）。
+>    口径修正后 `pending = 1`（详见第 10 条）。
+> 6. **转换成本**：118 个条目 **36.7s（0.31s/条目）**，最大单模型 3.1s（30 万面）。
+> 7. **收益余量（阶段 1 遗留问题）：实测决定「不加」，余量保持 1** —— 这是一条重要的反直觉结论。
+>    曾按「16 件（15.4%）低模相对中模降幅 <5%，落盘纯属浪费磁盘」加了 **+5% 余量**并清理这 16 个文件，
+>    随后实测发现代价不可接受：前端 `worldInstanceMerger_v2.js` 的远界是
+>    `farLimit = (lodOn && lowReady) ? 400 : 200` —— **低模文件缺失会把该组合批组远界从 400m 回落到 200m**，
+>    200~400m 的实例不再渲染、只由蓝方块表示（这正是规范 2.3 表格「低模未生成时回退蓝色占位方块」的口径）。
+>    受影响 **16 个合批组 / 381 个实例**（红军群主力：72、54、36×3、18×9 …）。
+>    → **「低模文件存在」本身就是 200~400m 带能否显示几何的开关**，即使面数收益 ≈0 也必须生成。
+>    省磁盘要另想办法（二期「LOD 复用高模贴图」），不能靠回收低模。已恢复 16 个文件、余量回退为 1。
+>    `lod_convert_all.js` 的 `--prune-low` 保留但加了守卫（margin ≤ 1 时直接跳过并打印原因）。
+> 9. **改动后的交叉复验**（证明本次对 `modelLod.js` 的修改 + 余量回退 + 低模恢复没有影响渲染行为）：
+>    - `scripts/accept_lod_stage4.js` 重跑 **14/14 PASS，VERDICT ACCEPTED**：D1 公平对比点
+>      13,811,614 → 5,079,814 = **−63.2%**（与阶段 4 会话实测完全一致）、D3 质心 `{high:64,mid:8}`=72、
+>      D4 250m 处 `{low:72}` + farLimit=400、D6 3 轮往返 190/98→99 无泄漏、D7 0 console error。
+>    - `scripts/accept_lod_stage3.js` 重跑 **17/17 PASS，VERDICT ACCEPTED**（独立扫描口径同步修正后，
+>      与 `/status` 仍完全一致：118 / 111 / 104 / pending 1）。
+>
+> 10. **本阶段顺带修正的三处统计缺陷**（原为后台显示与状态判断问题，经用户确认本期修）：
+>    - `_absFromDbPath` 用 `path.isAbsolute` 判断，而 Windows 下 `isAbsolute('/models/x.glb') === true`
+>      → 数据库条目全部被当成「源文件缺失」（`missingSource` 假报 113，DB 那半边统计形同死代码）。现改为只认盘符/UNC。
+>    - `scanStatus` 按文件计数，`X.glb` 与 `X_dec.glb` 共享同一组变体却算两件 → 后台「模型总数」虚高（264）。
+>      现以**变体基准名**为唯一身份（`total` 264 → 118，`superseded` 别名 33 条）。
+>    - 低模被真实收益闸门拦下的模型永远算「待生成」→ 后台一直显示待生成 15、点「一键生成」也清不掉。
+>      现由 `_lod.skip.json` 标记记录判定结果，`pending` 只统计还能做的工作（**15 → 1**，仅剩 Draco 那个）。
+>      `accept_lod_stage3.js` 的独立扫描口径已同步更新并重跑通过。
 
 ### 2.4 配置项
 
@@ -330,11 +399,12 @@
 
 | 风险 | 影响 | 预案 |
 |---|---|---|
-| 中低模自带纹理导致显存重复占用 | 显存 +35% | 可接受；若不足，二期做"LOD 复用高模材质贴图" |
-| gltfpack 批量转换耗时长（100+ 模型） | 一键转换要跑很久 | 分批（每批 3 个）+ 进度显示 + 可中断续做 |
+| 中低模自带纹理导致显存/磁盘重复占用 | 实测磁盘 **+76.8%**（远超原估 +35%） | 已接受；二期做"LOD 复用高模材质贴图"才是根治手段 |
+| gltfpack 批量转换耗时长（100+ 模型） | 一键转换要跑很久 | 实测 118 个条目仅 36.7s（0.31s/条目）；仍保留分批（每批 3 个）+ 进度显示 + 可中断续做 |
 | 中低模与高模外观差异明显 | 观感突变/穿帮 | 40m 分界内用高模；若差异大，二期把中模比例 0.25 提到 0.4 |
-| 前端 LOD 加载失败 | 远景变蓝方块 | 回退链：低模→中模→高模→蓝方块 |
+| 前端 LOD 变体加载失败 | 远景变蓝方块 | **实测回退口径（阶段 5 校正）**：变体缺失时该组 `farLimit` 由 400m 回落 200m → **200~400m 一律蓝方块**；0~200m 内才按「中模缺失→高模兜底」。故**低模文件必须生成**（即使面数收益≈0），见 2.3 第 7 条 |
 | 切换分带时实例矩阵重写开销 | 移动时轻微 CPU 波动 | 沿用现有"玩家位移 >0.5m 才重算 + 每 10 帧兜底"节流 |
+| 输入是 Draco 压缩 GLB | 无法生成任何变体（该模型整组永远 200m 蓝方块） | gltfpack 不支持 Draco 输入，属工具链限制；已知 1 例（`model-1783481710732-936486373`，64,347 面），如需覆盖要先解压 Draco 再转 |
 
 ---
 
@@ -346,9 +416,32 @@
 | 2 上传挂钩 + 配置 | ✅ 已完成（2026-09-11） | `src/routes/uploadedModels.js`（单上传 glb 块、批量上传 glb 块各加 1 处挂钩）、`src/routes/config.js`（GET/PUT world-settings 支持 `lod_enabled` + 新增公开 `GET /lod-enabled`）、**新建** `scripts/accept_lod_stage2.js` | `node scripts/accept_lod_stage2.js` → **11/11 PASS，VERDICT ACCEPTED**（B1 上传 234ms 响应含 lod、B2 磁盘 `_mid/_lod` 落盘且 29.5%/15.0%、B3 `{enabled:true}`、B4 关→false 开→true + 非法值 400、B5 坏 GLB 上传仍成功且 lod=skipped；INFO 批量端点 2/2 项 lod 正确）。脚本自带收尾：删测试模型与变体、恢复开关，验收后磁盘/DB 零残留 | ①`lod_enabled` 目前写死在 `system_config`（值为 `'true'`），阶段 3 由后台 UI 接管；②PUT `/world-settings` 仍是原有"无鉴权"状态（历史行为，本阶段未改）；③上传即生成变体不受开关影响（开关只管渲染），若"关闭=不生成"需二期决策 |
 | 3 管理接口 + 后台 UI | ✅ 已完成（2026-09-11） | **新建** `src/routes/modelLod.js`、**新建** `public/js/adminModelLod.js`（~175 行）、`src/server.js`（import + 挂载 `/api/admin/model-lod`）、`public/admin.html`（卡片标记 28 行 + 脚本引用 1 行 + `loadWorldSettings` 末尾 1 行钩子）、**新建** `scripts/accept_lod_stage3.js` | `node scripts/accept_lod_stage3.js` → **17/17 PASS，VERDICT ACCEPTED**（C1 卡片位于「🌐 世界基础设置」下方且 4 个函数已挂载；C2 `/status` 计数与独立扫描完全一致 264/0/0/145 且无 token 401；C3 `{limit:1}`→processed=1 且 pending 145→144、`{limit:99}`→回显 10 且 processed=10、UI 进度与汇总正常且按钮运行时置灰；C4 关闭→DB `'false'`、打开→DB `'true'`；C5 刷新按钮生效；C6 0 console error）。截图 `Screenshot/accept_lod_stage3/c1_lod_card.png`、`c3_generate_ui.png` | ①UI 的"一键生成"验收采用 **mock 接口 + 真实接口组合**：mock 测 UI 循环/进度/按钮状态，真实接口测 pending 下降（否则会一次性转换 145 个模型）；②`logger` 仅 console，无独立审计；③卡片文案硬编码中文（红线 14，i18n 化留独立阶段）；④`admin.html` 未加 `data-i18n`，语言切换时靠 `reloadCurrentPageContent→loadWorldSettings` 触发刷新 |
 | 4 前端三带渲染 | ✅ 已完成（2026-09-11，D1 口径经用户确认调整） | **新建** `public/js/worldLodAssets.js`、`public/js/worldInstanceMerger_v2.js`（+~120 行：三带常量、变体异步接入、三带 writeBand、远界动态、LOD 资源生命周期；706 行）、`public/index.html`（引入 worldLodAssets + `worldInstanceMerger_v2.js?v=1→v=2`）、**新建** `scripts/accept_lod_stage4.js`、**新建** `scripts/lod_generate_merged_groups.js`（合批组预生成中低模，阶段5全量转换的子集） | `node scripts/accept_lod_stage4.js` → **14/14 PASS，VERDICT ACCEPTED**（D1 按新口径：公平对比点 13.81M→5.08M = **−63.2%** ≥60%；质心 −10.3% 记为特性 INFO）：D3 三带归属正确（质心 `{high:64,mid:8,low:0}` = 72 实例；关闭时 `{high:72}`）、D4 250m 处 `{low:72}` + farLimit 400、D5 数据库开关关闭重载后 `__LOD_ENABLED=false` 且无变体 IM、三角数 13.81M 与运行时关闭完全一致、远界回到 200、D6 3 轮往返 textures 190/geometries 98→99 无增长、D7 0 console error（28 个变体探测 404 与 219 个导航取消已分类为预期噪音）、D2 FPS +4.9%。**D1 实测质心处仅 −10.3%（判据 ≥70%）；公平对比点（站 100m 外）实测 −63.2%** —— 见 2.3 节实测补充，判据需用户决策 | ①低模对 14/21 模型与中模面数几乎相同（收益≈0），7/21 无低模 → **低模带价值待阶段 5 全量转换后用真实分布决定**（用户 2026-09-11 决策：阶段 5 再定）；②磁盘 +158.6% 远超预估的 +35%（变体各自携带内嵌贴图；二期可做"LOD 复用高模贴图"）；③变体探测用 HEAD 404 会在浏览器控制台留下 28 条 404 记录（设计内预期，二期可改为公开的变体清单接口消除）；④`worldInstanceMerger_v2.js` 现 706 行（未超 1000 红线，但已超 500 行理想值），二期可把三带逻辑再抽独立模块 |
-| 5 全量转换 + 收尾 | ⬜ 未开始 | — | — | — |
+| 5 全量转换 + 收尾 | ✅ 已完成（2026-09-11，含 2 轮用户决策 + 1 次决策回退） | `src/services/modelLod.js`（**生成源收敛 `resolveLodSource`**、`LOW_BENEFIT_MARGIN`、`_lod.skip.json` 标记 + `lowSkipPath`/`_variantKey`、**`_absFromDbPath` 修正**、**`scanStatus` 按变体基准名归并 + 待生成口径**）、**新建** `scripts/lod_convert_all.js`（全量转换 / `--dry` / `--prune-low`（带守卫）/ JSON 报告 / 首次报告归档）、**新建** `scripts/accept_lod_stage5.js`、**新建** `scripts/accept_lod_stage5_regression.js`、`scripts/accept_lod_stage3.js`（独立扫描口径同步 + C3c mock 随 pending 变小而改写） | `node scripts/accept_lod_stage5.js` → **24/24 PASS，VERDICT ACCEPTED**（内嵌回归 `accept_lod_stage5_regression.js` 13/13 ACCEPTED）。关键实测：E1 连续两次转换幂等（第二次 `generated=0`）且 `--prune-low` 为受守卫的 no-op；E2 `total=118`（原 264）/ `missingSource=0`（原 113）/ `pending=1`（原 15）/ `lowBenefitSkipped=7`；E3 中模/源 中位 **36.1%**、max 97.8%；E4 低模/中模汇总 **55.9%（降 44.1%）**、82/104 件（78.8%）低模比中模轻 ≥30%、低模/源中位 17.9% 汇总 20.8%；E5 8 样本幂等 mtime 不变；E6 `_dec` 源切换 20 处；E7 无 `.tmp.glb` 残留；E8 回归 ACCEPTED。交叉复验：`accept_lod_stage4.js` **14/14**（D1 公平对比点 −63.2% 与阶段 4 会话完全一致、D4 `{low:72}`+farLimit 400）、`accept_lod_stage3.js` **17/17**。转换成本 118 条目 36.7s（0.31s/条目），磁盘 1558.4→2755.5MB（+1197.0MB / +76.8%） | ①**低模结论：保留**（数据见 2.3 第 1 条）；②**收益余量：保持 1**（先按 +5% 清理了 16 件无收益低模，实测发现低模文件缺失会让该组远界由 400m 回落 200m、200~400m 变蓝方块，影响 16 组 / 381 实例，已回退并恢复全部文件）；③磁盘 +76.8% 远超预估 +35%（根因=变体各自内嵌贴图，体积与面数几乎无关），根治要二期「LOD 复用高模贴图」；④1 件 Draco 压缩 GLB 无法生成任何变体（gltfpack 工具链限制，见风险表）；⑤2 件中模比例 >90%（gltfpack 简化到下限，无收益但无害）；⑥后台文案/UI 未 i18n；⑦`accept_lod_stage3.js` 的独立扫描口径已随统计修正同步，其"独立性"相应降低 |
 
 状态图例：⬜ 未开始 / 🟡 进行中 / ✅ 已完成 / ⚠️ 有遗留
+
+### 8.1 部署包同步清单（`ubuntu-deploy-package`，在本工作区外，需用户外部执行）
+
+> 阶段 1~5 已全部完成，可一次性同步。
+> ⚠️ **不要把 `public/models/uploaded/` 下的 `_mid.glb` / `_lod.glb` 打包进部署包**（合计约 1.28GB）：
+> 部署到新环境后执行 `node scripts/lod_convert_all.js` 现场生成（实测 118 条目 / 36.7s / 磁盘 +1197MB）。
+
+| 类别 | 文件 | 来自阶段 |
+|---|---|---|
+| 后端 | `src/services/modelDecimate.js` | 1（exports 补 `runPack`） |
+| 后端 | `src/services/modelLod.js`（**新增**） | 1 + 5（生成源收敛 / `LOW_BENEFIT_MARGIN=1` / `_lod.skip.json` / DB 路径修正 / 按变体基准名归并） |
+| 后端 | `src/routes/uploadedModels.js` | 2（单个 + 批量两个端点各 1 处挂钩） |
+| 后端 | `src/routes/config.js` | 2（`lod_enabled` 读写 + 公开 `GET /lod-enabled`） |
+| 后端 | `src/routes/modelLod.js`（**新增**） | 3（`GET /status`、`POST /generate`） |
+| 后端 | `src/server.js` | 3（挂载 `/api/admin/model-lod`） |
+| 前端 | `public/js/worldLodAssets.js`（**新增**） | 4 |
+| 前端 | `public/js/worldInstanceMerger_v2.js` | 4（三带写入 / 远界动态 / 变体生命周期） |
+| 前端 | `public/js/adminModelLod.js`（**新增**） | 3 |
+| 前端 | `public/index.html` | 4（引入 `worldLodAssets.js?v=1` + `worldInstanceMerger_v2.js?v=2`） |
+| 前端 | `public/admin.html` | 3（卡片标记 + 脚本引用 + `loadWorldSettings` 末尾钩子） |
+| 运维脚本（可选） | `scripts/lod_convert_all.js`（**新增**）、`scripts/lod_generate_merged_groups.js`、`scripts/accept_lod_stage1..5*.js` | 1~5 |
+| 数据 | `system_config.lod_enabled`（默认 `'true'`，缺省视为开启） | 2 |
+| ❌ 不同步 | `public/models/uploaded/*_mid.glb`、`*_lod.glb`、`*_lod.skip.json` | — |
 
 ---
 
@@ -362,6 +455,6 @@
 | `src/server.js` | `/api/admin/maintenance` 挂在 136 行、`/api/config` 挂在 147 行；新路由照此风格挂载 |
 | `src/routes/adminMaintenance.js` | 鉴权写法：`router.use(authenticateAdminToken)`（18 行），`require('../middleware/adminAuth')` |
 | `public/admin.html` | 系统参数页签容器在 2382~2412 行（`config-sub-sys-config`）；世界基础设置卡片结束于 2411 行（新卡片插在此后）；`loadWorldSettings()` 在 5595 行、`saveWorldSettings()` 在 5608 行 |
-| `public/js/worldInstanceMerger_v2.js` | 常量区 36~40 行（`MERGE_THRESHOLD`/`MAX_RENDER_DIST=200`）；`mergeGroup` 在 135 行（LOD 初始化插入点）；`runCull` 在 393 行（三带改造点）；`syncFarBoxes` 在 335 行（蓝方块阈值改造点）；`unmergeGroup` 在 202 行（geometry dispose 补充点） |
+| `public/js/worldInstanceMerger_v2.js` | 常量区 36~40 行（`MERGE_THRESHOLD`/`MAX_RENDER_DIST=200`）；`mergeGroup` 在 135 行（LOD 初始化插入点）；`runCull` 在 393 行（三带改造点）；`syncFarBoxes` 在 335 行（蓝方块阈值改造点）；`unmergeGroup` 在 202 行（geometry dispose 补充点）。**远界语义（阶段 5 实测，最易踩）**：`rec.farLimit = (lodOn && lowReady) ? 400 : 200`（571 行）——**低模文件缺失会让整组远界回落 200m，200~400m 直接由蓝方块表示（不是回退中模）**；0~200m 内才按「中模缺失→高模兜底」（583~587 行）。变体由 `worldLodAssets` HEAD 探测，未命中静默回退 |
 | 渲染器现状 | 阴影全局关闭、像素比锁 1、MSAA 开启（`antialias:true`）、`logarithmicDepthBuffer:true`、`sortObjects:false`；合批组按 `im.count` 做距离裁剪；>200m 用共享蓝色 InstancedMesh 占位（1 draw call） |
 | 红军资产 | 26 个模型的减面版为 `public/models/uploaded/model-178712*_dec.glb`（33 个 `_dec.glb` 文件在目录中） |

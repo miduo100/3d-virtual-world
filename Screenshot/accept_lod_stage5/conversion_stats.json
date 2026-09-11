@@ -1,0 +1,43 @@
+{
+  "at": "2026-09-11T15:36:09.334Z",
+  "corpus": {
+    "distinct": 118,
+    "eligible": 112,
+    "withMid": 111,
+    "withLow": 104
+  },
+  "distribution": {
+    "midRatioMedian": 36.1,
+    "midRatioMax": 97.8,
+    "lowRatioMedian": 17.9,
+    "lowVsMidAggregate": 55.9,
+    "usefulLow_lt70pctOfMid": 82,
+    "uselessLow_ge95pct": 16
+  },
+  "pendingAfter": {
+    "total": 1,
+    "blockedLow": 0,
+    "unsupportedInput": 1
+  },
+  "firstRun": {
+    "elapsedSec": 36.7,
+    "processed": 118,
+    "ok": 117,
+    "failed": 1,
+    "decSourceSwitched": 20,
+    "disk": {
+      "beforeMB": "1558.4",
+      "afterMB": "2755.5",
+      "deltaMB": "1197.0",
+      "deltaPct": 76.8,
+      "midDeltaMB": "622.4",
+      "lowDeltaMB": "574.6"
+    },
+    "failures": [
+      {
+        "name": "model-1783481710732-936486373.glb",
+        "reason": "error"
+      }
+    ]
+  }
+}

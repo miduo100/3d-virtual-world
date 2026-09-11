@@ -109,21 +109,39 @@ async function independentStatus(query) {
     const rows = await query(`SELECT path FROM uploaded_models WHERE LOWER(file_type) = 'glb'`);
     rows.rows.forEach((r) => {
       if (!r.path) return;
-      push(path.isAbsolute(r.path) ? r.path : path.join(__dirname, '..', 'public', r.path.replace(/^[\\/]+/, '')));
+      // 与 modelLod._absFromDbPath 对齐：只有盘符/UNC 才是真绝对路径。
+      // 旧写法用 path.isAbsolute，Windows 下 '/models/x.glb' 也算绝对 → existsSync 必失败（同 bug 兼容才通过 C2）
+      push(path.join(__dirname, '..', 'public', r.path.replace(/^[\\/]+/, '')));
     });
   } catch (e) { /* db 不可用时退化为纯磁盘统计 */ }
   walkGlb(UPLOAD_DIR, 0, []).forEach(push);
 
-  let mid = 0; let low = 0; let pending = 0;
+  // 口径（2026-09-11 阶段 5 修正，与 scanStatus 对齐）：
+  //   ① 以「变体基准名」为唯一身份：X.glb 与 X_dec.glb 共享同一组 _mid/_lod，算一件；
+  //   ② 生效源优先 _dec.glb；
+  //   ③ pending = 中模缺失，或 低模缺失且未被收益闸门判过无效（`_lod.skip.json` 标记）
+  const groups = new Map();
   list.forEach((abs) => {
     const n = lodNames(abs);
-    const hasMid = fs.existsSync(n.mid);
-    const hasLow = fs.existsSync(n.low);
+    const key = (path.dirname(abs) + '|' + path.basename(n.mid).replace(/_mid\.glb$/i, '')).toLowerCase();
+    let g = groups.get(key);
+    if (!g) { g = { entries: [], mid: n.mid, low: n.low }; groups.set(key, g); }
+    g.entries.push(abs);
+  });
+
+  let mid = 0; let low = 0; let pending = 0;
+  groups.forEach((g) => {
+    const dec = g.entries.find((a) => /_dec\.glb$/i.test(a));
+    const src = dec || g.entries[0];
+    const hasMid = fs.existsSync(g.mid);
+    const hasLow = fs.existsSync(g.low);
+    const hasSkip = fs.existsSync(g.low.replace(/\.glb$/i, '') + '.skip.json');
     if (hasMid) mid += 1;
     if (hasLow) low += 1;
-    if (fs.existsSync(abs) && (!hasMid || !hasLow) && readTris(abs) >= MIN_SOURCE_TRIS) pending += 1;
+    const lowUnresolved = !hasLow && !hasSkip;
+    if (fs.existsSync(src) && (!hasMid || lowUnresolved) && readTris(src) >= MIN_SOURCE_TRIS) pending += 1;
   });
-  return { total: list.length, midCount: mid, lowCount: low, pending };
+  return { total: groups.size, midCount: mid, lowCount: low, pending };
 }
 
 function isNoise(t) {
@@ -304,10 +322,23 @@ function isNoise(t) {
         /模型总数\s*\d+/.test(refreshed.after.status) && /状态已刷新|读取状态失败/.test(refreshed.after.msg),
         `before="${refreshed.before}" after="${refreshed.after.status}" msg="${refreshed.after.msg}"`);
 
-      // C3c 一键生成（mock 接口，避免动到 145 个真实模型）
+      // C3c 一键生成（mock 接口，避免动到存量真实模型）
+      // 说明：UI 的循环条件是「processed >= pending（来自真实 /status）」或「remaining <= 0」，
+      //       因此 pending 变准（阶段 5 修正后仅剩 1）时必须连 /status 一起 mock，
+      //       否则第一轮就已 processed(3) >= pending(1) 而提前退出，测不到多轮循环。
+      const MOCK_PENDING = 9;
       let mockCalls = 0;
       let disabledDuringRun = null;
       let progressDuringRun = '';
+      await page.route('**/api/admin/model-lod/status', async (route) => {
+        await route.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify({
+            success: true, total: 12, midCount: 3, lowCount: 3,
+            pending: MOCK_PENDING, lowPolySkipped: 6, lowBenefitSkipped: 0, enabled: true, dir: '',
+          }),
+        });
+      });
       await page.route('**/api/admin/model-lod/generate', async (route) => {
         mockCalls += 1;
         if (mockCalls === 1) {
@@ -318,9 +349,11 @@ function isNoise(t) {
           disabledDuringRun = snap.disabled;
           progressDuringRun = snap.progress;
         }
-        const body = mockCalls === 1
-          ? { success: true, limit: 3, processed: 3, succeeded: 3, failed: 0, remaining: 100, results: [{ name: 'mock-1.glb', ok: true }] }
-          : { success: true, limit: 3, processed: 3, succeeded: 3, failed: 0, remaining: 0, results: [{ name: 'mock-2.glb', ok: true }] };
+        const body = {
+          success: true, limit: 3, processed: 3, succeeded: 3, failed: 0,
+          remaining: Math.max(0, MOCK_PENDING - mockCalls * 3),
+          results: [{ name: 'mock-' + mockCalls + '.glb', ok: true }],
+        };
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
       });
       await page.click('#lod-generate-btn');
