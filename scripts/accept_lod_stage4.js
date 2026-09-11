@@ -4,10 +4,12 @@
  * 用法：node scripts/accept_lod_stage4.js        （需先启动服务器；前置：红军等合批组已有 _mid/_lod）
  * 前置脚本：node scripts/lod_generate_merged_groups.js
  *
- * 判据（对应规范文档第 4 节 阶段 4）：
- *   D1 开关开启 + 中低模就绪时，红军区中心 renderer.info.render.triangles 对比"关闭开关"下降 ≥70%
- *   D2 实测 FPS：开启后显著提升（记录开/关两组数据）
- *   D3 近景（<40m）为高模（三带归属断言 + 顶点数/计数断言）
+ * 判据（对应规范文档第 4 节 阶段 4，D1 口径经用户 2026-09-11 确认调整）：
+ *   D1 开关开启 + 中低模就绪时，**公平对比点**（站 100m 外，全部实例在 200m 内，
+ *      排除"远界 400/200"干扰）renderer.info.render.triangles 对比关闭开关下降 ≥60%
+ *      （质心处降幅作为设计特性记录为 INFO：红军群紧密，90% 实例在 ≤40m 高模带）
+ *   D2 实测 FPS：开启后提升（记录开/关两组数据）
+ *   D3 近景（<40m）为高模（三带归属断言：高模带非空、三带总数=组内实例数）
  *   D4 远景（200~400m）使用低模（im.userData.__lodLevel==='low' 的 count > 0）
  *   D5 开关关闭 → 行为与改动前一致（三角数回到基线、蓝方块阈值回到 200、无变体 InstancedMesh）
  *   D6 走远卸载/走近重载循环 3 次无泄漏（textures/geometries 不单调增长）
@@ -202,8 +204,11 @@ async function waitForGroup(page, minInstances, requireLow, timeoutMs) {
 
     const drop = off.avgTris > 0 ? (1 - on1.avgTris / off.avgTris) : 0;
     console.log(`tris: LOD on=${(on1.avgTris / 1e6).toFixed(2)}M (recheck ${(on2.avgTris / 1e6).toFixed(2)}M) off=${(off.avgTris / 1e6).toFixed(2)}M | fps: on=${on1.fps.toFixed(1)} off=${off.fps.toFixed(1)}`);
-    check('D1', 'triangles drop >= 70% at cluster center with LOD on', drop >= 0.70,
-      `on=${Math.round(on1.avgTris)} off=${Math.round(off.avgTris)} drop=${(drop * 100).toFixed(1)}%`);
+    // 质心处收益天然很小（红军群最大半径 74m，90% 实例落在 ≤40m 高模带）——
+    // 用户 2026-09-11 决策：D1 判据改到"公平对比点"（见下），此处仅作特性记录。
+    check('INFO', 'cluster-center drop (design characteristic: near instances stay high)',
+      drop >= 0,
+      `on=${Math.round(on1.avgTris)} off=${Math.round(off.avgTris)} drop=${(drop * 100).toFixed(1)}% (近景高模带，越小越说明实例都在 40m 内)`);
     check('D2', 'FPS improved with LOD on', on1.fps > off.fps,
       `on=${on1.fps.toFixed(1)}fps off=${off.fps.toFixed(1)}fps (+${((on1.fps / Math.max(off.fps, 0.001) - 1) * 100).toFixed(1)}%)`);
     check('D2', 'render calls recorded', on1.avgCalls > 0 && off.avgCalls > 0,
@@ -234,8 +239,10 @@ async function waitForGroup(page, minInstances, requireLow, timeoutMs) {
     await page.waitForTimeout(5000);
     const fairDrop = fairOff.avgTris > 0 ? (1 - fairOn.avgTris / fairOff.avgTris) : 0;
     console.log(`fair (100m away, all instances <200m): on=${(fairOn.avgTris / 1e6).toFixed(2)}M off=${(fairOff.avgTris / 1e6).toFixed(2)}M drop=${(fairDrop * 100).toFixed(1)}% | fps on=${fairOn.fps.toFixed(1)} off=${fairOff.fps.toFixed(1)} | counts=${JSON.stringify(fairOnSnap.biggest && fairOnSnap.biggest.counts)}`);
-    check('INFO', 'fair-comparison drop (no far-threshold confound)',
-      fairDrop > 0, `tris on=${Math.round(fairOn.avgTris)} off=${Math.round(fairOff.avgTris)} drop=${(fairDrop * 100).toFixed(1)}% fps on=${fairOn.fps.toFixed(1)} off=${fairOff.fps.toFixed(1)}`);
+    // D1（用户 2026-09-11 决策口径）：公平对比点 —— 站 100m 外时全部实例都在 200m 内，
+    // 排除"远界 400（LOD 开）vs 200（LOD 关）"带来的干扰，得到纯 LOD 降面收益。
+    check('D1', 'triangles drop >= 60% at fair-comparison point (all instances <200m)', fairDrop >= 0.60,
+      `tris on=${Math.round(fairOn.avgTris)} off=${Math.round(fairOff.avgTris)} drop=${(fairDrop * 100).toFixed(1)}% counts=${JSON.stringify(fairOnSnap.biggest && fairOnSnap.biggest.counts)}`);
 
     // ---------- D4：250m 远处进入低模带 ----------
     await teleport(page, MID_POINT.x, MID_POINT.z);
