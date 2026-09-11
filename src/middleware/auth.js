@@ -19,6 +19,22 @@ function authenticateToken(req, res, next) {
       return res.status(403).json({ error: '无效的token' });
     }
     req.user = user;
+
+    // 滑动续期：剩余有效期不足 1 天时签发新 token（7 天），
+    // 前端 api.js 读取 X-Renewed-Token 响应头更新 localStorage，
+    // 保证活跃用户永不掉登录
+    const RENEW_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+    const remaining = user.exp ? user.exp * 1000 - Date.now() : Infinity;
+    if (remaining < RENEW_THRESHOLD_MS) {
+      try {
+        const payload = { userId: user.userId, username: user.username };
+        const newToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+        res.setHeader('X-Renewed-Token', newToken);
+      } catch (e) {
+        // 续签失败不影响本次请求
+      }
+    }
+
     next();
   });
 }

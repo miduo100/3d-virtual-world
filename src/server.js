@@ -32,7 +32,8 @@ const app = express();
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['X-Renewed-Token']
 }));
 app.use(express.json());
 // 启用Gzip压缩 - 关键优化！5.8MB PNG可压缩到几百KB

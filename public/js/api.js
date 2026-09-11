@@ -4,7 +4,7 @@
  */
 // API functions
 class API {
-  static async request(method, endpoint, data = null) {
+  static async request(method, endpoint, data = null, _retryState = null) {
     try {
       const options = {
         method,
@@ -32,20 +32,36 @@ class API {
         const response = await fetch(`${apiBase}${endpoint}`, { ...options, signal: controller.signal });
         clearTimeout(timeoutId);
 
+        // 滑动续期：token 剩余有效期不足时服务端随响应头下发新 token
+        const renewed = response.headers.get('X-Renewed-Token');
+        if (renewed) {
+          localStorage.setItem('token', renewed);
+        }
+
         if (!response.ok) {
+          let err;
           try {
             const errorData = await response.json();
-            const err = new Error(errorData.error || `API error: ${response.status}`);
+            err = new Error(errorData.error || `API error: ${response.status}`);
             err.status = response.status;
             err.code = errorData.code || null;
             err.retryAfter = errorData.retryAfter || null;
-            throw err;
           } catch (e) {
-            if (e.status) throw e; // 已经是带状态的错误，直接抛出
-            const err = new Error(`API error: ${response.status}`);
+            err = new Error(`API error: ${response.status}`);
             err.status = response.status;
-            throw err;
           }
+
+          // token 失效兜底：弹出登录框，重登成功后自动重试原请求（仅一次）
+          if (API._isTokenInvalid(err) && !(_retryState && _retryState.retried) && window.AuthPrompt) {
+            try {
+              await window.AuthPrompt.prompt();
+            } catch (e) {
+              throw err; // 用户取消登录：维持原始错误
+            }
+            return await this.request(method, endpoint, data, { retried: true });
+          }
+
+          throw err;
         }
 
         return await response.json();
@@ -60,6 +76,17 @@ class API {
       console.error('API request failed:', error);
       throw error;
     }
+  }
+
+  /**
+   * 判断是否为"token 无效/过期"类错误（区别于业务 403 如"需要管理员权限"）
+   */
+  static _isTokenInvalid(err) {
+    if (!err || !err.status) return false;
+    const msg = String(err.message || '');
+    if (err.status === 403 && msg.includes('无效的token')) return true;
+    if (err.status === 401 && /token/i.test(msg)) return true;
+    return false;
   }
 
   // Authentication
