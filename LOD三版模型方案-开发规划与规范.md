@@ -76,6 +76,17 @@
 - 开关关闭（`lod_enabled = false`）时：**完全维持现有行为**（≤200m 高模 / >200m 蓝方块），不加载任何中低模
 - 分带切换**只作用于合批组**（同源多副本，如红军）；散装单模型本期不改（二期可选）
 
+> **阶段 4 实测补充（2026-09-11，红军群 612 实例）**：
+> 1. 红军群是**紧密集群**（质心到各实例水平距离：中位 25m、p75 34m、最大 74m）→
+>    玩家站质心时约 90% 实例落在 ≤40m 高模带，LOD 在质心处收益天然很小（实测三角数 −10.3%）。
+> 2. 中远景（站 100m 外，全部实例在 200m 内、排除"远界 400 vs 200"干扰）实测
+>    **13.81M → 5.08M 三角数（−63.2%）**，三带归属 `{mid:72}` —— 这才是 LOD 的真实收益区间。
+> 3. 中模面数实测为源模型 **33%~64%**（红军 `_dec` 已二次减面到 ~8k 面，gltfpack 再简化已接近下限），
+>    故"所有实例都走中模"的理论上限降幅也只有 ~56%，**70% 在该资产集上不可达**。
+> 4. 低模**形同虚设**：21 个红军族模型中 14 个的 `_lod.glb` 与 `_mid.glb` 面数几乎相同
+>    （如 3876 vs 3875、5760 vs 5756），另 7 个被收益闸门直接拦下（200~400m 只剩蓝方块）。
+> 5. 磁盘成本远超预估：21 组 170.9MB → 442.1MB（**+271MB / +158.6%**，变体各自携带一份内嵌贴图）。
+
 ### 2.4 配置项
 
 - `system_config.lod_enabled`：字符串 `'true'` / `'false'`，**默认 `'true'`**（缺省视为开启）
@@ -213,6 +224,7 @@
 ### 阶段 4：前端渲染 LOD 三带（核心，风险最高）
 
 **改动文件**
+0. **新建** `public/js/worldLodAssets.js`（资源侧助手，~160 行）：开关读取、变体 URL 推导、HEAD 探测、异步加载与缓存
 1. `public/js/worldInstanceMerger_v2.js`：
    - 常量：`LOD_NEAR_DIST = 40`、`LOD_FAR_DIST = 400`
    - 启动时 `fetch('/api/config/lod-enabled')` → `window.__LOD_ENABLED`（失败默认 true）
@@ -329,7 +341,7 @@
 | 1 后端生成服务 | ✅ 已完成（2026-09-11） | `src/services/modelDecimate.js`（仅 exports 加 `runPack`/`_runPack`）、**新建** `src/services/modelLod.js`（~350 行）、**新建** `scripts/accept_lod_stage1.js` | `node scripts/accept_lod_stage1.js` → **14/14 PASS，VERDICT ACCEPTED**；A1 生成 226ms、A2 中模 29.5%/低模 15.0%(=中模的 51.1%)、A2b 语料 4/4、A3 幂等 mtime 不变、A4/A5/A6 全过；INFO scanStatus total=264 pending=145 lowPolySkipped=6 | ①收益闸门按用户确认的严格口径实现（低模 ≥ 中模才拦），实测存在"低模仅比中模小 0.2%"（`model-1787128685630-560171541_dec`）这类"名义通过但收益近零"的情况，是否加 5%~10% 余量待阶段 5 全量转换后用真实分布决定；②`mid` 无自身收益闸门（仅"必须小于源"），若需"中模必须显著小于源"同属二期话题 |
 | 2 上传挂钩 + 配置 | ✅ 已完成（2026-09-11） | `src/routes/uploadedModels.js`（单上传 glb 块、批量上传 glb 块各加 1 处挂钩）、`src/routes/config.js`（GET/PUT world-settings 支持 `lod_enabled` + 新增公开 `GET /lod-enabled`）、**新建** `scripts/accept_lod_stage2.js` | `node scripts/accept_lod_stage2.js` → **11/11 PASS，VERDICT ACCEPTED**（B1 上传 234ms 响应含 lod、B2 磁盘 `_mid/_lod` 落盘且 29.5%/15.0%、B3 `{enabled:true}`、B4 关→false 开→true + 非法值 400、B5 坏 GLB 上传仍成功且 lod=skipped；INFO 批量端点 2/2 项 lod 正确）。脚本自带收尾：删测试模型与变体、恢复开关，验收后磁盘/DB 零残留 | ①`lod_enabled` 目前写死在 `system_config`（值为 `'true'`），阶段 3 由后台 UI 接管；②PUT `/world-settings` 仍是原有"无鉴权"状态（历史行为，本阶段未改）；③上传即生成变体不受开关影响（开关只管渲染），若"关闭=不生成"需二期决策 |
 | 3 管理接口 + 后台 UI | ✅ 已完成（2026-09-11） | **新建** `src/routes/modelLod.js`、**新建** `public/js/adminModelLod.js`（~175 行）、`src/server.js`（import + 挂载 `/api/admin/model-lod`）、`public/admin.html`（卡片标记 28 行 + 脚本引用 1 行 + `loadWorldSettings` 末尾 1 行钩子）、**新建** `scripts/accept_lod_stage3.js` | `node scripts/accept_lod_stage3.js` → **17/17 PASS，VERDICT ACCEPTED**（C1 卡片位于「🌐 世界基础设置」下方且 4 个函数已挂载；C2 `/status` 计数与独立扫描完全一致 264/0/0/145 且无 token 401；C3 `{limit:1}`→processed=1 且 pending 145→144、`{limit:99}`→回显 10 且 processed=10、UI 进度与汇总正常且按钮运行时置灰；C4 关闭→DB `'false'`、打开→DB `'true'`；C5 刷新按钮生效；C6 0 console error）。截图 `Screenshot/accept_lod_stage3/c1_lod_card.png`、`c3_generate_ui.png` | ①UI 的"一键生成"验收采用 **mock 接口 + 真实接口组合**：mock 测 UI 循环/进度/按钮状态，真实接口测 pending 下降（否则会一次性转换 145 个模型）；②`logger` 仅 console，无独立审计；③卡片文案硬编码中文（红线 14，i18n 化留独立阶段）；④`admin.html` 未加 `data-i18n`，语言切换时靠 `reloadCurrentPageContent→loadWorldSettings` 触发刷新 |
-| 4 前端三带渲染 | ⬜ 未开始 | — | — | — |
+| 4 前端三带渲染 | ⚠️ 有遗留（2026-09-11，代码完成、D1 判据待决策） | **新建** `public/js/worldLodAssets.js`、`public/js/worldInstanceMerger_v2.js`（+~120 行：三带常量、变体异步接入、三带 writeBand、远界动态、LOD 资源生命周期；706 行）、`public/index.html`（引入 worldLodAssets + `worldInstanceMerger_v2.js?v=1→v=2`）、**新建** `scripts/accept_lod_stage4.js`、**新建** `scripts/lod_generate_merged_groups.js`（合批组预生成中低模，阶段5全量转换的子集） | `node scripts/accept_lod_stage4.js` → **13/14 PASS，VERDICT REJECTED（仅 D1 未过）**：D3 三带归属正确（质心 `{high:64,mid:8,low:0}` = 72 实例；关闭时 `{high:72}`）、D4 250m 处 `{low:72}` + farLimit 400、D5 数据库开关关闭重载后 `__LOD_ENABLED=false` 且无变体 IM、三角数 13.81M 与运行时关闭完全一致、远界回到 200、D6 3 轮往返 textures 190/geometries 98→99 无增长、D7 0 console error（28 个变体探测 404 与 219 个导航取消已分类为预期噪音）、D2 FPS +4.9%。**D1 实测质心处仅 −10.3%（判据 ≥70%）；公平对比点（站 100m 外）实测 −63.2%** —— 见 2.3 节实测补充，判据需用户决策 | ①D1 判据与资产现实冲突（红军队列紧密 + 中模只到源 33~64%），理论上限 ~56%，待用户决策处理方式；②低模对 14/21 模型与中模面数几乎相同（收益≈0），7/21 无低模 → 低模带实际价值待评估；③磁盘 +158.6% 远超预估的 +35%；④变体探测用 HEAD 404 会在浏览器控制台留下 28 条 404 记录（设计内预期，二期可改为公开的变体清单接口消除）；⑤`worldInstanceMerger_v2.js` 现 706 行（未超 1000 红线，但已超 500 行理想值），二期可把三带逻辑再抽独立模块 |
 | 5 全量转换 + 收尾 | ⬜ 未开始 | — | — | — |
 
 状态图例：⬜ 未开始 / 🟡 进行中 / ✅ 已完成 / ⚠️ 有遗留

@@ -26,8 +26,14 @@
  *   5. 阴影全局已禁用，InstancedMesh 的 castShadow/receiveShadow 置 false，
  *      避免未来开启阴影时整组误投影
  * 6. 视距裁剪：每帧按玩家距离更新可见实例数，远距离实例不渲染（顶点+片元双省）
+ * 7. LOD 三带（阶段 4）：同组内按【玩家到模型表面】距离分带写 count ——
+ *      ≤40m 高模 | 40~200m 中模（_mid.glb，缺则回退高模）| 200~400m 低模（_lod.glb，缺则蓝方块）
+ *    · 变体由 worldLodAssets.js 异步探测+加载（HEAD 命中才下载），接入同组追加 count=0 的
+ *      InstancedMesh，绝不阻塞合批；组解散/重建时丢弃并释放
+ *    · 开关关闭（GET /api/config/lod-enabled 为 false）或变体缺失 = 完全维持改动前行为
+ *    · 中/低模几何为本模块独占 → 解散时必须 dispose（高模几何仍归 texOpt 引用计数管理）
  *
- * 依赖：THREE r128、window.gameWorld（main.js 创建 World 实例后生效）
+ * 依赖：THREE r128、window.gameWorld（main.js 创建 World 实例后生效）、window.WorldLodAssets（可选）
  */
 (function () {
   'use strict';
@@ -38,6 +44,15 @@
   const BOOT_RETRY = 500;       // 等待 gameWorld 实例的重试间隔(ms)
   const MAX_RENDER_DIST = 200;  // 视距裁剪半径（米），仅渲染该距离内的实例
   const CULL_MARK = '__culledByDist'; // 未合批对象被视距裁剪摘除场景的标记
+
+  // ===== LOD 三带（模型 LOD 三版方案 · 阶段 4）=====
+  //   ≤40m 高模 | 40~200m 中模（缺变体回退高模）| 200~400m 低模（缺变体回退蓝方块）| >400m 蓝方块
+  //   开关关闭 或 该组无 _mid/_lod 时 = 完全维持改动前行为（≤200m 高模 / >200m 蓝方块）
+  //   距离口径与既有裁剪一致：玩家到【模型表面】的距离（锚点距离 − 同源外接半径）
+  const LOD_NEAR_DIST = 40;
+  const LOD_MID_FAR_DIST = 200;
+  const LOD_FAR_DIST = 400;
+  const LOD_TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'bumpMap', 'alphaMap', 'specularMap', 'lightMap'];
 
   // ===== 状态 =====
   const mergedGroups = new Map(); // url → { group, sourceIds:Set, meshCount, instanceCount, templates, instanceWorlds, instancePositions, lastVisibleCount }
@@ -150,6 +165,7 @@
     const group = new THREE.Group();
     group.name = 'InstancedMerged:' + url;
     const count = instances.length;
+    const highIms = [];
 
     for (let t = 0; t < templates.length; t++) {
       const tpl = templates[t];
@@ -157,12 +173,14 @@
       im.frustumCulled = false;
       im.castShadow = false;
       im.receiveShadow = false;
+      im.userData.__lodLevel = 'high';
       for (let k = 0; k < count; k++) {
         tmp.multiplyMatrices(instances[k].model.matrixWorld, tpl.relativeMatrix);
         im.setMatrixAt(k, tmp);
       }
       im.instanceMatrix.needsUpdate = true;
       group.add(im);
+      highIms.push(im);
     }
 
     world.scene.add(group);
@@ -182,28 +200,142 @@
       instancePositions.push(pos);
     }
 
-    mergedGroups.set(url, {
+    const rec = {
       group,
       url,
       sourceIds: new Set(instances.map((i) => i.id)),
       meshCount: templates.length,
       instanceCount: count,
       templates,
+      highIms,
       instanceWorlds,
       instancePositions,
-      lastVisibleCount: count
-    });
+      lastVisibleCount: count,
+      // ===== LOD 三带状态（阶段 4）=====
+      lod: { mid: null, low: null },                       // { templates, ims }
+      bandCache: { high: null, mid: null, low: null },     // 上次写入的三带编号列表（变化才重建矩阵）
+      farLimit: MAX_RENDER_DIST,                           // 该组远界：低模就绪才升到 LOD_FAR_DIST
+      lodRequested: false
+    };
+    mergedGroups.set(url, rec);
     refreshStats();
     console.log(`[合批] ${url}: ${count} 实例 × ${templates.length} mesh → ${templates.length} 个 InstancedMesh`);
+    requestLodVariants(world, rec);
+    return true;
+  }
+
+  // ===== LOD 变体异步接入（阶段 4）=====
+  function disposeMaterialTextures(mat) {
+    const mats = Array.isArray(mat) ? mat : [mat];
+    mats.forEach((m) => {
+      if (!m) return;
+      LOD_TEXTURE_SLOTS.forEach((k) => { if (m[k] && m[k].dispose) m[k].dispose(); });
+    });
+  }
+
+  /** 释放一棵变体场景（组已解散时的兜底，避免下载白费/显存泄漏） */
+  function disposeObject3D(root) {
+    if (!root || !root.traverse) return;
+    root.traverse((child) => {
+      if (!child.isMesh) return;
+      if (child.geometry && child.geometry.dispose) child.geometry.dispose();
+      disposeMaterialTextures(child.material);
+      disposeMaterial(child.material);
+    });
+  }
+
+  /** 异步探测并加载该组的中/低模（失败静默回退高模） */
+  function requestLodVariants(world, rec) {
+    const A = window.WorldLodAssets;
+    if (!A || !A.isEnabled() || !world.gltfLoader) return;
+    if (rec.lodRequested) return;
+    rec.lodRequested = true;
+    ['mid', 'low'].forEach((level) => {
+      A.loadVariant(world.gltfLoader, rec.url, level).then((scene) => {
+        if (!scene) return;                                        // 不存在/加载失败 → 用高模兜底
+        if (mergedGroups.get(rec.url) !== rec) {                    // 组已解散或重建 → 丢弃并释放
+          disposeObject3D(scene);
+          return;
+        }
+        attachLodBand(rec, level, scene);
+      }).catch(() => { /* 静默回退 */ });
+    });
+  }
+
+  /** 把变体模板接入同组（追加初值 count=0 的 InstancedMesh） */
+  function attachLodBand(rec, level, scene) {
+    try {
+      const templates = buildMeshTemplates(scene, rec.url);
+      if (!templates.length) { disposeObject3D(scene); return; }
+      const ims = [];
+      templates.forEach((tpl) => {
+        const im = new THREE.InstancedMesh(tpl.geometry, tpl.material, rec.instanceCount);
+        im.frustumCulled = false;
+        im.castShadow = false;
+        im.receiveShadow = false;
+        im.count = 0;                       // 由 runCull 按距离分带写入
+        im.userData.__lodLevel = level;
+        rec.group.add(im);
+        ims.push(im);
+      });
+      rec.lod[level] = { templates, ims };
+      rec.bandCache = { high: null, mid: null, low: null };  // 三带归属已变化 → 强制下帧重算
+      if (level === 'low') rec.farLimit = LOD_FAR_DIST;      // 低模就绪：远界 200 → 400
+      console.log(`[LOD] ${level} 带接入 ${rec.url.slice(-32)}：${ims.length} 个 InstancedMesh`);
+    } catch (e) {
+      console.warn('[LOD] 接入变体失败（回退高模）:', e.message);
+    }
+  }
+
+  function listEquals(a, b) {
+    if (a === b) return true;
+    if (!a || !b || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) { if (a[i] !== b[i]) return false; }
+    return true;
+  }
+
+  /** 写入某一带的实例矩阵与 count（编号列表未变化则跳过，避免每帧重写） */
+  function writeBand(rec, level, indices, templates, ims) {
+    if (listEquals(rec.bandCache[level], indices)) return false;
+    const worlds = rec.instanceWorlds;
+    for (let t = 0; t < ims.length; t++) {
+      const im = ims[t];
+      const tpl = templates[t];
+      for (let k = 0; k < indices.length; k++) {
+        tmp.multiplyMatrices(worlds[indices[k]], tpl.relativeMatrix);
+        im.setMatrixAt(k, tmp);
+      }
+      im.count = indices.length;
+      im.instanceMatrix.needsUpdate = true;
+    }
+    rec.bandCache[level] = indices;
     return true;
   }
 
   // ===== 解散 =====
-  function unmergeGroup(world, url, restoreSources) {
+  /**
+   * 解散合批组
+   * @param {boolean} [keepLodAssets] true = 保留已加载的中/低模资源（组即将原地重建），
+   *   false = 释放并让缓存失效（组真正消失，如走远被卸载）。
+   *   加载期每有实例新增都会重建一次组，若每次都释放+重下，20 个 8MB 变体会被反复下载。
+   */
+  function unmergeGroup(world, url, restoreSources, keepLodAssets) {
     const rec = mergedGroups.get(url);
     if (!rec) return;
     world.scene.remove(rec.group);
-    rec.group.children.forEach((im) => disposeMaterial(im.material));
+    rec.group.children.forEach((im) => {
+      const isLod = im.userData && (im.userData.__lodLevel === 'mid' || im.userData.__lodLevel === 'low');
+      if (isLod && !keepLodAssets) {
+        // 变体几何/贴图由本模块加载且独占（不与高模、texOpt 缓存共享）→ 真正解散时释放，防泄漏
+        if (im.geometry && im.geometry.dispose) im.geometry.dispose();
+        disposeMaterialTextures(im.material);
+      }
+      // 高模几何由 texOpt 缓存引用计数管理，绝不能 dispose；材质为克隆，总是可释放
+      disposeMaterial(im.material);
+    });
+    if (!keepLodAssets && window.WorldLodAssets) {
+      window.WorldLodAssets.forget(url);   // 丢引用，下次重建时重新加载
+    }
     if (restoreSources) {
       world.generatedBuildings.forEach((entry, id) => {
         if (rec.sourceIds.has(id) && entry && entry.model && !entry.model.parent) {
@@ -228,7 +360,7 @@
       if (rec) {
         const curIds = new Set(instances.map((i) => i.id));
         if (idsEqual(rec.sourceIds, curIds)) return;
-        unmergeGroup(world, url, true);
+        unmergeGroup(world, url, true, true);   // 原地重建：保留已加载的中/低模资源
         stats.rebuilds++;
       }
       if (instances.length >= MERGE_THRESHOLD) {
@@ -240,7 +372,7 @@
     mergedGroups.forEach((rec, url) => {
       if (!groups.has(url)) deadUrls.push(url);
     });
-    deadUrls.forEach((url) => unmergeGroup(world, url, true));
+    deadUrls.forEach((url) => unmergeGroup(world, url, true, false)); // 真正消失：释放并丢缓存
   }
 
   // ===== 未合批对象视距裁剪（加载期占位符 + 尚未合批的独立模型）=====
@@ -353,17 +485,19 @@
         }
       });
     }
-    // 2) 合批组被裁剪实例（红军等）：到模型表面距离 > 渲染半径 的实例
+    // 2) 合批组被裁剪实例（红军等）：到模型表面距离 > 该组远界 的实例
+    //    远界 = 低模就绪且开关开启时的 400m，否则（=改动前行为）200m
     mergedGroups.forEach((rec) => {
       const positions = rec.instancePositions;
       const r = B ? B.radiusByUrl(rec.url) : 0;
       const s = Math.min(Math.max(r / 10, 1), 20);
+      const farLimit = rec.farLimit || MAX_RENDER_DIST;
       for (let i = 0; i < positions.length; i++) {
         const dx = positions[i].x - playerPos.x;
         const dy = positions[i].y - playerPos.y;
         const dz = positions[i].z - playerPos.z;
         const surface = Math.sqrt(dx * dx + dy * dy + dz * dz) - r;
-        if (surface > MAX_RENDER_DIST && farCount < 8192) {
+        if (surface > farLimit && farCount < 8192) {
           _posV.set(positions[i].x, positions[i].y, positions[i].z);
           _scaleV.set(s, s, s);
           tmp2.compose(_posV, _quat, _scaleV);
@@ -430,35 +564,36 @@
       const positions = rec.instancePositions;
       // 同源实例尺寸一致，用该模型的外接半径把判定从"锚点"改为"模型表面"
       const r = B ? B.radiusByUrl(rec.url) : 0;
-      const visibleIndices = [];
+      const midReady = !!(rec.lod.mid && rec.lod.mid.ims && rec.lod.mid.ims.length);
+      const lowReady = !!(rec.lod.low && rec.lod.low.ims && rec.lod.low.ims.length);
+      const lodOn = !!(window.WorldLodAssets && window.WorldLodAssets.isEnabled());
+      // 远界：低模就绪才放到 400m，否则维持 200m（未就绪部分由蓝方块表示）
+      rec.farLimit = (lodOn && lowReady) ? LOD_FAR_DIST : MAX_RENDER_DIST;
+      const farLimit = rec.farLimit;
+      const nearLimit = lodOn ? LOD_NEAR_DIST : MAX_RENDER_DIST;
+
+      const highIdx = [];
+      const midIdx = [];
+      const lowIdx = [];
       for (let i = 0; i < positions.length; i++) {
         const dx = positions[i].x - playerPos.x;
         const dy = positions[i].y - playerPos.y;
         const dz = positions[i].z - playerPos.z;
         const surface = Math.sqrt(dx * dx + dy * dy + dz * dz) - r;
-        if (surface <= MAX_RENDER_DIST) {
-          visibleIndices.push(i);
-        }
+        if (surface > farLimit) continue;                       // 远界外：不渲染（蓝方块表示"这里有东西"）
+        if (surface <= nearLimit) { highIdx.push(i); continue; } // ≤40m（或未启用 LOD 时的 ≤200m）
+        if (midReady && surface <= LOD_MID_FAR_DIST) { midIdx.push(i); continue; }
+        if (lowReady && surface <= LOD_FAR_DIST) { lowIdx.push(i); continue; }
+        highIdx.push(i);                                        // 变体缺失 → 高模兜底
       }
-      const count = visibleIndices.length;
-      if (count === rec.lastVisibleCount) {
-        totalCulled += rec.instanceCount - count;
-        return;
-      }
-      const group = rec.group;
-      const worlds = rec.instanceWorlds;
-      for (let t = 0; t < group.children.length; t++) {
-        const im = group.children[t];
-        const tpl = rec.templates[t];
-        for (let k = 0; k < count; k++) {
-          tmp.multiplyMatrices(worlds[visibleIndices[k]], tpl.relativeMatrix);
-          im.setMatrixAt(k, tmp);
-        }
-        im.count = count;
-        im.instanceMatrix.needsUpdate = true;
-      }
-      rec.lastVisibleCount = count;
-      totalCulled += rec.instanceCount - count;
+
+      writeBand(rec, 'high', highIdx, rec.templates, rec.highIms);
+      if (midReady) writeBand(rec, 'mid', midIdx, rec.lod.mid.templates, rec.lod.mid.ims);
+      if (lowReady) writeBand(rec, 'low', lowIdx, rec.lod.low.templates, rec.lod.low.ims);
+
+      const visible = highIdx.length + (midReady ? midIdx.length : 0) + (lowReady ? lowIdx.length : 0);
+      rec.lastVisibleCount = visible;
+      totalCulled += rec.instanceCount - visible;
     });
     stats.culledInstances = totalCulled;
     cullRaf = requestAnimationFrame(runCull);
@@ -513,7 +648,8 @@
       stopCull();
       const world = findWorld();
       if (world) {
-        Array.from(mergedGroups.keys()).forEach((url) => unmergeGroup(world, url, true));
+        // 保留 LOD 资源：编辑模式往返（unbatch/rebatch）频繁，释放会导致反复重新下载
+        Array.from(mergedGroups.keys()).forEach((url) => unmergeGroup(world, url, true, true));
         // 恢复所有被视距裁剪摘除的未合批对象
         world.generatedBuildings.forEach((entry) => {
           if (entry && entry.model && entry.model.userData[CULL_MARK] && !entry.model.parent) {
@@ -528,7 +664,38 @@
       enabled = true;
       startTimer();
       startCull();
+      const world = findWorld();
+      if (world) mergedGroups.forEach((rec) => requestLodVariants(world, rec)); // 重新启用时补齐变体
       console.log('[合批] 已启用');
+    },
+    /** LOD 三带开关（透传 WorldLodAssets；测试/调试用，正式开关在管理后台） */
+    setLodEnabled: function (v) {
+      const A = window.WorldLodAssets;
+      if (!A) return null;
+      const old = A.setEnabled(v);
+      const world = findWorld();
+      if (v && world) mergedGroups.forEach((rec) => requestLodVariants(world, rec));
+      return old;
+    },
+    /** 调试：查看各组三带状态 */
+    debugLod: function () {
+      const out = [];
+      mergedGroups.forEach((rec, url) => {
+        const counts = {};
+        rec.group.children.forEach((im) => {
+          const lv = (im.userData && im.userData.__lodLevel) || 'unknown';
+          counts[lv] = (counts[lv] || 0) + (im.count || 0);
+        });
+        out.push({
+          url: url.slice(-40),
+          instances: rec.instanceCount,
+          farLimit: rec.farLimit,
+          counts,
+          midTemplates: rec.lod.mid ? rec.lod.mid.ims.length : 0,
+          lowTemplates: rec.lod.low ? rec.lod.low.ims.length : 0,
+        });
+      });
+      return { lodEnabled: !!(window.WorldLodAssets && window.WorldLodAssets.isEnabled()), groups: out };
     },
     rescan: scanAndMerge,
     /** 把指定模型从合批组排除并恢复独立渲染（供编辑模式选中被合批对象时调用） */
@@ -542,13 +709,28 @@
       mergedGroups.forEach((rec, url) => { if (rec.sourceIds.has(targetId)) targetUrl = url; });
       if (!targetUrl) return { ok: false, reason: 'not in merged group' };
       model.userData.__excludeFromMerge = true;  // 防 2 秒后扫描重新合批
-      unmergeGroup(world, targetUrl, true);       // 解散该组，源模型全部加回场景
+      unmergeGroup(world, targetUrl, true, true); // 解散该组（随后立即重建，保留 LOD 资源），源模型全部加回场景
       scanAndMerge();                             // 立即重建（被排除的模型不再参与）
       console.log(`[合批] 排除模型 id=${targetId}，组 ${targetUrl.slice(-40)} 已重建为独立渲染`);
       return { ok: true, id: targetId };
     },
     getStats: function () {
-      return Object.assign({}, stats, { enabled: enabled, threshold: MERGE_THRESHOLD, maxDist: MAX_RENDER_DIST });
+      let midGroups = 0;
+      let lowGroups = 0;
+      mergedGroups.forEach((rec) => {
+        if (rec.lod.mid) midGroups++;
+        if (rec.lod.low) lowGroups++;
+      });
+      return Object.assign({}, stats, {
+        enabled: enabled,
+        threshold: MERGE_THRESHOLD,
+        maxDist: MAX_RENDER_DIST,
+        lodEnabled: !!(window.WorldLodAssets && window.WorldLodAssets.isEnabled()),
+        lodNearDist: LOD_NEAR_DIST,
+        lodFarDist: LOD_FAR_DIST,
+        groupsWithMid: midGroups,
+        groupsWithLow: lowGroups
+      });
     },
     /** 调试：手动触发一次裁剪并返回结果 */
     debugCull: function () {
