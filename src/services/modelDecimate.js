@@ -123,4 +123,4 @@ async function decimateIfNeeded(absPath, { mode = 'auto' } = {}) {
   }
 }
 
-module.exports = { decimateIfNeeded, countTris, TRI_THRESHOLD, DEC_SUFFIX };
+module.exports = { decimateIfNeeded, runPack: _runPack, _runPack, countTris, TRI_THRESHOLD, DEC_SUFFIX };
