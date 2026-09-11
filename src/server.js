@@ -90,6 +90,7 @@ const portalRoutes = require('./routes/portal');
 const adminRoutes = require('./routes/admin');
 const adminAuthRoutes = require('./routes/adminAuth');
 const adminMaintenanceRoutes = require('./routes/adminMaintenance');
+const modelLodRoutes = require('./routes/modelLod');  // 模型 LOD 三版方案（管理后台）
 const tripoRoutes = require('./routes/tripo');
 const aiAssistantRoutes = require('./routes/aiAssistant');
 const geometryBuildingRoutes = require('./routes/geometryBuilding');
@@ -134,6 +135,7 @@ app.use('/api/portal', portalRoutes);
 app.use('/api/admin-auth', adminAuthRoutes);  // 管理员认证路由
 app.use('/api/admin', adminRoutes);  // 管理后台路由（需要管理员认证）
 app.use('/api/admin/maintenance', adminMaintenanceRoutes);  // 维护工具路由
+app.use('/api/admin/model-lod', modelLodRoutes);  // 模型 LOD 管理路由（需管理员认证）
 app.use('/api/tripo', tripoRoutes);  // Tripo AI 3D生成路由
 app.use('/api/ai', aiAssistantRoutes);  // AI助手路由
 app.use('/api/ai-providers', aiProvidersRoutes);  // AI提供商配置路由

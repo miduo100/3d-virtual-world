@@ -2409,6 +2409,34 @@
             </div>
           </div>
         </div>
+
+        <!-- 🗿 本世界模型设置（模型 LOD 三版方案；逻辑在 js/adminModelLod.js） -->
+        <div class="card" id="lod-settings-card">
+          <div class="card-header">
+            <div class="card-title">🗿 本世界模型设置</div>
+            <div style="font-size:12px;color:var(--muted)">模型 LOD 分级渲染：远景自动用低模，降低 GPU 负载</div>
+          </div>
+          <div style="background:rgba(88,166,255,0.06);border-left:3px solid var(--blue);padding:11px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;color:#ccc;line-height:1.6;">
+            <div style="font-weight:600;color:#ddd;margin-bottom:4px;">作用</div>
+            <div>为模型自动生成“中模(25%面数)/低模(10%面数)”两个轻量副本。玩家靠近看高模，中远景自动切换中/低模，大幅降低 GPU 负载（大量复制的模型群收益最大）。</div>
+            <div style="font-weight:600;color:#ddd;margin:8px 0 4px;">方法</div>
+            <div>① 开启开关并保存；② 点击“一键生成中低模”，等待进度完成（存量模型分批转换）；③ 之后新上传的模型会自动生成三版。关闭开关 = 全部按高模渲染（本机显卡好时用）。</div>
+          </div>
+          <div class="form-group">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="lod-enabled-checkbox" style="width:auto;">
+              <span>启用 LOD 分级渲染（关闭后全部使用高模）</span>
+            </label>
+          </div>
+          <div id="lod-save-msg" style="display:none;margin-bottom:12px;padding:9px 13px;border-radius:6px;font-size:13px"></div>
+          <div id="lod-status-line" style="font-size:13px;color:var(--muted);margin-bottom:12px;">📊 正在读取模型统计...</div>
+          <div class="btn-group">
+            <button class="btn" onclick="saveLodEnabled()">💾 保存设置</button>
+            <button class="btn btn-secondary" id="lod-generate-btn" onclick="runLodGenerate()">🗿 一键生成中低模</button>
+            <button class="btn btn-secondary" onclick="refreshLodStatus()">🔄 刷新状态</button>
+          </div>
+          <div id="lod-progress" style="display:none;margin-top:12px;padding:9px 13px;border-radius:6px;font-size:13px;background:rgba(88,166,255,0.08);color:#9cf;"></div>
+        </div>
       </div>
 
       <div id="config-sub-audit" class="sub-page" style="display:none">
@@ -3563,6 +3591,7 @@
 <script src="js/adminFederationTrust.js" defer></script>
 <script src="js/adminProfile.js" defer></script>
 <script src="js/adminSky.js" defer></script>
+<script src="js/adminModelLod.js?v=1" defer></script>
 <script>
   // ===== 认证 =====
   document.addEventListener('DOMContentLoaded', function checkAdminAuth() {
@@ -5601,8 +5630,11 @@
       document.getElementById('ws-world-url').value         = data.world_url         || '';
       document.getElementById('ws-world-description').value = data.world_description || '';
     } catch(e) {
+      // 世界设置读取失败不阻断下面的 LOD 状态加载
       console.error('加载世界设置失败:', e);
     }
+    // 本世界模型设置（LOD）：逻辑在 js/adminModelLod.js
+    if (typeof window.loadLodStatus === 'function') window.loadLodStatus(true);
   }
 
   async function saveWorldSettings() {

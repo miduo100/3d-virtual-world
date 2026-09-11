@@ -94,6 +94,12 @@
 
 管理后台 → 系统配置 → **系统参数**页签 → 「🌐 世界基础设置」卡片**下方**，新增卡片「🗿 本世界模型设置」。
 
+> **实现约定（阶段 3 落地，受红线 2 约束）**：`public/admin.html` 已超 1 万行属黑名单文件，
+> 页面内只做 3 处最小改动 —— ①插入卡片标记（`#lod-settings-card`）；②引入 `<script src="js/adminModelLod.js?v=1" defer>`；
+> ③`loadWorldSettings()` 末尾 1 行 `window.loadLodStatus(true)`。四个 JS 函数
+> （`loadLodStatus` / `saveLodEnabled` / `runLodGenerate` / `refreshLodStatus`）全部放在**新建**的
+> `public/js/adminModelLod.js`（约 175 行）中，沿用项目既有的 `js/admin*.js` 模块惯例。
+
 ### 3.2 卡片布局
 
 ```
@@ -188,7 +194,8 @@
 2. `src/server.js`：挂载 `app.use('/api/admin/model-lod', modelLodRoutes)`
 3. `public/admin.html`：
    - 系统参数页签插入「🗿 本世界模型设置」卡片（位置见 3.1）
-   - JS：`loadLodStatus()` / `saveLodEnabled()` / `runLodGenerate()` / `refreshLodStatus()`
+   - **新建** `public/js/adminModelLod.js`：`loadLodStatus()` / `saveLodEnabled()` / `runLodGenerate()` / `refreshLodStatus()`
+     （admin.html 属黑名单大文件，逻辑不放页面内 —— 见 3.1 实现约定）
    - `loadWorldSettings()` 末尾追加 `loadLodStatus()` 调用
 
 **验收标准**（`scripts/accept_lod_stage3.js` 或浏览器手测 + 截图）
@@ -321,7 +328,7 @@
 |---|---|---|---|---|
 | 1 后端生成服务 | ✅ 已完成（2026-09-11） | `src/services/modelDecimate.js`（仅 exports 加 `runPack`/`_runPack`）、**新建** `src/services/modelLod.js`（~350 行）、**新建** `scripts/accept_lod_stage1.js` | `node scripts/accept_lod_stage1.js` → **14/14 PASS，VERDICT ACCEPTED**；A1 生成 226ms、A2 中模 29.5%/低模 15.0%(=中模的 51.1%)、A2b 语料 4/4、A3 幂等 mtime 不变、A4/A5/A6 全过；INFO scanStatus total=264 pending=145 lowPolySkipped=6 | ①收益闸门按用户确认的严格口径实现（低模 ≥ 中模才拦），实测存在"低模仅比中模小 0.2%"（`model-1787128685630-560171541_dec`）这类"名义通过但收益近零"的情况，是否加 5%~10% 余量待阶段 5 全量转换后用真实分布决定；②`mid` 无自身收益闸门（仅"必须小于源"），若需"中模必须显著小于源"同属二期话题 |
 | 2 上传挂钩 + 配置 | ✅ 已完成（2026-09-11） | `src/routes/uploadedModels.js`（单上传 glb 块、批量上传 glb 块各加 1 处挂钩）、`src/routes/config.js`（GET/PUT world-settings 支持 `lod_enabled` + 新增公开 `GET /lod-enabled`）、**新建** `scripts/accept_lod_stage2.js` | `node scripts/accept_lod_stage2.js` → **11/11 PASS，VERDICT ACCEPTED**（B1 上传 234ms 响应含 lod、B2 磁盘 `_mid/_lod` 落盘且 29.5%/15.0%、B3 `{enabled:true}`、B4 关→false 开→true + 非法值 400、B5 坏 GLB 上传仍成功且 lod=skipped；INFO 批量端点 2/2 项 lod 正确）。脚本自带收尾：删测试模型与变体、恢复开关，验收后磁盘/DB 零残留 | ①`lod_enabled` 目前写死在 `system_config`（值为 `'true'`），阶段 3 由后台 UI 接管；②PUT `/world-settings` 仍是原有"无鉴权"状态（历史行为，本阶段未改）；③上传即生成变体不受开关影响（开关只管渲染），若"关闭=不生成"需二期决策 |
-| 3 管理接口 + 后台 UI | ⬜ 未开始 | — | — | — |
+| 3 管理接口 + 后台 UI | ✅ 已完成（2026-09-11） | **新建** `src/routes/modelLod.js`、**新建** `public/js/adminModelLod.js`（~175 行）、`src/server.js`（import + 挂载 `/api/admin/model-lod`）、`public/admin.html`（卡片标记 28 行 + 脚本引用 1 行 + `loadWorldSettings` 末尾 1 行钩子）、**新建** `scripts/accept_lod_stage3.js` | `node scripts/accept_lod_stage3.js` → **17/17 PASS，VERDICT ACCEPTED**（C1 卡片位于「🌐 世界基础设置」下方且 4 个函数已挂载；C2 `/status` 计数与独立扫描完全一致 264/0/0/145 且无 token 401；C3 `{limit:1}`→processed=1 且 pending 145→144、`{limit:99}`→回显 10 且 processed=10、UI 进度与汇总正常且按钮运行时置灰；C4 关闭→DB `'false'`、打开→DB `'true'`；C5 刷新按钮生效；C6 0 console error）。截图 `Screenshot/accept_lod_stage3/c1_lod_card.png`、`c3_generate_ui.png` | ①UI 的"一键生成"验收采用 **mock 接口 + 真实接口组合**：mock 测 UI 循环/进度/按钮状态，真实接口测 pending 下降（否则会一次性转换 145 个模型）；②`logger` 仅 console，无独立审计；③卡片文案硬编码中文（红线 14，i18n 化留独立阶段）；④`admin.html` 未加 `data-i18n`，语言切换时靠 `reloadCurrentPageContent→loadWorldSettings` 触发刷新 |
 | 4 前端三带渲染 | ⬜ 未开始 | — | — | — |
 | 5 全量转换 + 收尾 | ⬜ 未开始 | — | — | — |
 
