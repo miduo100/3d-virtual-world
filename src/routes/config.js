@@ -93,7 +93,7 @@ router.get('/world-settings', async (req, res) => {
   try {
     const result = await query(
       `SELECT config_key, config_value FROM system_config
-       WHERE config_key IN ('world_name','world_url','world_description')
+       WHERE config_key IN ('world_name','world_url','world_description','lod_enabled')
        ORDER BY config_key`
     );
     const data = {};
@@ -102,7 +102,9 @@ router.get('/world-settings', async (req, res) => {
     res.json({
       world_name:        data.world_name        || process.env.WORLD_NAME        || '',
       world_url:         data.world_url         || process.env.WORLD_URL         || '',
-      world_description: data.world_description || ''
+      world_description: data.world_description || '',
+      // 模型 LOD 分级渲染开关：缺省视为开启（只有显式存的 'false' 才关闭）
+      lod_enabled:       data.lod_enabled !== 'false'
     });
   } catch (error) {
     console.error('获取世界设置失败:', error);
@@ -124,6 +126,16 @@ router.put('/world-settings', async (req, res) => {
       return res.status(400).json({ error: '世界URL格式不正确，请输入完整URL，如 https://example.com' });
     }
 
+    // 模型 LOD 分级渲染开关（可选字段：未传 = 不改动现有值，避免其他调用方误清空）
+    let lodEnabled = null;
+    if (req.body.lod_enabled !== undefined && req.body.lod_enabled !== null) {
+      const raw = String(req.body.lod_enabled).toLowerCase();
+      if (raw !== 'true' && raw !== 'false') {
+        return res.status(400).json({ error: 'lod_enabled 必须是 true 或 false' });
+      }
+      lodEnabled = raw;
+    }
+
     const upsert = async (key, value, desc) => {
       await query(
         `INSERT INTO system_config (config_key, config_value, description, updated_at)
@@ -137,6 +149,9 @@ router.put('/world-settings', async (req, res) => {
     await upsert('world_name',        world_name,        '世界名称');
     await upsert('world_url',         world_url,         '世界访问URL（对外域名）');
     await upsert('world_description', world_description || '', '世界描述');
+    if (lodEnabled !== null) {
+      await upsert('lod_enabled', lodEnabled, '模型LOD分级渲染开关（true/false）');
+    }
 
     // 同步更新联邦系统的 world_config 表（保持两者一致）
     try {
@@ -218,6 +233,22 @@ router.put('/world-settings', async (req, res) => {
   } catch (error) {
     console.error('保存世界设置失败:', error);
     res.status(500).json({ error: '保存世界设置失败', details: error.message });
+  }
+});
+
+// ===== 模型 LOD 分级渲染开关（公开只读，游戏前端使用） =====
+
+// 游戏前端启动时读取；缺省视为开启，查询失败也不阻断（返回默认 true）
+router.get('/lod-enabled', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT config_value FROM system_config WHERE config_key = 'lod_enabled'`
+    );
+    const raw = result.rows.length ? result.rows[0].config_value : null;
+    res.json({ enabled: raw !== 'false' });
+  } catch (error) {
+    console.error('获取LOD分级开关失败:', error);
+    res.json({ enabled: true });
   }
 });
 

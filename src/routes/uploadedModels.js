@@ -12,6 +12,7 @@ const AdmZip = require('adm-zip');
 const { compressIfNeeded } = require('../services/modelAutoCompress');
 const { compressTextures } = require('../services/textureCompress');
 const { decimateIfNeeded } = require('../services/modelDecimate');
+const { generateLodVariants } = require('../services/modelLod');
 
 // 配置文件上传
 const storage = multer.diskStorage({
@@ -162,6 +163,11 @@ router.post('/upload-model', upload.single('model'), async (req, res) => {
       }
       result.rows[0].compression = compression;
       result.rows[0].textureCompression = { compressed: texture.compressed, reason: texture.reason, originalSize: texture.originalSize, newSize: texture.newSize };
+
+      // LOD 三版：纹理压缩后生成中/低模（_mid.glb / _lod.glb）；失败自动跳过，绝不阻断上传
+      result.rows[0].lod = await generateLodVariants(modelAbs).catch((e) => ({
+        ok: false, skipped: true, reason: 'error', error: e.message,
+      }));
     }
     result.rows[0].decimation = decimation;
 
@@ -288,6 +294,7 @@ router.post('/upload-models-batch', upload.array('models', 20), async (req, res)
         // 自动压缩：大尺寸 GLB 用 gltfpack 压缩 + 纹理二级压缩（失败自动跳过，不阻断上传）
         let compression = null;
         let textureCompression = null;
+        let lod = null;
         if (fileType === 'glb') {
           // 压缩目标是实际生效的文件（减面版则压缩减面版，原始 .glb 保留原质量供还原）
           const modelAbs = decimation && decimation.decimated ? decimation.decimatedPath : file.path;
@@ -300,6 +307,12 @@ router.post('/upload-models-batch', upload.array('models', 20), async (req, res)
               [finalSize, result.rows[0].id]);
             result.rows[0].file_size = finalSize;
           }
+
+          // LOD 三版：纹理压缩后生成中/低模（_mid.glb / _lod.glb）；失败自动跳过，绝不阻断上传
+          lod = await generateLodVariants(modelAbs).catch((e) => ({
+            ok: false, skipped: true, reason: 'error', error: e.message,
+          }));
+          result.rows[0].lod = lod;
         }
         result.rows[0].decimation = decimation;
 
@@ -307,6 +320,7 @@ router.post('/upload-models-batch', upload.array('models', 20), async (req, res)
           success: true,
           fileName: fileName,
           model: result.rows[0],
+          lod: lod,
           compression: compression,
           textureCompression: textureCompression ? { compressed: textureCompression.compressed, reason: textureCompression.reason, originalSize: textureCompression.originalSize, newSize: textureCompression.newSize } : null
         });

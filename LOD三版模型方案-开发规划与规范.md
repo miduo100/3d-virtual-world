@@ -79,6 +79,11 @@
 ### 2.4 配置项
 
 - `system_config.lod_enabled`：字符串 `'true'` / `'false'`，**默认 `'true'`**（缺省视为开启）
+- 接口（阶段 2 已实现）：
+  - `GET /api/config/world-settings`：返回值含 `lod_enabled`（布尔，缺省 true）
+  - `PUT /api/config/world-settings`：接收 `lod_enabled`；**可选字段——未传则不改动现有值**（防其他调用方误清空），非法值返回 400
+  - `GET /api/config/lod-enabled`：**公开只读、无鉴权**（游戏前端用），返回 `{ enabled: bool }`；查询失败也返回 200 + 默认 true（不阻断前端）
+- 上传管线（阶段 2 已实现）：单个上传与批量上传均在**纹理压缩之后**调用 `generateLodVariants(modelAbs)`，结果挂进响应体（单个 `model.lod`、批量 `results[].lod`）；任何失败只跳过不阻断上传
 - 距离参数（40 / 200 / 400）**固定写死**在代码中，本期不暴露界面
 
 ---
@@ -315,7 +320,7 @@
 | 阶段 | 状态 | 改动文件 | 验收结果 | 遗留 |
 |---|---|---|---|---|
 | 1 后端生成服务 | ✅ 已完成（2026-09-11） | `src/services/modelDecimate.js`（仅 exports 加 `runPack`/`_runPack`）、**新建** `src/services/modelLod.js`（~350 行）、**新建** `scripts/accept_lod_stage1.js` | `node scripts/accept_lod_stage1.js` → **14/14 PASS，VERDICT ACCEPTED**；A1 生成 226ms、A2 中模 29.5%/低模 15.0%(=中模的 51.1%)、A2b 语料 4/4、A3 幂等 mtime 不变、A4/A5/A6 全过；INFO scanStatus total=264 pending=145 lowPolySkipped=6 | ①收益闸门按用户确认的严格口径实现（低模 ≥ 中模才拦），实测存在"低模仅比中模小 0.2%"（`model-1787128685630-560171541_dec`）这类"名义通过但收益近零"的情况，是否加 5%~10% 余量待阶段 5 全量转换后用真实分布决定；②`mid` 无自身收益闸门（仅"必须小于源"），若需"中模必须显著小于源"同属二期话题 |
-| 2 上传挂钩 + 配置 | ⬜ 未开始 | — | — | — |
+| 2 上传挂钩 + 配置 | ✅ 已完成（2026-09-11） | `src/routes/uploadedModels.js`（单上传 glb 块、批量上传 glb 块各加 1 处挂钩）、`src/routes/config.js`（GET/PUT world-settings 支持 `lod_enabled` + 新增公开 `GET /lod-enabled`）、**新建** `scripts/accept_lod_stage2.js` | `node scripts/accept_lod_stage2.js` → **11/11 PASS，VERDICT ACCEPTED**（B1 上传 234ms 响应含 lod、B2 磁盘 `_mid/_lod` 落盘且 29.5%/15.0%、B3 `{enabled:true}`、B4 关→false 开→true + 非法值 400、B5 坏 GLB 上传仍成功且 lod=skipped；INFO 批量端点 2/2 项 lod 正确）。脚本自带收尾：删测试模型与变体、恢复开关，验收后磁盘/DB 零残留 | ①`lod_enabled` 目前写死在 `system_config`（值为 `'true'`），阶段 3 由后台 UI 接管；②PUT `/world-settings` 仍是原有"无鉴权"状态（历史行为，本阶段未改）；③上传即生成变体不受开关影响（开关只管渲染），若"关闭=不生成"需二期决策 |
 | 3 管理接口 + 后台 UI | ⬜ 未开始 | — | — | — |
 | 4 前端三带渲染 | ⬜ 未开始 | — | — | — |
 | 5 全量转换 + 收尾 | ⬜ 未开始 | — | — | — |
