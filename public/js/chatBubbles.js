@@ -128,6 +128,18 @@ const NearbyBubbles = {
   },
 
   /**
+   * 玩家离场清理：移除其气泡、🎤 徽标与 speaking 记录
+   * （说话中直接关闭游戏的玩家此前会永久残留徽标+每帧 DOM 查询）
+   */
+  removeFor(characterId) {
+    if (!characterId) return;
+    this._removeItem(characterId);
+    this.speaking.delete(characterId);
+    const badge = this.container && this.container.querySelector(`.nb-speaking[data-cid="${characterId}"]`);
+    if (badge) badge.remove();
+  },
+
+  /**
    * 每帧把 3D 头顶坐标投影到屏幕
    */
   _loop() {

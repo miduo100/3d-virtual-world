@@ -191,6 +191,11 @@
             proto.unloadObject = function (obj) {
                 if (obj && obj.type === 'gaussian_splat') {
                     disposeSplat(this, obj.id);
+                    // 距离卸载后重摆占位方块（与其他类型一致；disposeSplat 已删
+                    // generatedBuildings 条目，不会触发 addPlaceholderBuilding 的防重摆守卫）
+                    if (typeof this.addPlaceholderBuilding === 'function') {
+                        try { this.addPlaceholderBuilding(obj.id, obj, 'loading'); } catch (e) {}
+                    }
                 }
                 return origUnload.call(this, obj);
             };

@@ -3790,6 +3790,13 @@ class World {
       case 'uploaded_model':
       case 'geometry_building':
       case 'threejs_code':
+      case 'ad_slot':
+        // 【内存治理】广告位此前不在卸载分支内，走近加载后走远永不卸载。
+        // 默认传送门（scene.add 直建）在 portals 集合中租用了灯池点光，先归还；
+        // 其余（自定义模型）走下方通用建筑清理路径（材质 dispose + 占位方块重摆）
+        if (obj.type === 'ad_slot' && this.portals && this.portals.has(obj.id)) {
+          this.removePortal(obj.id);
+        }
         if (this.generatedBuildings.has(obj.id)) {
           const building = this.generatedBuildings.get(obj.id);
           if (building && building.model) {
@@ -3878,6 +3885,10 @@ class World {
           const _video = this._videoElements && this._videoElements.get(obj.id);
           if (_video) {
             try { _video.pause(); _video.removeAttribute('src'); _video.load(); } catch (e) {}
+            // 【内存治理】必须从 DOM 摘除元素：元素上挂有 progress/loadeddata 监听器，
+            // 闭包捕获了 World 实例，元素残留 DOM 会导致元素+闭包+World 引用链永生
+            // （实测反复进出 5 次 videos 1→6、纹理 30→75 持续泄漏）
+            try { _video.remove(); } catch (e) {}
             this._videoElements.delete(obj.id);
           }
           if (this._videoAudioNodes && this._videoAudioNodes.has(obj.id)) {

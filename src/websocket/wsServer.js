@@ -25,6 +25,10 @@ function setupWebSocketServer(httpServer) {
       const connectionId = uuidv4();
       activeConnections.set(connectionId, ws);
 
+      // 【内存治理】心跳探活标记（配合 setupWebSocketServer 末尾的全局 ping 定时器）
+      ws.isAlive = true;
+      ws.on('pong', () => { ws.isAlive = true; });
+
       console.log(`Client connected: ${connectionId}`);
 
       ws.on('message', (message) => {
@@ -90,6 +94,20 @@ function setupWebSocketServer(httpServer) {
       broadcastToNearby,
     });
     voiceRelay.ensureDefaultConfig();
+
+    // 【内存治理】心跳：每 30s ping 一次，两周期无 pong 判死并 terminate。
+    // 移动网络半开连接/杀进程等场景不会触发 'close'，playerPositions 中的
+    // 僵尸玩家会永久驻留并持续进入新玩家的 WORLD_STATE。terminate 会触发
+    // 'close'，接上既有的保存位置/清理/PLAYER_LEFT 广播逻辑。
+    const hbTimer = setInterval(() => {
+      wss.clients.forEach((client) => {
+        if (client.isAlive === false) { client.terminate(); return; }
+        client.isAlive = false;
+        try { client.ping(); } catch (e) {}
+      });
+    }, 30000);
+    if (hbTimer.unref) hbTimer.unref();
+    wss.on('close', () => clearInterval(hbTimer));
 
     console.log(`WebSocket server attached to HTTP server (shared port)`);
   } catch (error) {

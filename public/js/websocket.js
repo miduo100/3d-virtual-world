@@ -120,9 +120,26 @@ class WSClient {
         this.handleModelUpdate(payload);
         break;
 
+      // 【内存治理】玩家离场：此前无处理分支，远端玩家的 GLB 模型/动画 mixer/
+      // 骨骼物理在整个会话内只增不减（服务器在连接 close 时会广播此消息）
+      case 'PLAYER_LEFT':
+        this.handlePlayerLeft(payload);
+        break;
+
       default:
         console.log('Unknown message type:', type);
     }
+  }
+
+  static handlePlayerLeft(payload) {
+    const { characterId, characterName } = payload || {};
+    if (!characterId || characterId === GAME_STATE.characterId) return;
+    if (!window.gameWorld || !gameWorld.players.has(characterId)) return;
+    // 回收该玩家的模型/骨骼物理/灯池点光（removePlayer 内部已处理 dispose 类清理）
+    gameWorld.removePlayer(characterId);
+    // 清理头顶气泡与 🎤 speaking 残留（说话中直接关游戏的玩家此前会永久残留）
+    if (window.nearbyBubbles && nearbyBubbles.removeFor) nearbyBubbles.removeFor(characterId);
+    UI.addChatMessage('系统', `${characterName || characterId} 离开了虚拟世界`);
   }
 
   static handleModelUpdate(payload) {
