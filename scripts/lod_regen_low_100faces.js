@@ -66,6 +66,30 @@ async function main() {
     }
   }
   console.log(`\n[regen100] DONE ok=${ok} fail=${fail} noSource=${skipNoSource}`);
+
+  // fixup：对仍 >100 面的现存低模（gltfpack 拓扑下限）用 glbFaceReducer 补压
+  if (!DRY) {
+    const { reduceGlbFaces } = require('../src/services/glbFaceReducer');
+    let fixed = 0, fixFail = 0;
+    for (const lowName of fs.readdirSync(UPLOAD_DIR).filter((n) => /_lod\.glb$/i.test(n))) {
+      const lowAbs = path.join(UPLOAD_DIR, lowName);
+      const t = countTrisExact(lowAbs);
+      if (t <= 100) continue;
+      try {
+        // 先剥贴图（带贴图的低模无法直接坍缩——reducer 只接受纯几何文件）
+        const base = lowName.replace(/_lod\.glb$/i, '');
+        const srcAbs = fs.existsSync(path.join(UPLOAD_DIR, base + '_dec.glb'))
+          ? path.join(UPLOAD_DIR, base + '_dec.glb') : path.join(UPLOAD_DIR, base + '.glb');
+        const { stripVariantTextures } = require('../src/services/glbTextureStripper');
+        if (fs.existsSync(srcAbs)) await stripVariantTextures(lowAbs, { sourcePath: srcAbs });
+        const r = reduceGlbFaces(lowAbs, 100);
+        if (r.ok && r.trisAfter <= 100) { fixed++; console.log(`[regen100][fixup] ${lowName}: ${t} -> ${r.trisAfter}`); }
+        else { fixFail++; console.log(`[regen100][fixup] FAIL ${lowName}: ${JSON.stringify(r)}`); }
+      } catch (e) { fixFail++; console.log(`[regen100][fixup] FAIL ${lowName}: ${e.message}`); }
+    }
+    console.log(`[regen100][fixup] fixed=${fixed} fail=${fixFail}`);
+  }
+
   console.log(`[regen100] low tris total: ${trisBefore} -> ${trisAfter} (-${trisBefore ? Math.round((1 - trisAfter / trisBefore) * 100) : 0}%)`);
   console.log(`[regen100] <=100 faces: ${reached100}/${ok}（其余为工具下限：锁定边界顶点所致）`);
   if (failures.length) console.log('[regen100] failures:', JSON.stringify(failures, null, 1));

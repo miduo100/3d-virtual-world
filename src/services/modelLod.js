@@ -249,6 +249,22 @@ async function _generateLow(srcPath, dstPath, sourceTris, force, benefitRef) {
       cur = next;
       tris = t2;
     }
+    // 先剥贴图（借高模材质，二期 A 口径）——reducer 只吃纯几何/可搬运结构
+    const stripped = await stripVariantTextures(cur, { sourcePath: srcPath });
+    if (stripped.ok) console.log(`[modelLod] 变体贴图已剥离 ${path.basename(dstPath)}: ${fmtBytes(stripped.saved)}`);
+    // 最终保证阶段（会话 3 机动 2）：gltfpack 触拓扑下限仍 >100 面的，
+    // 用 glbFaceReducer 贪心边坍缩强制压到 ≤LOW_TARGET_FACES（失败保留 gltfpack 输出）
+    if (tris > LOW_TARGET_FACES) {
+      try {
+        const red = require('./glbFaceReducer').reduceGlbFaces(cur, LOW_TARGET_FACES);
+        if (red.ok && red.trisAfter < tris) {
+          tris = red.trisAfter;
+          console.log(`[modelLod] 边坍缩补压 ${path.basename(dstPath)}: -> ${tris} 面`);
+        }
+      } catch (e) {
+        console.warn('[modelLod] glbFaceReducer 失败（保留 gltfpack 输出）:', e.message);
+      }
+    }
     if (tris < MIN_OUTPUT_TRIS) {
       await _safeUnlink(tmpA); await _safeUnlink(tmpB);
       return { status: 'failed', path: dstPath, reason: 'too-few-tris', tris };
@@ -264,9 +280,6 @@ async function _generateLow(srcPath, dstPath, sourceTris, force, benefitRef) {
         tris, refTris: benefitRef.tris,
       };
     }
-    // 最终输出剥贴图（借高模材质，二期 A 口径）
-    const stripped = await stripVariantTextures(cur, { sourcePath: srcPath });
-    if (stripped.ok) console.log(`[modelLod] 变体贴图已剥离 ${path.basename(dstPath)}: ${fmtBytes(stripped.saved)}`);
     const stale = (cur === tmpA) ? tmpB : tmpA;
     await _safeUnlink(stale);
     await fs.promises.rename(cur, dstPath);
