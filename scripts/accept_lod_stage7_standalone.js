@@ -121,10 +121,12 @@ async function main() {
     await page.evaluate(() => window.WorldLodStandalone.setLruCap(64));
 
     // ---- 摆位工具：把玩家放到目标表面距 dist 处（按 debug.dist 迭代收敛，±5% 或 ±1m）----
+    // 注意：传送后 runFrame 需要 1~2 帧才更新 debug.dist，读前必须等待（否则拿到
+    // 上一位置的陈旧值会做反向修正，把玩家越摆越远——2026-09-13 A6/A7 假失败根因）
     async function placeAt(dist) {
       let tx = null;
       for (let i = 0; i < 8; i++) {
-        const d = await page.evaluate(({ id, dist, tx }) => {
+        const d = await page.evaluate(async ({ id, dist, tx }) => {
           const w = window.gameWorld;
           let model = null;
           w.generatedBuildings.forEach((e, eid) => { if (String(eid) === String(id) && e && e.model) model = e.model; });
@@ -134,6 +136,7 @@ async function main() {
           const px = (tx === null) ? (model.position.x + r + dist) : tx; // 沿 +X 摆
           const p = window.player;
           p.position.x = px; p.position.z = model.position.z; if (p.velocity) p.velocity.y = 0;
+          await new Promise((res) => setTimeout(res, 700)); // 等 runFrame 更新 dist
           const row = window.WorldLodStandalone.debug(id)[0];
           return { got: row ? row.dist : null, px };
         }, { id: target.id, dist, tx });

@@ -17,6 +17,12 @@
   const MID_SUFFIX = '_mid.glb';
   const LOW_SUFFIX = '_lod.glb';
 
+  // 变体"确认缺失/失败"的冷却期（三期会话3机动，2026-09-13）：
+  // 此前 state='none' 永久生效——服务器重启窗口/网络抖动中的一次失败会让该模型
+  // 永久回退高模直到刷新页面（用户实测"这部分学生的模型没有中低"的根因之一）。
+  const NONE_TTL_MISSING = 10 * 60 * 1000; // HEAD 404 确认不存在：10 分钟后再探测（防刷 HEAD）
+  const NONE_TTL_ERROR = 60 * 1000;        // 网络失败/非 404 错误：60s 后重试（瞬时故障自愈）
+
   const cache = new Map();   // url → { mid: {state,scene}, low: {state,scene} }
   const inflight = new Map(); // 'url|level' → Promise<scene|null>
 
@@ -78,13 +84,18 @@
     return _enabled;
   }
 
-  async function probe(url) {
+  async function probeStatus(url) {
     try {
       const r = await fetch(url, { method: 'HEAD', cache: 'no-store' });
-      return r.ok;
+      if (r.ok) return 'ok';
+      return r.status === 404 ? 'missing' : 'error';
     } catch (e) {
-      return false;
+      return 'error'; // 网络失败（服务器重启/断网等瞬时故障）
     }
+  }
+
+  async function probe(url) {
+    return (await probeStatus(url)) === 'ok';
   }
 
   /**
@@ -100,12 +111,19 @@
     const p = (async () => {
       const s = slot(url, level);
       if (s.state === 'ready') return s.scene;
-      if (s.state === 'none') return null;
+      if (s.state === 'none') {
+        // 冷却期内的"确认缺失/失败"直接返回 null；冷却已过则重新探测（自愈）
+        const ttl = (s.noneReason === 'missing') ? NONE_TTL_MISSING : NONE_TTL_ERROR;
+        if (Date.now() - (s.noneAt || 0) < ttl) return null;
+        s.state = 'idle';
+      }
       s.state = 'loading';
-      const exists = await probe(vUrl);
-      if (!exists) {
+      const st = await probeStatus(vUrl);
+      if (st !== 'ok') {
         s.state = 'none';
-        console.log(`[LOD] 无${level === 'low' ? '低' : '中'}模，沿用高模/占位方块:`, vUrl);
+        s.noneAt = Date.now();
+        s.noneReason = st;
+        if (st === 'error') console.warn('[LOD] 变体探测失败（60s后自动重试）:', vUrl);
         return null;
       }
       const scene = await new Promise((resolve) => {
@@ -120,6 +138,8 @@
       });
       if (!scene) {
         s.state = 'none';
+        s.noneAt = Date.now();
+        s.noneReason = 'error'; // 下载/解析失败属瞬时类，60s 后重试
         return null;
       }
       s.state = 'ready';

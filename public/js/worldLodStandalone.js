@@ -36,6 +36,10 @@
   var BOOT_RETRY = 500;
   var LRU_CAP_DEFAULT = 24;     // 变体展示对象缓存上限（中+低合计）
   var CULL_MARK = '__culledByDist';
+  // 变体失败冷却（三期会话3机动，2026-09-13）：此前 variantNone 为永久标记，
+  // 瞬时失败（服务器重启窗口/网络抖动）会让该模型永久回退高模直到刷新页面。
+  // 改为冷却重试：60s 后允许再次请求（资源侧另有 404/错误分级 TTL 防刷网络）。
+  var VARIANT_RETRY_MS = 60 * 1000;
 
   function findWorld() { return window.gameWorld || null; }
   function lodOn() { return !!(window.WorldLodAssets && window.WorldLodAssets.isEnabled()); }
@@ -54,7 +58,7 @@
   }
 
   // ===== 状态 =====
-  var recs = new Map();          // id → rec { id,url,model,entry,state,variants,requested,variantNone,skipped,lastUse,dist }
+  var recs = new Map();          // id → rec { id,url,model,entry,state,variants,requested,noneUntil,skipped,lastUse,dist }
   var scanTimer = null;
   var cullRaf = null;
   var enabled = true;
@@ -62,8 +66,13 @@
   var booted = false;
   var _lastCullPos = null;
   var _frame = 0;
+  var _lastRunAt = 0;
 
   var LEVELS = ['mid', 'low'];
+
+  function nowMs() {
+    return (window.performance && performance.now) ? performance.now() : Date.now();
+  }
 
   // ===== 变体构建 / 释放 =====
   function disposeMat(mat) {
@@ -81,7 +90,7 @@
 
   /**
    * 构建某一带的展示对象：缓存场景 clone(true)（几何共享），材质按节点名借高模。
-   * 变体含 SkinnedMesh / 无网格 → 返回 null（调用方标记 variantNone 不再重试）。
+   * 变体含 SkinnedMesh / 无网格 → 返回 null（调用方记冷却，60s 后重试）。
    */
   function buildVariant(rec, level, scene) {
     var clone = scene.clone(true);
@@ -123,19 +132,24 @@
     return { group: group, matsToDispose: matsToDispose, ownTexMats: ownTexMats };
   }
 
-  /** 懒加载请求（首次进带才发起；结果缓存于 rec.variants） */
+  /** 懒加载请求（首次进带才发起；结果缓存于 rec.variants；失败进入冷却，60s 后自动重试） */
   function requestVariant(world, rec, level) {
     var A = window.WorldLodAssets;
-    if (!A || !world || !world.gltfLoader || rec.requested[level] || rec.variantNone[level]) return;
+    if (!A || !world || !world.gltfLoader || rec.requested[level]) return;
+    var now = (window.performance && performance.now) ? performance.now() : Date.now();
+    if (now < (rec.noneUntil[level] || 0)) return;                   // 冷却期内不重复请求
     rec.requested[level] = true;
     A.loadVariant(world.gltfLoader, rec.url, level).then(function (scene) {
       rec.requested[level] = false;
-      if (!scene) { rec.variantNone[level] = true; return; }         // 无变体/失败 → 永久回退高模
+      if (!scene) { rec.noneUntil[level] = now + VARIANT_RETRY_MS; return; }  // 无变体/失败 → 冷却后重试
       if (recs.get(rec.id) !== rec) return;                          // 条目已失效（卸载/换模型）
       var built = buildVariant(rec, level, scene);
-      if (!built) { rec.variantNone[level] = true; return; }
+      if (!built) { rec.noneUntil[level] = now + VARIANT_RETRY_MS; return; }  // 蒙皮等结构性拒绝 → 同样冷却重试
       rec.variants[level] = built;
-    }).catch(function () { rec.requested[level] = false; rec.variantNone[level] = true; });
+    }).catch(function () {
+      rec.requested[level] = false;
+      rec.noneUntil[level] = now + VARIANT_RETRY_MS;
+    });
   }
 
   /** 释放某一带展示对象（几何为变体独占可 dispose；借高模的克隆材质只 dispose 材质不 dispose 贴图） */
@@ -167,6 +181,7 @@
       if (!rec.variants.mid && !rec.variants.low) {
         if (window.WorldLodAssets) window.WorldLodAssets.forget(rec.url);
         rec.requested = {};
+        rec.noneUntil = {};   // 冷却也一并清零：下次进带立即重新探测
       }
     }
   }
@@ -260,7 +275,7 @@
 
       var rec = {
         id: id, url: url, model: m, entry: entry,
-        state: 'high', variants: {}, requested: {}, variantNone: {},
+        state: 'high', variants: {}, requested: {}, noneUntil: {},
         skipped: null, lastUse: 0, dist: 0
       };
       var skinned = false;
@@ -289,6 +304,7 @@
     }
     if (!moved && (_frame % 10) !== 0) return;
     _lastCullPos = { x: p.x, y: p.y, z: p.z };
+    _lastRunAt = nowMs();
 
     var near = bandNear(), mid = bandMid();
     var B = window.WorldObjectBounds;
@@ -380,11 +396,14 @@
         held: heldMid + heldLow, heldMid: heldMid, heldLow: heldLow,
         displayedMid: dispMid, displayedLow: dispLow,
         lruCap: lruCap,
-        lodEnabled: lodOn(), editing: editing()
+        lodEnabled: lodOn(), editing: editing(),
+        /** 诊断：分带循环活性（每帧全量重算计数 / 最近一次执行时刻） */
+        frames: _frame, lastRunAt: Math.round(_lastRunAt)
       };
     },
     /** 调试：逐条目状态（id 可选过滤） */
     debug: function (id) {
+      var now = (window.performance && performance.now) ? performance.now() : Date.now();
       var rows = [];
       recs.forEach(function (r) {
         if (id !== undefined && String(r.id) !== String(id)) return;
@@ -395,7 +414,11 @@
           dist: Math.round(r.dist),
           midReady: !!r.variants.mid,
           lowReady: !!r.variants.low,
-          variantNone: { mid: !!r.variantNone.mid, low: !!r.variantNone.low },
+          /** 冷却中（上次失败，到期自动重试）：剩余秒数，0 = 可立即重试 */
+          cooling: {
+            mid: Math.max(0, Math.ceil(((r.noneUntil.mid || 0) - now) / 1000)),
+            low: Math.max(0, Math.ceil(((r.noneUntil.low || 0) - now) / 1000))
+          },
           modelInScene: !!(r.model && r.model.parent),
           lastUse: r.lastUse ? Math.round(r.lastUse) : 0
         });

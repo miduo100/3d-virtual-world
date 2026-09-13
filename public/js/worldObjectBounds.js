@@ -29,6 +29,11 @@
   // 例：WorldObjectBounds.setUnknownMargin(150) 表示"假设未知对象半径 150m"。
   let UNKNOWN_MARGIN = 0;
   let GRACE_MS = 2000;       // 模型加载完成后的裁剪宽限（毫秒），防"下载完反而消失"
+  // 三期会话3机动（2026-09-13）：防"装配期脏盒"被永久缓存。
+  // 实测教室学生模型首算出宽 ~155m 的脏盒（锚点离盒 150+ 米）且永不重算
+  // （无人调 invalidate/unregister）→ 表面距恒 0 永远高模带 / 盒偏移则近身蓝方块。
+  const BOX_CHECK_INTERVAL_MS = 2000;  // 未验证盒的锚点一致性抽检节流
+  const BOX_TTL_MS = 30 * 1000;        // 周期性全量重算：任何来源的脏盒最终都会自愈
 
   // ===== 状态 =====
   const boxById = new Map();      // id -> { box: Box3, model: Object3D }
@@ -50,6 +55,22 @@
       return model.userData.__texOptSource;
     }
     return null;
+  }
+
+  /** 锚点是否落在盒的水平扩展范围内（扩展量 = max(5m, 长边的 20%)） */
+  function anchorNearBox(cx, cz, box) {
+    const m = Math.max(5, Math.max(box.max.x - box.min.x, box.max.z - box.min.z) * 0.2);
+    return cx >= box.min.x - m && cx <= box.max.x + m &&
+           cz >= box.min.z - m && cz <= box.max.z + m;
+  }
+
+  /** 两盒是否视为同一（跨度差 ≤ max(1m, 5%)）——用于"重算结果与旧盒一致 → 锚点确实偏移"豁免 */
+  function sameBox(a, b) {
+    const tol = (s) => Math.max(1, s * 0.05);
+    return Math.abs(a.min.x - b.min.x) <= tol(a.max.x - a.min.x) &&
+           Math.abs(a.max.x - b.max.x) <= tol(a.max.x - a.min.x) &&
+           Math.abs(a.min.z - b.min.z) <= tol(a.max.z - a.min.z) &&
+           Math.abs(a.max.z - b.max.z) <= tol(a.max.z - a.min.z);
   }
 
   /** 把 box 收缩到以锚点为中心、半径 RADIUS_CLAMP 的方框内（只在超限时生效） */
@@ -76,8 +97,35 @@
   function ensure(id, model, obj) {
     if (id === undefined || id === null || !model || !window.THREE) return null;
 
+    const cx0 = (obj && typeof obj.position_x === 'number') ? obj.position_x : null;
+    const cz0 = (obj && typeof obj.position_z === 'number') ? obj.position_z : null;
+
+    let suspectOldBox = null;   // 脏盒自愈时记录旧盒（重算结果与它一致 → 锚点确实偏移，信任）
+    let dirtyHeal = false;      // 本次是脏盒重算（允许回收 urlRadiusMap 里被污染的超大半径）
+
     const rec = boxById.get(id);
-    if (rec && rec.model === model && !model.matrixWorldNeedsUpdate) return rec.box;
+    if (rec && rec.model === model && !model.matrixWorldNeedsUpdate) {
+      const t = Date.now();
+      const fresh = (t - (rec.computedAt || 0)) < BOX_TTL_MS;
+      if (rec.verified && fresh) return rec.box;
+      if (!fresh) {
+        // 超过 BOX_TTL：周期性全量重算（矩阵现算，装配期脏盒在此自愈），
+        // 直接走下方完整重算路径
+      } else if (!rec.verified) {
+        // 未验证盒：节流抽检「锚点一致性」——模型锚点不可能离模型本体盒 150+ 米，
+        // 离得远说明这是装配期早算的脏盒，丢弃重算
+        if (t - (rec.checkedAt || 0) < BOX_CHECK_INTERVAL_MS) return rec.box;
+        rec.checkedAt = t;
+        const ax = cx0 !== null ? cx0 : (rec.box.min.x + rec.box.max.x) / 2;
+        const az = cz0 !== null ? cz0 : (rec.box.min.z + rec.box.max.z) / 2;
+        if (anchorNearBox(ax, az, rec.box)) { rec.verified = true; return rec.box; }
+        suspectOldBox = rec.box;
+        dirtyHeal = true;
+        boxById.delete(id);
+        metaById.delete(id);
+      }
+      // verified 但未过期的情况已在上面 return
+    }
 
     // 必须先刷新整棵子树的 matrixWorld：clone() 后只改了根节点 position，
     // 子网格的 matrixWorld 仍是源模型旧值，直接 setFromObject 会得到错误包围盒
@@ -102,7 +150,21 @@
       clampedCount++;
     }
 
-    boxById.set(id, { box: box, model: model });
+    // 盒可信度：锚点在盒附近 → 直接验证通过；
+    // 锚点仍远但与被丢弃的旧盒一致 → 锚点确实在模型外（合法），信任新盒；
+    // 其余（含脏盒自愈后仍不符）→ 保持未验证，继续按节流抽检
+    let verified;
+    if (cx0 === null || cz0 === null) {
+      verified = true;                       // 无真实锚点可查（stub 等），无从校验
+    } else if (anchorNearBox(cx0, cz0, box)) {
+      verified = true;
+    } else if (suspectOldBox && sameBox(suspectOldBox, box)) {
+      verified = true;                       // 重算结果未变 → 锚点合法偏移
+    } else {
+      verified = false;
+    }
+
+    boxById.set(id, { box: box, model: model, verified: verified, checkedAt: Date.now(), computedAt: Date.now() });
 
     const radius = Math.min(rawRadius, RADIUS_CLAMP);
     metaById.set(id, { rawRadius: rawRadius, radius: radius, clamped: clamped, at: Date.now() });
@@ -110,9 +172,11 @@
     const url = urlOf(obj, model);
     if (url) {
       urlById.set(id, url);
-      // 同源取最大半径：避免首个实例是异常缩放的小副本
-      const prev = urlRadiusMap.get(url) || 0;
-      if (radius > prev) urlRadiusMap.set(url, radius);
+      // 同源半径：正常取最大（防首个实例异常缩放偏小）；脏盒自愈时允许回收被污染的超大值
+      const prev = urlRadiusMap.get(url);
+      if (prev === undefined || radius > prev || (dirtyHeal && verified && radius < prev)) {
+        urlRadiusMap.set(url, radius);
+      }
     }
     return box;
   }
@@ -266,6 +330,20 @@
     setGraceMs: function (v) { GRACE_MS = Math.max(0, Number(v) || 0); },
     stats: stats,
     clear: clear,
-    report: report
+    report: report,
+    /** 调试：查看某 id 的缓存盒真身（NaN 排查用） */
+    debugBox: function (id) {
+      const rec = boxById.get(id);
+      if (!rec) return { cached: false };
+      const b = rec.box;
+      return {
+        cached: true,
+        modelMatch: rec.model ? (rec.model.name || 'model') : null,
+        min: [+b.min.x, +b.min.y, +b.min.z],
+        max: [+b.max.x, +b.max.y, +b.max.z],
+        finite: finiteBox(b),
+        verified: !!rec.verified
+      };
+    }
   };
 })();
