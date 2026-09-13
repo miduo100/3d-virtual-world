@@ -93,7 +93,7 @@ router.get('/world-settings', async (req, res) => {
   try {
     const result = await query(
       `SELECT config_key, config_value FROM system_config
-       WHERE config_key IN ('world_name','world_url','world_description','lod_enabled')
+       WHERE config_key IN ('world_name','world_url','world_description','lod_enabled','lod_near_dist','lod_mid_far_dist','lod_far_dist')
        ORDER BY config_key`
     );
     const data = {};
@@ -104,13 +104,23 @@ router.get('/world-settings', async (req, res) => {
       world_url:         data.world_url         || process.env.WORLD_URL         || '',
       world_description: data.world_description || '',
       // 模型 LOD 分级渲染开关：缺省视为开启（只有显式存的 'false' 才关闭）
-      lod_enabled:       data.lod_enabled !== 'false'
+      lod_enabled:       data.lod_enabled !== 'false',
+      // LOD 分带距离（二期 C，2026-09-12 用户要求后台可调）：缺省 30/60/400
+      lod_near_dist:     _lodDist(data.lod_near_dist, 30),
+      lod_mid_far_dist:  _lodDist(data.lod_mid_far_dist, 60),
+      lod_far_dist:      _lodDist(data.lod_far_dist, 400)
     });
   } catch (error) {
     console.error('获取世界设置失败:', error);
     res.status(500).json({ error: '获取世界设置失败', details: error.message });
   }
 });
+
+/** LOD 分带距离解析：非法/缺失返回默认值 */
+function _lodDist(raw, def) {
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : def;
+}
 
 // 保存世界设置
 router.put('/world-settings', async (req, res) => {
@@ -136,6 +146,32 @@ router.put('/world-settings', async (req, res) => {
       lodEnabled = raw;
     }
 
+    // LOD 分带距离（二期 C，可选字段：未传 = 不改动现有值）
+    // 约束：均为正整数，且 高模带 < 中模带 < 低模带；合法范围防止填出离谱值
+    const LOD_DIST_RULES = [
+      { key: 'lod_near_dist',    min: 5,   max: 150 },
+      { key: 'lod_mid_far_dist', min: 10,  max: 300 },
+      { key: 'lod_far_dist',     min: 50,  max: 2000 },
+    ];
+    const lodDists = {};
+    for (const rule of LOD_DIST_RULES) {
+      const v = req.body[rule.key];
+      if (v === undefined || v === null || v === '') continue;
+      const n = parseInt(v, 10);
+      if (!Number.isFinite(n) || n < rule.min || n > rule.max) {
+        return res.status(400).json({ error: `${rule.key} 必须是 ${rule.min}~${rule.max} 之间的整数` });
+      }
+      lodDists[rule.key] = String(n);
+    }
+    if (lodDists.lod_near_dist && lodDists.lod_mid_far_dist
+      && parseInt(lodDists.lod_near_dist, 10) >= parseInt(lodDists.lod_mid_far_dist, 10)) {
+      return res.status(400).json({ error: '高模带距离必须小于中模带距离' });
+    }
+    if (lodDists.lod_mid_far_dist && lodDists.lod_far_dist
+      && parseInt(lodDists.lod_mid_far_dist, 10) >= parseInt(lodDists.lod_far_dist, 10)) {
+      return res.status(400).json({ error: '中模带距离必须小于低模带距离' });
+    }
+
     const upsert = async (key, value, desc) => {
       await query(
         `INSERT INTO system_config (config_key, config_value, description, updated_at)
@@ -151,6 +187,14 @@ router.put('/world-settings', async (req, res) => {
     await upsert('world_description', world_description || '', '世界描述');
     if (lodEnabled !== null) {
       await upsert('lod_enabled', lodEnabled, '模型LOD分级渲染开关（true/false）');
+    }
+    const LOD_DIST_DESC = {
+      lod_near_dist: 'LOD高模带距离(米)，玩家到模型表面 ≤ 该值用高模',
+      lod_mid_far_dist: 'LOD中模带距离(米)，高模带外 ≤ 该值用中模',
+      lod_far_dist: 'LOD低模带距离(米)，中模带外 ≤ 该值用低模，超出显示蓝方块',
+    };
+    for (const [key, value] of Object.entries(lodDists)) {
+      await upsert(key, value, LOD_DIST_DESC[key]);
     }
 
     // 同步更新联邦系统的 world_config 表（保持两者一致）
@@ -242,13 +286,21 @@ router.put('/world-settings', async (req, res) => {
 router.get('/lod-enabled', async (req, res) => {
   try {
     const result = await query(
-      `SELECT config_value FROM system_config WHERE config_key = 'lod_enabled'`
+      `SELECT config_key, config_value FROM system_config
+       WHERE config_key IN ('lod_enabled','lod_near_dist','lod_mid_far_dist','lod_far_dist')`
     );
-    const raw = result.rows.length ? result.rows[0].config_value : null;
-    res.json({ enabled: raw !== 'false' });
+    const data = {};
+    result.rows.forEach(r => { data[r.config_key] = r.config_value; });
+    res.json({
+      enabled: data.lod_enabled !== 'false',
+      // 分带距离（二期 C）：后台可调，缺省 30/60/400；前端按此动态分带
+      near: _lodDist(data.lod_near_dist, 30),
+      mid: _lodDist(data.lod_mid_far_dist, 60),
+      far: _lodDist(data.lod_far_dist, 400),
+    });
   } catch (error) {
     console.error('获取LOD分级开关失败:', error);
-    res.json({ enabled: true });
+    res.json({ enabled: true, near: 30, mid: 60, far: 400 });
   }
 });
 

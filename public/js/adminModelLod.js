@@ -64,10 +64,47 @@
     el.textContent = line;
   }
 
+  /** 分带距离输入框读写（二期 C：后台可调，默认 30/60/400） */
+  const DIST_INPUTS = [
+    { id: 'lod-near-dist', key: 'lod_near_dist', def: 30 },
+    { id: 'lod-mid-dist',  key: 'lod_mid_far_dist', def: 60 },
+    { id: 'lod-far-dist',  key: 'lod_far_dist', def: 400 },
+  ];
+
+  function fillDistInputs(ws) {
+    DIST_INPUTS.forEach((d) => {
+      const el = $(d.id);
+      if (el && ws && Number.isFinite(ws[d.key])) el.value = ws[d.key];
+    });
+  }
+
+  function readDistInputs() {
+    const out = {};
+    let near = 0; let mid = 0; let far = 0;
+    for (const d of DIST_INPUTS) {
+      const el = $(d.id);
+      if (!el || el.value === '') continue;
+      const n = parseInt(el.value, 10);
+      if (!Number.isFinite(n) || n <= 0) {
+        showMsg(`❌ 分带距离必须是正整数（${el.value || '空'} 无效）`, false);
+        return null;
+      }
+      if (d.id === 'lod-near-dist') near = n;
+      if (d.id === 'lod-mid-dist') mid = n;
+      if (d.id === 'lod-far-dist') far = n;
+      out[d.key] = n;
+    }
+    if (near && mid && near >= mid) { showMsg('❌ 高模带距离必须小于中模带距离', false); return null; }
+    if (mid && far && mid >= far) { showMsg('❌ 中模带距离必须小于低模带距离', false); return null; }
+    return out;
+  }
+
   async function loadLodStatus(silent) {
     try {
       const s = await jreq('GET', API + '/status');
       renderStatus(s);
+      // 分带距离随世界设置一起读取（失败不阻断状态展示）
+      try { fillDistInputs(await jreq('GET', WS_API)); } catch (e) { /* ignore */ }
       if (!silent) showMsg('✅ 状态已刷新', true);
       return s;
     } catch (e) {
@@ -81,22 +118,28 @@
     const cb = $('lod-enabled-checkbox');
     if (!cb) return;
     const enabled = !!cb.checked;
+    const dists = readDistInputs();
+    if (dists === null) return; // 校验失败已提示
     showMsg('保存中...', true);
     try {
-      // 只改开关：先取当前世界设置再整体 PUT，避免覆盖名称/URL/描述
+      // 只改 LOD 相关：先取当前世界设置再整体 PUT，避免覆盖名称/URL/描述
       const cur = await jreq('GET', WS_API);
       if (!cur.world_name || !cur.world_url) {
         showMsg('❌ 请先在「🌐 世界基础设置」中填写世界名称与世界URL', false);
         return;
       }
-      const r = await jreq('PUT', WS_API, {
+      const r = await jreq('PUT', WS_API, Object.assign({
         world_name: cur.world_name,
         world_url: cur.world_url,
         world_description: cur.world_description || '',
         lod_enabled: enabled,
-      });
+      }, dists));
       if (r && r.success) {
-        showMsg(enabled ? '✅ 已开启模型 LOD 分级渲染' : '✅ 已关闭模型 LOD（全部按高模渲染）', true);
+        showMsg(enabled
+          ? '✅ 已保存（LOD 开启，分带 ' + (dists.lod_near_dist || cur.lod_near_dist) + '/'
+            + (dists.lod_mid_far_dist || cur.lod_mid_far_dist) + '/'
+            + (dists.lod_far_dist || cur.lod_far_dist) + '，玩家端即时生效）'
+          : '✅ 已关闭模型 LOD（全部按高模渲染）', true);
       } else {
         showMsg('❌ ' + ((r && (r.error || r.details)) || '保存失败'), false);
       }

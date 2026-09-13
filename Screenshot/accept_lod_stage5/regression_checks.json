@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-11T15:36:09.294Z",
+  "at": "2026-09-13T02:35:20.968Z",
   "summary": {
     "biggestGroup": {
       "modelPath": "/models/uploaded/model-1787128800998-826965010_dec.glb",
@@ -39,7 +39,7 @@
       "id": "R2",
       "title": "geometry batcher produced batches in dense area",
       "pass": true,
-      "detail": "{\"batchedObjects\":359,\"batches\":84,\"instances\":1416,\"culled\":0,\"cullDist\":200,\"editMode\":false}"
+      "detail": "{\"batchedObjects\":359,\"batches\":84,\"instances\":1392,\"culled\":0,\"cullDist\":200,\"editMode\":false}"
     },
     {
       "id": "R2",
@@ -63,19 +63,19 @@
       "id": "R3",
       "title": "media unload when far (no lingering video element)",
       "pass": true,
-      "detail": "{\"videos\":0} (loadedObjects=43)"
+      "detail": "{\"videos\":0} (loadedObjects=60)"
     },
     {
       "id": "R6",
       "title": "LOD three bands cover all instances of biggest merge group",
       "pass": true,
-      "detail": "{\"lodEnabled\":true,\"instances\":60,\"counts\":{\"high\":57,\"mid\":3,\"low\":0},\"midTemplates\":1,\"lowTemplates\":1,\"farLimit\":400} (group=72 instances, path=model-1787128800998-826965010_dec.glb)"
+      "detail": "{\"lodEnabled\":true,\"instances\":54,\"counts\":{\"high\":12,\"mid\":12,\"low\":30},\"midTemplates\":1,\"lowTemplates\":1,\"farLimit\":50} (group=72 instances, path=model-1787128800998-826965010_dec.glb)"
     },
     {
       "id": "R5",
       "title": "guest client joins -> player count grows",
       "pass": true,
-      "detail": "before=1 after=2 guest=guest_1789140965344_icegmp"
+      "detail": "before=1 after=2 guest=guest_1789266920187_5xu7od"
     },
     {
       "id": "R5",
@@ -87,7 +87,7 @@
       "id": "R7",
       "title": "0 console error in regression session (noise classified)",
       "pass": true,
-      "detail": "console=0 pageerror=0 localFailed=0 (probe404=7 aborted=59)"
+      "detail": "console=0 pageerror=0 localFailed=0 (probe404=0 aborted=46)"
     }
   ]
 }

@@ -26,8 +26,8 @@
  *   5. 阴影全局已禁用，InstancedMesh 的 castShadow/receiveShadow 置 false，
  *      避免未来开启阴影时整组误投影
  * 6. 视距裁剪：每帧按玩家距离更新可见实例数，远距离实例不渲染（顶点+片元双省）
- * 7. LOD 三带（阶段 4）：同组内按【玩家到模型表面】距离分带写 count ——
- *      ≤40m 高模 | 40~200m 中模（_mid.glb，缺则回退高模）| 200~400m 低模（_lod.glb，缺则蓝方块）
+ * 7. LOD 三带（阶段 4；边界 2026-09-12 改为 30/60/400）：同组内按【玩家到模型表面】距离分带写 count ——
+ *      ≤30m 高模 | 30~60m 中模（_mid.glb，缺则回退高模）| 60~400m 低模（_lod.glb，缺则蓝方块）
  *    · 变体由 worldLodAssets.js 异步探测+加载（HEAD 命中才下载），接入同组追加 count=0 的
  *      InstancedMesh，绝不阻塞合批；组解散/重建时丢弃并释放
  *    · 开关关闭（GET /api/config/lod-enabled 为 false）或变体缺失 = 完全维持改动前行为
@@ -45,13 +45,25 @@
   const MAX_RENDER_DIST = 200;  // 视距裁剪半径（米），仅渲染该距离内的实例
   const CULL_MARK = '__culledByDist'; // 未合批对象被视距裁剪摘除场景的标记
 
-  // ===== LOD 三带（模型 LOD 三版方案 · 阶段 4）=====
-  //   ≤40m 高模 | 40~200m 中模（缺变体回退高模）| 200~400m 低模（缺变体回退蓝方块）| >400m 蓝方块
+  // ===== LOD 三带（模型 LOD 三版方案 · 阶段 4；分带边界 2026-09-12 起后台可调，默认 30/60/400）=====
+  //   ≤near 高模 | near~mid 中模（缺变体回退高模）| mid~far 低模（缺变体回退蓝方块）| >far 蓝方块
   //   开关关闭 或 该组无 _mid/_lod 时 = 完全维持改动前行为（≤200m 高模 / >200m 蓝方块）
   //   距离口径与既有裁剪一致：玩家到【模型表面】的距离（锚点距离 − 同源外接半径）
-  const LOD_NEAR_DIST = 40;
-  const LOD_MID_FAR_DIST = 200;
-  const LOD_FAR_DIST = 400;
+  //   分带值由 worldLodAssets.fetchEnabled() 从 /api/config/lod-enabled 下发（后台「本世界模型设置」），
+  //   每帧动态读取 → 后台改距离并保存后玩家端即时生效，无需刷新
+  const LOD_DEFAULT_BANDS = { near: 30, mid: 60, far: 400 };
+  function bandNear() {
+    const v = window.WorldLodAssets && window.WorldLodAssets.NEAR_DIST;
+    return (Number.isFinite(v) && v > 0) ? v : LOD_DEFAULT_BANDS.near;
+  }
+  function bandMid() {
+    const v = window.WorldLodAssets && window.WorldLodAssets.MID_FAR_DIST;
+    return (Number.isFinite(v) && v > 0) ? v : LOD_DEFAULT_BANDS.mid;
+  }
+  function bandFar() {
+    const v = window.WorldLodAssets && window.WorldLodAssets.FAR_DIST;
+    return (Number.isFinite(v) && v > 0) ? v : LOD_DEFAULT_BANDS.far;
+  }
   const LOD_TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'bumpMap', 'alphaMap', 'specularMap', 'lightMap'];
 
   // ===== 状态 =====
@@ -140,7 +152,9 @@
       templates.push({
         geometry: child.geometry,
         material: cloneMaterial(mat),
-        relativeMatrix: new THREE.Matrix4().multiplyMatrices(rootInverse, child.matrixWorld)
+        relativeMatrix: new THREE.Matrix4().multiplyMatrices(rootInverse, child.matrixWorld),
+        // 二期「变体复用高模贴图」：变体网格按节点名借用高模材质（名称规则与 gltfpack -kn 一致）
+        name: child.name || (child.parent && child.parent.name) || ''
       });
     });
     return aborted ? [] : templates;
@@ -267,21 +281,40 @@
     try {
       const templates = buildMeshTemplates(scene, rec.url);
       if (!templates.length) { disposeObject3D(scene); return; }
+
+      // 二期「变体复用高模贴图」（2026-09-12 实测：变体各自内嵌整套贴图 → 每模型 3 份显存）：
+      // 变体网格按节点名借用高模材质（Material.clone 共享 Texture 对象 → 零额外显存），
+      // 变体自带材质与贴图立即 dispose。对不上名的网格回退用自带材质（此时变体文件须仍带贴图）。
+      const highByName = new Map();
+      rec.templates.forEach((t) => { if (t.name && !highByName.has(t.name)) highByName.set(t.name, t); });
+      const sameCount = rec.templates.length === templates.length;
+      const sharedFlags = templates.map((tpl, i) => {
+        const high = highByName.get(tpl.name) || (sameCount ? rec.templates[i] : null);
+        if (!high || !high.material) return false;
+        const own = tpl.material;
+        tpl.material = cloneMaterial(high.material);
+        disposeMaterialTextures(own);   // 变体自带贴图不再需要 → 立即释放显存
+        disposeMaterial(own);
+        return true;
+      });
+
       const ims = [];
-      templates.forEach((tpl) => {
+      templates.forEach((tpl, i) => {
         const im = new THREE.InstancedMesh(tpl.geometry, tpl.material, rec.instanceCount);
         im.frustumCulled = false;
         im.castShadow = false;
         im.receiveShadow = false;
         im.count = 0;                       // 由 runCull 按距离分带写入
         im.userData.__lodLevel = level;
+        im.userData.__sharedMat = sharedFlags[i]; // 解散时共享材质不 dispose 贴图（贴图归高模所有）
         rec.group.add(im);
         ims.push(im);
       });
       rec.lod[level] = { templates, ims };
       rec.bandCache = { high: null, mid: null, low: null };  // 三带归属已变化 → 强制下帧重算
-      if (level === 'low') rec.farLimit = LOD_FAR_DIST;      // 低模就绪：远界 200 → 400
-      console.log(`[LOD] ${level} 带接入 ${rec.url.slice(-32)}：${ims.length} 个 InstancedMesh`);
+      if (level === 'low') rec.farLimit = bandFar();         // 低模就绪：远界升到后台配置的低模带
+      const sharedN = sharedFlags.filter(Boolean).length;
+      console.log(`[LOD] ${level} 带接入 ${rec.url.slice(-32)}：${ims.length} 个 InstancedMesh（复用高模材质 ${sharedN}/${ims.length}）`);
     } catch (e) {
       console.warn('[LOD] 接入变体失败（回退高模）:', e.message);
     }
@@ -326,9 +359,11 @@
     rec.group.children.forEach((im) => {
       const isLod = im.userData && (im.userData.__lodLevel === 'mid' || im.userData.__lodLevel === 'low');
       if (isLod && !keepLodAssets) {
-        // 变体几何/贴图由本模块加载且独占（不与高模、texOpt 缓存共享）→ 真正解散时释放，防泄漏
+        // 变体几何由本模块加载且独占（不与高模、texOpt 缓存共享）→ 真正解散时释放，防泄漏
         if (im.geometry && im.geometry.dispose) im.geometry.dispose();
-        disposeMaterialTextures(im.material);
+        // 贴图归属：复用高模材质（__sharedMat=true）的贴图属于高模/texOpt 缓存，绝不能 dispose；
+        // 仅对仍用变体自带材质（对不上名回退）的网格释放贴图
+        if (!im.userData.__sharedMat) disposeMaterialTextures(im.material);
       }
       // 高模几何由 texOpt 缓存引用计数管理，绝不能 dispose；材质为克隆，总是可释放
       disposeMaterial(im.material);
@@ -567,10 +602,13 @@
       const midReady = !!(rec.lod.mid && rec.lod.mid.ims && rec.lod.mid.ims.length);
       const lowReady = !!(rec.lod.low && rec.lod.low.ims && rec.lod.low.ims.length);
       const lodOn = !!(window.WorldLodAssets && window.WorldLodAssets.isEnabled());
-      // 远界：低模就绪才放到 400m，否则维持 200m（未就绪部分由蓝方块表示）
-      rec.farLimit = (lodOn && lowReady) ? LOD_FAR_DIST : MAX_RENDER_DIST;
+      // 远界：低模就绪 = 后台配置的低模带距离；低模缺失 = 封顶在 min(配置距离, 200m)，
+      // 缺失部分的几何由高模兜底渲染（若不封顶，配置拉大时缺低模的组会用高模渲染到很远，
+      // 2026-09-12 实测：7 组缺低模导致 232 实例高模渲染、GPU 不降）
+      rec.farLimit = !lodOn ? MAX_RENDER_DIST
+        : (lowReady ? bandFar() : Math.min(bandFar(), MAX_RENDER_DIST));
       const farLimit = rec.farLimit;
-      const nearLimit = lodOn ? LOD_NEAR_DIST : MAX_RENDER_DIST;
+      const nearLimit = lodOn ? bandNear() : MAX_RENDER_DIST;
 
       const highIdx = [];
       const midIdx = [];
@@ -582,8 +620,8 @@
         const surface = Math.sqrt(dx * dx + dy * dy + dz * dz) - r;
         if (surface > farLimit) continue;                       // 远界外：不渲染（蓝方块表示"这里有东西"）
         if (surface <= nearLimit) { highIdx.push(i); continue; } // ≤40m（或未启用 LOD 时的 ≤200m）
-        if (midReady && surface <= LOD_MID_FAR_DIST) { midIdx.push(i); continue; }
-        if (lowReady && surface <= LOD_FAR_DIST) { lowIdx.push(i); continue; }
+        if (midReady && surface <= bandMid()) { midIdx.push(i); continue; }
+        if (lowReady && surface <= bandFar()) { lowIdx.push(i); continue; }
         highIdx.push(i);                                        // 变体缺失 → 高模兜底
       }
 
@@ -698,6 +736,8 @@
       return { lodEnabled: !!(window.WorldLodAssets && window.WorldLodAssets.isEnabled()), groups: out };
     },
     rescan: scanAndMerge,
+    /** 三期（散装 LOD）：某 URL 是否已被合批接管（散装模块据此跳过，避免双渲染竞争） */
+    isMergedUrl: function (url) { return mergedGroups.has(url); },
     /** 把指定模型从合批组排除并恢复独立渲染（供编辑模式选中被合批对象时调用） */
     excludeModel: function (model) {
       const world = findWorld();
@@ -726,8 +766,8 @@
         threshold: MERGE_THRESHOLD,
         maxDist: MAX_RENDER_DIST,
         lodEnabled: !!(window.WorldLodAssets && window.WorldLodAssets.isEnabled()),
-        lodNearDist: LOD_NEAR_DIST,
-        lodFarDist: LOD_FAR_DIST,
+        lodNearDist: bandNear(),
+        lodFarDist: bandFar(),
         groupsWithMid: midGroups,
         groupsWithLow: lowGroups
       });

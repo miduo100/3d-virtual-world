@@ -2428,6 +2428,21 @@
               <span>启用 LOD 分级渲染（关闭后全部使用高模）</span>
             </label>
           </div>
+          <div class="form-group">
+            <label>分带距离（米，按“玩家到模型表面”的距离）</label>
+            <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;">
+                <input type="number" id="lod-near-dist" min="5" max="150" step="1" style="width:80px;">≤ 高模
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;">
+                <input type="number" id="lod-mid-dist" min="10" max="300" step="1" style="width:80px;">≤ 中模
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;">
+                <input type="number" id="lod-far-dist" min="50" max="2000" step="1" style="width:80px;">≤ 低模，超出显示蓝方块
+              </label>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px">需满足：高模带 &lt; 中模带 &lt; 低模带（默认 30 / 60 / 400）。保存后玩家端即时生效，无需刷新页面。</div>
+          </div>
           <div id="lod-save-msg" style="display:none;margin-bottom:12px;padding:9px 13px;border-radius:6px;font-size:13px"></div>
           <div id="lod-status-line" style="font-size:13px;color:var(--muted);margin-bottom:12px;">📊 正在读取模型统计...</div>
           <div class="btn-group">
@@ -3591,7 +3606,7 @@
 <script src="js/adminFederationTrust.js" defer></script>
 <script src="js/adminProfile.js" defer></script>
 <script src="js/adminSky.js" defer></script>
-<script src="js/adminModelLod.js?v=1" defer></script>
+<script src="js/adminModelLod.js?v=2" defer></script>
 <script>
   // ===== 认证 =====
   document.addEventListener('DOMContentLoaded', function checkAdminAuth() {

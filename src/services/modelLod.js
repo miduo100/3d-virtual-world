@@ -4,7 +4,7 @@
  * 规格（冻结，见《LOD三版模型方案-开发规划与规范.md》第 2 节）：
  *   基准名 = 生效文件名去掉末尾的 _dec.glb 或 .glb
  *   中模   = 基准名 + '_mid.glb'（gltfpack -si 0.25）
- *   低模   = 基准名 + '_lod.glb'（gltfpack -si 0.1）
+ *   低模   = 基准名 + '_lod.glb'（gltfpack -si 0.01 -sa 激进简化，2026-09-12 二期收尾决策）
  *   源模型面数 < 5000 → 不生成；输出面数 < 300 或未小于源 → 判无效并清理
  *   收益闸门：低模面数 ≥ 中模面数 → 判无效（reason: no-benefit-vs-mid），不落盘
  *   幂等：已存在的中/低模文件直接跳过（force=true 才重做）
@@ -21,11 +21,20 @@
 const path = require('path');
 const fs = require('fs');
 const { runPack } = require('./modelDecimate');
+const { stripVariantTextures } = require('./glbTextureStripper');
 
 const MID_RATIO = '0.25';
-const LOW_RATIO = '0.1';
+// 低模激进简化（2026-09-12 二期收尾实验，用户决策「方案 1 全量改」）：
+// 红军族 _dec 已二次减面到 ~8k 面，无 -sa 时 gltfpack 拓扑下限 ~3900 面（-si 0.05~0.005 实测完全不变）；
+// 加 -sa（aggressive）后实测 8099→28 面 / 7599→29 面（0.3~0.4%），包围盒保留、未退化。
+// -sa 模式下 -si 比例值不再影响结果（0.01 与 0.005 输出相同），取 0.01 即可。
+const LOW_RATIO = '0.01';
+const LOW_EXTRA_ARGS = ['-sa'];
 const MIN_SOURCE_TRIS = 5000;   // 源模型面数下限（低于此值不做 LOD）
-const MIN_OUTPUT_TRIS = 300;    // 输出面数下限（低于此值判无效）
+// 输出面数下限（低于此值判无效）。低模改 -sa 激进简化后实测 ~28~29 面（2026-09-12），
+// 旧值 300 会把激进低模误杀（too-few-tris），按用户「100 面量级也要」的决策放宽到 16；
+// 中模输出数千面，不受此值影响。
+const MIN_OUTPUT_TRIS = 16;
 const MID_SUFFIX = '_mid.glb';
 const LOW_SUFFIX = '_lod.glb';
 // 低模收益余量：低模面数 ≥ 中模 × MARGIN 即判无效、不落盘。
@@ -47,6 +56,16 @@ const UPLOAD_DIR = path.join(PUBLIC_DIR, 'models', 'uploaded');
 const MAX_WALK_DEPTH = 3;
 
 let gltfpackUnavailableWarned = false;
+
+/** 字节数格式化（日志用） */
+function fmtBytes(n) {
+  if (!Number.isFinite(n) || n <= 0) return '0B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let i = 0;
+  let v = n;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(1)}${units[i]}`;
+}
 
 /**
  * 统计 GLB 三角面数（只读文件头部 JSON chunk，不加载 BIN，避免大文件整读）
@@ -70,7 +89,11 @@ function countTrisExact(absPath) {
     let total = 0;
     (json.meshes || []).forEach((m) => {
       (m.primitives || []).forEach((pr) => {
-        const idx = pr.index !== undefined && accessors[pr.index] ? accessors[pr.index].count : 0;
+        // ⚠️ glTF 规范字段是 pr.indices（复数）。曾误写 pr.index（单数）导致永远取不到，
+        // 静默回退 POSITION/3 —— 对带索引的模型会低估面数数倍
+        //（实测教室「女生3」：索引 4,499,166/3=150 万面 vs POSITION/3=29.9 万，差 5 倍）。
+        // 2026-09-13 教室热点排查时修正。
+        const idx = pr.indices !== undefined && accessors[pr.indices] ? accessors[pr.indices].count : 0;
         const pos = pr.attributes && pr.attributes.POSITION !== undefined && accessors[pr.attributes.POSITION]
           ? accessors[pr.attributes.POSITION].count
           : 0;
@@ -135,16 +158,20 @@ async function _safeUnlink(p) {
 /**
  * 生成单个变体（先写 .tmp.glb，校验通过再 rename 覆盖目标，失败清理 tmp）
  * @param {object|null} [benefitRef] 收益参照（如低模须小于中模）：{ tris, label }
+ * @param {string[]} [extraArgs] 传给 gltfpack 的追加参数（低模 ['-sa']）
  * @returns {Promise<{status:'generated'|'exists'|'failed', path:string, tris?:number, ratio?:number, reason?:string, error?:string}>}
  */
-async function _generateOne(srcPath, dstPath, ratio, sourceTris, force, benefitRef) {
+async function _generateOne(srcPath, dstPath, ratio, sourceTris, force, benefitRef, extraArgs) {
   if (fs.existsSync(dstPath) && !force) {
+    // 幂等补剥：存量变体（贴图剥离上线前生成）在再次触发生成时补一次剥离（已剥过的幂等跳过）
+    const fixup = await stripVariantTextures(dstPath, { sourcePath: srcPath });
+    if (fixup.ok) console.log(`[modelLod] 变体贴图补剥 ${path.basename(dstPath)}: ${fmtBytes(fixup.saved)}`);
     return { status: 'exists', path: dstPath, tris: countTrisExact(dstPath) };
   }
   const tmpPath = dstPath + '.tmp.glb';
   try {
     await _safeUnlink(tmpPath);
-    await runPack(srcPath, tmpPath, ratio);
+    await runPack(srcPath, tmpPath, ratio, extraArgs);
 
     if (!fs.existsSync(tmpPath)) {
       return { status: 'failed', path: dstPath, reason: 'no-output' };
@@ -165,6 +192,10 @@ async function _generateOne(srcPath, dstPath, ratio, sourceTris, force, benefitR
         tris: outTris, refTris: benefitRef.tris,
       };
     }
+    // 二期「变体复用高模贴图」：变体文件只留几何，贴图由前端按节点名借用高模材质。
+    // 剥离失败（闸门拦截/解析失败）不影响变体落盘，只是该变体多带一份贴图。
+    const stripped = await stripVariantTextures(tmpPath, { sourcePath: srcPath });
+    if (stripped.ok) console.log(`[modelLod] 变体贴图已剥离 ${path.basename(dstPath)}: ${fmtBytes(stripped.saved)}`);
     await fs.promises.rename(tmpPath, dstPath);
     return { status: 'generated', path: dstPath, tris: outTris, ratio: +(outTris / sourceTris).toFixed(3) };
   } catch (e) {
@@ -211,7 +242,8 @@ async function generateLodVariants(absPath, { force = false } = {}) {
       : 0;
     variants.low = await _generateOne(
       srcPath, base.lowPath, LOW_RATIO, sourceTris, force,
-      midTris > 0 ? { tris: midTris, label: 'mid', margin: LOW_BENEFIT_MARGIN } : null
+      midTris > 0 ? { tris: midTris, label: 'mid', margin: LOW_BENEFIT_MARGIN } : null,
+      LOW_EXTRA_ARGS
     );
     // 低模「已判定无收益」标记：落盘成功则清除标记；被收益闸门拦下则留下标记；
     // 其它失败原因（error / too-few-tris / not-reduced / no-output）不写标记 ——
@@ -446,6 +478,7 @@ module.exports = {
   countTrisExact,
   MID_RATIO,
   LOW_RATIO,
+  LOW_EXTRA_ARGS,
   LOW_BENEFIT_MARGIN,
   MIN_SOURCE_TRIS,
   MIN_OUTPUT_TRIS,

@@ -22,6 +22,10 @@
 
   let _enabled = true;
   let _fetched = false;
+  // 分带距离（二期 C：后台「本世界模型设置」可调，随 /lod-enabled 下发；缺省 30/60/400）
+  let _near = 30;
+  let _mid = 60;
+  let _far = 400;
 
   function slot(url, level) {
     if (!cache.has(url)) cache.set(url, { mid: { state: 'idle', scene: null }, low: { state: 'idle', scene: null } });
@@ -37,18 +41,40 @@
   }
 
   /** 读取开关（只取一次；失败默认开启 —— 后端不可用不应导致世界没有 LOD） */
+  function applyRemote(j) {
+    const prev = `${_enabled}|${_near}|${_mid}|${_far}`;
+    _enabled = !(j && j.enabled === false);
+    if (j && Number.isFinite(j.near) && j.near > 0) _near = j.near;
+    if (j && Number.isFinite(j.mid) && j.mid > 0) _mid = j.mid;
+    if (j && Number.isFinite(j.far) && j.far > 0) _far = j.far;
+    window.__LOD_ENABLED = _enabled;
+    window.__LOD_BANDS = { near: _near, mid: _mid, far: _far };
+    const cur = `${_enabled}|${_near}|${_mid}|${_far}`;
+    if (cur !== prev) {
+      console.log('[LOD] 配置已更新（后台修改自动跟进）:', _enabled ? '开启' : '关闭',
+        `| 分带: 高≤${_near}m / 中≤${_mid}m / 低≤${_far}m`);
+    }
+  }
+
   async function fetchEnabled() {
     if (_fetched) return _enabled;
     _fetched = true;
     try {
       const r = await fetch('/api/config/lod-enabled', { cache: 'no-store' });
-      const j = await r.json();
-      _enabled = !(j && j.enabled === false);
+      applyRemote(await r.json());
     } catch (e) {
       _enabled = true;
     }
-    window.__LOD_ENABLED = _enabled;
-    console.log('[LOD] 分级渲染开关:', _enabled ? '开启' : '关闭（全部按高模渲染）');
+    // 二期 C 补丁（2026-09-12）：后台改分带距离后，已打开的玩家端 60s 内自动跟进，
+    // 无需刷新页面（此前只在页面加载时读一次，已打开的客户端会一直用旧值）
+    setInterval(() => {
+      fetch('/api/config/lod-enabled', { cache: 'no-store' })
+        .then((r) => r.json())
+        .then(applyRemote)
+        .catch(() => { /* 静默：下次轮询再试 */ });
+    }, 60000);
+    console.log('[LOD] 分级渲染开关:', _enabled ? '开启' : '关闭（全部按高模渲染）',
+      `| 分带: 高≤${_near}m / 中≤${_mid}m / 低≤${_far}m`);
     return _enabled;
   }
 
@@ -126,9 +152,10 @@
   }
 
   window.WorldLodAssets = {
-    NEAR_DIST: 40,       // ≤40m 高模
-    MID_FAR_DIST: 200,   // 40~200m 中模
-    FAR_DIST: 400,       // 200~400m 低模（低模缺失时按 MID_FAR_DIST 处理）
+    /** 分带距离（getter：随后台配置动态变化，worldInstanceMerger_v2 每帧读取） */
+    get NEAR_DIST() { return _near; },   // ≤near 高模
+    get MID_FAR_DIST() { return _mid; }, // near~mid 中模
+    get FAR_DIST() { return _far; },     // mid~far 低模（低模缺失时按 MID_FAR_DIST 处理；>far 蓝方块）
     fetchEnabled,
     isEnabled: () => _enabled,
     /** 运行时开关（测试/调试用；返回旧值） */

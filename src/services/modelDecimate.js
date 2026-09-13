@@ -29,18 +29,22 @@ function _getGltfpack() {
   }
 }
 
-/** 统计 GLB 三角面数（POSITION accessor count/3，与 decimate_redarmy_models.js 一致） */
+/** 统计 GLB 三角面数（优先 indices/3；无索引退化 POSITION/3。
+ *  ⚠️ 曾只算 POSITION/3，对带索引模型低估数倍（2026-09-13 教室热点排查修正） */
 function countTris(absPath) {
   try {
     const buf = fs.readFileSync(absPath);
     if (buf.length < 20 || buf.readUInt32LE(0) !== 0x46546c67) return 0; // 'glTF'
     const jsonLen = buf.readUInt32LE(12);
     const json = JSON.parse(buf.slice(20, 20 + jsonLen).toString('utf8'));
+    const accessors = json.accessors || [];
     let total = 0;
     (json.meshes || []).forEach((m) => {
       (m.primitives || []).forEach((pr) => {
+        const idx = pr.indices !== undefined && accessors[pr.indices] ? accessors[pr.indices].count : 0;
         const pi = pr.attributes && pr.attributes.POSITION;
-        if (pi !== undefined) total += Math.floor(json.accessors[pi].count / 3);
+        if (idx > 0) total += Math.floor(idx / 3);
+        else if (pi !== undefined) total += Math.floor(accessors[pi].count / 3);
       });
     });
     return total;
@@ -56,15 +60,16 @@ function _pickRatio(tris) {
   return '0.3';
 }
 
-/** 用 gltfpack 文件接口执行减面（参数与已验证的 decimate_redarmy_models.js 一致） */
-async function _runPack(src, dst, ratio) {
+/** 用 gltfpack 文件接口执行减面（参数与已验证的 decimate_redarmy_models.js 一致）
+ *  @param {string[]} [extraArgs] 追加的 gltfpack 参数（如 ['-sa']，LOD 低模激进简化用） */
+async function _runPack(src, dst, ratio, extraArgs) {
   const gp = _getGltfpack();
   if (!gp) throw new Error('gltfpack 不可用');
   const iface = {
     read: (p) => fs.readFileSync(p),
     write: (p, d) => fs.writeFileSync(p, d),
   };
-  return gp.pack(['-i', src, '-o', dst, '-si', ratio, '-kn', '-km'], iface);
+  return gp.pack(['-i', src, '-o', dst, '-kn', '-km', '-si', ratio, ...(extraArgs || [])], iface);
 }
 
 /**
