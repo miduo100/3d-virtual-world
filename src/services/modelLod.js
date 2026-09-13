@@ -24,11 +24,13 @@ const { runPack } = require('./modelDecimate');
 const { stripVariantTextures } = require('./glbTextureStripper');
 
 const MID_RATIO = '0.25';
-// 低模激进简化（2026-09-12 二期收尾实验，用户决策「方案 1 全量改」）：
-// 红军族 _dec 已二次减面到 ~8k 面，无 -sa 时 gltfpack 拓扑下限 ~3900 面（-si 0.05~0.005 实测完全不变）；
-// 加 -sa（aggressive）后实测 8099→28 面 / 7599→29 面（0.3~0.4%），包围盒保留、未退化。
-// -sa 模式下 -si 比例值不再影响结果（0.01 与 0.005 输出相同），取 0.01 即可。
-const LOW_RATIO = '0.01';
+// 低模样式标准（2026-09-13 用户决策）：「低模要有低模的样子——100 面以内，以后所有低模都按这个来」。
+// gltfpack 无绝对面数参数：pass1 用 min(0.01, 100/源面数) 定向比例；若仍 >100 面，
+// 对输出迭代 -sa（最多 LOW_MAX_PASSES 轮，进度 <5% 视为触底）。实测简化器会锁定
+// 网格边界顶点（UV 缝/开口边），部分模型触底下限约 150~550 面——此时即为该标准的
+// 实现口径（能压多低压多少），不再徒劳空转。
+const LOW_TARGET_FACES = 100;
+const LOW_MAX_PASSES = 4;
 const LOW_EXTRA_ARGS = ['-sa'];
 const MIN_SOURCE_TRIS = 5000;   // 源模型面数下限（低于此值不做 LOD）
 // 输出面数下限（低于此值判无效）。低模改 -sa 激进简化后实测 ~28~29 面（2026-09-12），
@@ -209,6 +211,77 @@ async function _generateOne(srcPath, dstPath, ratio, sourceTris, force, benefitR
 }
 
 /**
+ * 生成低模（低模样式标准：目标 ≤100 面）。
+ * pass1 用 min(0.01, 100/源面数) 定向比例；仍 >100 面则对输出迭代 -sa
+ * （最多 LOW_MAX_PASSES 轮，进度 <5% 视为触底停）。触底下限（锁定边界顶点所致）
+ * 即为该模型的极限，如实落盘。
+ * @param {object|null} [benefitRef] 收益参照（低模须小于中模）：{ tris, label }
+ */
+async function _generateLow(srcPath, dstPath, sourceTris, force, benefitRef) {
+  if (fs.existsSync(dstPath) && !force) {
+    // 幂等补剥（与 _generateOne 同口径）
+    const fixup = await stripVariantTextures(dstPath, { sourcePath: srcPath });
+    if (fixup.ok) console.log(`[modelLod] 变体贴图补剥 ${path.basename(dstPath)}: ${fmtBytes(fixup.saved)}`);
+    return { status: 'exists', path: dstPath, tris: countTrisExact(dstPath) };
+  }
+  const tmpA = dstPath + '.tmp.glb';
+  const tmpB = dstPath + '.tmp2.glb';
+  try {
+    await _safeUnlink(tmpA);
+    await _safeUnlink(tmpB);
+    // pass1：定向比例（源越大比例越小，目标 LOW_TARGET_FACES 面）
+    const r1 = Math.min(0.01, LOW_TARGET_FACES / Math.max(sourceTris, 1)).toFixed(6);
+    await runPack(srcPath, tmpA, r1, LOW_EXTRA_ARGS);
+    if (!fs.existsSync(tmpA)) return { status: 'failed', path: dstPath, reason: 'no-output' };
+    let tris = countTrisExact(tmpA);
+    let cur = tmpA;
+    // pass2+：对上一轮输出迭代 -sa，直到 ≤ 目标或触底
+    for (let pass = 2; pass <= LOW_MAX_PASSES && tris > LOW_TARGET_FACES; pass++) {
+      const before = tris;
+      const next = (cur === tmpA) ? tmpB : tmpA;
+      await _safeUnlink(next);
+      try {
+        await runPack(cur, next, '0.0001', LOW_EXTRA_ARGS);
+      } catch (e) { break; }
+      if (!fs.existsSync(next)) break;
+      const t2 = countTrisExact(next);
+      if (t2 <= 0 || t2 >= before * 0.95) { await _safeUnlink(next); break; } // 无有效进展
+      cur = next;
+      tris = t2;
+    }
+    if (tris < MIN_OUTPUT_TRIS) {
+      await _safeUnlink(tmpA); await _safeUnlink(tmpB);
+      return { status: 'failed', path: dstPath, reason: 'too-few-tris', tris };
+    }
+    if (tris >= sourceTris) {
+      await _safeUnlink(tmpA); await _safeUnlink(tmpB);
+      return { status: 'failed', path: dstPath, reason: 'not-reduced', tris };
+    }
+    if (benefitRef && benefitRef.tris > 0 && tris >= benefitRef.tris * (benefitRef.margin || 1)) {
+      await _safeUnlink(tmpA); await _safeUnlink(tmpB);
+      return {
+        status: 'failed', path: dstPath, reason: `no-benefit-vs-${benefitRef.label}`,
+        tris, refTris: benefitRef.tris,
+      };
+    }
+    // 最终输出剥贴图（借高模材质，二期 A 口径）
+    const stripped = await stripVariantTextures(cur, { sourcePath: srcPath });
+    if (stripped.ok) console.log(`[modelLod] 变体贴图已剥离 ${path.basename(dstPath)}: ${fmtBytes(stripped.saved)}`);
+    const stale = (cur === tmpA) ? tmpB : tmpA;
+    await _safeUnlink(stale);
+    await fs.promises.rename(cur, dstPath);
+    return { status: 'generated', path: dstPath, tris, ratio: +(tris / sourceTris).toFixed(3) };
+  } catch (e) {
+    await _safeUnlink(tmpA); await _safeUnlink(tmpB);
+    if (/gltfpack 不可用/.test(e.message) && !gltfpackUnavailableWarned) {
+      gltfpackUnavailableWarned = true;
+      console.warn('[modelLod] gltfpack 不可用，LOD 生成已跳过');
+    }
+    return { status: 'failed', path: dstPath, reason: 'error', error: e.message };
+  }
+}
+
+/**
  * 幂等生成中/低模两个变体（绝不抛异常）
  * @param {string} absPath 生效模型文件的绝对路径（原文件或 _dec.glb）
  * @param {object} [opts]
@@ -240,10 +313,9 @@ async function generateLodVariants(absPath, { force = false } = {}) {
     const midTris = (variants.mid.status === 'generated' || variants.mid.status === 'exists')
       ? (variants.mid.tris || countTrisExact(base.midPath))
       : 0;
-    variants.low = await _generateOne(
-      srcPath, base.lowPath, LOW_RATIO, sourceTris, force,
-      midTris > 0 ? { tris: midTris, label: 'mid', margin: LOW_BENEFIT_MARGIN } : null,
-      LOW_EXTRA_ARGS
+    variants.low = await _generateLow(
+      srcPath, base.lowPath, sourceTris, force,
+      midTris > 0 ? { tris: midTris, label: 'mid', margin: LOW_BENEFIT_MARGIN } : null
     );
     // 低模「已判定无收益」标记：落盘成功则清除标记；被收益闸门拦下则留下标记；
     // 其它失败原因（error / too-few-tris / not-reduced / no-output）不写标记 ——
@@ -477,7 +549,8 @@ module.exports = {
   batchGenerateMissing,
   countTrisExact,
   MID_RATIO,
-  LOW_RATIO,
+  LOW_TARGET_FACES,
+  LOW_MAX_PASSES,
   LOW_EXTRA_ARGS,
   LOW_BENEFIT_MARGIN,
   MIN_SOURCE_TRIS,

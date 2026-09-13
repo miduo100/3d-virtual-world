@@ -480,6 +480,7 @@
 | 会话 2 | 跑验收 + 教室热点三点位三角数对比（LOD on/off）+ 生命周期 3 轮无泄漏（>60s 采样）+ LRU 生效 + 后台改分带 60s 跟进 + 新上传自动纳入 + stage6 23/23 与 stage5 回归 13/13 + 修 bug | ✅（2026-09-13，stage7 11/11 + stage7b 15/15 + 回归 23/23、13/13；三机位 -85.8%/-71.2%/-86.7%） |
 | 会话 3 | 收尾：进度表、8.1 部署清单增补（worldLodStandalone.js / accept 脚本）、git 提交 | ✅（并入会话 2 一并完成：进度表已更新、8.1 已增补、git 已提交） |
 | 会话 3 机动 | 用户实机反馈"教室学生模型没有中低、离远直接深蓝占位"（X:-29.1 Z:790.9）。排查结论：磁盘 38 对象全有变体、0 蒙皮；全新会话 headless 实测分带**完全正常**（女生 12m 即低模、>200m 才蓝方块）。定位出 **2 个会话态退化缺陷**并修复：① `worldLodStandalone.requestVariant` 的 `variantNone` 为永久标记——变体请求撞上服务器重启/网络抖动窗口的那批模型永久回退高模直到刷新页面（与"**这部分**模型没有中低"吻合）；② `worldObjectBounds.ensure` 在模型装配完成前算出的**脏盒被永久缓存**（无人调 invalidate/unregister），实测教室模型脏盒宽 ~155m——锚点在盒内→表面距恒 0 永远高模带，盒偏移则玩家在旁边也 >200m 蓝方块。修复：① 失败改 60s 冷却重试（`noneUntil`），资源侧 `worldLodAssets` 缓存槽 `none` 分级 TTL（404 缺失 10min / 错误 60s）；② 盒加锚点一致性抽检（2s 节流，锚点远离盒→丢弃重算，重算同盒→判定合法偏移锚点）+ 30s TTL 周期全量重算 + 脏盒自愈时回收 urlRadiusMap 被污染半径；`debugBox`/`frames` 诊断口，`worldLodStandalone.debug` 增 `cooling`。版本：worldLodAssets v5 / worldLodStandalone v2 / worldObjectBounds v3。**另**：accept 脚本 placeAt 竞态修复（传送后需等 runFrame 更新 dist 再读，否则反向修正越摆越远——A6/A7 假失败根因）；stage6 的一次性迁移报告改磁盘抽样降级。验收：stage7 **11/11** + stage7b **15/15** + stage6 **22/22** + 瞬时故障自愈专项 **3/3**（模拟服务器故障窗口毒化 7 模型 → 冷却到期自动重试 → 22 模型恢复低模显示）。**给用户**：改动生效需强刷（Ctrl+F5）；后台分带为 5/10/50 激进配置，50m 外合批组是蓝方块属配置内行为 | ✅（2026-09-13） |
+| 会话 3 机动 2 | 用户反馈"高/中/低视觉差距很小，低模与红军低模完全不同"。根因：全库 118 组三件套中仅红军 26 组是二期 E 激进低模，其余 92 组是一期旧参数（中=25%、低=10%），教室全在其中；变体借高模材质（二期 A）后三带唯一区别只剩几何密度→视觉无差。**用户决策：「低模要有低模的样式，100 面以内，以后所有低模都按这个来」**。实现：① `modelLod.js` 低模生成改目标面数迭代——pass1 用 `min(0.01, 100/源面数)` 定向比例，仍 >100 面则对输出最多 4 轮 `-sa` 级联（进度 <5% 触底停），`LOW_TARGET_FACES=100/LOW_MAX_PASSES=4`，新上传自动套用；② **新建** `scripts/lod_regen_low_100faces.js` 全量重生成 118 组（旧低模备份至 `_backup_low_100faces_before/` 47.6MB，失败自动回滚）。实测：**118/118 成功**，低模总面数 170.1 万→8.05 万（**-95%**），43/118 达成 ≤100 面，其余触工具下限 150~550 面（gltfpack 简化器锁定网格边界顶点/UV 缝所致，`-kn`、去 `-kn`、更小比例、多轮级联均无法再降——8k 源 28 面的红军记录源于其拓扑已被两轮减面焊接）；教室：女生 15 万→152~176 面、课桌→270~402、男生系→253~339、讲台→84、鲁迅/小钟→263~360。视觉验证：浏览器实渲染剪影可读、块面感明确（游戏内借高模贴图）。验收回归：stage7 11/11 + stage7b 15/15 + stage6 22/22。**注意**：.glb 走 30 天 immutable 缓存，老玩家需强刷一次才能拿到新低模 | ✅（2026-09-13） |
 
 ---
 
@@ -506,6 +507,8 @@
 | 前端 | `public/js/worldInstanceMerger_v2.js` | 4（三带写入 / 远界动态 / 变体生命周期）；二期 A（变体借高模材质 / `__sharedMat`）；三期（`isMergedUrl` 导出，v7） |
 | 前端 | `public/js/worldLodStandalone.js`（**新增**） | 三期（散装模型 LOD 分带渲染旁路模块；会话 3 机动：变体失败冷却重试） |
 | 前端 | `public/js/worldObjectBounds.js` | 三期会话 3 机动（脏盒自愈：锚点一致性抽检 + 30s TTL 周期重算 + debugBox 诊断口） |
+| 后端 | `src/services/modelLod.js` | 会话 3 机动 2（低模样式标准：`LOW_TARGET_FACES=100` 目标面数迭代生成，`LOW_MAX_PASSES=4`） |
+| 脚本 | `scripts/lod_regen_low_100faces.js`（**新增**） | 会话 3 机动 2（全量重生成低模至 100 面标准，失败回滚；存量重跑幂等） |
 | 前端 | `public/js/adminModelLod.js`（**新增**） | 3 |
 | 前端 | `public/admin.html` | 3（卡片标记 + 脚本引用 + `loadWorldSettings` 末尾钩子） |
 | 运维脚本（可选） | `scripts/lod_convert_all.js`（**新增**）、`scripts/lod_strip_variant_textures.js`（**新增**，二期 A 存量剥离）、`scripts/lod_generate_merged_groups.js`、`scripts/lod_backfill_low_variants.js`（二期 D）、`scripts/lod_regen_low_aggressive.js`（二期 E）、`scripts/accept_lod_stage1..7*.js` | 1~5 + 二期 A/D/E + 三期 |
