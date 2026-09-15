@@ -13,7 +13,7 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../database/db');
 const { authenticateAdminToken } = require('../middleware/adminAuth');
-const { scanStatus, batchGenerateMissing } = require('../services/modelLod');
+const { scanStatus, batchGenerateMissing, batchRegenByConfig } = require('../services/modelLod');
 
 const DEFAULT_LIMIT = 3;
 const MAX_LIMIT = 10;
@@ -65,6 +65,20 @@ router.post('/generate', async (req, res) => {
   } catch (error) {
     console.error('[modelLod] 批量生成失败:', error);
     res.status(500).json({ success: false, error: '批量生成失败', details: error.message });
+  }
+});
+
+// 按当前压缩标准重生成违规的存量变体（每批最多 limit 个，默认 3，上限 10）
+router.post('/regen', async (req, res) => {
+  try {
+    const raw = parseInt((req.body || {}).limit, 10);
+    const limit = Math.min(MAX_LIMIT, Math.max(1, Number.isFinite(raw) ? raw : DEFAULT_LIMIT));
+    const r = await batchRegenByConfig({ limit });
+    console.log(`[modelLod] 按标准重生成: limit=${limit} processed=${r.processed} succeeded=${r.succeeded} remaining=${r.remaining}`);
+    res.json({ success: true, limit, ...r });
+  } catch (error) {
+    console.error('[modelLod] 按标准重生成失败:', error);
+    res.status(500).json({ success: false, error: '按标准重生成失败', details: error.message });
   }
 });
 

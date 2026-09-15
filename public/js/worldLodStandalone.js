@@ -6,11 +6,24 @@
  *   84 对象共 11.42M 面（教室热点 60m 内 3.66M 面）完全不受分带管理。变体文件已备好
  *   （72/74 有 _mid/_lod 且已剥贴图），本模块补上散装的前端渲染路径。
  *
- * 分带（与合批共用后台「本世界模型设置」同一套 near/mid/far，WorldLodAssets getter 动态读取）：
+ * 分带（与合批共用后台「本世界模型设置」同一套 near/mid/far，WorldLodAssets getter 动态读取；
+ * 距离→层级映射唯一权威 = WorldLodAssets.resolveBand，后台改距离 60s 内免刷新生效）：
  *   ≤ near           高模
- *   near ~ mid       中模（缺 → 高模）
- *   mid ~ 200m       低模（缺 → 中模 → 高模），渲染到既有 200m 硬裁剪为止
- *   > 200m           维持现状：cullUnmerged 摘除 + 统一蓝方块（散装无专用方块段）
+ *   near ~ mid       中模（加载中 → 占位方块顶替，确认缺失 → 高模回退）
+ *   mid ~ far        低模（加载中 → 占位方块顶替，确认缺失 → 中模/高模回退；
+ *                    低模未就绪时远界封顶 min(far, 200)，与合批组一致）
+ *   > far（或 >200m）  占位方块：远界内走 PENDING_MARK；超 200m 交还 cullUnmerged 统一蓝方块
+ *
+ * 严格分带修复（2026-09-14）：
+ *   1. 变体「加载中」时不再以高模顶替——高模型摘出场景挂 __lodPending，
+ *      占位方块由合批模块 syncFarBoxes 统一显示（消除"先高后低"额外渲染）；
+ *   2. 变体「确认缺失/失败冷却」维持既有回退链（低缺→中、中缺→高）；
+ *   3. PlaceholderField.reveal 钩子：模型上屏即按当前距离分带，不等 2s 扫描；
+ *   4. releaseRec 不再把高模加回场景——被合批接管的源模型加回会造成
+ *      "独立高模 + 实例"双渲染且不受分带管理（异常 2 根因之一）；
+ *   5. 合批接管/候选 URL 的【新到货实例】在 reveal 上屏瞬间按距离分带预摘除
+ *      （2026-09-14 下午）：消除"新实例以独立高模裸渲染 ≤2s（等合批重建）
+ *      再变低模"的闪现——这是低模带观察红军区仍见高模闪的残根。
  *
  * 接管语义（与合批源一致，worldInstanceMerger_v2.cullUnmerged 已核查）：
  *   高模型被摘出场景且【不设 __culledByDist 标记】 → cullUnmerged/syncFarBoxes 视为
@@ -36,6 +49,11 @@
   var BOOT_RETRY = 500;
   var LRU_CAP_DEFAULT = 24;     // 变体展示对象缓存上限（中+低合计）
   var CULL_MARK = '__culledByDist';
+  // 「变体加载中，暂以占位方块顶替」标记（严格分带修复，2026-09-14）：
+  // 高模型被摘出场景且带此标记 → 合批模块 cullUnmerged 跳过（绝不加回），
+  // syncFarBoxes 统一画占位方块。变体就绪（showVariant）或玩家走近 ≤near
+  // （showHigh）时清除并恢复，失败冷却时按既有回退链恢复高/中模。
+  var PENDING_MARK = '__lodPending';
   // 变体失败冷却（三期会话3机动，2026-09-13）：此前 variantNone 为永久标记，
   // 瞬时失败（服务器重启窗口/网络抖动）会让该模型永久回退高模直到刷新页面。
   // 改为冷却重试：60s 后允许再次请求（资源侧另有 404/错误分级 TTL 防刷网络）。
@@ -187,6 +205,14 @@
   }
 
   // ===== 显示切换 =====
+  /** 清除本模块与候选预接管的"隐藏待渲染"标记（恢复高模/切显变体时调用） */
+  function clearPending(m) {
+    if (m && m.userData) {
+      delete m.userData[PENDING_MARK];
+      delete m.userData.__lodCandidatePending;
+    }
+  }
+
   /** 恢复高模（仅当模型是被本模块摘除的——无 CULL_MARK；被 cullUnmerged 裁掉的由它自己加回） */
   function showHigh(rec, world) {
     if (rec.state !== 'high') {
@@ -195,6 +221,7 @@
       rec.state = 'high';
     }
     var m = rec.model;
+    clearPending(m);
     if (m && !m.parent && !(m.userData && m.userData[CULL_MARK])) world.scene.add(m);
   }
 
@@ -211,6 +238,7 @@
       g.position.copy(m.position);
       g.quaternion.copy(m.quaternion);
       g.scale.copy(m.scale);
+      clearPending(m);                           // 高模摘除且变体接管渲染，"隐藏等变体"标记作废
       if (m.parent) world.scene.remove(m);       // 不设 CULL_MARK → cullUnmerged/syncFarBoxes 自动跳过
       if (m.userData) delete m.userData[CULL_MARK];
       world.scene.add(g);
@@ -230,11 +258,38 @@
     if (m && !m.parent && m.userData) m.userData[CULL_MARK] = true;
   }
 
+  /**
+   * 变体加载中：摘除高模 + PENDING_MARK，占位方块由合批模块 syncFarBoxes 统一显示。
+   * 修复异常 1/3——严禁在目标带变体就绪前继续以高模渲染（"先高后低"的额外消耗源）。
+   */
+  function hidePending(rec, world) {
+    var m = rec.model;
+    if (!m) return;
+    if (m.userData) m.userData[PENDING_MARK] = true;
+    if (m.parent) world.scene.remove(m);
+  }
+
+  /**
+   * 超出后台配置远界（仍在 200m 硬裁剪内）：收起当前显示并转占位方块。
+   * 严格按后台 far 生效——「超出远界只显示占位方块」（此前散装低模无视 far
+   * 一律渲染到 200m，far 配置小于 200 时不生效）。
+   */
+  function suppressBeyondFar(rec, world) {
+    if (rec.state !== 'high') {
+      var v = rec.variants[rec.state];
+      if (v && v.group.parent) world.scene.remove(v.group);
+      rec.state = 'high';
+    }
+    hidePending(rec, world);
+  }
+
   function restoreAll(world) {
     if (!world) return;
     recs.forEach(function (rec) {
       if (rec.skipped) return;
-      if (rec.state !== 'high') showHigh(rec, world);
+      // state!=='high'（变体在显）或处于 pending 隐藏 → 恢复高模显示
+      var pending = rec.model && rec.model.userData && rec.model.userData[PENDING_MARK];
+      if (rec.state !== 'high' || pending) showHigh(rec, world);
     });
   }
 
@@ -242,11 +297,37 @@
   function releaseRec(world, rec, entryGone) {
     LEVELS.forEach(function (lv) { disposeVariant(rec, lv, world); });
     if (window.WorldLodAssets) window.WorldLodAssets.forget(rec.url);
-    if (!entryGone) {
-      // 仍由合批接管等情形：把高模加回场景（若被本模块摘除）
-      showHigh(rec, world);
-    }
+    clearPending(rec.model);
+    // 修复（2026-09-14，异常 2「始终固定高模」来源之一）：不再把高模加回场景——
+    //   · entryGone：对象已卸载，加回即泄漏渲染；
+    //   · 被合批接管/成为合批候选：源模型归合批模块管理，加回会形成
+    //     "独立高模 + 实例渲染"叠加，且该独立高模型不受任何分带管理
+    //     （永远高模直到 200m 被裁）。
     recs.delete(rec.id);
+  }
+
+  /** 注册单个散装模型（scanNow 轮询与「模型上屏即评估」钩子共用） */
+  function registerEntry(world, id, entry) {
+    var M = window.WorldInstanceMerger;
+    if (!entry || !entry.model || entry.isPlaceholder || recs.has(id)) return;
+    var m = entry.model;
+    var url = m.userData && m.userData.__texOptSource;
+    if (!url) return;                                           // 几何建筑/媒体/threejs 代码等
+    if (M && M.isMergedUrl && M.isMergedUrl(url)) return;       // 合批组管理
+    if (M && M.isCandidateUrl && M.isCandidateUrl(url)) return; // 合批候选（cullUnmerged 预接管）
+    if (entry.data && entry.data.custom_config) return;
+    if (entry.data && entry.data.model_path && entry.data.model_path !== url) return;
+    if (m.userData && m.userData.__excludeFromMerge) return;    // 编辑中模型
+
+    var rec = {
+      id: id, url: url, model: m, entry: entry,
+      state: 'high', variants: {}, requested: {}, noneUntil: {},
+      skipped: null, lastUse: 0, dist: 0
+    };
+    var skinned = false;
+    m.traverse(function (c) { if (c.isSkinnedMesh) skinned = true; });
+    if (skinned) rec.skipped = 'skinned';                        // 决策 4：保守跳过
+    recs.set(id, rec);
   }
 
   function scanNow() {
@@ -254,40 +335,101 @@
     if (!world || !world.generatedBuildings || !world.scene) return;
     var M = window.WorldInstanceMerger;
 
-    // 清理：条目消失 / 换模型 / 被合批接管
+    // 清理：条目消失 / 换模型 / 被合批接管或成为合批候选
     recs.forEach(function (rec, id) {
       var entry = world.generatedBuildings.get(id);
       var gone = !entry || !entry.model || entry.model !== rec.model;
-      var nowMerged = !!(M && M.isMergedUrl && M.isMergedUrl(rec.url));
-      if (gone || nowMerged) releaseRec(world, rec, gone);
+      var takeover = false;
+      if (!gone && M) {
+        takeover = !!(M.isMergedUrl && M.isMergedUrl(rec.url)) ||
+                   !!(M.isCandidateUrl && M.isCandidateUrl(rec.url));
+      }
+      if (gone || takeover) releaseRec(world, rec, gone);
     });
 
     // 注册新散装模型
     world.generatedBuildings.forEach(function (entry, id) {
-      if (!entry || !entry.model || entry.isPlaceholder || recs.has(id)) return;
-      var m = entry.model;
-      var url = m.userData && m.userData.__texOptSource;
-      if (!url) return;                                           // 几何建筑/媒体/threejs 代码等
-      if (M && M.isMergedUrl && M.isMergedUrl(url)) return;       // 合批组管理
-      if (entry.data && entry.data.custom_config) return;
-      if (entry.data && entry.data.model_path && entry.data.model_path !== url) return;
-      if (m.userData && m.userData.__excludeFromMerge) return;    // 编辑中模型
-
-      var rec = {
-        id: id, url: url, model: m, entry: entry,
-        state: 'high', variants: {}, requested: {}, noneUntil: {},
-        skipped: null, lastUse: 0, dist: 0
-      };
-      var skinned = false;
-      m.traverse(function (c) { if (c.isSkinnedMesh) skinned = true; });
-      if (skinned) rec.skipped = 'skinned';                        // 决策 4：保守跳过
-      recs.set(id, rec);
+      registerEntry(world, id, entry);
     });
 
     evictIfNeeded(world);
   }
 
   // ===== 每帧分带（节流与合批一致：位移 >0.5m 或每 10 帧） =====
+  /**
+   * 单条目分带更新（runFrame 循环与「模型上屏即评估」钩子共用）。
+   * 严格分带语义（2026-09-14）：
+   *   · 高模只在 ≤near 带渲染；near~200m 内目标带变体「加载中」→ 摘高模挂
+   *     PENDING_MARK（占位方块顶替），「确认缺失/失败冷却」→ 既有回退链
+   *     （低模缺失用中模，中模缺失用高模）；
+   *   · 变体在显时升级方向（低→中/高）未就绪保持当前较低层级等待（无额外 GPU 消耗）。
+   */
+  function updateRec(rec, id, world, p, near, mid, now) {
+    if (rec.skipped) return;
+    var m = rec.model;
+    if (!m || rec.entry.model !== m) return;                    // 交给下轮扫描重建
+
+    // 表面距离（与合批/裁剪同口径）
+    var d;
+    var B = window.WorldObjectBounds;
+    if (B) {
+      var obj = rec.entry.data;
+      if (!obj) obj = rec.entry.__boundsStub || (rec.entry.__boundsStub = { id: id, position_x: 0, position_z: 0 });
+      else if (obj.id === undefined) obj.id = id;
+      B.ensure(id, m, obj);
+      d = Math.sqrt(B.surfaceDistSq(obj, p.x, p.z));
+    } else {
+      d = Math.sqrt((m.position.x - p.x) * (m.position.x - p.x) + (m.position.z - p.z) * (m.position.z - p.z));
+    }
+    rec.dist = d;
+
+    var A = window.WorldLodAssets;
+    // 远界（与合批组一致）：低模就绪 = 后台配置 far；低模未就绪/缺失 = min(far, 200)
+    var farCfg = (A && Number.isFinite(A.FAR_DIST) && A.FAR_DIST > 0) ? A.FAR_DIST : MAX_RENDER_DIST;
+    var farLimit = rec.variants.low ? farCfg : Math.min(farCfg, MAX_RENDER_DIST);
+
+    if (rec.state !== 'high') {
+      // 变体在显：本模块按后台分带接管
+      if (d > MAX_RENDER_DIST) { passivateFar(rec, world); return; }
+      if (d > farLimit) { suppressBeyondFar(rec, world); return; }  // 超远界：占位方块
+      if (d <= near) { showHigh(rec, world); return; }
+      // 距离→层级唯一权威规则（后台可配置）
+      var want = (A && A.resolveBand) ? A.resolveBand(d) : (d <= mid ? 'mid' : 'low');
+      if (want !== 'mid' && want !== 'low') want = (d <= mid) ? 'mid' : 'low'; // 防御
+      if (!rec.variants[want]) {
+        requestVariant(world, rec, want);
+        // 冷却（确认缺失/失败）→ 既有回退链：低模缺失用中模
+        if (now < (rec.noneUntil[want] || 0)) {
+          if (want === 'low' && rec.variants.mid) showVariant(rec, world, 'mid');
+          return;
+        }
+        return;                                                 // 加载中：保持当前较低层级等待
+      }
+      if (rec.state !== want) showVariant(rec, world, want);
+      else rec.lastUse = now;
+    } else {
+      // 高模在显
+      if (d > MAX_RENDER_DIST) return;                          // cullUnmerged 管（摘除+蓝方块）
+      if (d > farLimit) { hidePending(rec, world); return; }    // 超远界：摘高模 + 占位方块
+      if (d <= near) { showHigh(rec, world); return; }          // 就近恢复（可能此前处于 pending 隐藏）
+      var want2 = (A && A.resolveBand) ? A.resolveBand(d) : (d <= mid ? 'mid' : 'low');
+      if (want2 !== 'mid' && want2 !== 'low') want2 = (d <= mid) ? 'mid' : 'low'; // 防御
+      if (!rec.variants[want2]) {
+        requestVariant(world, rec, want2);
+        // 冷却（确认缺失/失败）→ 维持既有回退：中模就绪先用中模，否则保持高模
+        if (now < (rec.noneUntil[want2] || 0)) {
+          if (want2 === 'low' && rec.variants.mid) showVariant(rec, world, 'mid');
+          else showHigh(rec, world);
+          return;
+        }
+        // 加载中 → 摘除高模 + PENDING_MARK（占位方块顶替），严禁高模顶替
+        hidePending(rec, world);
+        return;
+      }
+      showVariant(rec, world, want2);
+    }
+  }
+
   function runFrame() {
     cullRaf = requestAnimationFrame(runFrame);
     var world = findWorld();
@@ -307,55 +449,94 @@
     _lastRunAt = nowMs();
 
     var near = bandNear(), mid = bandMid();
-    var B = window.WorldObjectBounds;
-    var now = (window.performance && performance.now) ? performance.now() : Date.now();
-
     recs.forEach(function (rec, id) {
-      if (rec.skipped) return;
-      var m = rec.model;
-      if (!m || rec.entry.model !== m) return;                    // 交给下轮扫描重建
-
-      // 表面距离（与合批/裁剪同口径）
-      var d;
-      if (B) {
-        var obj = rec.entry.data;
-        if (!obj) obj = rec.entry.__boundsStub || (rec.entry.__boundsStub = { id: id, position_x: 0, position_z: 0 });
-        else if (obj.id === undefined) obj.id = id;
-        B.ensure(id, m, obj);
-        d = Math.sqrt(B.surfaceDistSq(obj, p.x, p.z));
-      } else {
-        d = Math.sqrt((m.position.x - p.x) * (m.position.x - p.x) + (m.position.z - p.z) * (m.position.z - p.z));
-      }
-      rec.dist = d;
-
-      if (rec.state !== 'high') {
-        // 变体在显：本模块全程接管 0~200m
-        if (d > MAX_RENDER_DIST) { passivateFar(rec, world); return; }
-        if (d <= near) { showHigh(rec, world); return; }
-        var want = (d <= mid) ? 'mid' : 'low';
-        if (!rec.variants[want]) {
-          requestVariant(world, rec, want);
-          if (want === 'low' && !rec.variants.low && rec.variants.mid) want = 'mid';
-          if (!rec.variants[want]) return;                        // 未就绪：维持当前显示
-        }
-        if (rec.state !== want) showVariant(rec, world, want);
-        else rec.lastUse = now;
-      } else {
-        // 高模在显
-        if (d > MAX_RENDER_DIST) return;                          // cullUnmerged 管（摘除+蓝方块）
-        if (!m.parent) return;                                    // 不在场景且无标记：异常/他方管理
-        if (d <= near) return;
-        var want2 = (d <= mid) ? 'mid' : 'low';
-        if (!rec.variants[want2]) { requestVariant(world, rec, want2); return; } // 懒加载，本轮保持高模
-        showVariant(rec, world, want2);
-      }
+      updateRec(rec, id, world, p, near, mid, _lastRunAt);
     });
   }
 
   // ===== 生命周期 =====
+  /**
+   * 模型上屏即评估（修复异常 3「先高后低」的首帧闪现，2026-09-14）：
+   * 包装 PlaceholderField.reveal 的 onShown 回调——模型一确认可见就立刻注册并按
+   * 当前距离分带（必要时立即摘除高模挂 PENDING_MARK / 发起变体请求），
+   * 不再等 2s 扫描 + 10 帧节流后才发现"它在低模带"。
+   */
+  function onModelShown(o) {
+    try {
+      var world = findWorld();
+      if (!world || !world.generatedBuildings || !o || !o.userData) return;
+      var wid = o.userData.worldObjectId;
+      if (wid === undefined || wid === null) return;
+      var entry = world.generatedBuildings.get(wid);
+      if (!entry) return;
+      registerEntry(world, wid, entry);
+      var rec = recs.get(wid);
+      if (!rec) {
+        // 闪现修复（2026-09-14 下午）：合批接管/合批候选 URL 的【新到货实例】。
+        // registerEntry 会跳过这类 URL → 没人摘它 → 通用裁剪 ≤200m 让它以独立
+        // 高模渲染，直到下一次 scanAndMerge（最长 2s）把它并入合批组——
+        // 这就是"先闪一下高模再变低模"的残根。此处在上屏瞬间（reveal 的
+        // showNow 同步回调，下一帧渲染前）按当前距离分带：非高模带立即摘除
+        // 挂 __lodCandidatePending（占位方块由 syncFarBoxes 统一显示），
+        // ≤near 保持独立渲染（高模本来就是正确层级）。
+        var M2 = window.WorldInstanceMerger;
+        var url2 = o.userData.__texOptSource;
+        if (M2 && url2 && lodOn() && !editing() &&
+            !o.userData.__excludeFromMerge &&
+            !(entry.data && entry.data.custom_config) &&
+            !(entry.data && entry.data.model_path && entry.data.model_path !== url2)) {
+          var takeover = (M2.isMergedUrl && M2.isMergedUrl(url2)) ||
+                         (M2.isCandidateUrl && M2.isCandidateUrl(url2));
+          if (takeover) {
+            var player2 = window.player;
+            if (player2 && player2.position) {
+              var d2 = Infinity;
+              var B2 = window.WorldObjectBounds;
+              if (B2) {
+                var obj2 = entry.data || (entry.__boundsStub || (entry.__boundsStub = { id: wid, position_x: 0, position_z: 0 }));
+                if (obj2.id === undefined) obj2.id = wid;
+                B2.ensure(wid, o, obj2);
+                d2 = Math.sqrt(B2.surfaceDistSq(obj2, player2.position.x, player2.position.z));
+              }
+              var A2 = window.WorldLodAssets;
+              var band2 = (A2 && A2.resolveBand) ? A2.resolveBand(d2) : 'high';
+              if (band2 !== 'high') {
+                if (o.parent) world.scene.remove(o);
+                o.userData.__lodCandidatePending = true;   // cullUnmerged 跳过 + syncFarBoxes 画方块
+              }
+            }
+          }
+        }
+        return;
+      }
+      if (rec.skipped) return;
+      var player = window.player;
+      if (!player || !player.position || !lodOn() || editing()) return;
+      updateRec(rec, wid, world, player.position, bandNear(), bandMid(), nowMs());
+    } catch (e) { /* 绝不影响模型上屏链路 */ }
+  }
+
+  function hookReveal() {
+    var pf = window.PlaceholderField;
+    if (!pf || !pf.reveal || pf.__lodStandaloneHooked) return;
+    pf.__lodStandaloneHooked = true;
+    var orig = pf.reveal;
+    pf.reveal = function (obj, renderer, camera, scene, onShown) {
+      var wrapped = onShown
+        ? function (o) { onShown(o); onModelShown(o); }
+        : function (o) { onModelShown(o); };
+      try {
+        return orig.call(this, obj, renderer, camera, scene, wrapped);
+      } catch (e) {
+        return orig.call(this, obj, renderer, camera, scene, onShown);
+      }
+    };
+  }
+
   function boot() {
     if (findWorld()) {
       booted = true;
+      hookReveal();
       scanNow();
       scanTimer = setInterval(scanNow, SCAN_INTERVAL);
       cullRaf = requestAnimationFrame(runFrame);
@@ -420,6 +601,8 @@
             low: Math.max(0, Math.ceil(((r.noneUntil.low || 0) - now) / 1000))
           },
           modelInScene: !!(r.model && r.model.parent),
+          /** 模型被本模块摘除、等变体就绪（占位方块顶替中） */
+          pending: !!(r.model && r.model.userData && r.model.userData.__lodPending),
           lastUse: r.lastUse ? Math.round(r.lastUse) : 0
         });
       });

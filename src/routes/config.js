@@ -93,7 +93,7 @@ router.get('/world-settings', async (req, res) => {
   try {
     const result = await query(
       `SELECT config_key, config_value FROM system_config
-       WHERE config_key IN ('world_name','world_url','world_description','lod_enabled','lod_near_dist','lod_mid_far_dist','lod_far_dist')
+       WHERE config_key IN ('world_name','world_url','world_description','lod_enabled','lod_near_dist','lod_mid_far_dist','lod_far_dist','lod_mid_cap_mode','lod_mid_max_faces','lod_mid_percent','lod_low_target_faces')
        ORDER BY config_key`
     );
     const data = {};
@@ -108,7 +108,12 @@ router.get('/world-settings', async (req, res) => {
       // LOD 分带距离（二期 C，2026-09-12 用户要求后台可调）：缺省 30/60/400
       lod_near_dist:     _lodDist(data.lod_near_dist, 30),
       lod_mid_far_dist:  _lodDist(data.lod_mid_far_dist, 60),
-      lod_far_dist:      _lodDist(data.lod_far_dist, 400)
+      lod_far_dist:      _lodDist(data.lod_far_dist, 400),
+      // 变体压缩标准（2026-09-14 用户决策，后台可调）：生成中/低模时按此执行
+      lod_mid_cap_mode:     (data.lod_mid_cap_mode === 'percent') ? 'percent' : 'faces',
+      lod_mid_max_faces:    _lodDist(data.lod_mid_max_faces, 50000),
+      lod_mid_percent:      _lodDist(data.lod_mid_percent, 25),
+      lod_low_target_faces: _lodDist(data.lod_low_target_faces, 100)
     });
   } catch (error) {
     console.error('获取世界设置失败:', error);
@@ -163,6 +168,31 @@ router.put('/world-settings', async (req, res) => {
       }
       lodDists[rule.key] = String(n);
     }
+
+    // 变体压缩标准（可选字段：未传 = 不改动现有值）
+    let midCapMode = null;
+    if (req.body.lod_mid_cap_mode !== undefined && req.body.lod_mid_cap_mode !== null && req.body.lod_mid_cap_mode !== '') {
+      const m = String(req.body.lod_mid_cap_mode).toLowerCase();
+      if (m !== 'faces' && m !== 'percent') {
+        return res.status(400).json({ error: 'lod_mid_cap_mode 必须是 faces 或 percent' });
+      }
+      midCapMode = m;
+    }
+    const LOD_FACE_RULES = [
+      { key: 'lod_mid_max_faces',    min: 1000, max: 5000000 },
+      { key: 'lod_mid_percent',      min: 1,    max: 99 },
+      { key: 'lod_low_target_faces', min: 16,   max: 2000 },
+    ];
+    const lodFaces = {};
+    for (const rule of LOD_FACE_RULES) {
+      const v = req.body[rule.key];
+      if (v === undefined || v === null || v === '') continue;
+      const n = parseInt(v, 10);
+      if (!Number.isFinite(n) || n < rule.min || n > rule.max) {
+        return res.status(400).json({ error: `${rule.key} 必须是 ${rule.min}~${rule.max} 之间的整数` });
+      }
+      lodFaces[rule.key] = String(n);
+    }
     if (lodDists.lod_near_dist && lodDists.lod_mid_far_dist
       && parseInt(lodDists.lod_near_dist, 10) >= parseInt(lodDists.lod_mid_far_dist, 10)) {
       return res.status(400).json({ error: '高模带距离必须小于中模带距离' });
@@ -195,6 +225,17 @@ router.put('/world-settings', async (req, res) => {
     };
     for (const [key, value] of Object.entries(lodDists)) {
       await upsert(key, value, LOD_DIST_DESC[key]);
+    }
+    if (midCapMode !== null) {
+      await upsert('lod_mid_cap_mode', midCapMode, 'LOD中模压缩方式：faces=按面数上限 / percent=按压缩百分比');
+    }
+    const LOD_FACE_DESC = {
+      lod_mid_max_faces: 'LOD中模面数上限（faces 模式：不管源多大，中模压到该面数以内）',
+      lod_mid_percent: 'LOD中模压缩百分比（percent 模式：中模=源×该%）',
+      lod_low_target_faces: 'LOD低模目标面数（低模样式标准）',
+    };
+    for (const [key, value] of Object.entries(lodFaces)) {
+      await upsert(key, value, LOD_FACE_DESC[key]);
     }
 
     // 同步更新联邦系统的 world_config 表（保持两者一致）

@@ -2443,11 +2443,33 @@
             </div>
             <div style="font-size:11px;color:var(--muted);margin-top:4px">需满足：高模带 &lt; 中模带 &lt; 低模带（默认 30 / 60 / 400）。保存后玩家端即时生效，无需刷新页面。</div>
           </div>
+          <div class="form-group">
+            <label>变体压缩标准（生成中/低模时按此执行；改后需点「按当前标准重生成」才作用于已有模型）</label>
+            <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:12px;">
+              <label style="display:flex;align-items:center;gap:6px;">
+                中模方式
+                <select id="lod-mid-cap-mode" style="padding:3px 6px;">
+                  <option value="faces">按面数上限</option>
+                  <option value="percent">按压缩百分比</option>
+                </select>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;">
+                面数上限 <input type="number" id="lod-mid-max-faces" min="1000" max="5000000" step="1000" style="width:100px;">
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;">
+                压缩百分比% <input type="number" id="lod-mid-percent" min="1" max="99" step="1" style="width:70px;">（中模=源的该%）
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;">
+                低模目标面数 <input type="number" id="lod-low-target-faces" min="16" max="2000" step="1" style="width:80px;">
+              </label>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px">「按面数上限」：不管源多大，中模压到该面数以内（源更小时维持 25% 比例）；「按压缩百分比」：中模=源×该百分比，不限绝对面数。想要中距离观感更精细，可调大上方「高模带距离」，而非放宽中模面数。</div>
+          </div>
           <div id="lod-save-msg" style="display:none;margin-bottom:12px;padding:9px 13px;border-radius:6px;font-size:13px"></div>
           <div id="lod-status-line" style="font-size:13px;color:var(--muted);margin-bottom:12px;">📊 正在读取模型统计...</div>
           <div class="btn-group">
             <button class="btn" onclick="saveLodEnabled()">💾 保存设置</button>
-            <button class="btn btn-secondary" id="lod-generate-btn" onclick="runLodGenerate()">🗿 一键生成中低模</button>
+            <button class="btn btn-secondary" id="lod-regen-btn" onclick="runLodRegen()">♻️ 按当前标准重生成</button>
             <button class="btn btn-secondary" onclick="refreshLodStatus()">🔄 刷新状态</button>
           </div>
           <div id="lod-progress" style="display:none;margin-top:12px;padding:9px 13px;border-radius:6px;font-size:13px;background:rgba(88,166,255,0.08);color:#9cf;"></div>
@@ -3606,7 +3628,7 @@
 <script src="js/adminFederationTrust.js" defer></script>
 <script src="js/adminProfile.js" defer></script>
 <script src="js/adminSky.js" defer></script>
-<script src="js/adminModelLod.js?v=2" defer></script>
+<script src="js/adminModelLod.js?v=4" defer></script>
 <script>
   // ===== 认证 =====
   document.addEventListener('DOMContentLoaded', function checkAdminAuth() {

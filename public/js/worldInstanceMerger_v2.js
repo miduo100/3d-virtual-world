@@ -73,6 +73,14 @@
   let enabled = true;
   const skinnedNotified = new Set(); // 已提示过含蒙皮网格的 url（日志去重）
 
+  // ===== 严格分带修复（2026-09-14）=====
+  // candidateCounts：最近一次扫描的 url → 实例数。供 cullUnmerged 在正式合批前
+  //   （最长 2s 扫描间隔）预接管中远距个体，消除"先高后低"的闪现渲染。
+  // mergeFailedUrls：mergeGroup 模板提取失败的 url —— 候选预接管对其豁免，
+  //   防止合批永远不成功的模型被永久钉在占位方块上。
+  const candidateCounts = new Map();
+  const mergeFailedUrls = new Set();
+
   const stats = {
     groups: 0,          // 当前合批组数
     instances: 0,       // 当前合批实例总数
@@ -203,6 +211,11 @@
       const m = instances[i].model;
       if (m.parent) world.scene.remove(m);
       delete m.userData[CULL_MARK]; // 清除视距裁剪标记，防 unmerge 后误跳过
+      // 严格分带（2026-09-14）：清除预接管/散装"加载中"标记。
+      // 残留会让 syncFarBoxes 给已由实例渲染的源模型重复画占位方块，
+      // 或 unmerge 还原后堵塞 cullUnmerged 的加回路径。
+      delete m.userData.__lodPending;
+      delete m.userData.__lodCandidatePending;
     }
 
     const instanceWorlds = [];
@@ -228,6 +241,7 @@
       // ===== LOD 三带状态（阶段 4）=====
       lod: { mid: null, low: null },                       // { templates, ims }
       bandCache: { high: null, mid: null, low: null },     // 上次写入的三带编号列表（变化才重建矩阵）
+      pendingIdx: [],                                      // 「变体加载中」暂不渲染的实例编号（syncFarBoxes 画方块）
       farLimit: MAX_RENDER_DIST,                           // 该组远界：低模就绪才升到 LOD_FAR_DIST
       lodRequested: false
     };
@@ -390,6 +404,10 @@
 
     const groups = collectGroups(world);
 
+    // 严格分带（2026-09-14）：刷新候选计数，供 cullUnmerged 在合批发生前预接管
+    candidateCounts.clear();
+    groups.forEach((instances, url) => candidateCounts.set(url, instances.length));
+
     groups.forEach((instances, url) => {
       const rec = mergedGroups.get(url);
       if (rec) {
@@ -399,7 +417,8 @@
         stats.rebuilds++;
       }
       if (instances.length >= MERGE_THRESHOLD) {
-        mergeGroup(world, url, instances);
+        if (mergeGroup(world, url, instances)) mergeFailedUrls.delete(url);
+        else mergeFailedUrls.add(url);          // 模板提取失败：候选预接管豁免，模型保持独立渲染
       }
     });
 
@@ -429,10 +448,32 @@
     return _farBoxMat;
   }
 
+  /** 表面距离平方统一口径（候选预接管与通用裁剪共用；无 WorldObjectBounds 时退回锚点距离） */
+  function surfaceDistSqOf(world, id, model, entry, playerPos) {
+    const B = window.WorldObjectBounds;
+    if (!B) {
+      const p = model.position;
+      if (!p) return Infinity;
+      const dx = p.x - playerPos.x, dy = p.y - playerPos.y, dz = p.z - playerPos.z;
+      return dx * dx + dy * dy + dz * dz;
+    }
+    let obj = entry.data;
+    if (!obj) {
+      // data 缺失（增量/WebSocket 直入队的对象）时挂一个一次性 stub，避免每帧新建
+      obj = entry.__boundsStub || (entry.__boundsStub = { id: id, position_x: 0, position_z: 0 });
+    } else if (obj.id === undefined) obj.id = id;
+    B.ensure(id, model, obj);
+    return B.surfaceDistSq(obj, playerPos.x, playerPos.z);
+  }
+
   function cullUnmerged(world, playerPos, maxDistSq) {
     if (!world || !world.generatedBuildings || !world.scene) return 0;
     const B = window.WorldObjectBounds;
     let hidden = 0;
+    const lodOn = !!(window.WorldLodAssets && window.WorldLodAssets.isEnabled());
+    // <0 = 候选预接管关闭（LOD 关闭时保持原行为）
+    const nearSq = lodOn ? (bandNear() * bandNear()) : -1;
+
     world.generatedBuildings.forEach((entry, id) => {
       if (!entry || !entry.model) return;
       const model = entry.model;
@@ -442,39 +483,64 @@
         if (!model.parent) world.scene.add(model);
         return;
       }
-      // 已合批源模型已从场景摘除且不带裁剪标记 → 由合批组 im.count 控制，跳过
-      if (!model.parent && !model.userData[CULL_MARK]) return;
+      const ud = model.userData || {};
 
-      let dSq;
-      if (B) {
-        // 按【玩家到模型表面】的距离判定，而非到锚点的距离：
-        // 大模型（半径上百米）用锚点判定会出现"人已在模型里、模型却被裁掉"
-        let obj = entry.data;
-        if (!obj) {
-          // data 缺失（增量/WebSocket 直入队的对象）时挂一个一次性 stub，避免每帧新建
-          obj = entry.__boundsStub || (entry.__boundsStub = { id: id, position_x: 0, position_z: 0 });
-        } else if (obj.id === undefined) obj.id = id;
-        B.ensure(id, model, obj);
-        dSq = B.surfaceDistSq(obj, playerPos.x, playerPos.z);
-        // 刚加载完成的模型给一段宽限：占位符不受裁剪，真模型一替换上来就被裁，
-        // 观感是"下载完反而消失"，这里让它至少显示 GRACE_MS
-        if (dSq > maxDistSq && B.isInGrace(entry, model)) dSq = 0;
-      } else {
-        const p = model.position;
-        if (!p) return;
-        const dx = p.x - playerPos.x, dy = p.y - playerPos.y, dz = p.z - playerPos.z;
-        dSq = dx * dx + dy * dy + dz * dz;
+      // ===== 严格分带修复（2026-09-14）：合批候选预接管 =====
+      // ≥阈值的同源模型在正式合批前（最长 2s 扫描间隔）先按 LOD 分带预接管：
+      //   > near → 摘除 + __lodCandidatePending（占位方块由 syncFarBoxes 统一显示），
+      //            合批后由三带接管（变体未就绪同样方块，绝不以高模顶替）；
+      //   ≤ near → 恢复独立渲染（本就要显示高模）。
+      // 合并失败（mergeFailedUrls）或实例数跌破阈值 → 自动恢复独立渲染，
+      // >200m 的摘除交还下方通用逻辑，不会出现永久方块。
+      let dSq = null;
+      if (nearSq >= 0 && ud.__texOptSource) {
+        const url = ud.__texOptSource;
+        const cand = candidateCounts.get(url) >= MERGE_THRESHOLD
+          && !mergedGroups.has(url) && !mergeFailedUrls.has(url);
+        if (cand) {
+          dSq = surfaceDistSqOf(world, id, model, entry, playerPos);
+          if (dSq > nearSq) {
+            if (model.parent) world.scene.remove(model);
+            ud.__lodCandidatePending = true;
+            return;
+          }
+          if (ud.__lodCandidatePending) {
+            delete ud.__lodCandidatePending;
+            if (!model.parent) {
+              if (ud[CULL_MARK]) delete ud[CULL_MARK];
+              world.scene.add(model);
+            }
+          }
+        } else if (ud.__lodCandidatePending && !mergedGroups.has(url)) {
+          // 不再是候选：恢复独立渲染（>200m 由下方通用逻辑再摘除）。
+          // 已合批 URL 不在此恢复（2026-09-14）：新到货实例由散装模块的上屏钩子
+          // 预摘除、等 ≤2s 扫描并入合批组；此处若加回会形成"独立高模裸渲染
+          // ≤2s 再变低模"的闪现（低模带观察红军区高模闪的残根）。
+          delete ud.__lodCandidatePending;
+          if (!model.parent && !ud[CULL_MARK]) world.scene.add(model);
+        }
       }
+
+      // 已合批源模型已从场景摘除且不带裁剪标记 → 由合批组 im.count 控制，跳过。
+      // 散装LOD 的 __lodPending / 候选的 __lodCandidatePending 两类"隐藏等变体"模型
+      // 同样在此跳过——绝不能被通用裁剪加回场景，否则"高模顶替"闪现回归。
+      if (!model.parent && !ud[CULL_MARK]) return;
+
+      if (dSq === null) dSq = surfaceDistSqOf(world, id, model, entry, playerPos);
+      // 刚加载完成的模型给一段宽限：占位符不受裁剪，真模型一替换上来就被裁，
+      // 观感是"下载完反而消失"，这里让它至少显示 GRACE_MS。
+      // （候选预接管的"消失"由占位方块衔接，不适用宽限——否则高模闪现回归）
+      if (B && dSq > maxDistSq && B.isInGrace(entry, model)) dSq = 0;
 
       if (dSq <= maxDistSq) {
         // 玩家靠近：加回场景并清除标记
         if (!model.parent) {
           world.scene.add(model);
-          delete model.userData[CULL_MARK];
+          delete ud[CULL_MARK];
         }
       } else if (model.parent) {      // 过远：从场景摘除，省渲染开销
         world.scene.remove(model);
-        model.userData[CULL_MARK] = true;
+        ud[CULL_MARK] = true;
         hidden++;
       }
     });
@@ -503,12 +569,14 @@
     const farBox = ensureFarBoxIm();
     const B = window.WorldObjectBounds;
     let farCount = 0;
-    // 1) 未合批真模型：被视距裁剪摘除的（不在场景且带 CULL_MARK）
+    // 1) 未合批真模型：被视距裁剪摘除的（不在场景且带 CULL_MARK），
+    //    以及"隐藏等变体"的模型（散装 __lodPending / 候选预接管 __lodCandidatePending）
     if (world && world.generatedBuildings) {
       world.generatedBuildings.forEach((entry, id) => {
         if (!entry || !entry.model || entry.isPlaceholder) return; // 占位符自身显示
         const model = entry.model;
-        if (!model.parent && !model.userData[CULL_MARK]) return;   // 合批源，跳过
+        const ud = model.userData || {};
+        if (!model.parent && !ud[CULL_MARK] && !ud.__lodPending && !ud.__lodCandidatePending) return;
         if (model.parent) return;                                  // 正在渲染，跳过
         if (farCount < 8192) {
           // 占位方块按模型半径缩放，大模型在远处也保留体积感（上限 20 倍）
@@ -538,6 +606,22 @@
           tmp2.compose(_posV, _quat, _scaleV);
           farBox.setMatrixAt(farCount++, tmp2);
         }
+      }
+    });
+    // 2b) 合批组「变体加载中」实例（严格分带，2026-09-14）：目标带变体未就绪
+    //     暂不渲染 → 占位方块顶替（取代原先"以高模顶替"的过渡渲染）
+    mergedGroups.forEach((rec) => {
+      const pend = rec.pendingIdx;
+      if (!pend || !pend.length) return;
+      const r = B ? B.radiusByUrl(rec.url) : 0;
+      const s = Math.min(Math.max(r / 10, 1), 20);
+      for (let k = 0; k < pend.length && farCount < 8192; k++) {
+        const pos = rec.instancePositions[pend[k]];
+        if (!pos) continue;
+        _posV.set(pos.x, pos.y, pos.z);
+        _scaleV.set(s, s, s);
+        tmp2.compose(_posV, _quat, _scaleV);
+        farBox.setMatrixAt(farCount++, tmp2);
       }
     });
     farBox.count = farCount;
@@ -590,40 +674,57 @@
     // 未合批对象（加载期占位符/独立模型）视距裁剪
     totalCulled += cullUnmerged(world, playerPos, maxDistSq);
 
-    // 统一远距占位方块：任何"当前无真实渲染"的位置都显示，含合批组被裁剪实例
-    syncFarBoxes(world, playerPos, maxDistSq);
-
     const B = window.WorldObjectBounds;
+    const A = window.WorldLodAssets;
+    const lodOn = !!(A && A.isEnabled());
 
+    // 合批组分带（先算带，syncFarBoxes 才能拿到最新的 farLimit 与 pendingIdx）
     mergedGroups.forEach((rec) => {
       const positions = rec.instancePositions;
       // 同源实例尺寸一致，用该模型的外接半径把判定从"锚点"改为"模型表面"
       const r = B ? B.radiusByUrl(rec.url) : 0;
       const midReady = !!(rec.lod.mid && rec.lod.mid.ims && rec.lod.mid.ims.length);
       const lowReady = !!(rec.lod.low && rec.lod.low.ims && rec.lod.low.ims.length);
-      const lodOn = !!(window.WorldLodAssets && window.WorldLodAssets.isEnabled());
       // 远界：低模就绪 = 后台配置的低模带距离；低模缺失 = 封顶在 min(配置距离, 200m)，
       // 缺失部分的几何由高模兜底渲染（若不封顶，配置拉大时缺低模的组会用高模渲染到很远，
       // 2026-09-12 实测：7 组缺低模导致 232 实例高模渲染、GPU 不降）
       rec.farLimit = !lodOn ? MAX_RENDER_DIST
         : (lowReady ? bandFar() : Math.min(bandFar(), MAX_RENDER_DIST));
       const farLimit = rec.farLimit;
-      const nearLimit = lodOn ? bandNear() : MAX_RENDER_DIST;
+
+      // 严格分带（2026-09-14）：目标带变体「加载中」（idle/loading，未确认缺失）→
+      // 该带实例暂不渲染（占位方块），绝不以高模顶替；
+      // 「确认缺失」（state='none'）→ 维持既有失败回退（高模兜底）。
+      const midLoading = lodOn && !midReady && A.stateOf(rec.url, 'mid') !== 'none';
+      const lowLoading = lodOn && !lowReady && A.stateOf(rec.url, 'low') !== 'none';
 
       const highIdx = [];
       const midIdx = [];
       const lowIdx = [];
+      const pendingIdx = [];
       for (let i = 0; i < positions.length; i++) {
         const dx = positions[i].x - playerPos.x;
         const dy = positions[i].y - playerPos.y;
         const dz = positions[i].z - playerPos.z;
         const surface = Math.sqrt(dx * dx + dy * dy + dz * dz) - r;
-        if (surface > farLimit) continue;                       // 远界外：不渲染（蓝方块表示"这里有东西"）
-        if (surface <= nearLimit) { highIdx.push(i); continue; } // ≤40m（或未启用 LOD 时的 ≤200m）
-        if (midReady && surface <= bandMid()) { midIdx.push(i); continue; }
-        if (lowReady && surface <= bandFar()) { lowIdx.push(i); continue; }
-        highIdx.push(i);                                        // 变体缺失 → 高模兜底
+        // 距离→层级规则（后台 lod_near/mid/far_dist 可配置）唯一权威：WorldLodAssets.resolveBand
+        const band = lodOn ? A.resolveBand(surface)
+                           : (surface <= MAX_RENDER_DIST ? 'high' : 'none');
+        if (band === 'none') continue;                          // 远界外：不渲染（蓝方块表示"这里有东西"）
+        if (band === 'low' && surface > farLimit) continue;     // 低模缺失组远界封顶 min(far,200)（二期 D）
+        if (band === 'high') { highIdx.push(i); continue; }     // ≤near（或未启用 LOD 时的 ≤200m）
+        if (band === 'mid') {
+          if (midReady) { midIdx.push(i); continue; }
+          if (lowReady) { lowIdx.push(i); continue; }           // 中模缺失 → 低模兜底（既有行为）
+          if (midLoading) { pendingIdx.push(i); continue; }     // 中模加载中 → 暂不渲染（方块顶替）
+          highIdx.push(i); continue;                            // 中模确认缺失 → 高模回退（既有）
+        }
+        // band === 'low'
+        if (lowReady) { lowIdx.push(i); continue; }
+        if (lowLoading) { pendingIdx.push(i); continue; }       // 低模加载中 → 暂不渲染（方块顶替）
+        highIdx.push(i);                                        // 低模确认缺失 → 高模兜底（既有）
       }
+      rec.pendingIdx = pendingIdx;
 
       writeBand(rec, 'high', highIdx, rec.templates, rec.highIms);
       if (midReady) writeBand(rec, 'mid', midIdx, rec.lod.mid.templates, rec.lod.mid.ims);
@@ -633,6 +734,11 @@
       rec.lastVisibleCount = visible;
       totalCulled += rec.instanceCount - visible;
     });
+
+    // 统一远距占位方块：任何"当前无真实渲染"的位置都显示，含合批组被裁剪实例
+    // 与「变体加载中」暂不渲染的实例（须在分带计算之后，pendingIdx 才是最新值）
+    syncFarBoxes(world, playerPos, maxDistSq);
+
     stats.culledInstances = totalCulled;
     cullRaf = requestAnimationFrame(runCull);
   }
@@ -690,9 +796,16 @@
         Array.from(mergedGroups.keys()).forEach((url) => unmergeGroup(world, url, true, true));
         // 恢复所有被视距裁剪摘除的未合批对象
         world.generatedBuildings.forEach((entry) => {
-          if (entry && entry.model && entry.model.userData[CULL_MARK] && !entry.model.parent) {
-            world.scene.add(entry.model);
-            delete entry.model.userData[CULL_MARK];
+          if (entry && entry.model && !entry.model.parent) {
+            const ud = entry.model.userData || {};
+            // 含"隐藏等变体/等合批"标记的模型（__lodPending / __lodCandidatePending）：
+            // 禁用合批后无人再接管它们，必须一并还原，否则永久消失只剩方块
+            if (ud[CULL_MARK] || ud.__lodCandidatePending || ud.__lodPending) {
+              delete ud[CULL_MARK];
+              delete ud.__lodCandidatePending;
+              delete ud.__lodPending;
+              world.scene.add(entry.model);
+            }
           }
         });
       }
@@ -729,6 +842,7 @@
           instances: rec.instanceCount,
           farLimit: rec.farLimit,
           counts,
+          pending: rec.pendingIdx ? rec.pendingIdx.length : 0,
           midTemplates: rec.lod.mid ? rec.lod.mid.ims.length : 0,
           lowTemplates: rec.lod.low ? rec.lod.low.ims.length : 0,
         });
@@ -738,6 +852,8 @@
     rescan: scanAndMerge,
     /** 三期（散装 LOD）：某 URL 是否已被合批接管（散装模块据此跳过，避免双渲染竞争） */
     isMergedUrl: function (url) { return mergedGroups.has(url); },
+    /** 严格分带（2026-09-14）：某 URL 是否为合批候选（实例数达阈值，正被 cullUnmerged 预接管） */
+    isCandidateUrl: function (url) { return candidateCounts.get(url) >= MERGE_THRESHOLD; },
     /** 把指定模型从合批组排除并恢复独立渲染（供编辑模式选中被合批对象时调用） */
     excludeModel: function (model) {
       const world = findWorld();

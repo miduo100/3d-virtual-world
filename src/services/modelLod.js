@@ -3,7 +3,8 @@
  *
  * 规格（冻结，见《LOD三版模型方案-开发规划与规范.md》第 2 节）：
  *   基准名 = 生效文件名去掉末尾的 _dec.glb 或 .glb
- *   中模   = 基准名 + '_mid.glb'（gltfpack -si 0.25）
+ *   中模   = 基准名 + '_mid.glb'（gltfpack -si 0.25；且受绝对上限 MID_TARGET_FACES 收口，
+ *          压缩标准后台可调，2026-09-14 用户决策，见 getLodGenConfig）
  *   低模   = 基准名 + '_lod.glb'（gltfpack -si 0.01 -sa 激进简化，2026-09-12 二期收尾决策）
  *   源模型面数 < 5000 → 不生成；输出面数 < 300 或未小于源 → 判无效并清理
  *   收益闸门：低模面数 ≥ 中模面数 → 判无效（reason: no-benefit-vs-mid），不落盘
@@ -24,6 +25,13 @@ const { runPack } = require('./modelDecimate');
 const { stripVariantTextures } = require('./glbTextureStripper');
 
 const MID_RATIO = '0.25';
+// 中模样式标准（2026-09-14 用户决策）：设【绝对面数上限】，与源模型大小无关。
+// 此前中模 = 源 × 25%，超大模型（源 150 万面）的中模高达 37.5 万面，中模带多件
+// 同显时 GPU 支出仍然巨大。中模在中模带（几十米开外）观看，压到上限以内与拉近看
+// 感知差别小；需要更精细的中距观感，应调大后台「高模带距离(near)」而非放宽面数。
+// 不加 -sa / 边坍缩等变形性压缩（中模必须保留大体轮廓）；gltfpack 触底压不到上限
+// 时如实落盘（同低模口径：能压多低压多少）。
+const MID_TARGET_FACES = 50000;
 // 低模样式标准（2026-09-13 用户决策）：「低模要有低模的样子——100 面以内，以后所有低模都按这个来」。
 // gltfpack 无绝对面数参数：pass1 用 min(0.01, 100/源面数) 定向比例；若仍 >100 面，
 // 对输出迭代 -sa（最多 LOW_MAX_PASSES 轮，进度 <5% 视为触底）。实测简化器会锁定
@@ -56,6 +64,50 @@ const LOW_SKIP_SUFFIX = '_lod.skip.json';
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
 const UPLOAD_DIR = path.join(PUBLIC_DIR, 'models', 'uploaded');
 const MAX_WALK_DEPTH = 3;
+
+// ===== 变体压缩标准（后台可调，2026-09-14 用户决策）=====
+// 生成中/低模时读取 system_config（60s 内存缓存，批量生成不必逐件查库）：
+//   lod_mid_cap_mode      'faces'=按面数上限（默认）| 'percent'=按压缩百分比
+//   lod_mid_max_faces     faces 模式：中模面数硬上限（默认 50000）
+//   lod_mid_percent       percent 模式：中模 = 源 × 该%（默认 25）
+//   lod_low_target_faces  低模目标面数（默认 100，即低模样式标准）
+// 读取失败/未配置 → 回退上方常量默认值，绝不阻断生成主流程。
+const GEN_CFG_KEYS = ['lod_mid_cap_mode', 'lod_mid_max_faces', 'lod_mid_percent', 'lod_low_target_faces'];
+let _genCfg = null;
+let _genCfgAt = 0;
+async function getLodGenConfig() {
+  if (_genCfg && Date.now() - _genCfgAt < 60000) return _genCfg;
+  const cfg = {
+    midCapMode: 'faces',
+    midMaxFaces: MID_TARGET_FACES,
+    midPercent: 25,
+    lowTargetFaces: LOW_TARGET_FACES,
+  };
+  try {
+    const { query } = require('../database/db');
+    const r = await query(
+      `SELECT config_key, config_value FROM system_config WHERE config_key = ANY($1::text[])`,
+      [GEN_CFG_KEYS]
+    );
+    r.rows.forEach((row) => {
+      const n = parseInt(row.config_value, 10);
+      if (row.config_key === 'lod_mid_cap_mode') {
+        if (row.config_value === 'percent' || row.config_value === 'faces') cfg.midCapMode = row.config_value;
+      } else if (row.config_key === 'lod_mid_max_faces' && Number.isFinite(n) && n >= 1000) {
+        cfg.midMaxFaces = n;
+      } else if (row.config_key === 'lod_mid_percent' && Number.isFinite(n) && n >= 1 && n <= 99) {
+        cfg.midPercent = n;
+      } else if (row.config_key === 'lod_low_target_faces' && Number.isFinite(n) && n >= 16) {
+        cfg.lowTargetFaces = n;
+      }
+    });
+  } catch (e) {
+    console.warn('[modelLod] 读取压缩标准配置失败（按默认值执行）:', e.message);
+  }
+  _genCfg = cfg;
+  _genCfgAt = Date.now();
+  return cfg;
+}
 
 let gltfpackUnavailableWarned = false;
 
@@ -211,13 +263,16 @@ async function _generateOne(srcPath, dstPath, ratio, sourceTris, force, benefitR
 }
 
 /**
- * 生成低模（低模样式标准：目标 ≤100 面）。
- * pass1 用 min(0.01, 100/源面数) 定向比例；仍 >100 面则对输出迭代 -sa
+ * 生成低模（低模样式标准：目标面数后台可调，默认 ≤100 面）。
+ * pass1 用 min(0.01, 目标/源面数) 定向比例；仍 > 目标则对输出迭代 -sa
  * （最多 LOW_MAX_PASSES 轮，进度 <5% 视为触底停）。触底下限（锁定边界顶点所致）
  * 即为该模型的极限，如实落盘。
  * @param {object|null} [benefitRef] 收益参照（低模须小于中模）：{ tris, label }
+ * @param {number} [targetFaces] 低模目标面数（后台 lod_low_target_faces，默认 100）
  */
-async function _generateLow(srcPath, dstPath, sourceTris, force, benefitRef) {
+async function _generateLow(srcPath, dstPath, sourceTris, force, benefitRef, targetFaces) {
+  const lowTarget = (Number.isFinite(targetFaces) && targetFaces >= 16)
+    ? Math.floor(targetFaces) : LOW_TARGET_FACES;
   if (fs.existsSync(dstPath) && !force) {
     // 幂等补剥（与 _generateOne 同口径）
     const fixup = await stripVariantTextures(dstPath, { sourcePath: srcPath });
@@ -229,14 +284,14 @@ async function _generateLow(srcPath, dstPath, sourceTris, force, benefitRef) {
   try {
     await _safeUnlink(tmpA);
     await _safeUnlink(tmpB);
-    // pass1：定向比例（源越大比例越小，目标 LOW_TARGET_FACES 面）
-    const r1 = Math.min(0.01, LOW_TARGET_FACES / Math.max(sourceTris, 1)).toFixed(6);
+    // pass1：定向比例（源越大比例越小，目标 lowTarget 面）
+    const r1 = Math.min(0.01, lowTarget / Math.max(sourceTris, 1)).toFixed(6);
     await runPack(srcPath, tmpA, r1, LOW_EXTRA_ARGS);
     if (!fs.existsSync(tmpA)) return { status: 'failed', path: dstPath, reason: 'no-output' };
     let tris = countTrisExact(tmpA);
     let cur = tmpA;
     // pass2+：对上一轮输出迭代 -sa，直到 ≤ 目标或触底
-    for (let pass = 2; pass <= LOW_MAX_PASSES && tris > LOW_TARGET_FACES; pass++) {
+    for (let pass = 2; pass <= LOW_MAX_PASSES && tris > lowTarget; pass++) {
       const before = tris;
       const next = (cur === tmpA) ? tmpB : tmpA;
       await _safeUnlink(next);
@@ -252,11 +307,11 @@ async function _generateLow(srcPath, dstPath, sourceTris, force, benefitRef) {
     // 先剥贴图（借高模材质，二期 A 口径）——reducer 只吃纯几何/可搬运结构
     const stripped = await stripVariantTextures(cur, { sourcePath: srcPath });
     if (stripped.ok) console.log(`[modelLod] 变体贴图已剥离 ${path.basename(dstPath)}: ${fmtBytes(stripped.saved)}`);
-    // 最终保证阶段（会话 3 机动 2）：gltfpack 触拓扑下限仍 >100 面的，
-    // 用 glbFaceReducer 贪心边坍缩强制压到 ≤LOW_TARGET_FACES（失败保留 gltfpack 输出）
-    if (tris > LOW_TARGET_FACES) {
+    // 最终保证阶段（会话 3 机动 2）：gltfpack 触拓扑下限仍 > 目标面数的，
+    // 用 glbFaceReducer 贪心边坍缩强制压到 ≤lowTarget（失败保留 gltfpack 输出）
+    if (tris > lowTarget) {
       try {
-        const red = require('./glbFaceReducer').reduceGlbFaces(cur, LOW_TARGET_FACES);
+        const red = require('./glbFaceReducer').reduceGlbFaces(cur, lowTarget);
         if (red.ok && red.trisAfter < tris) {
           tris = red.trisAfter;
           console.log(`[modelLod] 边坍缩补压 ${path.basename(dstPath)}: -> ${tris} 面`);
@@ -322,13 +377,24 @@ async function generateLodVariants(absPath, { force = false } = {}) {
 
     // 先中模，再以中模面数作为低模的收益参照（低模必须真的比中模更轻，否则不落盘）
     const variants = {};
-    variants.mid = await _generateOne(srcPath, base.midPath, MID_RATIO, sourceTris, force);
+    // 中模压缩标准（2026-09-14 后台可调，getLodGenConfig）：
+    //   faces 模式：源面数 > 上限时用 上限/源面数 定向比例收口；源 ≤ 上限时维持 0.25 相对比例
+    //   percent 模式：中模 = 源 × 该百分比（不限绝对面数）
+    const genCfg = await getLodGenConfig();
+    let midRatio = MID_RATIO;
+    if (genCfg.midCapMode === 'percent') {
+      midRatio = Math.min(0.99, Math.max(0.001, genCfg.midPercent / 100)).toFixed(6);
+    } else if (sourceTris > genCfg.midMaxFaces) {
+      midRatio = (genCfg.midMaxFaces / sourceTris).toFixed(6);
+    }
+    variants.mid = await _generateOne(srcPath, base.midPath, midRatio, sourceTris, force);
     const midTris = (variants.mid.status === 'generated' || variants.mid.status === 'exists')
       ? (variants.mid.tris || countTrisExact(base.midPath))
       : 0;
     variants.low = await _generateLow(
       srcPath, base.lowPath, sourceTris, force,
-      midTris > 0 ? { tris: midTris, label: 'mid', margin: LOW_BENEFIT_MARGIN } : null
+      midTris > 0 ? { tris: midTris, label: 'mid', margin: LOW_BENEFIT_MARGIN } : null,
+      genCfg.lowTargetFaces
     );
     // 低模「已判定无收益」标记：落盘成功则清除标记；被收益闸门拦下则留下标记；
     // 其它失败原因（error / too-few-tris / not-reduced / no-output）不写标记 ——
@@ -553,6 +619,111 @@ async function batchGenerateMissing({ limit = 3 } = {}) {
   };
 }
 
+// ===== 按当前压缩标准重生成存量变体（2026-09-14 后台「变体压缩标准」配套）=====
+
+/**
+ * 触底保护：同一基准名本进程只尝试重生成一次。
+ * gltfpack 对锁定边界顶点（UV 缝/开口边）有拓扑下限，个别模型（如 2481 碎片
+ * 集合体）重生成也达不到目标 —— 若不记录，后台「按标准重生成」会对同一件
+ * 反复空转。重启服务器或修改配置后重置，可再次尝试。
+ */
+const regenAttempted = new Set();
+// 上次重生成使用的配置快照：配置（压缩标准）变化后自动清空 regenAttempted，
+// 使被触底保护挡过的模型在新标准下可再次尝试（无需重启服务器）。
+let _lastRegenCfgJson = '';
+
+/** 单件是否违反当前压缩标准（2% 容差）。返回 null=符合，否则返回违规说明 */
+function _violationOf(entry, cfg) {
+  const { midPath, lowPath } = lodPaths(entry.absPath);
+  const hasMid = fs.existsSync(midPath);
+  const hasLow = fs.existsSync(lowPath);
+  const sourceTris = fs.existsSync(entry.sourcePath) ? countTrisExact(entry.sourcePath) : 0;
+  if (sourceTris <= 0) return null;
+  // 源模型低于 LOD 门槛 → 永远不该生成，缺失不算违规（避免重生成对低面数模型反复空转）
+  if (sourceTris < MIN_SOURCE_TRIS) return null;
+
+  // 变体缺失也算违规（2026-09-14 合并「一键生成」按钮到重生成：
+  // 上传时生成失败 / 变体被删 / 磁盘孤儿文件，均由此路径补齐）。
+  // 低模缺失但已有 skip 标记（收益闸门判过无效）不算违规。
+  if (!hasMid) return 'mid 缺失';
+  if (!hasLow && !fs.existsSync(lowSkipPath(lowPath))) return 'low 缺失';
+
+  let reason = null;
+  if (hasMid) {
+    const midTris = countTrisExact(midPath);
+    if (cfg.midCapMode === 'percent') {
+      const allow = sourceTris * (cfg.midPercent / 100) * 1.02;
+      if (midTris > allow) reason = `mid ${midTris} > 源×${cfg.midPercent}%×1.02`;
+    } else if (sourceTris > cfg.midMaxFaces) {
+      if (midTris > cfg.midMaxFaces * 1.02) reason = `mid ${midTris} > 上限 ${cfg.midMaxFaces}×1.02`;
+    }
+  }
+  if (!reason && hasLow) {
+    const lowTris = countTrisExact(lowPath);
+    if (lowTris > cfg.lowTargetFaces * 1.02) reason = `low ${lowTris} > 目标 ${cfg.lowTargetFaces}×1.02`;
+  }
+  return reason;
+}
+
+/**
+ * 按当前压缩标准批量重生成违规的存量变体（单个失败跳过，不中断）
+ * @param {object} [opts]
+ * @param {number} [opts.limit] 本批最多处理多少个（默认 3）
+ * @returns {Promise<object>} { ok, processed, succeeded, failed, remaining, attemptedSkipped, results }
+ */
+async function batchRegenByConfig({ limit = 3 } = {}) {
+  const cfg = await getLodGenConfig();
+  const cfgJson = JSON.stringify(cfg);
+  if (cfgJson !== _lastRegenCfgJson) {
+    regenAttempted.clear();
+    _lastRegenCfgJson = cfgJson;
+  }
+  const status = await scanStatus();
+  const n = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 3;
+
+  const violating = [];
+  let attemptedSkipped = 0;
+  for (const entry of status.models) {
+    if (!entry.hasSource) continue;
+    const reason = _violationOf(entry, cfg);
+    if (!reason) continue;
+    if (regenAttempted.has(entry.absPath)) { attemptedSkipped += 1; continue; }
+    violating.push({ entry, reason });
+  }
+
+  const batch = violating.slice(0, n);
+  const results = [];
+  let succeeded = 0;
+  for (const { entry, reason } of batch) {
+    regenAttempted.add(entry.absPath);
+    const r = await generateLodVariants(entry.absPath, { force: true });
+    const ok = !!r.ok;
+    if (ok) succeeded += 1;
+    results.push({
+      name: entry.name,
+      absPath: entry.absPath,
+      violation: reason,
+      ok,
+      skipped: !!r.skipped,
+      reason: r.reason || null,
+      mid: r.variants && r.variants.mid ? `${r.variants.mid.status}${r.variants.mid.tris ? '(' + r.variants.mid.tris + '面)' : ''}` : null,
+      low: r.variants && r.variants.low ? `${r.variants.low.status}${r.variants.low.tris ? '(' + r.variants.low.tris + '面)' : ''}` : null,
+    });
+  }
+
+  return {
+    ok: true,
+    total: status.total,
+    config: cfg,
+    processed: batch.length,
+    succeeded,
+    failed: batch.length - succeeded,
+    remaining: Math.max(0, violating.length - batch.length),
+    attemptedSkipped,
+    results,
+  };
+}
+
 module.exports = {
   lodPaths,
   lowSkipPath,
@@ -560,8 +731,11 @@ module.exports = {
   generateLodVariants,
   scanStatus,
   batchGenerateMissing,
+  batchRegenByConfig,
+  getLodGenConfig,
   countTrisExact,
   MID_RATIO,
+  MID_TARGET_FACES,
   LOW_TARGET_FACES,
   LOW_MAX_PASSES,
   LOW_EXTRA_ARGS,
