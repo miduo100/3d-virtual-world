@@ -4190,38 +4190,50 @@ class World {
     );
     this.frustum.setFromProjectionMatrix(this.cameraViewProjectionMatrix);
     
-    // 检查所有已加载的建筑（使用缓存Box3，避免每帧 setFromObject 递归遍历）
+    // 【2026-09-16 修复】缓存包围盒失效判定不再依赖 matrixWorldNeedsUpdate：
+    // 该标志在每次 render 的 updateMatrixWorld 内被置位又立即消费归零，剔除运行时恒为
+    // false → 包围盒只在首次计算、对象被移动/编辑后永不重算 → 缓存盒停留在旧位置，
+    // 相机转向新位置时对象被误判在视锥外而"消失"（传送门编辑后向上看消失案）。
+    // 改为对比 transform 签名（位置/旋转/缩放）触发重算 + 重算前强制刷新世界矩阵
+    // （防 clone 后子节点 matrixWorld 陈旧）+ 连续2帧视锥外才隐藏（防瞬态误判）。
+    const cullOne = (model, store) => {
+      // 着色器预热中的模型（PlaceholderField.reveal 控制）暂不参与可见性控制，
+      // 防止预热期间被此处强制 visible=true 提前暴露首帧白闪
+      if (model.userData && model.userData.__pendingReveal) return;
+      // 管理员编辑中的对象不做剔除，防止编辑时被误隐藏
+      if (this.buildingManager && this.buildingManager.selectedObject === model) {
+        model.visible = true;
+        return;
+      }
+      const p = model.position, r = model.rotation, s = model.scale;
+      const sig = `${p.x},${p.y},${p.z}|${r.x},${r.y},${r.z}|${s.x},${s.y},${s.z}`;
+      if (!store._cachedBox3 || store._cachedSig !== sig) {
+        model.updateWorldMatrix(true, true);
+        store._cachedBox3 = new THREE.Box3().setFromObject(model);
+        store._cachedSig = sig;
+      }
+      if (this.frustum.intersectsBox(store._cachedBox3)) {
+        store.__cullMissStreak = 0;
+        model.visible = true;
+      } else {
+        store.__cullMissStreak = (store.__cullMissStreak || 0) + 1;
+        if (store.__cullMissStreak >= 2) model.visible = false;
+      }
+    };
+
+    // 检查所有已加载的建筑（缓存Box3 + 签名失效判定）
     this.generatedBuildings.forEach((building, id) => {
-      if (building.model) {
-        // 着色器预热中的模型（PlaceholderField.reveal 控制）暂不参与可见性控制，
-        // 防止预热期间被此处强制 visible=true 提前暴露首帧白闪
-        if (building.model.userData && building.model.userData.__pendingReveal) return;
-        // 缓存包围盒：只在首次或matrixWorld变化时重新计算
-        if (!building._cachedBox3 || building.model.matrixWorldNeedsUpdate) {
-          building._cachedBox3 = new THREE.Box3().setFromObject(building.model);
-        }
-        building.model.visible = this.frustum.intersectsBox(building._cachedBox3);
-      }
+      if (building.model) cullOne(building.model, building);
     });
-    
-    // 检查怪物（缓存包围盒）
+
+    // 检查怪物
     this.monsters.forEach((monster, id) => {
-      if (monster.group) {
-        if (!monster._cachedBox3 || monster.group.matrixWorldNeedsUpdate) {
-          monster._cachedBox3 = new THREE.Box3().setFromObject(monster.group);
-        }
-        monster.group.visible = this.frustum.intersectsBox(monster._cachedBox3);
-      }
+      if (monster.group) cullOne(monster.group, monster);
     });
-    
-    // 检查传送门（缓存包围盒）
+
+    // 检查传送门
     this.portals.forEach((portal, id) => {
-      if (portal.group) {
-        if (!portal._cachedBox3 || portal.group.matrixWorldNeedsUpdate) {
-          portal._cachedBox3 = new THREE.Box3().setFromObject(portal.group);
-        }
-        portal.group.visible = this.frustum.intersectsBox(portal._cachedBox3);
-      }
+      if (portal.group) cullOne(portal.group, portal);
     });
   }
 
@@ -4447,6 +4459,9 @@ class World {
     this.scene.add(portalGroup);
 
     // 8. 存储传送门数据
+    // 【2026-09-16 修复】_anchorOffsetY = 模型中心相对 DB 锚点(source_position)的 Y 偏移。
+    // addPortal 把模型放在 source.y + 2，编辑保存时需减回该偏移（否则每次保存锚点上飘 2m），
+    // 传送接近判定也按 group 实时位置减该偏移计算（跟随编辑移动）
     this.portals.set(portalId, {
       id: portalId,
       name,
@@ -4460,6 +4475,7 @@ class World {
       portalLight,
       isActive: true,
       animationTime: 0,
+      _anchorOffsetY: 2,
     });
 
     console.log(`✨ 传送门已创建: ${name} (${portalType})`);
@@ -4551,10 +4567,19 @@ class World {
     for (const [portalId, portal] of this.portals) {
       if (!portal.isActive) continue;
 
+      // 【2026-09-16 修复】接近判定锚点改从 group 实时位置推导（减去创建时的 Y 偏移）。
+      // 原实现用创建时快照的 sourcePosition，编辑移动传送门后判定点留在旧位置，
+      // 玩家走到新位置无法触发传送（"移动过的传送门没有传送功能"根因）
+      const g = portal.group;
+      const offY = portal._anchorOffsetY || 0;
+      const ax = g ? g.position.x : portal.sourcePosition.x;
+      const ay = g ? g.position.y - offY : portal.sourcePosition.y;
+      const az = g ? g.position.z : portal.sourcePosition.z;
+
       const distance = Math.sqrt(
-        Math.pow(playerPosition.x - portal.sourcePosition.x, 2) +
-        Math.pow(playerPosition.y - portal.sourcePosition.y, 2) +
-        Math.pow(playerPosition.z - portal.sourcePosition.z, 2)
+        Math.pow(playerPosition.x - ax, 2) +
+        Math.pow(playerPosition.y - ay, 2) +
+        Math.pow(playerPosition.z - az, 2)
       );
 
       if (distance < activationDistance) {
@@ -5061,6 +5086,18 @@ class World {
           window.CapsuleCollision.rebuildAabb(this, objectId);
           window.CapsuleCollision.refresh(objectId);
         }
+        applied++;
+        return;
+      }
+
+      // 【2026-09-16 修复】方法1.5: 传送门（portals表对象，UUID主键，不在generatedBuildings中）
+      // 传送门的 rotation/scale 持久化在 transform_overrides，加载时需应用；
+      // 位置以 portals 表为权威来源，此处不覆盖（避免锚点/模型偏移约定被破坏）
+      const portalEntry = this.portals.get(objectId);
+      if (portalEntry && portalEntry.group) {
+        portalEntry.group.rotation.set(ov.rotation_x || 0, ov.rotation_y || 0, ov.rotation_z || 0);
+        portalEntry.group.scale.set(ov.scale_x || 1, ov.scale_y || 1, ov.scale_z || 1);
+        portalEntry.group.updateMatrixWorld(true);
         applied++;
         return;
       }

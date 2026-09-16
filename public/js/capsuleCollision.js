@@ -45,6 +45,8 @@
   var RAY_LOOKAHEAD = 4;             // 脚底向下的探测距离（覆盖帧内下落位移）
   var STEP_UP = 1.0;                 // 登步容差（与旧 AABB 逻辑一致）
   var MAX_TRIS_PER_MODEL = 600000;   // 超大模型跳过 BVH（走 AABB 兜底）；BVH 空闲分帧构建
+  var GRID_CELL = 16;                // 模型级空间索引格子边长（米）
+  var GRID_MAX_CELLS_PER_MESH = 256; // 单 mesh 覆盖格子数超此值 → 进 bigList（每次查询必测）
 
   // 注册表：id -> ModelRec
   var REG = new Map();
@@ -262,6 +264,9 @@
       var done = function () {
         mr.hasBVH = true;
         modelRec.ready++;
+        // BVH 异步就绪后网格索引必须重建（注册时建格必然为空：BVH 尚未就绪，
+        // hasBVH 全 false 会被 _buildGrid 全部跳过——否则碰撞静默失效）
+        modelRec._gridDirty = true;
       };
       if (mr.baked) {
         // 私有世界空间快照：矩阵全为单位阵，半径换算系数 = 1
@@ -323,29 +328,124 @@
       if (cache[i] !== el[i]) break;
       if (i === 15) return; // 完全一致，缓存有效
     }
+    _validateTransformForce(mr);
+  }
+
+  // 无条件重算单个 mesh 的变换缓存（AABB / 逆矩阵）
+  function _validateTransformForce(mr) {
+    if (mr.baked) return; // 烘焙快照恒等变换，aabb 注册时已定格
+    var mw = mr.mesh.matrixWorld;
+    var el = mw.elements;
+    var cache = mr.aabbMatrix;
     for (var j = 0; j < 16; j++) cache[j] = el[j];
     mr.invMatrix.copy(mw).invert();
     mr.aabb.setFromObject(mr.mesh);
     mr.hasTransform = true;
   }
 
-  // 收集点/线段附近的候选 mesh（世界 AABB 粗筛）
+  // ---- 模型级空间网格索引 ----
+  // 背景：超大碎片模型（如 2784 mesh 的城市 GLB）注册后，旧版 _collectNear 每次查询
+  // 都要全量遍历其全部 meshRec（逐 mesh 16 元素矩阵校验 + AABB 测试），每次 3ms+，
+  // 每帧 2~4 次查询 → 持续吃掉 6ms+/帧，表现为"走进大模型区域连续微卡"。
+  // 方案：按 GRID_CELL 把各 mesh 的世界 AABB 挂到 x/z 网格；查询只取附近格子；
+  // 模型是否被移动用"模型根矩阵 16 元素快照"一次比较判定（代替逐 mesh 检测）。
+  var _stamp = 0; // 查询级去重标记（一个 mesh 的 AABB 可能跨多个格子）
+
+  function _gridKey(ix, iz) {
+    return (ix + 65536) * 131072 + (iz + 65536);
+  }
+
+  // 构建/重建单个模型的网格索引（注册后首次查询或模型被移动时触发）
+  function _buildGrid(rec) {
+    var map = new Map();
+    var big = [];
+    for (var k = 0; k < rec.meshes.length; k++) {
+      var mr = rec.meshes[k];
+      if (mr.disabled || !mr.hasBVH) continue;
+      _validateTransformForce(mr);
+      var b = mr.aabb;
+      var x0 = Math.floor(b.min.x / GRID_CELL), x1 = Math.floor(b.max.x / GRID_CELL);
+      var z0 = Math.floor(b.min.z / GRID_CELL), z1 = Math.floor(b.max.z / GRID_CELL);
+      if ((x1 - x0 + 1) * (z1 - z0 + 1) > GRID_MAX_CELLS_PER_MESH) {
+        big.push(mr); // 巨型面片（如跨全城地坪）：格子插入成本过高，改为每次查询必测
+        continue;
+      }
+      for (var ix = x0; ix <= x1; ix++) {
+        for (var iz = z0; iz <= z1; iz++) {
+          var key = _gridKey(ix, iz);
+          var arr = map.get(key);
+          if (!arr) { arr = []; map.set(key, arr); }
+          arr.push(mr);
+        }
+      }
+    }
+    rec.grid = map;
+    rec.gridBig = big;
+  }
+
+  // 模型级脏检测 + 惰性重建：矩阵快照（float64 精确拷贝，与 _elNear 同一套纪律，
+  // 严禁 Float32Array 截断——那会导致每次比较都失配、每帧全量重建，v4 教训）
+  function _ensureModelSpatial(rec) {
+    var now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    var allReady = rec.ready >= rec.meshes.length;
+    var dirty = rec._gridDirty || !rec.grid;
+    var el = rec.model.matrixWorld.elements;
+    var snap = rec._mwEls;
+    if (!dirty && snap) {
+      for (var i = 0; i < 16; i++) {
+        if (snap[i] !== el[i]) { dirty = true; break; }
+      }
+    }
+    if (!dirty) return;
+    // BVH 仍在分批构建时降频重建（≥1s 一次）：等价于旧版"无 BVH 的 mesh 不参与
+    // 候选"，只延迟 ≤1s 生效；全部就绪后 _gridDirty 不再产生，走纯快照比较
+    if (!allReady && rec._gridBuiltAt && (now - rec._gridBuiltAt) < 1000) return;
+    _buildGrid(rec);
+    rec._gridBuiltAt = now;
+    rec._gridDirty = false;
+    rec._mwEls = Array.from(el);
+  }
+
+  // 收集点/线段附近的候选 mesh（网格索引 + AABB 精筛）
   function _collectNear(px, py, pz, pad) {
     var out = [];
+    var st = ++_stamp;
     REG.forEach(function (modelRec) {
       var model = modelRec.model;
       // 不在场景中的模型：合批静态快照仍参与碰撞；其余（视距摘除等）跳过
       if (!model.parent && !modelRec.staticSnapshot) return;
-      for (var k = 0; k < modelRec.meshes.length; k++) {
-        var mr = modelRec.meshes[k];
-        if (mr.disabled || !mr.hasBVH) continue;
-        _validateTransform(mr);
-        _box.copy(mr.aabb);
-        _box.expandByScalar(pad);
-        if (px >= _box.min.x && px <= _box.max.x &&
-            py >= _box.min.y && py <= _box.max.y &&
-            pz >= _box.min.z && pz <= _box.max.z) {
-          out.push(mr);
+      _ensureModelSpatial(modelRec);
+      if (!modelRec.grid) return;
+      var cs = GRID_CELL;
+      var x0 = Math.floor((px - pad) / cs), x1 = Math.floor((px + pad) / cs);
+      var z0 = Math.floor((pz - pad) / cs), z1 = Math.floor((pz + pad) / cs);
+      for (var ix = x0; ix <= x1; ix++) {
+        for (var iz = z0; iz <= z1; iz++) {
+          var arr = modelRec.grid.get(_gridKey(ix, iz));
+          if (!arr) continue;
+          for (var k = 0; k < arr.length; k++) {
+            var mr = arr[k];
+            if (mr._stamp === st) continue;
+            mr._stamp = st;
+            var b = mr.aabb;
+            if (px >= b.min.x - pad && px <= b.max.x + pad &&
+                py >= b.min.y - pad && py <= b.max.y + pad &&
+                pz >= b.min.z - pad && pz <= b.max.z + pad) {
+              out.push(mr);
+            }
+          }
+        }
+      }
+      var big = modelRec.gridBig;
+      for (var bi = 0; bi < big.length; bi++) {
+        var m2 = big[bi];
+        if (m2._stamp === st) continue;
+        m2._stamp = st;
+        var b2 = m2.aabb;
+        if (px >= b2.min.x - pad && px <= b2.max.x + pad &&
+            py >= b2.min.y - pad && py <= b2.max.y + pad &&
+            pz >= b2.min.z - pad && pz <= b2.max.z + pad) {
+          out.push(m2);
         }
       }
     });
@@ -662,10 +762,11 @@
   // ==================== 诊断 ====================
 
   function diag() {
-    var meshes = 0, bvhReady = 0, baked = 0;
+    var meshes = 0, bvhReady = 0, baked = 0, gridCells = 0;
     REG.forEach(function (rec) {
       meshes += rec.meshes.length;
       bvhReady += rec.ready;
+      if (rec.grid) gridCells += rec.grid.size;
       rec.meshes.forEach(function (mr) { if (mr.baked) baked++; });
     });
     return {
@@ -673,6 +774,7 @@
       meshes: meshes,
       bvhReady: bvhReady,
       baked: baked,
+      gridCells: gridCells,
       buildQueue: buildQueue.length,
       bvhRefs: BVH_REFS.size,
       stepUp: STEP_UP,
@@ -776,6 +878,6 @@
   };
 
   initialized = true;
-  console.log('[CapsuleCollision] v5 模块已加载（胶囊 + BVH 表面碰撞 + 编辑同步 + AABB 对账）');
+  console.log('[CapsuleCollision] v6 模块已加载（胶囊 + BVH 表面碰撞 + 模型级空间网格索引 + AABB 对账）');
   setInterval(sweep, SWEEP_INTERVAL_MS);
 })();

@@ -399,6 +399,8 @@ class BuildingManager {
             portal.group.userData.worldObjectId = id;
             portal.group.userData.name = portal.name;
           }
+          // 【2026-09-16 修复】标记 portalType，选中回退4可命中 portals 表来源
+          portal.group.userData.portalType = portal.portalType || 'local';
           editableObjects.push(portal.group);
           console.log(`   ➕ 可选(传送门): ID=${id}, 名称="${portal.name}"`);
         }
@@ -709,10 +711,14 @@ class BuildingManager {
       // 【修复】媒体对象（图片/视频）的尺寸已编码在 PlaneGeometry 中，
       // 不应将 mesh.scale(1,1,1) 写回 DB 覆盖原始显示尺寸
       const isMedia = !!(this.selectedObject.userData.mediaType);
+      // 【2026-09-16 修复】传送门模型的 Y 坐标 = DB 锚点(source_position.y) + _anchorOffsetY(2)，
+      // 保存时必须减回偏移写锚点，否则每次保存锚点上飘 2m
+      const portalEntry = this.world.portals && this.world.portals.get(worldObjectId);
+      const anchorOffsetY = portalEntry ? (portalEntry._anchorOffsetY || 0) : 0;
       const bodyData = {
         name: newName,
         position_x: this.selectedObject.position.x,
-        position_y: this.selectedObject.position.y,
+        position_y: this.selectedObject.position.y - anchorOffsetY,
         position_z: this.selectedObject.position.z,
         rotation_x: this.selectedObject.rotation.x,
         rotation_y: this.selectedObject.rotation.y,

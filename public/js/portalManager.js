@@ -107,13 +107,15 @@ const PortalManager = {
 
       const portals = await API.get('/portal');
       
-      if (portals.length === 0) {
+      const visiblePortals = portals.filter((p) => p.show_in_list !== false);
+
+      if (visiblePortals.length === 0) {
         listContainer.innerHTML = '<div style="text-align: center; padding: 10px; color: #888;">暂无传送门</div>';
         return;
       }
 
       let html = '';
-      portals.forEach((portal) => {
+      visiblePortals.forEach((portal) => {
         const typeColor = portal.portal_type === 'remote' ? '#ff00ff' : '#00ffff';
         const typeText = portal.portal_type === 'remote' ? '跨服' : '本地';
         const sx = Math.round(portal.source_position.x);

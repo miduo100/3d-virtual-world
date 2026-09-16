@@ -364,6 +364,59 @@ router.put('/objects/:id', async (req, res) => {
         }
       }
 
+      // 【2026-09-16 修复】再尝试 portals 表（世界传送门，UUID主键）
+      // 此前传送门编辑保存落到 transform_overrides，而传送门加载只读 portals 表，
+      // 刷新后位置/名称改动全部丢失（"编辑传送门不能保存"根因）
+      const portalUpdateFields = [];
+      const portalValues = [];
+      let portalParamIndex = 1;
+      if (name !== undefined) {
+        portalUpdateFields.push(`name = $${portalParamIndex++}`);
+        portalValues.push(name);
+      }
+      if (position_x !== undefined || position_y !== undefined || position_z !== undefined) {
+        portalUpdateFields.push(`source_position = $${portalParamIndex++}`);
+        portalValues.push(JSON.stringify({ x: position_x || 0, y: position_y || 0, z: position_z || 0 }));
+      }
+      if (portalUpdateFields.length > 0) {
+        try {
+          portalUpdateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+          portalValues.push(id);
+          const portalResult = await query(
+            `UPDATE portals SET ${portalUpdateFields.join(', ')} WHERE id = $${portalParamIndex} RETURNING *`,
+            portalValues
+          );
+          if (portalResult.rows.length > 0) {
+            console.log('✅ portals 更新成功, ID:', id);
+            // portals 表没有 rotation/scale 列，若有传入则同步写入 transform_overrides 供前端加载时恢复
+            const needOverride = rotation_x !== undefined || rotation_y !== undefined || rotation_z !== undefined ||
+                                 scale_x !== undefined || scale_y !== undefined || scale_z !== undefined;
+            if (needOverride) {
+              try {
+                await query(`
+                  INSERT INTO object_transform_overrides (object_id, position_x, position_y, position_z, rotation_x, rotation_y, rotation_z, scale_x, scale_y, scale_z, object_name, updated_at)
+                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+                  ON CONFLICT (object_id)
+                  DO UPDATE SET position_x = $2, position_y = $3, position_z = $4,
+                                 rotation_x = $5, rotation_y = $6, rotation_z = $7,
+                                 scale_x = $8, scale_y = $9, scale_z = $10,
+                                 object_name = $11, updated_at = NOW()
+                  RETURNING *
+                `, [id, position_x || 0, position_y || 0, position_z || 0,
+                    rotation_x || 0, rotation_y || 0, rotation_z || 0,
+                    scale_x || 1, scale_y || 1, scale_z || 1,
+                    name || null]);
+              } catch (ovErr) {
+                console.log('⚠️ portals 旋转/缩放写入 transform_overrides 失败:', ovErr.message);
+              }
+            }
+            return res.json({ success: true, object: portalResult.rows[0], source: 'portals' });
+          }
+        } catch (portalErr) {
+          console.log('⚠️ portals 更新失败:', portalErr.message);
+        }
+      }
+
       // UUID对象在已知表中都未找到，存入 transform_overrides 覆盖表
       console.log('💡 UUID对象未在已知表中找到，存入transform_overrides...');
       try {

@@ -209,6 +209,7 @@ function showCreatePortalModal() {
   document.getElementById('portalModalTitle').textContent = window.i18n ? window.i18n.t('adminFed.fedPortalModalTitle') : '创建传送门';
   document.getElementById('portalForm').reset();
   document.getElementById('portal-id').value = '';
+  document.getElementById('portal-show-in-list').value = '1';
   document.getElementById('portalModal').classList.add('active');
   togglePortalTypeFields();
 }
@@ -254,6 +255,7 @@ async function editPortal(id) {
     document.getElementById('portal-cooldown').value = portal.cooldown_seconds;
     document.getElementById('portal-description').value = portal.description || '';
     document.getElementById('portal-active').value = portal.is_active ? '1' : '0';
+    document.getElementById('portal-show-in-list').value = portal.show_in_list === false ? '0' : '1';
     
     togglePortalTypeFields();
     document.getElementById('portalModal').classList.add('active');
@@ -280,7 +282,8 @@ document.getElementById('portalForm').addEventListener('submit', async (e) => {
       required_level: parseInt(document.getElementById('portal-level').value),
       cooldown_seconds: parseInt(document.getElementById('portal-cooldown').value),
       description: document.getElementById('portal-description').value,
-      is_active: document.getElementById('portal-active').value === '1'
+      is_active: document.getElementById('portal-active').value === '1',
+      show_in_list: document.getElementById('portal-show-in-list').value === '1'
     };
 
     if (type === 'local') {

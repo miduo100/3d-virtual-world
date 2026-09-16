@@ -194,6 +194,7 @@ CREATE TABLE IF NOT EXISTS portals (
   portal_type VARCHAR(50) DEFAULT 'local',
   is_bidirectional BOOLEAN DEFAULT TRUE,
   is_active BOOLEAN DEFAULT TRUE,
+  show_in_list BOOLEAN DEFAULT TRUE,
   cooldown_seconds INT DEFAULT 0,
   required_level INT DEFAULT 1,
   required_role VARCHAR(20) DEFAULT 'user',

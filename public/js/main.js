@@ -849,6 +849,18 @@ async function loadPortals() {
         portal.target_position,
         portal.portal_type
       );
+
+      // 【2026-09-16 修复】传送门 rotation/scale 持久化在 transform_overrides，
+      // 若 override 已加载则应用（位置以 portals 表为权威来源，不做覆盖）
+      const ov = gameWorld._transformOverrides && gameWorld._transformOverrides[portal.id];
+      if (ov) {
+        const entry = gameWorld.portals.get(portal.id);
+        if (entry && entry.group) {
+          entry.group.rotation.set(ov.rotation_x || 0, ov.rotation_y || 0, ov.rotation_z || 0);
+          entry.group.scale.set(ov.scale_x || 1, ov.scale_y || 1, ov.scale_z || 1);
+          entry.group.updateMatrixWorld(true);
+        }
+      }
     });
     
     UI.addChatMessage('系统', `✨ 已加载 ${portals.length} 个传送门`);

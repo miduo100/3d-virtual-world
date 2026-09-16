@@ -217,7 +217,7 @@
       if (chartJsLoaded) return Promise.resolve();
       return new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+        script.src = 'js/lib/chart.umd-4.4.1.js';
         script.onload = () => {
           chartJsLoaded = true;
           resolve();
@@ -1915,9 +1915,10 @@
     </div>
 
     <script>
-      // 多CDN异步加载 Babel（国内优先）
+      // Babel 本地优先（外网 CDN 常被墙/断连，见 js/lib/babel-standalone-7.24.7.min.js），CDN 兜底
       (function() {
         var cdns = [
+          'js/lib/babel-standalone-7.24.7.min.js',
           'https://cdn.staticfile.org/babel-standalone/7.24.7/babel.min.js',
           'https://cdn.bootcdn.net/ajax/libs/babel-standalone/7.24.7/babel.min.js',
           'https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.7/babel.min.js',
@@ -2049,6 +2050,7 @@
         if (needTP) {
           window.__threejsTPDone = true;
           const tpVersions = [
+            'js/lib/tweakpane-4.0.5.min.js',
             'https://cdn.jsdelivr.net/npm/tweakpane@4.0.5/dist/tweakpane.js',
             'https://cdn.jsdelivr.net/npm/tweakpane@3.1.1/dist/tweakpane.js'
           ];
@@ -2700,7 +2702,18 @@
         </div>
       </div>
       <div class="form-group">
-        <label data-i18n="adminFed.fedPortalPosLabel">传送门位置 (x, y, z)</label>
+        <label data-i18n="adminFed.fedPortalVisibleLabel">是否在现有传送门列表显示</label>
+        <select id="portal-show-in-list">
+          <option value="1" data-i18n="adminFed.fedPortalYes">是</option>
+          <option value="0" data-i18n="adminFed.fedPortalNo">否</option>
+        </select>
+        <div style="font-size:12px;color:#888;margin-top:4px;" data-i18n="adminFed.fedPortalVisibleHint">选"否"时传送门不出现在玩家端传送门列表中，但世界内模型和传送功能正常</div>
+      </div>
+      <div class="form-group">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <label data-i18n="adminFed.fedPortalPosLabel" style="margin-bottom:0;">传送门位置 (x, y, z)</label>
+          <button type="button" class="btn btn-sm" onclick="AdminPortalPaste.pasteInto('portal-position')" title="粘贴整段坐标，如 X:-247.9 Y:0.4 Z:452.5" data-i18n="adminFed.fedPortalPasteBtn">📋 粘贴坐标</button>
+        </div>
         <div style="display:flex;gap:8px;">
           <input type="number" id="portal-position-x" placeholder="X" step="any" required style="width:33%">
           <input type="number" id="portal-position-y" placeholder="Y" step="any" required style="width:33%">
@@ -2709,7 +2722,10 @@
       </div>
       <div id="local-fields">
         <div class="form-group">
-          <label data-i18n="adminFed.fedPortalTargetLabel">目标位置 (x, y, z)</label>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label data-i18n="adminFed.fedPortalTargetLabel" style="margin-bottom:0;">目标位置 (x, y, z)</label>
+            <button type="button" class="btn btn-sm" onclick="AdminPortalPaste.pasteInto('portal-target')" title="粘贴整段坐标，如 X:-247.9 Y:0.4 Z:452.5" data-i18n="adminFed.fedPortalPasteBtn">📋 粘贴坐标</button>
+          </div>
           <div style="display:flex;gap:8px;">
             <input type="number" id="portal-target-x" placeholder="X" step="any" style="width:33%">
             <input type="number" id="portal-target-y" placeholder="Y" step="any" style="width:33%">
@@ -3622,6 +3638,7 @@
 
 <script src="js/adminConfig.js" defer></script>
 <script src="js/admin.js" defer></script>
+<script src="js/adminPortalPaste.js" defer></script>
 <script src="js/adminAIProviders.js" defer></script>
 <script src="js/adminMaintenance.js" defer></script>
 <script src="js/adminGallery.js" defer></script>

@@ -5,6 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { query, pool } = require('../database/db');
+const { ensureShowInListColumn } = require('../database/ensurePortalColumns');
 const { authenticateAdminToken, logAdminAction } = require('../middleware/adminAuth');
 const configService = require('../services/configService');
 
@@ -154,7 +155,8 @@ router.post('/portals', async (req, res) => {
       target_world_url,
       required_level,
       cooldown_seconds,
-      description
+      description,
+      show_in_list
     } = req.body;
 
     // 验证必填字段
@@ -177,11 +179,13 @@ router.post('/portals', async (req, res) => {
       return res.status(400).json({ error: '远程传送门需要目标服务器URL' });
     }
 
+    await ensureShowInListColumn();
+
     const result = await query(`
       INSERT INTO portals (
         name, description, source_position, target_position, target_world_url,
-        portal_type, is_bidirectional, cooldown_seconds, required_level
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        portal_type, is_bidirectional, cooldown_seconds, required_level, show_in_list
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING id
     `, [
       name,
@@ -192,7 +196,8 @@ router.post('/portals', async (req, res) => {
       portal_type,
       true,
       cooldown_seconds || 0,
-      required_level || 1
+      required_level || 1,
+      show_in_list !== false
     ]);
 
     res.json({
@@ -219,8 +224,11 @@ router.put('/portals/:portalId', async (req, res) => {
       target_world_url,
       required_level,
       cooldown_seconds,
-      description
+      description,
+      show_in_list
     } = req.body;
+
+    await ensureShowInListColumn();
 
     await query(`
       UPDATE portals SET
@@ -232,8 +240,9 @@ router.put('/portals/:portalId', async (req, res) => {
         portal_type = $6,
         is_bidirectional = $7,
         cooldown_seconds = $8,
-        required_level = $9
-      WHERE id = $10
+        required_level = $9,
+        show_in_list = $10
+      WHERE id = $11
     `, [
       name,
       description || '',
@@ -244,6 +253,7 @@ router.put('/portals/:portalId', async (req, res) => {
       true,
       cooldown_seconds || 0,
       required_level || 1,
+      show_in_list !== false,
       portalId
     ]);
 
