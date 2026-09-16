@@ -1,0 +1,315 @@
+/** @import { MeshBVH } from '../core/MeshBVH.js' */
+/** @import { BVH } from '../core/BVH.js' */
+import { Box3 } from 'three';
+import { PRIMITIVE_INTERSECT_COST, TRAVERSAL_COST } from '../core/Constants.js';
+import { arrayToBox } from '../utils/ArrayBoxUtilities.js';
+import { isSharedArrayBufferSupported } from '../utils/BufferUtils.js';
+
+const _box1 = /* @__PURE__ */ new Box3();
+const _box2 = /* @__PURE__ */ new Box3();
+
+// https://stackoverflow.com/questions/1248302/how-to-get-the-size-of-a-javascript-object
+function getElementSize( el ) {
+
+	switch ( typeof el ) {
+
+		case 'number':
+			return 8;
+		case 'string':
+			return el.length * 2;
+		case 'boolean':
+			return 4;
+		default:
+			return 0;
+
+	}
+
+}
+
+function isTypedArray( arr ) {
+
+	const regex = /(Uint|Int|Float)(8|16|32)Array/;
+	return regex.test( arr.constructor.name );
+
+}
+
+function getRootExtremes( bvh, group ) {
+
+	const result = {
+		nodeCount: 0,
+		leafNodeCount: 0,
+
+		depth: {
+			min: Infinity, max: - Infinity
+		},
+		primitives: {
+			min: Infinity, max: - Infinity
+		},
+		splits: [ 0, 0, 0 ],
+		surfaceAreaScore: 0,
+	};
+
+	bvh.traverse( ( depth, isLeaf, boundingData, offsetOrSplit, count ) => {
+
+		const l0 = boundingData[ 0 + 3 ] - boundingData[ 0 ];
+		const l1 = boundingData[ 1 + 3 ] - boundingData[ 1 ];
+		const l2 = boundingData[ 2 + 3 ] - boundingData[ 2 ];
+
+		const surfaceArea = 2 * ( l0 * l1 + l1 * l2 + l2 * l0 );
+
+		result.nodeCount ++;
+		if ( isLeaf ) {
+
+			result.leafNodeCount ++;
+
+			result.depth.min = Math.min( depth, result.depth.min );
+			result.depth.max = Math.max( depth, result.depth.max );
+
+			result.primitives.min = Math.min( count, result.primitives.min );
+			result.primitives.max = Math.max( count, result.primitives.max );
+
+			result.surfaceAreaScore += surfaceArea * PRIMITIVE_INTERSECT_COST * count;
+
+		} else {
+
+			result.splits[ offsetOrSplit ] ++;
+
+			result.surfaceAreaScore += surfaceArea * TRAVERSAL_COST;
+
+		}
+
+	}, group );
+
+	// If there are no leaf nodes because the tree hasn't finished generating yet.
+	if ( result.primitives.min === Infinity ) {
+
+		result.primitives.min = 0;
+		result.primitives.max = 0;
+
+	}
+
+	if ( result.depth.min === Infinity ) {
+
+		result.depth.min = 0;
+		result.depth.max = 0;
+
+	}
+
+	return result;
+
+}
+
+/**
+ * @section Debug Functions
+ * @typedef {Object} BVHExtremes
+ * @property {number} nodeCount Total number of nodes in the tree including leaf nodes.
+ * @property {number} leafNodeCount Total number of leaf nodes in the tree.
+ * @property {number} surfaceAreaScore Total tree score based on the surface area heuristic.
+ * Lower is better. Useful for comparing tree quality and performance, and for detecting
+ * degradation after `MeshBVH.refit` calls.
+ * @property {{ min: number, max: number }} depth Min and max depth of leaf nodes.
+ * @property {{ min: number, max: number }} tris Min and max triangle count in leaf nodes.
+ * @property {Array<number>} splits Number of splits on each axis as a three-element array `[X, Y, Z]`.
+ */
+
+/**
+ * Measures the min and max extremes of the BVH tree structure, including node
+ * depth, leaf primitive count, split axis distribution, and a surface-area
+ * heuristic score. Returns one entry per root group in the BVH.
+ * @section Debug Functions
+ * @param {MeshBVH} bvh
+ * @returns {Array<BVHExtremes>}
+ */
+function getBVHExtremes( bvh ) {
+
+	return bvh._roots.map( ( root, i ) => getRootExtremes( bvh, i ) );
+
+}
+
+/**
+ * Roughly estimates the amount of memory in bytes used by a BVH by walking
+ * its object graph and summing typed-array byte lengths and primitive sizes.
+ * @section Debug Functions
+ * @param {BVH} bvh
+ * @returns {number}
+ */
+function estimateMemoryInBytes( obj ) {
+
+	const traversed = new Set();
+	const stack = [ obj ];
+	let bytes = 0;
+
+	while ( stack.length ) {
+
+		const curr = stack.pop();
+		if ( traversed.has( curr ) ) {
+
+			continue;
+
+		}
+
+		traversed.add( curr );
+
+		for ( let key in curr ) {
+
+			if ( ! Object.hasOwn( curr, key ) ) {
+
+				continue;
+
+			}
+
+			bytes += getElementSize( key );
+
+			const value = curr[ key ];
+			if ( value && ( typeof value === 'object' || typeof value === 'function' ) ) {
+
+				if ( isTypedArray( value ) ) {
+
+					bytes += value.byteLength;
+
+				} else if ( isSharedArrayBufferSupported() && value instanceof SharedArrayBuffer ) {
+
+					bytes += value.byteLength;
+
+				} else if ( value instanceof ArrayBuffer ) {
+
+					bytes += value.byteLength;
+
+				} else {
+
+					stack.push( value );
+
+				}
+
+			} else {
+
+				bytes += getElementSize( value );
+
+			}
+
+
+		}
+
+	}
+
+	return bytes;
+
+}
+
+/**
+ * Validates that every node's bounding box fully contains its children and,
+ * for leaf nodes, fully contains all of its primitives. Uses `console.assert`
+ * to log failures and returns `false` if any check fails.
+ * @section Debug Functions
+ * @param {MeshBVH} bvh
+ * @returns {boolean}
+ */
+function validateBounds( bvh ) {
+
+	const depthStack = [];
+	const tempBuffer = new Float32Array( 6 );
+	let passes = true;
+
+	bvh.traverse( ( depth, isLeaf, boundingData, offset, count ) => {
+
+		const info = {
+			depth,
+			isLeaf,
+			boundingData,
+			offset,
+			count,
+		};
+		depthStack[ depth ] = info;
+
+		arrayToBox( 0, boundingData, _box1 );
+		const parent = depthStack[ depth - 1 ];
+
+		if ( isLeaf ) {
+
+			// Compute the actual bounds of the primitives in this leaf
+			bvh.writePrimitiveRangeBounds( offset, count, tempBuffer, 0 );
+
+			// tempBuffer is in min/max format [minx, miny, minz, maxx, maxy, maxz]
+			_box2.min.set( tempBuffer[ 0 ], tempBuffer[ 1 ], tempBuffer[ 2 ] );
+			_box2.max.set( tempBuffer[ 3 ], tempBuffer[ 4 ], tempBuffer[ 5 ] );
+
+			// Check if the stored bounds contain the actual primitive bounds
+			const isContained = _box1.containsBox( _box2 );
+			console.assert( isContained, 'Leaf bounds does not fully contain primitives.' );
+			passes = passes && isContained;
+
+		}
+
+		if ( parent ) {
+
+			// check if my bounds fit in my parents
+			arrayToBox( 0, parent.boundingData, _box2 );
+
+			const isContained = _box2.containsBox( _box1 );
+			console.assert( isContained, 'Parent bounds does not fully contain child.' );
+			passes = passes && isContained;
+
+		}
+
+	} );
+
+	return passes;
+
+}
+
+/**
+ * Returns a plain-object tree that mirrors the BVH hierarchy, useful for
+ * inspecting or serialising the structure for debugging. Each node has a
+ * `bounds` (`Box3`) and either `{ count, offset }` (leaf) or `{ left, right }`
+ * (internal) fields.
+ * @section Debug Functions
+ * @param {BVH} bvh
+ * @returns {Object}
+ */
+function getJSONStructure( bvh ) {
+
+	const depthStack = [];
+
+	bvh.traverse( ( depth, isLeaf, boundingData, offset, count ) => {
+
+		const info = {
+			bounds: arrayToBox( 0, boundingData, new Box3() ),
+		};
+
+		if ( isLeaf ) {
+
+			info.count = count;
+			info.offset = offset;
+
+		} else {
+
+			info.left = null;
+			info.right = null;
+
+		}
+
+		depthStack[ depth ] = info;
+
+		// traversal hits the left then right node
+		const parent = depthStack[ depth - 1 ];
+		if ( parent ) {
+
+			if ( parent.left === null ) {
+
+				parent.left = info;
+
+			} else {
+
+				parent.right = info;
+
+			}
+
+		}
+
+	} );
+
+	return depthStack[ 0 ];
+
+}
+
+export { estimateMemoryInBytes, getBVHExtremes, validateBounds, getJSONStructure };

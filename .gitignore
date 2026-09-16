@@ -1,5 +1,5 @@
-# Dependencies
-node_modules/
+# Dependencies（2026-09-16 起纳入版本库，支持克隆后直接运行）
+# node_modules/
 
 # Environment files (keep .example files, ignore real configs)
 .env

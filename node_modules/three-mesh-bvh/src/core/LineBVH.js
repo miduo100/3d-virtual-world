@@ -1,0 +1,294 @@
+/** @import { BufferGeometry } from 'three' */
+/** @import { IntersectsBoundsCallback, IntersectsRangeCallback, BoundsTraverseOrderCallback } from './BVH.js' */
+import { Matrix4, Line3, Vector3, Ray, Box3 } from 'three';
+import { PrimitivePool } from '../utils/PrimitivePool.js';
+import { INTERSECTED, NOT_INTERSECTED } from './Constants.js';
+import { GeometryBVH } from './GeometryBVH.js';
+
+const _inverseMatrix = /* @__PURE__ */ new Matrix4();
+const _ray = /* @__PURE__ */ new Ray();
+const _linePool = /* @__PURE__ */ new PrimitivePool( () => new Line3() );
+const _intersectPointOnRay = /*@__PURE__*/ new Vector3();
+const _intersectPointOnSegment = /*@__PURE__*/ new Vector3();
+const _box = /* @__PURE__ */ new Box3();
+const _vec = /* @__PURE__ */ new Vector3();
+const _getters = [ 'getX', 'getY', 'getZ' ];
+
+/**
+ * @callback IntersectsLineCallback
+ * @param {Line3} line - The line segment primitive in local space.
+ * @param {number} index - The primitive index within the BVH buffer.
+ * @param {boolean} contained - Whether the node bounds are fully contained by the query shape.
+ * @param {number} depth - The depth of the node in the tree.
+ * @returns {boolean} Return `true` to stop traversal.
+ */
+
+/**
+ * BVH for `THREE.LineSegments` geometries. Each BVH primitive represents one line segment
+ * (two consecutive vertices).
+ * @extends GeometryBVH
+ */
+export class LineSegmentsBVH extends GeometryBVH {
+
+	get primitiveStride() {
+
+		return 2;
+
+	}
+
+	writePrimitiveBounds( i, targetBuffer, baseIndex ) {
+
+		const indirectBuffer = this._indirectBuffer;
+		const { geometry, primitiveStride } = this;
+
+		const posAttr = geometry.attributes.position;
+		const indexAttr = geometry.index;
+
+		// TODO: this may not be right for a LineLoop with a limited draw range / groups
+		const vertCount = indexAttr ? indexAttr.count : posAttr.count;
+
+		const prim = indirectBuffer ? indirectBuffer[ i ] : i;
+		let i0 = prim * primitiveStride;
+		let i1 = ( i0 + 1 ) % vertCount;
+		if ( indexAttr ) {
+
+			i0 = indexAttr.getX( i0 );
+			i1 = indexAttr.getX( i1 );
+
+		}
+
+		for ( let el = 0; el < 3; el ++ ) {
+
+			const v0 = posAttr[ _getters[ el ] ]( i0 );
+			const v1 = posAttr[ _getters[ el ] ]( i1 );
+			const min = v0 < v1 ? v0 : v1;
+			const max = v0 > v1 ? v0 : v1;
+
+			// Write in min/max format [minx, miny, minz, maxx, maxy, maxz]
+			targetBuffer[ baseIndex + el ] = min;
+			targetBuffer[ baseIndex + el + 3 ] = max;
+
+		}
+
+		return targetBuffer;
+
+	}
+
+	/**
+	 * Performs a spatial query against the BVH. Extends the base `shapecast` with an
+	 * `intersectsLine` callback that is called once per line segment primitive in leaf nodes.
+	 *
+	 * @param {Object} callbacks
+	 * @param {IntersectsBoundsCallback} callbacks.intersectsBounds
+	 * @param {IntersectsLineCallback} [callbacks.intersectsLine]
+	 * @param {IntersectsRangeCallback} [callbacks.intersectsRange]
+	 * @param {BoundsTraverseOrderCallback} [callbacks.boundsTraverseOrder]
+	 * @returns {boolean}
+	 */
+	shapecast( callbacks ) {
+
+		const line = _linePool.getPrimitive();
+		const result = super.shapecast( {
+			...callbacks,
+			intersectsPrimitive: callbacks.intersectsLine,
+			scratchPrimitive: line,
+			iterate: iterateOverLines,
+		} );
+		_linePool.releasePrimitive( line );
+
+		return result;
+
+	}
+
+	raycastObject3D( object, raycaster, intersects = [] ) {
+
+		const { matrixWorld } = object;
+		const { firstHitOnly } = raycaster;
+
+		_inverseMatrix.copy( matrixWorld ).invert();
+		_ray.copy( raycaster.ray ).applyMatrix4( _inverseMatrix );
+
+		const threshold = raycaster.params.Line.threshold;
+		const localThreshold = threshold / ( ( object.scale.x + object.scale.y + object.scale.z ) / 3 );
+		const localThresholdSq = localThreshold * localThreshold;
+
+		let closestHit = null;
+		let closestDistance = Infinity;
+		this.shapecast( {
+			boundsTraverseOrder: box => {
+
+				return box.distanceToPoint( _ray.origin );
+
+			},
+			intersectsBounds: box => {
+
+				_box.copy( box ).expandByScalar( localThreshold );
+
+				if ( firstHitOnly ) {
+
+					if ( ! _ray.intersectBox( _box, _vec ) ) {
+
+						return NOT_INTERSECTED;
+
+					}
+
+					let dist;
+					if ( _box.containsPoint( _ray.origin ) ) {
+
+						dist = 0;
+
+					} else {
+
+						_vec.applyMatrix4( matrixWorld );
+						dist = raycaster.ray.origin.distanceTo( _vec );
+
+					}
+
+					// early out if the box is further than the closest raycast
+					return dist < closestDistance ? INTERSECTED : NOT_INTERSECTED;
+
+				} else {
+
+					return _ray.intersectsBox( _box ) ? INTERSECTED : NOT_INTERSECTED;
+
+				}
+
+			},
+			intersectsLine: ( line, index ) => {
+
+				const distSq = _ray.distanceSqToSegment( line.start, line.end, _intersectPointOnRay, _intersectPointOnSegment );
+
+				if ( distSq > localThresholdSq ) return;
+
+				_intersectPointOnRay.applyMatrix4( object.matrixWorld );
+
+				const distance = raycaster.ray.origin.distanceTo( _intersectPointOnRay );
+
+				if ( distance < raycaster.near || distance > raycaster.far ) return;
+
+				if ( firstHitOnly && distance >= closestDistance ) return;
+				closestDistance = distance;
+
+				index = this.resolvePrimitiveIndex( index );
+
+				closestHit = {
+					distance,
+					point: _intersectPointOnSegment.clone().applyMatrix4( matrixWorld ),
+					index: index * this.primitiveStride,
+					face: null,
+					faceIndex: null,
+					barycoord: null,
+					object,
+				};
+
+				if ( ! firstHitOnly ) {
+
+					intersects.push( closestHit );
+
+				}
+
+			},
+		} );
+
+		if ( firstHitOnly && closestHit ) {
+
+			intersects.push( closestHit );
+
+		}
+
+		return intersects;
+
+	}
+
+}
+
+/**
+ * BVH for `THREE.LineLoop` geometries. Forces indirect mode since the loop structure
+ * requires that the index buffer remain unmodified.
+ * @param {BufferGeometry} geometry
+ * @param {Object} [options] - Same options as {@link GeometryBVH}. `indirect` is always forced to `true`.
+ * @extends LineSegmentsBVH
+ */
+export class LineLoopBVH extends LineSegmentsBVH {
+
+	get primitiveStride() {
+
+		return 1;
+
+	}
+
+	constructor( geometry, options = {} ) {
+
+		// "Line" and "LineLoop" BVH must be indirect since we cannot rearrange the index
+		// buffer without breaking the lines
+		options = {
+			...options,
+			indirect: true,
+		};
+
+		super( geometry, options );
+
+	}
+
+}
+
+/**
+ * BVH for `THREE.Line` geometries. Like `LineLoopBVH` but excludes the final closing
+ * segment so the open line is accurately represented.
+ * @param {BufferGeometry} geometry
+ * @param {Object} [options] - Same options as {@link GeometryBVH}. `indirect` is always forced to `true`.
+ * @extends LineLoopBVH
+ */
+export class LineBVH extends LineLoopBVH {
+
+	getRootRanges( ...args ) {
+
+		const res = super.getRootRanges( ...args );
+		res.forEach( group => group.count -- );
+		return res;
+
+	}
+
+}
+
+function iterateOverLines(
+	offset,
+	count,
+	bvh,
+	intersectsPointFunc,
+	contained,
+	depth,
+	line
+) {
+
+	const { geometry, primitiveStride } = bvh;
+	const { index } = geometry;
+	const posAttr = geometry.attributes.position;
+	const vertCount = index ? index.count : posAttr.count;
+
+	for ( let i = offset, l = count + offset; i < l; i ++ ) {
+
+		const prim = bvh.resolvePrimitiveIndex( i );
+		let i0 = prim * primitiveStride;
+		let i1 = ( i0 + 1 ) % vertCount;
+		if ( index ) {
+
+			i0 = index.getX( i0 );
+			i1 = index.getX( i1 );
+
+		}
+
+		line.start.fromBufferAttribute( posAttr, i0 );
+		line.end.fromBufferAttribute( posAttr, i1 );
+
+		if ( intersectsPointFunc( line, i, contained, depth ) ) {
+
+			return true;
+
+		}
+
+	}
+
+	return false;
+
+}
