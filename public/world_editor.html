@@ -3228,7 +3228,6 @@
             // 场景
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x87ceeb);
-            scene.fog = new THREE.Fog(0x87ceeb, 100, 500);
 
             // 相机
             camera = new THREE.PerspectiveCamera(
@@ -8262,5 +8261,7 @@
         window.onMediaAnimateTick = _origAnimateInner;
 
     </script>
+    <!-- draw call 降载模块：占位盒实例化 + 几何实例合批（画面零变化） -->
+    <script src="js/editorPerfBatcher.js?v=1"></script>
 </body>
 </html>
