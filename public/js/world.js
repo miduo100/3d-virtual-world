@@ -3860,6 +3860,10 @@ class World {
             // 从地图中删除
             this.generatedBuildings.delete(obj.id);
 
+            // 【碰撞同步】立即注销胶囊注册（消灭 2s 扫描窗口内的陈旧注册：
+            // 窗口期内同 id 重载会让 registerModel 早退、绑死已移出场景的旧模型）
+            if (window.CapsuleCollision) window.CapsuleCollision.unregisterModel(obj.id);
+
             // 从碰撞对象中移除，优先使用ID匹配
             this.collisionObjects = this.collisionObjects.filter(collisionObj =>
               collisionObj.id !== obj.id
@@ -4946,6 +4950,8 @@ class World {
           });
           this.generatedBuildings.clear();
           this.collisionObjects = [];
+          // 【碰撞同步】全世界重建时同步清空胶囊注册表（旧注册引用已销毁的模型实例）
+          if (window.CapsuleCollision) window.CapsuleCollision.clear();
 
           // 重新注册出生点碰撞体（如果出生点已创建）
           if (this.spawnPoint) {
@@ -5048,6 +5054,13 @@ class World {
         entry.model.position.set(ov.position_x || 0, ov.position_y || 0, ov.position_z || 0);
         entry.model.rotation.set(ov.rotation_x || 0, ov.rotation_y || 0, ov.rotation_z || 0);
         entry.model.scale.set(ov.scale_x || 1, ov.scale_y || 1, ov.scale_z || 1);
+        entry.model.updateMatrixWorld(true);
+        // 【碰撞同步】模型被 override 挪动后重建碰撞：先 rebuildAabb（清旧兜底盒），
+        // 再 refresh（胶囊按新世界矩阵重烘焙，baked 快照不跟随编辑是碰撞悬空的根因）
+        if (window.CapsuleCollision) {
+          window.CapsuleCollision.rebuildAabb(this, objectId);
+          window.CapsuleCollision.refresh(objectId);
+        }
         applied++;
         return;
       }
@@ -6579,14 +6592,22 @@ class World {
           );
           
           if (existingCollisionIndex === -1) {
+            // 【碰撞同步】与下方新鲜加载路径对齐：补 id/anchor（卸载清理与胶囊接管
+            // 都依赖这两个标记，缺失会成为清理机制不可见的孤儿盒）、盒心用包围盒中心
+            // （原用锚点当盒心，锚点偏离几何中心的模型顶面高度算错）
+            const center = new THREE.Vector3();
+            box.getCenter(center);
             this.collisionObjects.push({
               type: 'box',
-              position: model.position.clone(),
-              size: { 
-                width: size.x, 
-                height: size.y, 
-                depth: size.z 
-              }
+              id: id,
+              anchor: model.position.clone(),
+              position: center,
+              size: {
+                width: size.x,
+                height: size.y,
+                depth: size.z
+              },
+              boundingBox: box.clone()
             });
           }
 
@@ -6694,6 +6715,7 @@ class World {
           box.getCenter(center);
           this.collisionObjects.push({
             type: 'box',
+            id: id,
             anchor: modelClone.position.clone(),
             position: center,
             size: {
@@ -7037,8 +7059,8 @@ class World {
         _meta: adMeta, _isAdSlot: true
       });
 
-      // 添加到碰撞检测
-      this.collisionObjects.push({ type: 'box', position: pos.clone(), size: { width: 2.4, height: 2.4, depth: 0.5 } });
+      // 添加到碰撞检测（【碰撞同步】补 id：无 id 盒卸载时删不掉、重载时会累加）
+      this.collisionObjects.push({ type: 'box', id: id, position: pos.clone(), size: { width: 2.4, height: 2.4, depth: 0.5 } });
 
       console.log(`🚀 默认传送门已创建: ${name} (${portal_type}) 位于 (${pos.x}, ${pos.y}, ${pos.z})`);
       return;
@@ -7106,7 +7128,7 @@ class World {
       box.getSize(size);
 
       this.generatedBuildings.set(id, { model, data: { ...adSlotData, _meta: adMeta }, _isAdSlot: true });
-      this.collisionObjects.push({ type: 'box', position: pos.clone(), size: { width: size.x, height: size.y, depth: size.z } });
+      this.collisionObjects.push({ type: 'box', id: id, position: pos.clone(), size: { width: size.x, height: size.y, depth: size.z } });
 
       console.log(`🚀 广告位模型加载成功: ${name} (${portal_type})`);
     } catch (err) {

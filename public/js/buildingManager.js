@@ -743,7 +743,14 @@ class BuildingManager {
         if (data.source === 'transform_overrides' && this.world._transformOverrides) {
           this.world._transformOverrides[worldObjectId] = data.override;
         }
-        
+
+        // 【碰撞同步】编辑变换落库后立即重建该对象碰撞：胶囊 baked 快照与
+        // AABB 兜底盒都只在加载时创建，不跟随编辑是"碰撞体悬空错位"的根因
+        if (window.CapsuleCollision) {
+          window.CapsuleCollision.rebuildAabb(this.world, worldObjectId);
+          window.CapsuleCollision.refresh(worldObjectId);
+        }
+
         UI.showNotification('✅ 保存成功', '建筑已更新', 2000);
       } else if (response.status === 404) {
         // PUT /objects/:id 返回404，说明对象不在任何已知表中，尝试transform-overrides接口
@@ -777,6 +784,11 @@ class BuildingManager {
             document.getElementById('selected-object-name').textContent = newName;
             if (this.world._transformOverrides) {
               this.world._transformOverrides[worldObjectId] = overrideData.override;
+            }
+            // 【碰撞同步】位置覆盖保存成功后同样重建碰撞
+            if (window.CapsuleCollision) {
+              window.CapsuleCollision.rebuildAabb(this.world, worldObjectId);
+              window.CapsuleCollision.refresh(worldObjectId);
             }
             UI.showNotification('✅ 保存成功', '位置覆盖已保存', 2000);
           } else {

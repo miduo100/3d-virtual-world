@@ -220,7 +220,14 @@
    *   BVH 直接建在世界空间，任意拉伸都精确。
    */
   function registerModel(id, model) {
-    if (!id || !model || REG.has(id)) return REG.has(id);
+    if (!id || !model) return false;
+    var existing = REG.get(id);
+    if (existing) {
+      if (existing.model === model) return true;
+      // 【碰撞同步】同 id 换了新模型实例（卸载重载竞态/编辑重建）：旧注册绑的是已移出
+      // 场景的死模型，会让表面碰撞静默失效且阻断 AABB 清理——必须先清旧再重建
+      unregisterModel(id);
+    }
     var isStaticSnapshot = !!model.userData.__geometryBatched;
 
     var meshRecs = [];
@@ -259,6 +266,7 @@
       if (mr.baked) {
         // 私有世界空间快照：矩阵全为单位阵，半径换算系数 = 1
         mr.geometry = _bakeWorldGeometry(mr.mesh);
+        mr.bakeEls = mr.mesh.matrixWorld.elements.slice(); // 烘焙基准（float64 精确拷贝，编辑跟随检测用）
         mr.uniformScale = 1;
         mr.worldMatrix = _IDENTITY;
         mr.invMatrix = _IDENTITY;
@@ -478,18 +486,167 @@
     });
   }
 
+  // ---- 烘焙快照编辑跟随检测 ----
+
+  // 单元素比较：相对容差 1e-6（float64 确定性重算本应完全相等，容差仅兜底重计算噪声）
+  function _elNear(a, b) {
+    if (a === b) return true;
+    var d = a - b;
+    if (d < 0) d = -d;
+    var m = a < 0 ? -a : a;
+    var mb = b < 0 ? -b : b;
+    if (mb > m) m = mb;
+    return d <= 1e-6 * (m > 1 ? m : 1);
+  }
+
+  // baked 快照是否已偏离烘焙基准（模型被编辑器/override 挪动或缩放）
+  function _bakedDiffersFromBake(rec) {
+    for (var k = 0; k < rec.meshes.length; k++) {
+      var mr = rec.meshes[k];
+      if (!mr.baked || !mr.bakeEls || mr.disabled) continue;
+      var el = mr.mesh.matrixWorld.elements;
+      for (var i = 0; i < 16; i++) {
+        if (!_elNear(mr.bakeEls[i], el[i])) return true;
+      }
+    }
+    return false;
+  }
+
+  // 捕获当前全部 baked mesh 的世界矩阵（float64 精确拷贝，用于"连续两次观测一致"判定）
+  function _captureBakedEls(rec) {
+    var out = [];
+    for (var k = 0; k < rec.meshes.length; k++) {
+      var mr = rec.meshes[k];
+      if (mr.baked && mr.bakeEls && !mr.disabled) {
+        out.push(mr.mesh.matrixWorld.elements.slice());
+      }
+    }
+    return out;
+  }
+
+  function _elsEqual(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      var ea = a[i], eb = b[i];
+      if (!ea || !eb || ea.length !== eb.length) return false;
+      for (var j = 0; j < ea.length; j++) {
+        if (!_elNear(ea[j], eb[j])) return false;
+      }
+    }
+    return true;
+  }
+
+  // ---- AABB 兜底盒对账（周期幂等清理） ----
+
+  function _makeFallbackBox(id, entry, live) {
+    var center = live.getCenter(new THREE.Vector3());
+    var size = live.getSize(new THREE.Vector3());
+    return {
+      type: entry.isGeometry ? 'geometry_building' : 'box',
+      id: id,
+      anchor: entry.model.position.clone(),
+      position: center,
+      size: { width: size.x, height: size.y, depth: size.z },
+      boundingBox: live.clone()
+    };
+  }
+
+  /**
+   * 对账 world.collisionObjects：
+   *  1) 胶囊已接管的模型：其 AABB 盒（按 id/锚点）一律删除（幂等，防重载竞态残留）；
+   *  2) 同 id 重复盒去重；
+   *  3) 盒对应条目已卸载/是占位符 → 删（陈旧盒）；
+   *  4) 兜底盒与模型实时包围盒偏差 >1m（模型被编辑过）→ 重建；
+   *  5) 无 id 无锚点的孤儿盒（旧版 portal/ad_slot 残留）按 位置+尺寸 去重（防传送累加）。
+   */
+  function _reconcileAabbs(world) {
+    if (!world.collisionObjects) return;
+    // 1) 已接管模型周期性清理其 AABB（幂等）
+    REG.forEach(function (rec, id) {
+      var entry = world.generatedBuildings.get(id);
+      if (entry && entry.data) _removeAabbFor(world, id, entry);
+    });
+
+    var list = world.collisionObjects;
+    var seenId = new Set();
+    var seenOrphan = new Set();
+    var remove = new Set();
+    var toAdd = [];
+    for (var i = 0; i < list.length; i++) {
+      var c = list[i];
+      if (!c || c._isSpawnCollider) continue;
+      if (c.id !== undefined && c.id !== null) {
+        var key = 'id' + c.id;
+        if (seenId.has(key)) { remove.add(i); continue; } // 2) 同 id 重复
+        seenId.add(key);
+        var entry = world.generatedBuildings.get(c.id);
+        if (!entry || entry.isPlaceholder || !entry.model) { remove.add(i); continue; } // 3) 已卸载
+        if (REG.has(c.id)) { remove.add(i); continue; } // 1) 胶囊已接管
+        if (entry.data && entry.data.has_collision === true) {
+          // 4) 兜底盒 vs 实时包围盒
+          try {
+            entry.model.updateWorldMatrix(true, true);
+            var live = new THREE.Box3().setFromObject(entry.model);
+            var s = c.boundingBox;
+            if (!s ||
+                Math.abs(s.max.y - live.max.y) > 1 || Math.abs(s.min.y - live.min.y) > 1 ||
+                Math.abs(s.max.x - live.max.x) > 1 || Math.abs(s.min.x - live.min.x) > 1 ||
+                Math.abs(s.max.z - live.max.z) > 1 || Math.abs(s.min.z - live.min.z) > 1) {
+              remove.add(i);
+              toAdd.push(_makeFallbackBox(c.id, entry, live));
+            }
+          } catch (e) { /* 单条异常不阻断对账 */ }
+        }
+      } else if (!c.anchor) {
+        // 5) 无 id 无锚点孤儿盒：按 位置+尺寸 去重
+        var okey = [c.position && c.position.x, c.position && c.position.y, c.position && c.position.z,
+                    c.size && c.size.width, c.size && c.size.height, c.size && c.size.depth].join('|');
+        if (seenOrphan.has(okey)) { remove.add(i); continue; }
+        seenOrphan.add(okey);
+      }
+      // 带 anchor 无 id 的旧格式盒：由上方第 1) 步按锚点清理
+    }
+    if (remove.size || toAdd.length) {
+      world.collisionObjects = list.filter(function (c, idx) { return !remove.has(idx); }).concat(toAdd);
+    }
+  }
+
   function sweep() {
     var world = window.gameWorld;
     if (!world || !world.generatedBuildings) return;
+    var pendingRebuild = [];
     world.generatedBuildings.forEach(function (entry, id) {
       if (!entry || entry.isPlaceholder) return;
       if (!entry.model || !entry.data) return;
       if (entry.data.has_collision !== true) return;
       if (TRI_LIMIT_FAILED.has(id)) return; // 面数超限已提示过，不再重试
-      if (!REG.has(id)) {
+      var rec = REG.get(id);
+      if (rec && rec.model !== entry.model) {
+        unregisterModel(id); // 同 id 换了新模型实例（重载竞态）→ 下方走重建
+        rec = null;
+      }
+      if (!rec) {
         if (registerModel(id, entry.model)) {
           _removeAabbFor(world, id, entry);
         }
+      } else if (_bakedDiffersFromBake(rec)) {
+        // 【碰撞同步】模型被编辑挪动/缩放：连续两次观测一致（拖拽已结束）才重建，
+        // 拖拽过程中只记录观测不重建，避免反复 dispose/建 BVH。
+        // 注意：合批模型（__geometryBatched）源对象不在场景，不能拿 model.parent 当守卫
+        var cur = _captureBakedEls(rec);
+        if (_elsEqual(rec._seenEls, cur)) {
+          pendingRebuild.push(id);
+        } else {
+          rec._seenEls = cur;
+        }
+      }
+    });
+    // 重建变换已稳定的过期注册
+    pendingRebuild.forEach(function (id) {
+      var entry = world.generatedBuildings.get(id);
+      unregisterModel(id);
+      if (entry && registerModel(id, entry.model)) {
+        _removeAabbFor(world, id, entry);
       }
     });
     // 注销已卸载的对象
@@ -499,6 +656,7 @@
         TRI_LIMIT_FAILED.delete(id); // 重新加载后允许重新评估
       }
     });
+    _reconcileAabbs(world);
   }
 
   // ==================== 诊断 ====================
@@ -528,8 +686,19 @@
     var rec = REG.get(id);
     if (!rec) return null;
     return rec.meshes.map(function (mr) {
+      var differs = null;
+      if (mr.baked && mr.bakeEls) {
+        var el = mr.mesh.matrixWorld.elements;
+        for (var i = 0; i < 16; i++) {
+          if (mr.bakeEls[i] !== el[i]) { differs = true; break; }
+        }
+        if (differs !== true) differs = false;
+      }
       return {
         baked: !!mr.baked,
+        hasBakeEls: !!mr.bakeEls,
+        differs: differs,
+        disabled: !!mr.disabled,
         hasBVH: !!mr.geometry.boundsTree,
         uniformScale: +((mr.uniformScale || 1).toFixed(3)),
         aabb: {
@@ -541,6 +710,55 @@
     });
   }
 
+  // ==================== 编辑同步 API ====================
+
+  /**
+   * 【碰撞同步】编辑器/override 修改模型变换后调用：
+   * 立即注销并重建该对象的胶囊注册（baked 快照按新世界矩阵重烘）。
+   * @returns {boolean} 是否成功重建
+   */
+  function refresh(id) {
+    var world = window.gameWorld;
+    if (!world || !id) return false;
+    var entry = world.generatedBuildings.get(id);
+    unregisterModel(id);
+    if (!entry || entry.isPlaceholder || !entry.model) return false;
+    if (!entry.data || entry.data.has_collision !== true) return false;
+    if (TRI_LIMIT_FAILED.has(id)) return false;
+    if (!registerModel(id, entry.model)) return false;
+    _removeAabbFor(world, id, entry);
+    return true;
+  }
+
+  /**
+   * 【碰撞同步】重建某对象的 AABB 兜底盒（模型变换变化后调用）。
+   * 已被胶囊接管的模型只清理旧盒、不建新盒（兜底盒此时无意义）。
+   * @returns {boolean} 是否有变更
+   */
+  function rebuildAabb(world, id) {
+    if (!world || !id || !world.collisionObjects) return false;
+    var entry = world.generatedBuildings.get(id);
+    if (!entry || entry.isPlaceholder || !entry.model) return false;
+    var d = entry.data || {};
+    var before = world.collisionObjects.length;
+    world.collisionObjects = world.collisionObjects.filter(function (c) {
+      if (c.id === id) return false;
+      if (c.anchor && typeof d.position_x === 'number' &&
+          Math.abs(c.anchor.x - d.position_x) < 0.1 && Math.abs(c.anchor.z - d.position_z) < 0.1) {
+        return false;
+      }
+      return true;
+    });
+    if (!entry.data || entry.data.has_collision !== true) return before !== world.collisionObjects.length;
+    if (REG.has(id) || TRI_LIMIT_FAILED.has(id)) return before !== world.collisionObjects.length;
+    try {
+      entry.model.updateWorldMatrix(true, true);
+      var live = new THREE.Box3().setFromObject(entry.model);
+      world.collisionObjects.push(_makeFallbackBox(id, entry, live));
+      return true;
+    } catch (e) { return false; }
+  }
+
   // ---- 导出 ----
   window.CapsuleCollision = {
     registerModel: registerModel,
@@ -550,12 +768,14 @@
     checkCapsule: checkCapsule,
     isEnabled: isEnabled,
     sweep: sweep,
+    refresh: refresh,
+    rebuildAabb: rebuildAabb,
     _diag: diag,
     _dump: dump,
     _recs: function (id) { var r = REG.get(id); return r ? r.meshes : null; }
   };
 
   initialized = true;
-  console.log('[CapsuleCollision] v2 模块已加载（胶囊 + BVH 表面碰撞）');
+  console.log('[CapsuleCollision] v5 模块已加载（胶囊 + BVH 表面碰撞 + 编辑同步 + AABB 对账）');
   setInterval(sweep, SWEEP_INTERVAL_MS);
 })();
