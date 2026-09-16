@@ -333,12 +333,17 @@
     });
 
     /** 父世界静止四元数：父是骨骼且已重建 → 用其 bind 世界；
-     *  否则沿 Object3D 节点链累计当前旋转（非骨骼节点不被动画驱动，当前=rest） */
+     *  否则沿 Object3D 节点链累计当前旋转（非骨骼节点不被动画驱动，当前=rest）。
+     *  【2026-09-16 修复】回溯边界止步于模型根（glbModel/gltf.scene）：
+     *  W(IBM⁻¹) 定义在 glTF 文件本地坐标系，父链必须只在模型子树内累计。
+     *  原实现一路乘到场景根，会把 characterGroup 的实时朝向（每帧=镜头方位角）
+     *  乘进 Hips 等根骨骼的补偿常量——慢网时补偿计算被推迟到用户已转动镜头后，
+     *  该偏角被永久烘进动画轨道（实测角色恒定偏 45°/90°/180°，Q/E 无法纠正）。 */
     function parentWorldQ(b) {
       var p = b.parent;
       if (p && p.isBone && W.has(p.name)) return W.get(p.name);
       var q = new T.Quaternion(), cur = p;
-      while (cur) { q.premultiply(cur.quaternion); cur = cur.parent; }
+      while (cur && cur !== model) { q.premultiply(cur.quaternion); cur = cur.parent; }
       return q;
     }
     bones.forEach(function (b, name) {
