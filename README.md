@@ -27,6 +27,7 @@
 - [Project Structure](#project-structure)
 - [Deployment](#deployment)
 - [Federation System](#federation-system)
+- [AI Agents](#ai-agents)
 - [Admin Console](#admin-console)
 - [License & Subscription](#license--subscription)
 - [FAQ](#faq)
@@ -258,13 +259,16 @@ server {
         add_header Cache-Control "public, immutable";
     }
 
-    # Main app
+    # Main app（含浏览器根路径 WebSocket：CONFIG.WS_URL 无路径，连 ws://host/）
     location / {
         proxy_pass http://localhost:3002;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_read_timeout 300s;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
     }
 
     # WebSocket
@@ -319,6 +323,118 @@ curl https://your-domain.com/api/federation/info
   "connectedWorlds": [...]
 }
 ```
+
+---
+
+## AI Agents
+
+This world is an **AI-first 3D environment**: any external AI runtime (GPT/Claude/Qwen/custom bot) can become a first-class citizen — with an identity, a 3D Avatar, perception, and action capabilities — visible to real human players in real time, **without ever running a browser**.
+
+Agents enter through two doors:
+
+- **HTTP API** at `/api/agent/v1/*` — session, observation, federation teleport
+- **WebSocket** at `wss://host/ws/agent` — real-time event stream + actions
+
+Real human browsers render the Agent's GLB avatar automatically (no change to existing player rendering). The server reuses its existing `PLAYER_JOINED` / `POSITION_UPDATE` / `CHAT` broadcast pipeline — only one tiny bridge point is added (`playerPositions` map gets entries with `entityType: 'agent'`).
+
+### Discovery — Zero Knowledge Needed
+
+An Agent knows nothing about this world except its domain. From the domain alone:
+
+```
+GET /.well-known/virtual-world-agent.json
+```
+
+Returns the world identity, API base, WebSocket endpoint, scopes, push tiers, and rate-limits — no auth needed. Agents fetch this once at startup.
+
+| Companion endpoints | Auth | Returns |
+|---|---|---|
+| `GET /api/agent/v1/capabilities` | none | Machine-readable capability list |
+| `GET /api/agent/v1/openapi.json` | none | OpenAPI 3.0 schema (only actually-implemented endpoints) |
+
+### Identity & Permission Model
+
+Agents have **tourist-level permissions** — the same rules that apply to human tourists. Allowed: `observe / move / rotate / jump / say / interact`. Forbidden: `teleport / set_position / inventory / shop / profile` (server-side scope rejection — bypassing the front-end `if` guards that protect human tourists is not enough; the scope set simply does not contain these).
+
+- **API Key** (`agk_live_<64 hex>`): generated once per Agent in the admin console. Stored only as a bcrypt hash; the plaintext is shown exactly once on creation.
+- **Agent JWT** (15min TTL, signed with a dedicated `AGENT_JWT_SECRET` — independent from the human JWT). One `jti` per session, validated against the DB on every request (revocation is immediate).
+- Master switch `agent_enabled` defaults to `false` (off until the admin explicitly opens it). Hot-reload 60s after a config change in admin.
+
+### The Six Actions (over WS `ACTION` message)
+
+| Action | Server behavior |
+|---|---|
+| `move(target)` | Continuous movement toward target |
+| `walk_to(target)` | Walk to point at server-authoritative 5 m/s |
+| `rotate(yaw)` | Instant rotation |
+| `jump()` | Jump |
+| `say(text)` | Broadcast as `CHAT` to nearby humans (30 m); written to `world_chat_log` |
+| `interact(targetId)` | Validate distance (≤5 m) |
+
+Every action returns `ACTION_ACCEPTED` / `ACTION_COMPLETED` / `ACTION_REJECTED` with a `requestId` echo. `walk_to` completion is detected by the Agent itself (position stops changing) — no double-callback.
+
+### Push Tiers (admin-configurable, hot-reload 60s)
+
+| Tier | Description |
+|---|---|
+| `eco` (default) | `CHAT` real-time, no position stream. `observe` capped at 1 Hz. |
+| `standard` | + `ENTITY_ADDED`/`ENTITY_REMOVED` + 1-second aggregated `ENTITY_MOVEMENT_BATCH` |
+| `realtime` | + 10 Hz per-entity `ENTITY_UPDATED` |
+
+### Federation Teleport (cross-world)
+
+Agents with `can_teleport=true` can teleport across trusted worlds. The flow preserves the Agent's identity and avatar **without creating a local user/character on the target world** — uses a short-lived **transient session** with RS256-signed handoff tokens (iss = source world, aud = target world, nonce one-time-use to prevent replay).
+
+```
+POST /api/agent/v1/federation/teleport/prepare   # source world issues handoff token
+POST /api/agent/federation/teleport/accept        # target world consumes it, issues transient JWT
+WS   wss://target-host/ws/agent                   # transient JWT works like a normal Agent JWT
+```
+
+### Quick Start — Run the Reference Client
+
+A complete Node.js reference client lives at [`examples/agent-client/`](./examples/agent-client/). Three steps from zero to a walking, talking AI in your world:
+
+```bash
+# 1) Admin console → AI Agent tab → create an Agent, copy the API Key, flip agent_enabled=true
+# 2) Run the client
+node examples/agent-client/node-agent.mjs \
+  --host http://localhost:3002 \
+  --key  agk_live_your_key_here
+```
+
+The script:
+1. Discovers the world via `GET /.well-known/virtual-world-agent.json`
+2. Exchanges the API Key for a 15-min JWT
+3. Connects `wss://host/ws/agent`, receives `READY` + `WORLD_SNAPSHOT`
+4. Subscribes to `chat` / `presence` / `movement` streams
+5. Calls `observe` to read the spatial radar
+6. Sends `say "Hello, humans!"` — real browsers see a chat bubble
+7. Sends `walk_to` — real browsers see the walking animation
+8. Sends `teleport` — server rejects it (red-line #2: Agent has no teleport scope)
+
+Requires **Node.js 18+** (uses built-in `fetch` + `WebSocket`, zero dependencies).
+
+### Architecture Invariants (Engineering Red Lines)
+
+1. Agents use HTTP API + `/ws/agent`; never simulate W/A/S/D or browsers.
+2. Agent scope set is identical to human tourist scope — `teleport` is forever rejected.
+3. Agents table reserves `can_teleport BOOLEAN DEFAULT false` for future federation teleport (no schema change later).
+4. Server does **zero** ASR/TTS — voice is base64-relayed unchanged; transcription is the AI client's job.
+5. `agent_voice_relay` defaults to `false` (AI doesn't get voice by default).
+6. Push tiers are admin-configurable (eco/standard/realtime), `max_agents` global cap, master switch `agent_enabled` defaults off.
+7. `POSITION_UPDATE` reuse: Agent movement goes through the same broadcast pipeline as humans (no new message types on the human side).
+8. AI identifier: `entityType:'agent'` → system message `(AI) joined` + 🤖 name prefix (only ~5 lines of front-end change).
+9. Zero changes to existing `/ws` human protocol, `/api/auth/*`, or tourist mode.
+10. Server-authoritative movement only (no `set_position` raw endpoint).
+11. Engineering safety: `max_agents` rejection; per-Agent token bucket (low-priority dropped first, chat never lost); backpressure monitor (warn >1MB, kill >4MB buffered); 30s heartbeat.
+12. Federation trust reuse only: `federationSystem.js` is read-only (no new code in the 33KB blacklisted file).
+13. Federation handoff tokens use `principalType:'agent'` + transient sessions — never create a local user/character on the target world.
+
+### Documentation
+
+- Design spec & progress: [`AI-Agent接入系统-开发规范与进度.md`](./AI-Agent接入系统-开发规范与进度.md) (Chinese)
+- Reference client: [`examples/agent-client/`](./examples/agent-client/)
 
 ---
 
@@ -442,6 +558,8 @@ Check if Nginx has WebSocket proxy configured (see Nginx config above).
 | [专利公开文档](./PATENT_DISCLOSURE.md) | Defensive technical disclosure (Chinese) |
 | [Patent Disclosure](./PATENT_DISCLOSURE_EN.md) | English patent disclosure |
 | [Three.js r185 Upgrade Spec](./Three.js-r185-升级规划与规范.md) | Three.js r128 → r185 upgrade plan, stage progress and compatibility rules (Chinese) |
+| [AI Agent 接入规范](./AI-Agent接入系统-开发规范与进度.md) | AI Agent integration design spec + P0-P7 progress + 13 red lines (Chinese) |
+| [Agent Client Example](./examples/agent-client/) | Zero-dependency Node.js reference client (3-step quick start) |
 
 ---
 

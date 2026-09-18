@@ -222,14 +222,25 @@ class WSClient {
   }
 
   static handlePlayerJoined(payload) {
-    const { characterId, characterName, position, isGuest, glbUrl, animUrls, weaponConfig, boneMapConfig, weaponSocketConfig, calibrationConfig, isSelfContainedBundle } = payload;
+    const { characterId, characterName, position, isGuest, glbUrl, animUrls, weaponConfig, boneMapConfig, weaponSocketConfig, calibrationConfig, isSelfContainedBundle, entityType } = payload;
 
     if (characterId !== GAME_STATE.characterId) {
+      const isAgent = entityType === 'agent';
+      const displayName = isAgent ? '🤖' + characterName : characterName;
       const finalGlbUrl = glbUrl && glbUrl !== 'null' ? glbUrl : null;
 
+      // Agent：初始位置同样做贴地+1.5 补偿，否则出生即半身埋地
+      if (isAgent) {
+        this.snapAgentPosition(position);
+      }
       // 把所有配置直接传给 addPlayer，确保在 _loadPlayerGlb 之前写入 userData
       // isGuest为true → isLoggedIn传false，显示星星粒子
-      gameWorld.addPlayer(characterId, characterName, position, !isGuest, finalGlbUrl, weaponConfig || null, boneMapConfig || null, weaponSocketConfig || null, calibrationConfig || null);
+      gameWorld.addPlayer(characterId, displayName, position, !isGuest, finalGlbUrl, weaponConfig || null, boneMapConfig || null, weaponSocketConfig || null, calibrationConfig || null);
+      // 标记 Agent 实体：供 handlePositionUpdate 做客户端地形贴地（服务器端 Agent 恒 y=0）
+      if (isAgent) {
+        const pdMark = gameWorld.players.get(characterId);
+        if (pdMark) pdMark.group.userData.isAgent = true;
+      }
 
       const pd = gameWorld.players.get(characterId);
       if (pd && window.SelfContainedChar) {
@@ -254,8 +265,8 @@ class WSClient {
         }
       }
 
-      const statusText = !isGuest ? '加入了' : '(游客)加入了';
-      UI.addChatMessage('系统', `${characterName} ${statusText}虚拟世界`);
+      const statusText = isAgent ? '(AI)加入了' : (!isGuest ? '加入了' : '(游客)加入了');
+      UI.addChatMessage('系统', `${displayName} ${statusText}虚拟世界`);
     }
   }
 
@@ -263,8 +274,29 @@ class WSClient {
     const { characterId, position, animMode, rotation } = payload;
 
     if (characterId !== GAME_STATE.characterId) {
+      // Agent 地形贴地 + 模型原点补偿：服务器端 Agent 贴 y=0 平面移动（无地形数据）。
+      // Y 向偏移按实际模型动态判断：几何棍人脚底在原点下方 1.5 → +1.5；
+      // GLB 模型经 fitModel 原点即脚底 → +0。否则半身埋地/浮空。
+      const pd = gameWorld.players && gameWorld.players.get(characterId);
+      if (pd && pd.group.userData.isAgent) {
+        const isGlb = !!(pd.group.userData.isGlbLoaded || pd.group.userData.glbModel);
+        this.snapAgentPosition(position, isGlb ? 0 : 1.5);
+      }
       gameWorld.updatePlayerPosition(characterId, position, false, animMode, rotation);
     }
+  }
+
+  // Agent 专用：y = 地表高度 + yOffset（棍人 1.5 / GLB 0；地形查询失败用服务器 y 兜底）
+  static snapAgentPosition(position, yOffset = 1.5) {
+    try {
+      if (typeof gameWorld.getGroundHeight === 'function') {
+        const probe = { x: position.x, y: (position.y || 0) + 30, z: position.z };
+        const gy = gameWorld.getGroundHeight(probe);
+        position.y = (Number.isFinite(gy) ? gy : (position.y || 0)) + yOffset;
+        return;
+      }
+    } catch (e) { /* 地形查询失败走兜底 */ }
+    position.y = (position.y || 0) + yOffset;
   }
 
   static handleSkillCast(payload) {
@@ -334,10 +366,16 @@ class WSClient {
       if (player.characterId !== GAME_STATE.characterId) {
         const finalGlbUrl = player.glbUrl && player.glbUrl !== 'null' ? player.glbUrl : null;
         if (!gameWorld.players.has(player.characterId)) {
+          // Agent：快照路径初始位置贴地+1.5 补偿
+          if (player.entityType === 'agent') {
+            this.snapAgentPosition(player.position);
+          }
           // 直接传入骨骼/武器/校准配置，确保在 _loadPlayerGlb 之前写入 userData
           // 游客玩家显示星星粒子，正式玩家显示完整模型
           gameWorld.addPlayer(player.characterId, player.characterName, player.position, !player.isGuest, finalGlbUrl, player.weaponConfig || null, player.boneMapConfig || null, player.weaponSocketConfig || null, player.calibrationConfig || null);
           const pd = gameWorld.players.get(player.characterId);
+          // 快照路径同样标记 Agent 实体（人类后进场时 Agent 经 WORLD_STATE 到达）
+          if (pd && player.entityType === 'agent') pd.group.userData.isAgent = true;
           if (pd && window.SelfContainedChar) {
             window.SelfContainedChar.markGroup(pd.group, player.isSelfContainedBundle === true);
           }

@@ -19,7 +19,8 @@ const activeConnections = new Map();
  */
 function setupWebSocketServer(httpServer) {
   try {
-    wss = new WebSocket.Server({ server: httpServer });
+    // noServer 模式：upgrade 由 upgradeRouter 分发（/ws/agent→agent，其余→人类兜底）
+    wss = new WebSocket.Server({ noServer: true });
 
     wss.on('connection', (ws) => {
       const connectionId = uuidv4();
@@ -166,13 +167,31 @@ function handleMessage(connectionId, ws, data) {
           sender: (sender && sender.characterName) || payload.sender || '未知',
           characterId: (sender && sender.characterId) || null,
           message: text,
+          position: sender ? sender.position : null,   // P4：携带位置供 Agent 距离过滤
           timestamp: new Date(),
         },
       };
+      // P4：异步写入聊天记录（不阻塞广播，失败仅日志，chat_log_enabled=false 时跳过）
+      const _senderRef = sender;
+      const _msgRef = text;
+      Promise.resolve().then(() => {
+        try {
+          const chatLogService = require('../agent/chatLogService');
+          return chatLogService.insertLog({
+            senderType: 'human',
+            senderId: _senderRef && _senderRef.characterId,
+            senderName: _senderRef && _senderRef.characterName,
+            message: _msgRef,
+            position: _senderRef && _senderRef.position
+          });
+        } catch (e) { /* non-fatal */ }
+      }).catch(() => {});
       if (sender && sender.position) {
-        broadcastToNearby(sender.position, 30, chatMessage);
+        // 必须经 module.exports 调用：CHAT 旁路 patch（agentWsServer）替换的是导出属性，
+        // 裸调用内部函数会绕过 patch，导致人类消息永远转发不到 Agent
+        module.exports.broadcastToNearby(sender.position, 30, chatMessage);
       } else {
-        broadcastToAll(chatMessage);
+        module.exports.broadcastToAll(chatMessage);
       }
       break;
     }
@@ -495,4 +514,5 @@ module.exports = {
   broadcastToAll,
   broadcastToNearby,
   getPlayerPositions: () => playerPositions,
+  getWss: () => wss,                     // P3：noServer 模式下供 upgradeRouter 调 wss.handleUpgrade
 };

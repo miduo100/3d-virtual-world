@@ -51,7 +51,11 @@ async function initializeDatabase() {
     'migrations/add_federation_trust_approval.sql',
     'migrations/add_custom_config.sql',
     'migrations/add_spatial_paging_indexes.sql',
-    'migrations/add_world_objects_is_locked.sql'
+    'migrations/add_world_objects_is_locked.sql',
+    'migrations/add_agents.sql',
+    'migrations/add_agent_sessions.sql',
+    'migrations/add_world_chat_log.sql',
+    'migrations/add_federation_nonce.sql'  // P5: 联邦传送 nonce 防重放 + transient session 表
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);

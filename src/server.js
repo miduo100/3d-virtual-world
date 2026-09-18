@@ -118,6 +118,7 @@ const subscriptionRoutes = require('./routes/subscription');
 const worldSpatialRoutes = require('./routes/worldSpatial');
 const skyRoutes = require('./routes/sky');
 const { worldWriteGuard } = require('./middleware/worldWriteGuard');
+const agentApiRoutes = require('./routes/agent');  // AI Agent 接入 API（/api/agent/v1）
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', securityQuestionsRoutes);  // 安全问题管理（需管理员认证）
@@ -161,6 +162,22 @@ app.use('/api/threejs-blocks', threejsCodeBlocksRoutes);  // Three.js 代码库�
 app.use('/api/threejs-blocks', threejsImportRoutes);    // Three.js URL导入路由（管理员）
 app.use('/api/subscription', subscriptionRoutes);  // 订阅管理路由
 app.use('/api/sky', skyRoutes.router);  // 天空库路由（列表公开读，上传/删除需管理员）
+app.use('/api/agent/v1', agentApiRoutes);  // AI Agent 接入 API（独立 JWT 体系）
+app.use('/api/agent/federation', require('./routes/agentFederation'));  // P5: Agent 联邦传送接收端（公开端点，handoffToken 鉴权）
+
+// P6: AI Agent 自动发现入口（公开无鉴权，RFC 8615 风格 .well-known）
+// 仅凭域名即可发现本世界是否开放 AI Agent 接入、API base、WS 端点、能力清单等
+const { buildWellKnown } = require('./routes/agent/meta');
+app.get('/.well-known/virtual-world-agent.json', async (req, res) => {
+  try {
+    const doc = await buildWellKnown(req);
+    res.set('Cache-Control', 'public, max-age=60');  // 1 分钟缓存（agent_enabled 切换需 60s 热跟进）
+    res.json(doc);
+  } catch (error) {
+    console.error('[Agent] well-known 失败:', error);
+    res.status(500).json({ success: false, error: 'well-known 失败', code: 'WELLKNOWN_FAILED' });
+  }
+});
 
 // 公开模板接口：普通用户 Token 可访问（access_level=public 的激活模板）
 app.get('/api/public/character-templates', async (req, res) => {
@@ -512,12 +529,23 @@ async function start() {
       }
     });
 
-    // WebSocket server — 附加到现有 HTTP server，共享同一端口
+    // WebSocket server — noServer 模式，upgrade 由 upgradeRouter 分发（P3）
+    //   /ws/agent → Agent WS（agentWsServer，需 Bearer token 鉴权）
+    //   其余路径（含根路径 /）→ 人类 WS（兜底，浏览器 CONFIG.WS_URL 无路径）
     try {
       const { setupWebSocketServer } = require('./websocket/wsServer');
-      setupWebSocketServer(server);
+      setupWebSocketServer(server);                       // 创建人类 wss（noServer）
+      server.on('upgrade', require('./websocket/upgradeRouter'));  // 路由分发
+      require('./websocket/agentWsServer').start();        // 启动 Agent WS（推送/心跳/CHAT 旁路）
     } catch (wsError) {
       console.warn('WebSocket server setup failed, continuing without WebSocket:', wsError.message);
+    }
+
+    // P4：聊天记录每日归档循环（每小时检查一次 upload_hour；远端关闭时立即 return）
+    try {
+      require('./services/chatArchiveService').startArchiveLoop();
+    } catch (e) {
+      console.warn('[Server] 聊天归档循环启动失败（不影响主服务）:', e.message);
     }
   } catch (error) {
     console.error('Failed to start server:', error);

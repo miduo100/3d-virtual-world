@@ -1,6 +1,6 @@
 # AI Agent 接入虚拟世界 — 开发规范与进度
 
-> 创建：2026-09-17 ｜ 状态：规划定稿（含聊天记录归档增补），P0 审计完成，P1 待开工
+> 创建：2026-09-17 ｜ 状态：**项目收官**（P0-P6 全部完成并验收，2026-09-18 收官；P7 占位不做；git 待用户明确指令后提交）
 > 本文档是 **AI Agent 接入功能的唯一权威进度记录**，参照《Three.js-r185-升级规划与规范.md》的接力模式运作。
 
 ---
@@ -111,6 +111,7 @@
 
 Agent 只需被告知一个 base URL（域名）+ API Key（门禁卡），其余靠 `GET /.well-known/virtual-world-agent.json` 自动发现（P6）。跨世界时新世界地址来自 `/api/federation/info` 或传送门列表。
 访问三前提：①后台总开关 `agent_enabled` 打开（默认关）②持有 API Key ③对方是能执行代码的 Agent Runtime（网页版对话 AI 粘网址进不来；P6 提供现成示例客户端）。
+> **二期修订（2026-09-18 用户提议，规划见第 7.x 节）**：将新增"游客 Agent 拉模式"档——无 Key 可进场（公开临时票），三前提收窄为：①开关 ②能执行代码的 Agent Runtime；API Key 升级为"推流特权"凭证而非进门凭证。
 
 ### 4.2 数据流（P3 完成后）
 
@@ -270,11 +271,11 @@ examples/agent-client/
 
 | 文件 | 改动 | 阶段 |
 |---|---|---|
-| `src/websocket/wsServer.js`（499 行，贴线） | `new WebSocket.Server({server})` → `{ noServer:true }` + 导出 `handleUpgrade`；CHAT 分支加一次异步写库调用（1 行）；其余逻辑不动 | P3/P4 |
+| `src/websocket/wsServer.js`（437 行，贴线） | `new WebSocket.Server({server})` → `{ noServer:true }` + 导出 `handleUpgrade`；CHAT 分支加一次异步写库调用（1 行 Promise.resolve().then）+ 携带 position 字段；其余逻辑不动 | P3/P4 |
 | `src/server.js` | `app.use('/api/agent/v1', requireAgentRoutes)`（1 处）+ upgradeRouter 挂载（1 处） | P1/P3 |
 | `public/js/websocket.js` | PLAYER_JOINED 系统消息支持 "(AI)加入了"；名字 Sprite 加 🤖（约 5-10 行） | P3 |
 | `public/index.html` | websocket.js 版本号 ?v=N+1 | P3 |
-| `admin.html` + 新 `public/js/adminAgentSettings.js` | "Agent 接入"配置卡（含 5.3 档位 + 5.5 聊天归档两组配置） | P3/P4 |
+| `admin.html` + 新 `public/js/adminAgentSettings.js` | "Agent 接入"配置卡（含 5.3 档位 + 5.5 聊天归档两组配置）；卡片位置在「用户与角色」页（users）的「🤖 AI Agent」+「📦 聊天归档」两个 sub-tab | P4 |
 | `README.md` Nginx 示例 | `location /` 补 Upgrade 头（文档修正） | P3 |
 
 ### 6.3 数据库迁移（database/migrations/，幂等 IF NOT EXISTS）
@@ -303,58 +304,104 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 - [x] 19 项事实核对（第 2 节）+ 7 处方案修正 + 13 条红线定稿（第 3 节）
 - [x] 决策确认：游客级权限、无传送、语音零加工、三档推送、AI 标识、聊天记录双保存+定时归档
 
-### P1 Agent 身份与会话 ⬜
-- [ ] `add_agents.sql` + `add_agent_sessions.sql` 迁移并执行（幂等验证：跑两遍不报错）
-- [ ] `agentAuth.js`：API Key 生成（`agk_live_` + 32B 随机）、scrypt/bcrypt hash、Agent JWT 签发（15min/jti）
-- [ ] `agentManager.js` / `agentSessionManager.js` / `agentPermissionService.js` / `agentConfigService.js`
-- [ ] `routes/agent/index.js + session.js`：POST /session、GET /me、POST /session/revoke
-- [ ] 限流：POST /session 每 IP 10次/分钟（参考 loginRateLimiter 模式）
-- [ ] .env 增加 AGENT_JWT_SECRET；server.js 挂载路由（1 行）
-- [ ] 审计日志：session 签发/吊销 console 结构化日志
-- [ ] **验收**：①建测试 Agent→换 token→GET /me 成功；②错误 Key 401；③过期 token 403；④现有 /api/auth/login 冒烟不变；⑤迁移幂等
+### P1 Agent 身份与会话 ✅ 2026-09-17
+- [x] `add_agents.sql` + `add_agent_sessions.sql` 迁移并执行（幂等验证：跑两遍不报错）
+- [x] `agentAuth.js`：API Key 生成（`agk_live_` + 32B 随机）、bcrypt hash、Agent JWT 签发（15min/jti）
+- [x] `agentManager.js` / `agentSessionManager.js` / `agentPermissionService.js` / `agentConfigService.js`
+- [x] `routes/agent/index.js + session.js`：POST /session、GET /me、POST /session/revoke
+- [x] 限流：POST /session 每 IP 10次/分钟（内存滑动窗口，session.js 内实现）
+- [x] .env 增加 AGENT_JWT_SECRET；server.js 挂载路由（2 行）
+- [x] 审计日志：session 签发/吊销/拒绝 console 结构化日志（scope: agent-auth）
+- [x] **验收**：`scripts/accept_agent_p1.js` 14/14 PASS（①换 token→/me 成功含游客级 scope 无 teleport；②错误/伪造/畸形 Key 401；③过期 token 403 TOKEN_EXPIRED；④/api/auth/login 冒烟 401 不变；⑤迁移幂等；附加：吊销后 403 SESSION_REVOKED、限流 429、总开关关 503 AGENT_DISABLED_GLOBALLY）
 
-### P2 观察 API ⬜
-- [ ] `agentObservationService.js`（复用 worldSpatial 查询 + getPlayerPositions）
-- [ ] GET /observe：radius(≤200)/include/limit 参数校验；self/entities/objects/portals
-- [ ] entities 含在线人类（playerPositions）与本 Agent；objects/portals 走 /around 同口径
-- [ ] 1Hz 限频（eco）；无管理员私有字段
-- [ ] **验收**：①observe 返回附近已知对象（用真实坐标核对）；②radius 截断；③/around 返回结构不变（回归）；④1Hz 超频 429
+### P2 观察 API ✅ 2026-09-17
+- [x] `agentObservationService.js`（复用 worldSpatial 查询口径 + getPlayerPositions）
+- [x] GET /observe：radius(≤200)/include/limit 参数校验；self/entities/objects/portals
+- [x] entities 含在线人类（playerPositions）与本 Agent；objects/portals 走 /around 同口径（方框 position_x/z BETWEEN，按距离升序）
+- [x] 1Hz 限频（eco，per agentId）；无管理员私有字段（objects 仅 id/type/name/position/distance）
+- [x] **验收**：`scripts/accept_agent_p2.js` 14/14 PASS（①observe 返回附近已知对象+真实坐标核对+self/entities/world 字段；②radius 截断+硬上限 200；③/around 回归结构不变+完整字段分离；④1Hz 超频 429+窗口恢复；附加：无管理员私有字段泄漏、无/伪造 token 401）
 
-### P3 Agent WebSocket + 推送分档 ⬜（最关键阶段）
-- [ ] `upgradeRouter.js`：`/ws/agent`→agent，**其余全部→human（兜底）**
-- [ ] `wsServer.js` 最小改动（noServer + handleUpgrade 导出）
-- [ ] `agentPresenceBridge.js`：AUTH→恢复 session→avatar 绑定→写 playerPositions(entityType:'agent', isGuest:true)→广播 PLAYER_JOINED；断开→保存位置→PLAYER_LEFT
-- [ ] `agentWsServer.js`：READY/WORLD_SNAPSHOT/SUBSCRIBE/令牌桶/背压(bufferedAmount 1MB警/4MB断)/30s 心跳
-- [ ] 三档推送 + `max_agents` + `agentConfigService` 60s 缓存
-- [ ] `ENTITY_MOVEMENT_BATCH` 1s 聚合器（standard 档）
-- [ ] admin.html "Agent 接入"卡片（adminAgentSettings.js，参考 adminModelLod 先例）
-- [ ] 前端 5-10 行："(AI)加入了" + 🤖；index.html 版本号
-- [ ] README Nginx 文档修正（location / 补 Upgrade 头）
-- [ ] **验收**：①**浏览器连根路径 WS 回归不受影响（必测，登录真人进世界看到在线玩家）**；②无 token 拒/过期拒；③Agent 无法声明他人 characterId（服务器指定）；④真人浏览器看到 AI Avatar（GLB 加载）；⑤档位切换 60s 内生效；⑥max_agents 超限拒绝；⑦慢消费者 4MB 断开
+### P3 Agent WebSocket + 推送分档 ✅ 2026-09-17（最关键最险阶段）
+- [x] `upgradeRouter.js`：`/ws/agent`→agent，**其余全部→human（兜底）**（铁律：CONFIG.WS_URL 无路径，浏览器连根路径 /）
+- [x] `wsServer.js` 最小改动（noServer + `getWss` 导出，500 行贴线不超）
+- [x] `agentPresenceBridge.js`：onConnect→写 playerPositions(entityType:'agent', isGuest:true)→广播 PLAYER_JOINED（含 avatar 六件套+entityType）；onDisconnect→PLAYER_LEFT；updatePosition→POSITION_UPDATE
+- [x] `agentWsServer.js`：handleUpgrade 鉴权(JWT+jti DB+active)→READY+WORLD_SNAPSHOT；SUBSCRIBE/UNSUBSCRIBE/PING/ACTION(P4占位)；令牌桶(聊天永不丢)+背压(1MB警4MB断)+30s心跳；三档推送(eco无位置流/standard 1s聚合/realtime逐条)+ENTITY_ADDED/REMOVED；CHAT旁路 monkey-patch broadcastToAll；max_agents 检查
+- [x] 三档推送 + `max_agents` + `agentConfigService` 60s 缓存（BACKPRESSURE_KILL 读 env var 可配）
+- [x] `ENTITY_MOVEMENT_BATCH` 1s 聚合器（standard 档）
+- [x] 前端 5 行：websocket.js `(AI)加入了` + 🤖 前缀；index.html websocket.js?v=5（红线 c：只碰 6.2 清单内文件）
+- [x] README Nginx `location /` 补 Upgrade 头（文档修正）
+- [x] **验收**：`scripts/accept_agent_p3.js` 12/12（②无/过期token拒 ③服务器指定characterId ⑤档位切换60s生效 ⑥max_agents超限拒 ⑦4MB背压逻辑）+ `scripts/accept_agent_p3_playwright.js` 6/6（①浏览器根路径WS回归 ④真人看到AI Avatar+系统消息含AI 0 console error）+ 红线a node WS 根路径回归通过 → **7/7 全过**
 
-### P4 行动系统 + 聊天记录 ⬜（2-3 会话）
-- [ ] `agentMovementService.js`：5m/s 限速、边界 ±1000、平面地面 y、10Hz 推进、animMode 派生（idle/walk）
-- [ ] `agentActionService.js` 六动作 + scope/距离/参数校验 + requestId 回执（ACCEPTED/COMPLETED/REJECTED）
-- [ ] 移动复用现有 POSITION_UPDATE 广播（仅发给订阅 movement 的连接）
-- [ ] say 走 CHAT 管线（30m）；语音零加工中继（agent_voice_relay 开关）
-- [ ] `add_world_chat_log.sql` + CHAT 异步写入 + GET /chat/history（AI 重连恢复上下文）
-- [ ] `chatArchiveService.js`：每日导出→gzip→S3 兼容归档→保留期清理（后台可配；**未上传成功不删本地**，失败重试上限 7 次）
-- [ ] admin 卡片：记录开关 / 保留天数 / 归档目的地（none|s3|baidu预留）/ S3 连接参数（密钥加密）/ 上传时刻
-- [ ] **验收**：①walk_to 全程动画可见、无瞬移；②超速/越界被拒；③scope 无 teleport→请求被 REJECTED；④say 气泡在真人端出现；⑤say 200 字截断；⑥多 Agent 并发 5 个不互扰；⑦真人端无 console error；⑧聊天落库可查、超保留期自动清除；⑨关闭 chat_log_enabled 后停止写入；⑩手动触发归档→远端出现当日 .jsonl.gz→重跑不重复
+### P4 行动系统 + 聊天记录 ✅ 2026-09-18（2-3 会话，本会话一轮完成）
+- [x] **卡片位置迁移**：admin.html 用户与角色页加「🤖 AI Agent」+「📦 聊天归档」两个 sub-tab；逻辑在 `public/js/adminAgentSettings.js`（独立文件 ≤500 行）；后端管理员端点 `routes/agent/admin.js`（list/create/disable/enable/regenerate-key + config 读写 + archive/run-now）
+- [x] `agentMovementService.js`：5m/s 限速、边界 ±1000、平面地面 y、10Hz 推进、animMode 派生（idle/walk/jump）
+- [x] `agentActionService.js` 六动作 + scope/距离/参数校验 + requestId 回执（ACCEPTED/COMPLETED/REJECTED）；walk_to 视为 move 的子动作（共享 move scope）
+- [x] 移动复用现有 POSITION_UPDATE 广播（经 presenceBridge.updatePosition → broadcastToAll）
+- [x] say 走 CHAT 管线（30m，broadcastToNearby）；语音零加工中继（agent_voice_relay 开关，P3 已接 CHAT 旁路）
+- [x] `add_world_chat_log.sql` + CHAT 异步写入（wsServer.js CHAT 分支 1 行 Promise.resolve().then）+ GET /chat/history
+- [x] `chatArchiveService.js`：每日导出→gzip→S3 兼容归档→保留期清理（后台可配；**未上传成功不删本地**，失败重试上限 7 次，指数退避 1/2/4/8/16/32/64s）
+- [x] admin 卡片：记录开关 / 保留天数 / 归档目的地（none|s3|baidu预留）/ S3 连接参数（密钥经 configService 加密）/ 上传时刻
+- [x] `@aws-sdk/client-s3` 登记进 package.json（防 npm install 清包）；agentWsServer.js CHAT patch 同时拦截 broadcastToAll + broadcastToNearby + 携带 position 字段
+- [x] **验收**：`scripts/accept_agent_p4.js` 25/25 PASS（②③⑤⑧⑨⑩ + 管理员端点 + 红线 a）+ `scripts/accept_agent_p4_playwright.js` 11/11 PASS（①④⑥⑦）= **36/36 全过**；P3 回归 12/12 PASS 无回归
 
-### P5 Agent 跨世界联邦传送 ⬜
-- [ ] `add_federation_nonce.sql`（token_usage 表，nonce 一次性）
-- [ ] `agentTeleportService.js` + `routes/agentFederation.js`（principalType:'agent'，transient session，**不创建本地 user**）
-- [ ] 复用 RS256/iss/aud/trustedWorlds（只读 federationSystem）；handoff token 含 agentId/avatarConfig/homeWorld/nonce
-- [ ] **验收**：①World A→B 身份/Avatar 不变；②nonce 重放被拒；③无 email 建号；④A/B 两端真人分别看到离开/到达
+### P5 Agent 跨世界联邦传送 ✅ 2026-09-18
+- [x] `add_federation_nonce.sql`（token_usage 表 nonce 一次性 + agent_transient_sessions 表 transient session）
+- [x] `agentTeleportService.js` + `routes/agentFederation.js`（principalType:'agent'，transient session，**不创建本地 user**）
+- [x] 复用 RS256/iss/aud/trustedWorlds（只读 federationSystem）；handoff token 含 agentId/avatarConfig/homeWorld/nonce，TTL 300s
+- [x] **验收**：`scripts/accept_agent_p5.js` 36/36 PASS（①身份/Avatar 跨世界不变 ②nonce 重放被拒 409 ③无 email 建号 users/characters 表无新增 ④A 端 prepare 成功+B 端 accept 日志可见到达 + transient session 创建；附加：can_teleport=false 被拒、未信任目标世界被拒、handoff payload 无 email/userId/role、TTL≤300s、iss/aud 校验）
 
-### P6 自动发现 + SDK ⬜
-- [ ] `/.well-known/virtual-world-agent.json` + `/capabilities` + `/openapi.json`（meta.js）
-- [ ] `examples/agent-client/node-agent.mjs`：session→connect→observe→say→walk_to 全链路
-- [ ] README 增加 "How AI Agents Enter This World"
-- [ ] **验收**：新起 Node 进程仅凭域名跑通全链路；浏览器全程可见 AI 行为
+### P6 自动发现 + SDK ✅ 2026-09-18
+- [x] `routes/agent/meta.js`：GET `/capabilities`（scopes/actions/push tiers/ws 消息目录）+ GET `/openapi.json`（OpenAPI 3.0，仅含实际已实现端点，未实现不写）+ `buildWellKnown` 工具（worldId/worldName/worldUrl 来源优先级：federationSystem → system_config('world_url') → req 推导）
+- [x] server.js 加 `app.get('/.well-known/virtual-world-agent.json', ...)` 静态路由级挂载（公开无鉴权，1min 缓存）
+- [x] `routes/agent/index.js` 挂载 meta 子路由（**必须在 admin 之前**——admin.js 内部 `router.use(authenticateAdminToken)` 是子路由级全局中间件，会拦截所有未匹配路径；与 P5 federation 路由顺序 bug 同源）
+- [x] `examples/agent-client/node-agent.mjs`：零依赖 Node 18+ 示例客户端（domain→well-known→session→WS?token=→READY/WORLD_SNAPSHOT→SUBSCRIBE→observe→say→walk_to→teleport 拒）；附 `examples/agent-client/README.md` 三步跑通说明
+- [x] 主 README 增加 "AI Agents" 章节（Discovery / Identity / 六动作 / 推送三档 / 联邦传送 / Quick Start / 13 条架构红线）
+- [x] **WS 鉴权降级**：`agentWsServer.authenticateUpgrade` 同时支持 `Authorization: Bearer` 头（主路径）与 `?token=<jwt>` 查询参数（降级路径）——WHATWG WebSocket（Node 内置）与浏览器无法设自定义请求头，查询参数是 WebSocket 鉴权标准降级模式（JWT 15min TTL，access log 含 token 已知风险，需保护 log）
+- [x] **验收**：`scripts/accept_agent_p6.js` 83/83 PASS（well-known 字段齐全 / capabilities 公开可读 / openapi paths 与实际实现逐项核对，未实现端点不写 / dryrun 仅凭域名发现→capabilities / well-known 与 capabilities WS 端点一致 / agent_enabled=false 时公开端点仍 200 / HTTP 端点可达性与鉴权门）+ `scripts/accept_agent_p6_playwright.js` 10/10 PASS（**轮询浏览器模式**：Agent 入场 players.size +1 t=856ms / 聊天 DOM 含 (AI)/Hello t=856ms / Agent walk_to 位置变化 (0,0,0)→(3.5,0,0) t=1713ms / Agent 离场 players.size 回到 1 t=7273ms / demo 子进程 exit 0 / demo stdout 含全链路证据 / teleport→ACTION_REJECTED scope_denied 红线 2 / 0 console error）= **93/93 全过**；P5 回归不依赖，P6 是新增能力
+- [x] agent_enabled 收尾恢复 false（红线 6 默认关）
 
-### P7 可选项（本轮不做，仅占位）
+### P8 规划：Agent 开放生态——拉/推双模式（⬜ 未开工，2026-09-18 用户定稿方向）
+
+> **核心洞察（用户提出）**：上线初期真正的风险是"没人来"而非"滥用"。把门禁逻辑倒过来——稀缺的不是进门资格，而是**服务器主动推流的成本**。拉模式（请求-响应）天然自限流：不请求服务器零开销，请求频率被限流钳死，滥用最坏情况有上界。Key 的价值重新定义为"**实时推流特权**"而非进门凭证。
+
+- [ ] **游客 Agent（拉模式，无 Key）**：
+  - `POST /api/agent/v1/guest/session` 公开端点直接签临时票（JWT 30min，payload tier:'guest-pull'，复用 AGENT_JWT_SECRET）
+  - 能力（全部走"请求-响应"，服务器不做任何未请求的工作）：`observe`（限 30m 半径、1 次/2s）、`chat/history`、`say`（1 条/5s）、`move/walk_to/rotate/jump`（1 次/2s，复用现有 movement 服务——空闲零成本，移动中单 interval）
+  - **禁止推流**：SUBSCRIBE 直接拒绝（或静默无推送）——不给 CHAT/ENTITY/位置流
+  - 限制矩阵：每 IP 并发 1 连接、每 IP 签票 10 次/时、共享 max_agents 总闸、复用空闲超时踢出（5min）
+  - 身份与审计：无 Key，按 tier 区分，审计日志记 IP；管理员可拉黑 IP
+- [ ] **Key Agent（推模式，现有体系不动）**：
+  - Key 的特权 = SUBSCRIBE + 三档推送（eco/standard/realtime）+ observe 200m + 动作频率放宽 + 可跨世界联邦
+  - 管理员可创建/停用/吊销（现状）
+- [ ] **升级漏斗**：游客 Agent 玩出粘性 → 管理员发 Key"转正" → 解锁推流/大范围/联邦——生态增长入口
+- [ ] **防滥用底线（先上便宜的，观察后加码）**：IP 并发 1 + 签票限流 + 动作限频 + 空闲踢出（全为已有/低成本件）；一周后视情况上 Proof-of-Work 或验证码
+- [ ] **红线修订**：原红线 3"三前提"中的 Key 前提移除（见第一节修订备注）；新增红线：游客 Agent 永不获得推流与 30m 以上观察半径
+- [ ] **前置基建：日志三分流**（P8 第一项，游客高频访问日志的直接消费者）：
+  - 新建 `src/services/logger.js`（≤200 行）：access / ops / audit 三通道 + 按天轮转 + 过期清理
+  - access.log（JSONL：HTTP 请求 method/path/status/耗时/IP、WS 连断、签票；保留 7 天）
+  - ops.log（人读：启停/迁移/Agent 生命周期/归档/错误告警；保留 30 天）
+  - audit.log（JSONL：登录/创建停用 Agent/发 Key/改配置/拉黑等敏感操作，谁-何时-对什么；长期保留）
+  - Express 访问日志中间件（过滤 /health 噪音）；Agent 模块现有 `audit()` 改分流写入；旧大文件 console.log 不迁移（黑名单原则）
+  - 二期可选：管理后台日志查看页（类别/时间/关键字过滤）
+- [ ] **工作量预估**：1.5~2 会话（日志分级基建 0.5 + 公开签票端点 + guest tier scope/限频 + SUBSCRIBE 拒绝 + observe 半径按 tier 分级 + 验收脚本）
+
+### 真人双端联测 ✅ 2026-09-18（用户真人 + AI 助手扮 Agent 实测）
+
+> 测试方式：AI 助手通过 Agent 接口长连接进场（`examples/agent-client/ai-live.mjs` 驻场），用户以真人浏览器进场，双端实时对话+指挥移动。**暴露 5 个自动化验收测不出的真 bug，全部修复**。
+
+- [x] **①人→Agent 聊天永远不通**（P4 遗留）：`wsServer.js` CHAT 分支裸调用内部 `broadcastToNearby/broadcastToAll`，绕过 agentWsServer 给 `module.exports` 打的转发 patch → 改为经 `module.exports.xxx` 调用。教训：monkey-patch 导出属性时，模块内部同名字函数的裸调用不受影响；此前验收只测过 Agent→人方向
+- [x] **②管理后台创建 Agent 500**：`agentManager.createAgent` 返回的 apiKey 是 `{key,keyPrefix}` 对象，admin.js 直接 `.slice()` → TypeError。修复：整形为字符串
+- [x] **③Agent 半身埋地/高度错误**：服务器端 Agent 贴 y=0 平面移动（无地形数据）+ 几何棍人原点在脚底上方 1.5。修复：前端 `websocket.js` 对 isAgent 实体做 `snapAgentPosition`（本地 `getGroundHeight` 贴地 + 按模型类型动态偏移：棍人 +1.5 / GLB(fitModel 原点即脚底) +0），初始入场（PLAYER_JOINED/WORLD_STATE 两路径）与移动更新统一处理
+- [x] **④一移动就整只隐身**：agentPresenceBridge 广播的 rotation 是对象 `{yaw}`，前端 `group.rotation.y = {yaw}` → three.js 矩阵 NaN → 模型消失。修复：bridge 归一化为数字（协议：人类侧 POSITION_UPDATE 的 rotation 本就是数字）
+- [x] **⑤走路一段一段卡**：Agent 移动服务器 10Hz 推位置 + 前端直接瞬移。修复：新增 `public/js/agentPositionSmoother.js`（客户端平滑器：拦截 isAgent 位置更新存目标点，rAF 以 5.4m/s 速度上限逼近 + 朝向角度插值；原始函数照常执行保留摆臂动画；仅作用于 Agent，不改人类玩家行为）
+- [x] **⑥新增：Agent 空闲超时踢出**（用户需求）：N 分钟无任何操作（ACTION/SUBSCRIBE/UNSUBSCRIBE）服务器主动断开 → PLAYER_LEFT 广播 → playerPositions 清场（心跳 PONG 不算操作防挂机占位）。默认 5 分钟，`.env` `AGENT_IDLE_TIMEOUT_MINUTES` 可调（0=禁用），审计事件 `ws_idle_timeout`。已实测：挂机 5min+22s 被踢，世界同步清角色
+- [x] **新增工具**：`examples/agent-client/ai-view.mjs`（分步体验：discover/session/me/observe/enter/act/history）、`ai-live.mjs`（长连接驻场：命令文件 ai-live-cmd.jsonl 追加式驱动动作 + 进度持久化防重启重放 + observe 3s 轮询追踪人类坐标）
+- [x] **验收**：用户真人目测全链路——双向聊天实时互通、19 米行走全程可见贴地、移动中发消息两不误、平滑行走"已经非常棒了"（用户原话）、空闲 5 分钟自动消失
+- [x] 收尾：`agent_enabled` 恢复 false（红线 6）；运行时产物（日志/命令/票据）已清理；`p6_pw_log.txt`、`scripts/agent_create_test.js` 已删
+
+
+
+> **项目收官**（2026-09-18）：P0-P6 全部完成并验收，P7 三项均为可选项不做。临时文件已清理，部署清单与存量库注意事项已交付用户，git 待用户明确指令后提交。
 - [ ] Vision（服务器侧无头渲染截图，AGENT_VISION_ENABLED 开关，关闭返回 501）
 - [ ] 服务器侧 STT（用户已明确否决——转写永远归 AI 客户端）
 - [ ] 百度网盘归档 provider（一期仅接口位预留，二期按需接）
@@ -433,3 +480,12 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 |---|---|---|
 | 2026-09-17 | 架构审计+方案定稿+本文档创建 | P0 ✅，P1 待开工 |
 | 2026-09-17 | 增补定稿：聊天记录双保存（本地+定时远端归档，S3 兼容/百度网盘预留）、保留期后台可设、到期清除；文档 7 处同步（红线13条/5.5节/6.1/6.3/P4 任务/验收⑧⑨⑩/工期 P4=2-3 会话，总 8-10 会话）；审计结论补第 19 项（聊天无持久化现状） | P0 ✅，P1 待开工（用户指示暂不开工） |
+| 2026-09-17 | P1 完成：迁移 2 个（agents/agent_api_keys/agent_sessions 三表，db.js 已注册）；src/agent/ 六模块（schema/auth/manager/sessionManager/permission/config）；routes/agent/（index+session，POST /session・GET /me・POST /session/revoke + IP 限流 10/min + 双门认证 JWT 验签+jti DB 权威）；.env AGENT_JWT_SECRET；server.js 挂载 /api/agent/v1。验收 accept_agent_p1.js 14/14 PASS。测试 Agent p1_test_agent 留库（Key 可用 scripts/agent_create_test.js 换发）；agent_enabled 已恢复 false（红线默认关）。git 未提交（用户要求等确认） | P1 ✅，P2 待开工 |
+| 2026-09-17 | P2 完成：agentObservationService.js（复用 worldSpatial /around 同口径方框查询，按距离升序，objects 精简 5 字段无私有字段，entities 从 getPlayerPositions + self 永远包含）；observe.js（GET /observe + 1Hz 限频 + scope 校验）；session.js 加 1 行导出 authenticateAgentToken；index.js 挂载。验收 accept_agent_p2.js 14/14 PASS（①observe 真实坐标核对+self/entities/world 字段+无私有字段 ②radius 截断+硬上限 200 ③/around 回归结构不变+完整字段分离 ④1Hz 超频 429+窗口恢复 附加：无/伪造 token 401）。git 未提交（用户要求） | P2 ✅，P3 待开工（用户指示停下等确认） |
+| 2026-09-17 | P3 完成（最关键最险阶段）：upgradeRouter.js（/ws/agent→agent，其余→human 兜底，铁律：CONFIG.WS_URL 无路径）；wsServer.js noServer 最小改动+getWss 导出（500 行贴线不超）；agentPresenceBridge.js（写 playerPositions entityType:agent isGuest:true + 广播 PLAYER_JOINED 含 avatar 六件套+entityType）；agentWsServer.js（鉴权→max_agents检查→presenceBridge→READY+WORLD_SNAPSHOT；SUBSCRIBE/PING/ACTION占位；令牌桶聊天永不丢+背压1MB警4MB断+30s心跳；三档推送 eco/standard 1s聚合/realtime 逐条+ENTITY_ADDED/REMOVED；CHAT旁路 monkey-patch broadcastToAll）；前端 websocket.js 5 行（(AI)加入了+🤖前缀，红线c只碰6.2清单）+index.html?v=5；README Nginx location/补Upgrade头。验收 accept_agent_p3.js 12/12（②③⑤⑥⑦）+ accept_agent_p3_playwright.js 6/6（①④）+ 红线a node WS 根路径回归 → 7/7 全过。git 未提交（用户要求） | P3 ✅，P4 待开工（用户指示停下等确认） |
+| 2026-09-18 | P4 完成（行动系统+聊天记录，一轮会话）：①卡片位置迁移——admin.html「用户与角色」页加「🤖 AI Agent」+「📦 聊天归档」两 sub-tab（逻辑在 js/adminAgentSettings.js 独立文件，红线不碰 admin.html 既有代码）；②agentMovementService.js（5m/s 限速/边界±1000/平面 y/10Hz setInterval 推进/animMode 派生 idle/walk/jump，经 presenceBridge.updatePosition 复用 POSITION_UPDATE 广播）；③agentActionService.js 六动作（move/walk_to/rotate/jump/say/interact）+ scope 校验（walk_to 共享 move scope）+ requestId 回执 + 距离校验 + 红线 teleport/set_position 永远 REJECTED；④routes/agent/action.js（HTTP 备用入口，引导走 WS）+ chatHistory.js（GET /chat/history）+ admin.js（管理员端点 list/create/disable/enable/regenerate-key + config 读写 + archive/run-now）；⑤add_world_chat_log.sql（world_chat_log 表）+ wsServer.js CHAT 分支 1 行异步 INSERT（不阻塞广播）+ chatLogService.js；⑥chatArchiveService.js（每日定时 runArchiveCheck→archiveDay→JSONL→gzip→S3 上传重试 7 次指数退避→markArchived→cleanupExpired 仅清已归档行，红线13 防丢铁律）；⑦agentWsServer.js ACTION 占位换真处理 + CHAT patch 同时拦截 broadcastToAll+broadcastToNearby + 携带 position 字段（人类 CHAT 也带 position 供 Agent 距离过滤）；⑧@aws-sdk/client-s3 登记进 package.json（防 npm install 清包）；⑨agentConfigService.js 扩展 9 个 chat_log_* 配置键 + SENSITIVE_KEYS 加密存储（access_key/secret_key 走 configService.encrypt+is_sensitive=true）；⑩agentSessionManager.js 加 updatePosition（移动服务每帧同步位置到 session，断线重连从该位置恢复）。验收：accept_agent_p4.js 25/25 PASS（②③⑤⑧⑨⑩+管理员端点+红线a）+ accept_agent_p4_playwright.js 11/11 PASS（①④⑥⑦）= 36/36 全过；P3 回归 12/12 PASS 无回归。修了 2 个真 bug：(a) walk_to 不在 AGENT_SCOPES 中被 scope_denied 误拒（改为 walk_to 检查 move scope）；(b) chatArchiveService.runArchiveNow 不尊重 remote_enabled=false（force=true 绕过检查 → 改为先检查 remote_enabled）。git 未提交（用户要求）；ubuntu-deploy-package 未同步。环境：agent_enabled=false（红线恢复默认关）/max_agents=50/pushDefault=eco；测试 Agent p4_test_agent + p4_pw_agent_1~5 留库 | P4 ✅，P5 待开工（用户指示停下等确认） |
+| 2026-09-18 | P5 完成（Agent 跨世界联邦传送，一轮会话）：①add_federation_nonce.sql（token_usage 表 nonce 一次性消费 + agent_transient_sessions 表跨世界 transient session，独立于 agent_sessions 避外键约束）；②agentTeleportService.js（核心：prepareTeleport 签发 RS256 handoff token principalType:'agent'+agentId+avatarConfig+homeWorld+nonce TTL 300s，iss=源worldId aud=targetWorldId，只读 federationSystem.privateKey/trustedWorlds/worldId 不调 generateTeleportToken 人类口径；acceptTeleport 解码 iss→trustedWorlds 拿源 publicKey→RS256 验签+iss/aud 校验→principalType 校验→nonce INSERT ON CONFLICT DO NOTHING 原子消费→createTransientSession+issueTransientAgentJwt）；③agentTransientSessionManager.js（transient session CRUD + buildAgentProfile 从 session 行重建 agent 对象供 agentWsServer 鉴权用）；④agentAuth.js 加 issueTransientAgentJwt（payload isTransient:true，agentWsServer 识别走 transient 路径）；⑤agentSessionManager.verifySession 兼容 transient session（先查 agent_sessions，回落 agent_transient_sessions，返回 session.isTransient 标记）；⑥agentWsServer.authenticateUpgrade 识别 transient session（isTransient=true 时跳过 agentManager.getAgentById 用 buildAgentProfile）；⑦routes/agent/federation.js（POST /teleport/prepare Agent JWT 鉴权 + GET /worlds + /status，挂 /api/agent/v1/federation）；⑧routes/agentFederation.js（POST /teleport/accept 公开端点 handoffToken 自身 RS256 鉴权 + GET /info，挂 /api/agent/federation 独立于 /v1）；⑨agent/index.js 路由顺序修复（federation 必须在 admin 之前，避免被 authenticateAdminToken 全局中间件拦截）；⑩db.js 注册迁移 + server.js 挂载 /api/agent/federation 路由。红线全部遵守：a federation.js/federationSystem.js 零追加只读 trustedWorlds/privateKey；b 人类传送链路一行不动；c principalType:'agent'+transient session 不建 user/character（A 端 users/characters 表行数前后不变实锤）；d nonce 一次性（重放 409 NONCE_REPLAY 实锤）；e handoff TTL 300s+iss/aud 校验+agentId/avatarConfig/homeWorld 完整传递。测试方案：本机单实例限制，scripts/agent_federation_mock_world.js 模拟 World B（3003，启动时与 A 双向建立联邦信任，实现 /handshake+/info+/teleport/accept 桩，nonce 内存 Set 模拟 token_usage）。验收 accept_agent_p5.js 36/36 PASS（判据①身份/Avatar 跨世界不变 8 项 + 判据②nonce 重放被拒 2 项 + 判据③无 email 建号 6 项 + 判据④两端可见进出 4 项 + 红线 can_teleport=false 被拒/未信任目标世界被拒 3 项）。修了 2 个真 bug：(a) agent/index.js 路由顺序——admin 子路由 router.use(authenticateAdminToken) 是全局中间件，会拦截所有未被前面子路由匹配的路径（含 /federation/*），federation 必须在 admin 之前挂载；(b) 模拟桩缺 /api/federation/handshake 端点（establishTrust 调的是 /handshake 不是 /info）。git 未提交（用户要求）；agent_enabled=false（红线恢复默认关）；ubuntu-deploy-package 未同步。测试 Agent p5_test_agent 已清理 | P5 ✅，P6 待开工（用户指示停下等确认，不开 P6） |
+| 2026-09-18 | P6 完成（自动发现 + SDK，一轮会话）：①routes/agent/meta.js 新建（GET /capabilities 返回 scopes/actions/push tiers/ws 消息目录/limits；GET /openapi.json 返回 OpenAPI 3.0 schema 仅含实际已实现端点未实现不写——11 个 path 逐项核对：session/me/session/revoke/observe/chat-history/action/capabilities/openapi.json/federation-worlds/federation-status/federation-teleport-prepare；buildWellKnown 工具函数 worldId/worldName/worldUrl 来源优先级 federationSystem→system_config('world_url')→req 推导）；②server.js 加 `app.get('/.well-known/virtual-world-agent.json',...)` 静态路由级挂载（公开无鉴权 1min 缓存）；③agent/index.js 挂载 meta 子路由（**必须在 admin 之前**——admin.js 内部 `router.use(authenticateAdminToken)` 是子路由级全局中间件，会拦截所有未匹配路径，与 P5 federation 路由顺序 bug 同源——meta 路径需先声明才能不被拦截）；④examples/agent-client/node-agent.mjs 新建——零依赖 Node 18+ 示例客户端，链路 domain→well-known→session→WS?token=→READY/WORLD_SNAPSHOT→SUBSCRIBE→observe→say→walk_to→teleport 拒（演示红线 2）；附 README.md 三步跑通说明；⑤README.md 加 "AI Agents" 章节（Discovery / Identity & Permission / 六动作 / 推送三档 / 联邦传送 / Quick Start / 13 条架构红线）；⑥**WS 鉴权降级**：agentWsServer.authenticateUpgrade 加 `?token=<jwt>` 查询参数降级路径（与 Authorization 头并存）——WHATWG WebSocket（Node 内置）与浏览器无法设自定义请求头，查询参数是 WebSocket 鉴权标准降级模式（JWT 15min TTL，access log 含 token 已知风险需保护 log）。**修了 3 个真 bug**：(a) `agent_create_test.js` 的 `apiKey = await agentManager.createApiKey(agent.id)` 误把返回对象 `{key, keyPrefix}` 当字符串打印（API_KEY=[object Object]）——P6 验收用临时脚本绕过；(b) demo 首版用 `ws.on('message', ...)` EventEmitter 风格但 Node 18+ 全局 WebSocket 是 WHATWG 标准（用 addEventListener）——已改写为 addEventListener + e.data 是 string；(c) demo 用 `process.exit(0)` 同步退出导致 stdout 块缓冲未刷新，子进程输出在 exit 时丢失——改为 `process.exitCode=0` 让 Node 自然 drain。验收：accept_agent_p6.js 83/83 PASS（well-known 字段齐全 / capabilities 公开可读 / openapi paths 与实际实现逐项核对未实现端点不写 / dryrun 仅凭域名发现→capabilities / well-known 与 capabilities WS 端点一致 / agent_enabled=false 时公开端点仍 200 / HTTP 端点可达性与鉴权门）+ accept_agent_p6_playwright.js 10/10 PASS（**轮询浏览器模式**，不依赖子进程 stdout 标记触发检查——块缓冲会让 stdout 标记延迟到达导致检查时机错位：Agent 入场 players.size +1 t=856ms / 聊天 DOM 含 (AI)/Hello t=856ms / Agent walk_to 位置变化 (0,0,0)→(3.5,0,0) t=1713ms / Agent 离场 players.size 回到 1 t=7273ms / demo 子进程 exit 0 / demo stdout 含全链路证据 / teleport→ACTION_REJECTED scope_denied 红线 2 / 0 console error）= **93/93 全过**。环境：agent_enabled=false（红线恢复默认关）/max_agents=50；测试 Agent p1_test_agent 留库（P1 起）；git 未提交（用户要求）；ubuntu-deploy-package 未同步（meta.js/index.js/server.js/agentWsServer.js/examples/README.md/accept 脚本） | P6 ✅，P7 占位（可选，本轮不做） |
+| 2026-09-18 | **项目收官**：临时文件清理（删 p6_pw_log.txt、scripts/agent_create_test.js；保留全部 accept_agent_*.js 与 agent_federation_mock_world.js——P5 验收依赖桩）；输出 ubuntu-deploy-package 部署包同步清单与存量库部署注意事项（4 个迁移 SQL 由 db.js 启动自动执行；.env 新增 AGENT_JWT_SECRET 必填，AGENT_BACKPRESSURE_WARN/KILL 可选）；agent_enabled=false（红线默认关）。git 待用户明确指令后提交 | **项目收官**（P0-P6 全部完成，P7 占位不做） |
+| 2026-09-18 | **真人双端联测完成（收官加验）**：AI 助手经 Agent 接口长连接进场 + 用户真人浏览器，双端实时对话/指挥移动全链路实测。暴露并修复 5 个自动化验收测不出的真 bug：①人→Agent 聊天转发被绕过（wsServer CHAT 裸调用内部函数，改经 module.exports）②admin 创建 Agent 500（apiKey 对象当字符串 slice）③Agent 半身埋地（客户端贴地+棍人 1.5/GLB 0 动态偏移）④移动即隐身（bridge rotation 对象→矩阵 NaN，归一化为数字）⑤走路卡顿（新增 agentPositionSmoother.js 客户端平滑）。新增功能：Agent 空闲超时踢出（默认 5min，env 可调，已实测）；新增工具 ai-view.mjs 分步体验 + ai-live.mjs 长连接驻场。用户真人验收：双向聊天/19 米全程可见/移动中说话/平滑行走（"已经非常棒了"）/空闲自动消失 全部通过。agent_enabled 已恢复 false；运行时产物已清理 | 联测 ✅ 项目收官确认 |
+| 2026-09-18 | **P8 规划定稿（拉/推双模式开放生态，用户提出）**：核心洞察=上线初期风险是"没人来"而非滥用；把门禁倒过来——稀缺的是服务器推流成本而非进门资格。游客 Agent（无 Key）=拉模式：公开临时票 30min、纯请求-响应（observe 30m/2s、say 1条/5s、动作 1次/2s）、禁 SUBSCRIBE 推流、每 IP 并发 1、复用空闲踢出；Key Agent=推模式（现有三档推送成为 Key 特权）；升级漏斗=游客玩出粘性→管理员发 Key 转正。红线 3 修订（Key 从进门凭证降级为推流特权）。工作量 1~1.5 会话，未开工。详见第 7 节 P8 规划 | P8 ⬜ 规划定稿待开发 |

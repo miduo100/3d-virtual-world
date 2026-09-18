@@ -502,6 +502,8 @@
     <div id="page-users" class="page">
       <div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:0;">
         <button class="sub-tab active" onclick="switchSubTab('users','userlist',this)" data-i18n="admin.usersSubtab">👥 用户列表</button>
+        <button class="sub-tab" onclick="switchSubTab('users','agent',this)">🤖 AI Agent</button>
+        <button class="sub-tab" onclick="switchSubTab('users','chat-archive',this)">📦 聊天归档</button>
       </div>
 
       <div id="users-sub-userlist" class="sub-page">
@@ -520,6 +522,166 @@
           </div>
           <div class="table-wrap">
             <div id="users-content" class="loading" data-i18n-loading="admin.detecting">加载中...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Agent 接入子页签（P4 · 逻辑在 js/adminAgentSettings.js） -->
+      <div id="users-sub-agent" class="sub-page" style="display:none;">
+        <!-- 上半部：接入设置 -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🤖 AI Agent 接入</div>
+            <div style="font-size:12px;color:var(--muted)">外部 AI 通过 HTTP API + /ws/agent 进入世界，被真人玩家实时看见</div>
+          </div>
+          <div style="background:rgba(88,166,255,0.06);border-left:3px solid var(--blue);padding:11px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;color:#ccc;line-height:1.6;">
+            <div style="font-weight:600;color:#ddd;margin-bottom:4px;">权限模型</div>
+            <div>Agent 与人类游客共用同一套准则：允许 observe / move / rotate / jump / say / interact；<b style="color:var(--red)">禁止传送（含坐标直达）</b>。Agent 通过 API Key + 短期 JWT 接入，独立密钥 AGENT_JWT_SECRET。</div>
+            <div style="font-weight:600;color:#ddd;margin:8px 0 4px;">推送三档</div>
+            <div>eco（无位置流，仅 CHAT 实时） / standard（1s 聚合位置流） / realtime（10Hz 逐条）。</div>
+          </div>
+          <div class="form-group">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="agent-enabled-checkbox" style="width:auto;">
+              <span>启用 Agent 接入（默认关，上线手动开；AGENT_JWT_SECRET 必须先配置）</span>
+            </label>
+          </div>
+          <div class="form-group">
+            <label>推送档位</label>
+            <select id="agent-push-default" style="padding:6px 10px;">
+              <option value="eco">eco（省流：仅 CHAT）</option>
+              <option value="standard">standard（标准：1s 聚合位置流）</option>
+              <option value="realtime">realtime（实时：10Hz 逐条）</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>位置流策略</label>
+            <select id="agent-movement-push" style="padding:6px 10px;">
+              <option value="off">off（关闭位置流推送）</option>
+              <option value="batched">batched（1s 聚合）</option>
+              <option value="realtime">realtime（10Hz 逐条）</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="agent-voice-relay-checkbox" style="width:auto;">
+              <span>语音中继给 Agent（默认关；开启后 AI 可收到附近语音 base64，转写由 AI 客户端自接）</span>
+            </label>
+          </div>
+          <div class="form-group">
+            <label>并发上限 <small style="color:var(--muted)">（1-500，建议 50-100）</small></label>
+            <input type="number" id="max-agents" min="1" max="500" step="1" value="50" style="width:120px;">
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <button class="btn" onclick="adminAgentSettings.saveAgentConfig()">💾 保存接入设置</button>
+            <div id="agent-save-msg" style="display:none;padding:6px 12px;border-radius:4px;font-size:12px;"></div>
+          </div>
+        </div>
+
+        <!-- 下半部：AI 用户列表 -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📦 AI 注册用户列表</div>
+            <button class="btn btn-sm" onclick="adminAgentSettings.loadAgentsList()">🔄 刷新</button>
+          </div>
+          <div style="background:rgba(255,255,255,0.04);border:1px solid var(--border);padding:11px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;color:#ccc;">
+            <div style="font-weight:600;color:#ddd;margin-bottom:6px;">➕ 创建新 Agent</div>
+            <div style="display:grid;grid-template-columns:1fr 2fr 2fr auto;gap:8px;align-items:end;">
+              <div>
+                <label style="font-size:11px;color:var(--muted);">名称（2-100 字符）</label>
+                <input type="text" id="new-agent-name" placeholder="如：客服助手-Alice" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:4px;">
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--muted);">描述（可选）</label>
+                <input type="text" id="new-agent-description" placeholder="如：基于 GPT-4 的导览 AI" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:4px;">
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--muted);">Avatar GLB URL（可选，可后续补）</label>
+                <input type="text" id="new-agent-glburl" placeholder="/uploads/xxx.glb 或绝对 URL" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:4px;">
+              </div>
+              <div>
+                <button class="btn" onclick="adminAgentSettings.createAgent()">➕ 创建</button>
+              </div>
+            </div>
+            <div style="margin-top:8px;font-size:11px;color:var(--muted);">⚠️ 创建成功后明文 API Key <b>仅显示一次</b>，请立即复制保存（页面刷新后无法找回）。</div>
+          </div>
+          <div class="table-wrap">
+            <div id="agent-list-content" class="loading">点击「刷新」加载</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 聊天记录与归档设置子页签（P4 · 5.5 节） -->
+      <div id="users-sub-chat-archive" class="sub-page" style="display:none;">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📦 聊天记录与归档</div>
+            <div style="font-size:12px;color:var(--muted)">玩家/Agent 间 30m 附近聊天持久化 + 每日定时归档远端</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.04);border-left:3px solid var(--blue);padding:11px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;color:#ccc;line-height:1.6;">
+            <div style="font-weight:600;color:#ddd;margin-bottom:4px;">双保存机制</div>
+            <div>① <b>本地实时写入</b> world_chat_log 表（CHAT 分支异步 INSERT，不阻塞广播）；</div>
+            <div>② <b>每日定时归档远端</b>：导出昨日 → JSONL → gzip → S3 兼容对象存储；</div>
+            <div style="font-weight:600;color:#ddd;margin:8px 0 4px;">防丢铁律</div>
+            <div style="color:var(--red);">未成功上传远端的本地数据 <b>永不删除</b>（失败重试上限 7 次，仍失败则告警，由人工介入）。</div>
+            <div style="font-weight:600;color:#ddd;margin:8px 0 4px;">存储成本</div>
+            <div>文字约 500B/条，1 天典型负载 ≈1MB；语音只存元数据 <code>[语音 N秒]</code>，不存 base64 音频本体。</div>
+          </div>
+          <div class="form-group">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="chat-log-enabled-checkbox" style="width:auto;" checked>
+              <span>启用聊天记录写入（关闭后停止 INSERT world_chat_log）</span>
+            </label>
+          </div>
+          <div class="form-group">
+            <label>本地保留天数（1-365，默认 7；到期清除<b>已成功归档</b>的本地行）</label>
+            <input type="number" id="chat-log-retention-days" min="1" max="365" step="1" value="7" style="width:120px;">
+          </div>
+          <div class="form-group">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="chat-log-remote-enabled-checkbox" style="width:auto;">
+              <span>启用远端归档（关闭则仅本地写入，无远端上传）</span>
+            </label>
+          </div>
+          <div class="form-group">
+            <label>归档目的地</label>
+            <select id="chat-log-remote-provider" style="padding:6px 10px;">
+              <option value="none">none（不归档远端）</option>
+              <option value="s3">s3（S3 兼容：OSS/COS/MinIO）</option>
+              <option value="baidu">baidu（百度网盘 · 预留接口，一期不实现）</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>每日归档时刻（0-23，默认 3 = 凌晨 3 点）</label>
+            <input type="number" id="chat-log-upload-hour" min="0" max="23" step="1" value="3" style="width:120px;"> 时
+          </div>
+          <div style="border-top:1px dashed var(--border);padding-top:14px;margin-top:14px;">
+            <div style="font-weight:600;color:#ddd;margin-bottom:8px;">S3 兼容存储参数（仅 provider=s3 时生效）</div>
+            <div class="form-group">
+              <label>Endpoint（留空走 AWS 默认；OSS/COS/MinIO 填区域端点）</label>
+              <input type="text" id="chat-log-s3-endpoint" placeholder="如 https://oss-cn-hangzhou.aliyuncs.com" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:4px;">
+            </div>
+            <div class="form-group">
+              <label>Bucket</label>
+              <input type="text" id="chat-log-s3-bucket" placeholder="如 my-world-chat-archive" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:4px;">
+            </div>
+            <div class="form-group">
+              <label>Key 前缀（默认 chat-archive，归档路径 chat-archive/YYYY/MM/DD.jsonl.gz）</label>
+              <input type="text" id="chat-log-s3-prefix" placeholder="chat-archive" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:4px;">
+            </div>
+            <div class="form-group">
+              <label>Access Key（密钥加密存储）</label>
+              <input type="text" id="chat-log-s3-access-key" placeholder="AK..." style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:4px;">
+            </div>
+            <div class="form-group">
+              <label>Secret Key（密钥加密存储）</label>
+              <input type="password" id="chat-log-s3-secret-key" placeholder="SK..." style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:4px;">
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <button class="btn" onclick="adminAgentSettings.saveChatArchiveConfig()">💾 保存归档设置</button>
+            <button class="btn btn-sm" id="archive-run-now-btn" onclick="adminAgentSettings.runArchiveNowTest()">🧪 立即归档测试</button>
+            <div id="chat-archive-save-msg" style="display:none;padding:6px 12px;border-radius:4px;font-size:12px;"></div>
           </div>
         </div>
       </div>
@@ -3646,6 +3808,7 @@
 <script src="js/adminProfile.js" defer></script>
 <script src="js/adminSky.js" defer></script>
 <script src="js/adminModelLod.js?v=4" defer></script>
+<script src="js/adminAgentSettings.js?v=1" defer></script>
 <script>
   // ===== 认证 =====
   document.addEventListener('DOMContentLoaded', function checkAdminAuth() {
@@ -3785,6 +3948,14 @@
     else if (sub === 'seo') loadSEOConfig();
     else if (sub === 'ai-providers') loadAIProviders();
     else if (sub === 'custom-npc') loadCustomNPCList();
+    else if (sub === 'agent') {
+      // P4：AI Agent 接入子页签
+      if (window.adminAgentSettings && adminAgentSettings.loadAgentConfig) adminAgentSettings.loadAgentConfig();
+      if (window.adminAgentSettings && adminAgentSettings.loadAgentsList) adminAgentSettings.loadAgentsList();
+    } else if (sub === 'chat-archive') {
+      // P4：聊天归档设置子页签
+      if (window.adminAgentSettings && adminAgentSettings.loadAgentConfig) adminAgentSettings.loadAgentConfig();
+    }
   }
 
   // ===== 定制NPC =====
