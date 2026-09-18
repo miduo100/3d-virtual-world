@@ -16,6 +16,7 @@
  */
 
 const movement = require('./agentMovementService');
+const followService = require('./agentFollowService');   // C：服务端持续跟随
 const permissionService = require('./agentPermissionService');
 const tierService = require('./agentTierService');
 const presenceBridge = require('./agentPresenceBridge');
@@ -53,17 +54,24 @@ async function dispatch(ctx, payload) {
   }
 
   // 2) scope 校验（红线2：FORBIDDEN_SCOPES 含 teleport/set_position）
-  //    walk_to 视为 move 的子动作（共享 move scope），故 walk_to 检查 move scope
-  const scopeForAction = action === 'walk_to' ? 'move' : action;
+  //    walk_to / follow 视为 move 的子动作（共享 move scope）
+  const scopeForAction = (action === 'walk_to' || action === 'follow') ? 'move' : action;
   if (!permissionService.isScopeAllowed(agent, scopeForAction)) {
     // 红线：teleport / set_position 永远不在 scope 中，这里直接 REJECTED
     return reject(requestId, 'scope_denied', `动作 ${action} 不在 Agent 权限集中`);
+  }
+
+  // 2.5) 移动类互斥（缺陷 C）：follow 与 move/walk_to/jump 互相打断
+  //      —— 同一连接同一时刻只允许一个移动任务（follow 内部会取消既有移动任务与旧 follow）
+  if (action === 'move' || action === 'walk_to' || action === 'jump') {
+    followService.cancelFollow(connectionId, 'superseded');
   }
 
   // 3) 分发到具体动作处理器
   switch (action) {
     case 'move':       return handleMove(ctx, payload);
     case 'walk_to':    return handleWalkTo(ctx, payload);
+    case 'follow':     return handleFollow(ctx, payload);
     case 'rotate':     return handleRotate(ctx, payload);
     case 'jump':       return handleJump(ctx, payload);
     case 'say':        return handleSay(ctx, payload);
@@ -86,12 +94,37 @@ function handleMove(ctx, payload) {
 function handleWalkTo(ctx, payload) {
   const { connectionId, agent, session } = ctx;
   const target = payload.target;
-  const result = movement.startWalkTo(connectionId, agent, session, target);
+  // E：把回执发送器注入移动任务，到达/被打断时由 movement service 补发 ACTION_COMPLETED
+  const result = movement.startWalkTo(connectionId, agent, session, target, {
+    requestId: payload.requestId, reply: ctx.reply
+  });
   if (!result.ok) return reject(payload.requestId, result.error, 'walk_to 启动失败');
   if (result.arrivedImmediately) {
-    return { completed: true, requestId: payload.requestId, result: { arrived: true } };
+    return { completed: true, requestId: payload.requestId, result: { arrived: true, reason: 'arrived' } };
   }
   return { accepted: true, requestId: payload.requestId, result: { estimatedMs: result.estimatedMs } };
+}
+
+/**
+ * C：跟随（持续目标）——follow { targetId, stopDistance=2, maxDurationMs=60000 }
+ * 服务端每 100ms 追一次目标；进入 stopDistance 内停住；目标消失/超时/被新指令打断即结束并回执。
+ */
+function handleFollow(ctx, payload) {
+  const { connectionId, agent, session } = ctx;
+  const targetId = payload.targetId || (payload.target && payload.target.id);
+  if (!targetId) return reject(payload.requestId, 'missing_targetId', '缺少 targetId（按实体 id 定位，不用 name）');
+  const result = followService.startFollow(connectionId, agent, session, {
+    targetId,
+    stopDistance: payload.stopDistance,
+    maxDurationMs: payload.maxDurationMs,
+    requestId: payload.requestId,
+    reply: ctx.reply
+  });
+  if (!result.ok) return reject(payload.requestId, result.error, 'follow 启动失败');
+  return {
+    accepted: true, requestId: payload.requestId,
+    result: { targetId, targetName: result.targetName, stopDistance: result.stopDistance, maxDurationMs: result.maxDurationMs }
+  };
 }
 
 function handleRotate(ctx, payload) {
@@ -189,7 +222,8 @@ function calcDist(a, b) {
 // ==================== 停止 / 取消（WS 断开时调用）====================
 
 function cleanup(connectionId) {
-  movement.cancelMovement(connectionId);
+  followService.cancelFollow(connectionId, 'disconnected');
+  movement.cancelMovement(connectionId, 'disconnected');
 }
 
 module.exports = {

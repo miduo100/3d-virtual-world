@@ -19,9 +19,10 @@ const wsServer = require('../websocket/wsServer');
  * @param session     agent_sessions 行（含 current_position）
  * @param avatar     shapeAvatar 结果（glbUrl/animUrls/...）
  */
-function onConnect(connectionId, agent, session, avatar) {
+function onConnect(connectionId, agent, session, avatar, spawnOverride) {
   const playerPositions = wsServer.getPlayerPositions();
-  const pos = resolveSpawnPosition(session);
+  // spawnOverride：调用方已解析好的出生点（缺陷 J：新会话继承该 Agent 上次位置，防重连瞬移回原点）
+  const pos = (spawnOverride && Number.isFinite(spawnOverride.x)) ? spawnOverride : resolveSpawnPosition(session);
   const av = avatar || {};
 
   playerPositions.set(connectionId, {
@@ -64,23 +65,78 @@ function onConnect(connectionId, agent, session, avatar) {
 
 /**
  * Agent WS 断开后调用：广播 PLAYER_LEFT + 删 playerPositions
+ *
+ * opts.silent（缺陷 B）：被**新连接顶掉**的旧连接走静默清理——只删 playerPositions 表项，
+ * 不广播 PLAYER_LEFT。原因是同一 characterId 的新连接已接管：前端按 characterId 管理 avatar，
+ * 广播 PLAYER_LEFT 会把刚接管的 avatar 一并删掉（真人端 avatar 闪断）。
  */
-function onDisconnect(connectionId) {
+function onDisconnect(connectionId, opts) {
   const playerPositions = wsServer.getPlayerPositions();
   const p = playerPositions.get(connectionId);
   if (!p) return;
 
-  wsServer.broadcastToAll({
-    type: 'PLAYER_LEFT',
-    payload: {
-      characterId: p.characterId,
-      characterName: p.characterName,
-      lastPosition: p.position
-    }
-  });
+  const silent = Boolean(opts && opts.silent);
+  if (!silent) {
+    wsServer.broadcastToAll({
+      type: 'PLAYER_LEFT',
+      payload: {
+        characterId: p.characterId,
+        characterName: p.characterName,
+        lastPosition: p.position
+      }
+    });
+  }
 
   playerPositions.delete(connectionId);
-  console.log(`[AgentBridge] Agent ${p.characterName} (${p.characterId}) 已离场`);
+  console.log(`[AgentBridge] Agent ${p.characterName} (${p.characterId}) 已离场${silent ? '（被新连接接管，静默清理）' : ''}`);
+}
+
+/**
+ * 读取某连接在 playerPositions 里的实时条目（返回副本，避免调用方误改共享对象）
+ * 用途：移动服务取"当前真实位置"——session 快照只在 WS 连接时读过一次，不能当推进起点。
+ * 返回 { position:{x,y,z}, yaw, animMode } 或 null
+ */
+function getEntry(connectionId) {
+  const playerPositions = wsServer.getPlayerPositions();
+  const p = playerPositions.get(connectionId);
+  if (!p || !p.position) return null;
+  let yaw = 0;
+  if (typeof p.rotation === 'number' && Number.isFinite(p.rotation)) yaw = p.rotation;
+  else if (p.rotation && Number.isFinite(p.rotation.yaw)) yaw = p.rotation.yaw;
+  return {
+    position: { x: Number(p.position.x) || 0, y: Number(p.position.y) || 0, z: Number(p.position.z) || 0 },
+    yaw,
+    animMode: p.animMode || null
+  };
+}
+
+/**
+ * 按 characterId 找实时实体条目（follow 目标定位用；第 5.4 节契约：唯一标识是 id，不是 name）
+ * playerPositions 按 connectionId 存，同角色多连接时取"带 animMode/最新"的那条。
+ * 返回 { connectionId, position:{x,y,z}, yaw, animMode, name, entityType } 或 null
+ */
+function findByCharacterId(characterId) {
+  if (!characterId) return null;
+  const playerPositions = wsServer.getPlayerPositions();
+  if (!playerPositions || !playerPositions.forEach) return null;
+  const target = String(characterId);
+  let bestCid = null, best = null, bestScore = -1;
+  playerPositions.forEach((p, cid) => {
+    if (!p || !p.position || String(p.characterId) !== target) return;
+    const ts = p.lastUpdate ? new Date(p.lastUpdate).getTime() : 0;
+    const score = (p.animMode ? 1e15 : 0) + (Number.isFinite(ts) ? ts : 0);
+    if (score > bestScore) { bestScore = score; bestCid = cid; best = p; }
+  });
+  if (!best) return null;
+  const e = getEntry(bestCid);
+  return {
+    connectionId: bestCid,
+    position: e ? e.position : { x: 0, y: 0, z: 0 },
+    yaw: e ? e.yaw : 0,
+    animMode: e ? e.animMode : null,
+    name: best.characterName,
+    entityType: best.entityType === 'agent' ? 'agent' : 'human'
+  };
 }
 
 /**
@@ -128,4 +184,4 @@ function resolveSpawnPosition(session) {
 
 function safeParse(s) { try { return JSON.parse(s); } catch (e) { return null; } }
 
-module.exports = { onConnect, onDisconnect, updatePosition };
+module.exports = { onConnect, onDisconnect, updatePosition, getEntry, findByCharacterId };

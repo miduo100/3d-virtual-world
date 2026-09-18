@@ -24,6 +24,7 @@ const presenceBridge = require('../agent/agentPresenceBridge');
 const agentActionService = require('../agent/agentActionService');  // P4：六动作分发
 const transientSessionManager = require('../agent/agentTransientSessionManager');  // P5：跨世界 transient session
 const tierService = require('../agent/agentTierService');                            // P8：拉/推双模式
+const connectionRegistry = require('../agent/agentConnectionRegistry');              // 缺陷 B：同角色多连接顶替
 const logger = require('../services/logger');                                       // P8：日志三分流
 const wsServer = require('./wsServer');
 
@@ -127,15 +128,19 @@ wss.on('connection', async (ws, request, authResult) => {
   }
 
   const avatar = agentManager.shapeAvatar(agent);
-  presenceBridge.onConnect(connectionId, agent, session, avatar);
+  // 缺陷 J：新会话没有 current_position 时继承该 Agent 上次落库位置（防重连瞬移回原点）
+  const spawn = (await agentSessionManager.getLatestPosition(agent.id, session.jti)) || resolveSpawn(session);
+  presenceBridge.onConnect(connectionId, agent, session, avatar, spawn);
 
-  // P8 红线：游客永不获得推流 —— 强制 eco 档 + 关闭位置流 + 关闭语音中继。
+  // P8 红线：游客永不获得推流 —— 强制 eco 档 + 关闭语音中继。
   // 即使后台把默认档调成 realtime，游客也拿不到任何主动推送（SUBSCRIBE 亦被拒）。
+  // Key Agent：优先用 Agent 自己的档位（agents.push_tier），inherit 才回落全局默认档。
   const isGuest = tierService.isGuest(tier);
+  const ownTier = (!isGuest && agent && agent.push_tier && agent.push_tier !== 'inherit') ? agent.push_tier : null;
   const state = {
     ws, agent, session, jwt, connectionId, tier, ip,
-    pushTier: isGuest ? 'eco' : config.pushDefault,
-    movementPush: isGuest ? 'off' : config.movementPush,
+    // 位置流不再单独配置：完全由 pushTier 决定（eco 无 / standard 1s 聚合 / realtime 逐条）
+    pushTier: isGuest ? 'eco' : (ownTier || config.pushDefault),
     voiceRelay: isGuest ? false : config.voiceRelay,
     subscription: { topics: new Set(), radius: 30 },
     lastPong: Date.now(),
@@ -144,13 +149,14 @@ wss.on('connection', async (ws, request, authResult) => {
     closed: false
   };
   activeAgents.set(connectionId, state);
+  // 缺陷 B：同一 Agent 新连接顶掉旧连接（上限 system_config agent_max_connections_per_agent，默认 1）
+  connectionRegistry.register(agent.id, connectionId, config.maxConnectionsPerAgent);
 
-  const spawn = resolveSpawn(session);
   safeSend(state, {
     type: 'READY',
     payload: {
       agentId: agent.id, agentName: agent.name, avatar, spawn,
-      pushTier: state.pushTier, movementPush: state.movementPush,
+      pushTier: state.pushTier,
       // P8：tier 决定能做什么（推流/半径/限频），scope 决定能做什么动作（两者行为准则一致）
       tier: state.tier,
       tierInfo: tierService.describeTier(state.tier)
@@ -182,6 +188,7 @@ function handleMessage(connectionId, ws, data) {
   }
   const state = activeAgents.get(connectionId);
   if (!state) return;
+  if (state.replacedBy) return;   // 缺陷 B：被顶掉的连接在关闭握手期间忽略一切消息（防其重新启动移动）
   const { type, payload } = msg;
   // 操作刷新空闲时钟（PING/PONG 是保活不算操作）
   if (type === 'ACTION' || type === 'SUBSCRIBE' || type === 'UNSUBSCRIBE') state.lastActivityAt = Date.now();
@@ -228,7 +235,10 @@ function handleClose(connectionId) {
   if (!state) return;
   state.closed = true;
   agentActionService.cleanup(connectionId);   // P4：取消未完成的移动任务
-  presenceBridge.onDisconnect(connectionId);
+  // 缺陷 B：被新连接顶掉的连接静默清理（同 characterId 的新连接已接管，广播 PLAYER_LEFT 会让真人端 avatar 闪断）
+  presenceBridge.onDisconnect(connectionId, { silent: Boolean(state.replacedBy) });
+  connectionRegistry.unregister(state.agent.id, connectionId);
+  entitySnapshot.delete(connectionId);
   tierService.releaseIpSlot(state.tier, state.ip, connectionId);   // P8：归还每 IP 并发名额
   activeAgents.delete(connectionId);
   audit('ws_disconnected', { agent: state.agent.name, agentId: state.agent.id, connectionId });
@@ -247,7 +257,9 @@ async function handleAction(connectionId, state, payload) {
     agent: state.agent,
     session: state.session,
     tier: state.tier,                 // P8：游客动作限频
-    agentWsState: state
+    agentWsState: state,
+    // E：移动类完成回执发送器（walk_to 到达 / follow 结束由服务端异步补发 ACTION_COMPLETED）
+    reply: (type, payload) => safeSend(state, { type, payload }, 'chat')
   };
   try {
     const result = await agentActionService.dispatch(ctx, payload);
@@ -259,9 +271,7 @@ async function handleAction(connectionId, state, payload) {
       safeSend(state, { type: 'ACTION_COMPLETED', payload: { requestId: result.requestId, result: result.result || {} } }, 'chat');
     } else if (result.accepted) {
       safeSend(state, { type: 'ACTION_ACCEPTED', payload: { requestId: result.requestId, result: result.result || {} } }, 'chat');
-      // walk_to 到达时由 movement service 的 publishPosition 触发 POSITION_UPDATE 广播；
-      // 完成回执由 movement service 完成时通过 completeCallback 发送（见 startWalkTo 推进结束处）
-      // 简化版：到达回执由 Agent 端检测位置不再变化自判（避免双向 callback 复杂性）
+      // 移动类的 POSITION_UPDATE 广播由 movement service 的 publishPosition 触发（前端就此看到走路动画）
     }
   } catch (err) {
     console.error(`[AgentWs] ACTION 异常: ${state.agent.name} action=${payload.action}`, err.message);
@@ -421,6 +431,7 @@ let started = false;
 function start() {
   if (started) return;
   started = true;
+  connectionRegistry.init({ states: activeAgents, cancelAction: agentActionService.cleanup, audit });
   startPushLoop();
   startHeartbeat();
   installChatPatch();
@@ -446,4 +457,43 @@ function audit(event, data) {
 
 function getActiveCount() { return activeAgents.size; }
 
-module.exports = { handleUpgrade, start, getActiveCount, AGENT_WS_PATH: '/ws/agent' };
+// ==================== 后台管理入口（删除/改档，P8 后续）====================
+
+/**
+ * 踢掉某 Agent 的全部在线连接（后台永久删除 Agent 时调用）
+ * close 触发 handleClose → 清 presenceBridge / 限流名额，并广播 PLAYER_LEFT
+ * 返回踢掉的连接数
+ */
+function kickAgent(agentId, reason) {
+  let kicked = 0;
+  for (const [, state] of activeAgents.entries()) {
+    if (state.agent && state.agent.id === agentId && !state.closed) {
+      try { state.ws.close(4003, reason || 'agent deleted'); } catch (e) {}
+      kicked++;
+    }
+  }
+  return kicked;
+}
+
+/**
+ * 在线连接即时改档（后台修改 Agent 档位时调用，无需重连）
+ * 注意：调用方传入的应是已解析的生效档位（inherit 已换算为全局默认档）
+ * 返回生效的连接数
+ */
+function applyAgentTier(agentId, pushTier) {
+  let applied = 0;
+  for (const [, state] of activeAgents.entries()) {
+    if (state.agent && state.agent.id === agentId && !state.closed
+        && !tierService.isGuest(state.tier)) {
+      state.pushTier = pushTier;
+      applied++;
+    }
+  }
+  return applied;
+}
+
+module.exports = {
+  handleUpgrade, start, getActiveCount,
+  kickAgent, applyAgentTier,
+  AGENT_WS_PATH: '/ws/agent'
+};

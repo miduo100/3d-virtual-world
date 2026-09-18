@@ -37,6 +37,21 @@ const GUEST_MAX_CONNECTIONS_PER_IP = 1;           // 每 IP 并发连接上限�
 // 游客会话在 agent_transient_sessions 表中的来源标记（复用无外键的 transient 表）
 const GUEST_SOURCE_WORLD_MARK = 'guest-pull';
 
+// ==================== Key Agent 独立推送档（P8 后续）====================
+// 第 1 档（公开游客 / 拉模式）不落库：任何人通过域名 POST /guest/session 自动获得，
+// 因此后台新建的 Key Agent 只在 standard / realtime 之间选；inherit = 跟随全局默认档
+// agent_push_default（默认值，兼容既有 Agent，行为不变）。
+const AGENT_PUSH_TIERS = ['eco', 'standard', 'realtime'];
+const AGENT_PUSH_TIER_INHERIT = 'inherit';
+
+// 档位白话标签（后台展示用）
+const AGENT_PUSH_TIER_LABELS = {
+  inherit: '跟随全局默认',
+  eco: '第 1 档 · 仅聊天',
+  standard: '第 2 档 · 聊天 + 每秒位置',
+  realtime: '第 3 档 · 聊天 + 实时位置'
+};
+
 /**
  * 游客动作限频（[次数, 窗口毫秒]）；Key Agent 为 null 表示沿用既有令牌桶/1Hz 策略。
  * 拉模式天然自限流：不请求服务器零开销，请求频率被这里钳死，滥用最坏情况有上界。
@@ -47,6 +62,7 @@ const TIER_ACTION_RATES = {
     say: [1, 5000],
     move: [1, 2000],
     walk_to: [1, 2000],
+    follow: [1, 2000],
     rotate: [1, 2000],
     jump: [1, 2000],
     interact: [1, 2000]     // 文档未单列，但同属"请求-响应"类，一并按 2s 钳制防刷
@@ -145,6 +161,9 @@ module.exports = {
   GUEST_MAX_CONNECTIONS_PER_IP,
   GUEST_SOURCE_WORLD_MARK,
   TIER_ACTION_RATES,
+  AGENT_PUSH_TIERS,
+  AGENT_PUSH_TIER_INHERIT,
+  AGENT_PUSH_TIER_LABELS,
   isValidApiKeyFormat,
   isValidAgentName,
   extractBearerToken,

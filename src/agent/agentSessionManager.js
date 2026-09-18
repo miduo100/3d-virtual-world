@@ -68,6 +68,36 @@ async function touchSession(sessionId, isTransient) {
 }
 
 /**
+ * 取该 Agent 最近一次落库的位置（用于"新会话继承位置"，缺陷 J）
+ *
+ * 背景：Agent 重连时通常要重新 POST /session（新 jti），新会话的 current_position 为空，
+ * presenceBridge 便退回 (0,0,0) 当出生点 → 重连即瞬移回原点（真人看到 AI 突然消失又出现在原点）。
+ * 这里让新连接继承该 Agent 上一次有效位置，实现"重连续位"。
+ * 排除当前 jti；只认 current_position 非空且未吊销的行。
+ */
+async function getLatestPosition(agentId, excludeJti) {
+  if (!agentId) return null;
+  try {
+    const result = await query(
+      `SELECT current_position FROM agent_sessions
+       WHERE agent_id = $1 AND current_position IS NOT NULL
+         AND status <> 'revoked' AND ($2::text IS NULL OR jti <> $2)
+       ORDER BY COALESCE(last_seen, issued_at) DESC LIMIT 1`,
+      [agentId, excludeJti || null]
+    );
+    if (result.rows.length === 0) return null;
+    const p = result.rows[0].current_position;
+    const obj = typeof p === 'string' ? safeParse(p) : p;
+    if (obj && Number.isFinite(obj.x) && Number.isFinite(obj.z)) {
+      return { x: obj.x, y: Number.isFinite(obj.y) ? obj.y : 0, z: obj.z };
+    }
+  } catch (e) { /* non-fatal */ }
+  return null;
+}
+
+function safeParse(s) { try { return JSON.parse(s); } catch (e) { return null; } }
+
+/**
  * 更新 Agent 当前位置（移动服务每帧调用，失败静默）
  * 用于断线重连时从该位置恢复（agentMovementService publishPosition 时同步）
  * P5 扩展：transient session 走 transientSessionManager.updateTransientPosition
@@ -136,6 +166,7 @@ module.exports = {
   verifySession,
   touchSession,
   updatePosition,
+  getLatestPosition,
   revokeSession,
   revokeAllSessions,
   cleanupExpiredSessions

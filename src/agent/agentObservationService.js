@@ -6,7 +6,13 @@
  *
  * entities 来源：wsServer.getPlayerPositions() 内存（在线人类 + 已入场的 Agent）。
  * P2 阶段 Agent 尚未通过 WS 入场（P3 agentPresenceBridge 才写 playerPositions），
- * 故 self 永远包含在 entities 中（isSelf:true），位置来自 query x/z 或 session.current_position。
+ * 故 self 永远包含在 entities 中（isSelf:true）。
+ *
+ * 2026-09-18 第一轮真人联测缺陷 A/B 修复：
+ *   A) 观察点（self.position 与所有 distance 的原点）改为优先取 playerPositions 中
+ *      该 Agent 的**实时位置**，session.current_position 仅作无在线连接时的兜底；
+ *   B) entities 按 characterId 去重（同角色多连接只输出一条最优条目），
+ *      满足第 5.4 节实体标识契约"entities[].id 唯一"。
  */
 
 const { query } = require('../database/db');
@@ -33,16 +39,72 @@ function clampLimit(l) {
 }
 
 /**
- * 观察点解析：query x/z 优先 → session.current_position → (0,0,0)
- * P2 阶段 Agent 无 WS 连接，位置是"观察点"而非"自身位置"；
- * 允许 Agent 用任意坐标探测世界（不强制要求 Agent 已入场）。
+ * 实时位置条目打分（用于同角色多连接时挑"活的"那一条）：
+ *   ① 带 animMode 的条目 = 真正在推进的连接（移动服务每 tick 会写 animMode）
+ *   ② 其次比 lastUpdate 时间
+ * animMode 权重远大于时间戳（用 1e15 放大），保证"动的连接"恒胜"静止的出生点连接"。
  */
-function resolvePosition(options, session) {
+function scoreEntry(p) {
+  if (!p) return -1;
+  const animScore = p.animMode ? 1 : 0;
+  const ts = p.lastUpdate ? new Date(p.lastUpdate).getTime() : 0;
+  return animScore * 1e15 + (Number.isFinite(ts) ? ts : 0);
+}
+
+/**
+ * 从 playerPositions 取某 Agent 的在线条目（缺陷 A/B 的统一取数点）
+ * playerPositions 按 connectionId 存，同一 agentId 可能有多条（多开/重连残留），
+ * 故按 scoreEntry 挑最优的一条；无在线连接时返回 null。
+ */
+function pickLiveEntry(agentId) {
+  if (!agentId) return null;
+  let playerPositions = null;
+  try {
+    const wsServer = require('../websocket/wsServer');
+    playerPositions = wsServer.getPlayerPositions ? wsServer.getPlayerPositions() : null;
+  } catch (e) {
+    return null;
+  }
+  if (!playerPositions || !playerPositions.forEach) return null;
+  const target = String(agentId);
+  let best = null;
+  playerPositions.forEach((p) => {
+    if (!p || !p.position || String(p.characterId) !== target) return;
+    if (!best || scoreEntry(p) > scoreEntry(best)) best = p;
+  });
+  return best;
+}
+
+/**
+ * 观察点解析（2026-09-18 修正 · 缺陷 A）：
+ *   ① query x/z（Agent 显式探测某个坐标）
+ *   ② **本 Agent 在 playerPositions 的实时位置（WS 连接权威）** ← 新增，A 项修复点
+ *   ③ session.current_position（无在线连接时的兜底：断线前最后落库位置）
+ *   ④ (0,0,0)
+ *
+ * 修正前的顺序是 ① → ③ → ④，导致"用第二条只读会话（纯 HTTP、无 WS）调 observe"时
+ * self 恒为 (0,0,0)、所有 distance 也以 (0,0,0) 为原点（而同一 agent 在 entities 里
+ * 另有真实位置条目），客户端据此算距离必然跑偏（第一轮联测"原地徘徊"的根因之一）。
+ * self 与 entities[].distance 共用本函数返回的 pos，故改这一处两者同时修正。
+ */
+function resolvePosition(options, session, agent) {
   const ox = Number(options.x);
   const oz = Number(options.z);
   if (Number.isFinite(ox) && Number.isFinite(oz)) {
     const oy = Number(options.y);
     return { x: ox, y: Number.isFinite(oy) ? oy : 0, z: oz };
+  }
+  if (agent && agent.id) {
+    const live = pickLiveEntry(agent.id);
+    if (live && live.position && Number.isFinite(Number(live.position.x)) && Number.isFinite(Number(live.position.z))) {
+      const lr = live.rotation;
+      return {
+        x: Number(live.position.x),
+        y: Number.isFinite(Number(live.position.y)) ? Number(live.position.y) : 0,
+        z: Number(live.position.z),
+        yaw: typeof lr === 'number' && Number.isFinite(lr) ? lr : 0
+      };
+    }
   }
   if (session && session.current_position) {
     const p = typeof session.current_position === 'string'
@@ -96,7 +158,7 @@ async function queryObjects(pos, radius, limit, include) {
 
   // 按到观察点的距离升序（雷达语义：近的先返回），LIMIT 精确截断最近的 N 个
   const result = await query(
-    `SELECT id, type, name, position_x, position_y, position_z
+    `SELECT id, type, name, agent_description, position_x, position_y, position_z
      FROM world_objects
      WHERE position_x BETWEEN $1 AND $2
        AND position_z BETWEEN $3 AND $4
@@ -110,6 +172,8 @@ async function queryObjects(pos, radius, limit, include) {
     id: String(r.id),
     type: r.type,
     name: r.name,
+    // 🤖 AI 描述（管理员在编辑器填写，AI 靠它认识物体；截断 300 字防雷达包过大）
+    description: r.agent_description ? String(r.agent_description).slice(0, 300) : null,
     position: { x: r.position_x, y: r.position_y, z: r.position_z },
     distance: round2(dist2D(pos.x, pos.z, r.position_x, r.position_z))
   }));
@@ -184,6 +248,11 @@ async function queryPortals(pos, radius, limit) {
 /**
  * 从 wsServer.getPlayerPositions() 内存收集半径内的实体（人类 + Agent）。
  * P2 阶段本 Agent 通常不在 playerPositions（未通过 WS 入场），故显式插入 self 条目。
+ *
+ * 缺陷 B 修复（2026-09-18）：playerPositions 按 connectionId 存，同一 characterId 存在
+ * 多条连接时会输出同 id 两条（一条真实位置、一条停在出生点的 animMode:null）——
+ * 第 5.4 节实体标识契约要求 entities[].id 唯一，故这里按 characterId 去重，
+ * 同 id 只保留 scoreEntry 最优的一条（带 animMode / 最新位置）。
  */
 function collectEntities(pos, radius, selfAgent) {
   const entities = [];
@@ -197,12 +266,13 @@ function collectEntities(pos, radius, selfAgent) {
   }
 
   if (playerPositions && playerPositions.forEach) {
+    const best = new Map();   // characterId -> { raw, entity }
     playerPositions.forEach((p) => {
       if (!p || !p.position) return;
       const d = dist2D(pos.x, pos.z, Number(p.position.x) || 0, Number(p.position.z) || 0);
       if (d > radius) return;
-      const isSelf = String(p.characterId) === String(selfAgent.id);
-      entities.push({
+      const id = String(p.characterId);
+      const entity = {
         id: p.characterId,
         type: p.entityType === 'agent' ? 'agent' : 'human',
         name: p.characterName,
@@ -213,9 +283,12 @@ function collectEntities(pos, radius, selfAgent) {
         },
         distance: round2(d),
         animMode: p.animMode || null,
-        isSelf
-      });
+        isSelf: id === String(selfAgent.id)
+      };
+      const prev = best.get(id);
+      if (!prev || scoreEntry(p) > scoreEntry(prev.raw)) best.set(id, { raw: p, entity });
     });
+    best.forEach((v) => entities.push(v.entity));
   }
 
   // 始终包含 self（P2 阶段 Agent 可能未入 playerPositions）
@@ -242,7 +315,8 @@ function shapeSelf(agent, pos) {
     id: agent.id,
     name: agent.name,
     position: { x: pos.x, y: pos.y, z: pos.z },
-    rotation: { yaw: 0 }       // P2 无朝向输入，固定 0
+    // 有在线连接时用实时朝向（presenceBridge 写入的 rotation 是数字 yaw），否则 0
+    rotation: { yaw: Number.isFinite(pos.yaw) ? pos.yaw : 0 }
   };
 }
 
@@ -287,7 +361,8 @@ function nextSeq() { return ++sequenceCounter; }
 async function observe(agent, session, options) {
   const radius = clampRadius(options.radius);
   const limit = clampLimit(options.limit);
-  const pos = resolvePosition(options, session);
+  // 缺陷 A：传 agent，使观察点优先取 playerPositions 中的实时位置（self 与 distance 共用此 pos）
+  const pos = resolvePosition(options, session, agent);
 
   const [objects, adSlots, portals, entities, world] = await Promise.all([
     queryObjects(pos, radius, limit, options.include),
@@ -322,5 +397,6 @@ module.exports = {
   // 导出工具供测试/复用
   clampRadius,
   clampLimit,
-  resolvePosition
+  resolvePosition,
+  pickLiveEntry
 };

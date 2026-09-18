@@ -151,11 +151,23 @@ async function main() {
 
   // ---------- ⑤ 档位切换 60s 内生效 ----------
   {
-    // 先设 standard 档（已设），连 Agent 订阅 movement，人类移动触发 ENTITY_MOVEMENT_BATCH
-    const conn = await wsConnect('/ws/agent', token, (ws) => {
-      ws.send(JSON.stringify({ type: 'SUBSCRIBE', payload: { topics: ['presence', 'movement'] } }));
-    });
-    if (conn.ok && conn.open) {
+    // 先设 standard 档（已设），连 Agent 订阅 movement，人类移动触发 ENTITY_MOVEMENT_BATCH。
+    // 注意：仅靠"POST /session 返回 200"不能证明服务器 60s 缓存已吃到 standard——
+    // 若 agent_enabled 早已为 true，缓存有效期内 session 会立刻 200，而 push_default 仍是旧值。
+    // READY.pushTier 是权威观察点（服务器按生效档位下发），据此重试连接直到档位生效。
+    let conn = null;
+    const dlPush = Date.now() + 140000;
+    while (Date.now() < dlPush) {
+      const probe = await wsConnect('/ws/agent', token, (ws) => {
+        ws.send(JSON.stringify({ type: 'SUBSCRIBE', payload: { topics: ['presence', 'movement'] } }));
+      });
+      const pt = probe.msg && probe.msg.payload && probe.msg.payload.pushTier;
+      if (probe.open && pt === 'standard') { conn = probe; break; }
+      try { probe.ws && probe.ws.close(); } catch (e) { /* ignore */ }
+      console.log(`[wait] 服务器 pushTier=${pt || 'n/a'}，等缓存刷新为 standard...`);
+      await sleep(3000);
+    }
+    if (conn && conn.ok && conn.open) {
       const humanWs = new WebSocket(BASE_WS + '/');
       await new Promise(r => {
         humanWs.on('open', () => {

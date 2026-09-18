@@ -13,6 +13,7 @@ const router = express.Router();
 
 const observationService = require('../../agent/agentObservationService');
 const tierService = require('../../agent/agentTierService');
+const agentConfigService = require('../../agent/agentConfigService');   // D：observe 采样率可配
 const { AGENT_TIER_KEY } = require('../../agent/agentSchema');
 const sessionRouter = require('./session');
 const authenticateAgentToken = sessionRouter.authenticateAgentToken;
@@ -27,15 +28,25 @@ function resolveTier(req, res, next) {
 }
 
 // ==================== 限频（P8：按 tier 分级）====================
-// Key Agent：1 次/秒（P2 既定 eco 档口径）
-// 游客 Agent：1 次/2 秒（拉模式天然自限流，不请求服务器零开销）
+// Key Agent：默认 1 次/秒（P2 既定口径），可由 system_config `agent_observe_rate_key` 调高到 10 次/秒
+//（缺陷 D：闭环跟随需要更高采样率；默认值 1 = 行为与修复前完全一致，向后兼容）
+// 游客 Agent：1 次/2 秒（拉模式天然自限流，不请求服务器零开销；不受该键影响）
 
-const OBSERVE_RATE_LIMIT_PER_SEC = 1;          // Key Agent：每秒 1 次
+const OBSERVE_RATE_LIMIT_DEFAULT = 1;          // 默认 Key Agent：每秒 1 次
 const observeWindow = new Map();               // agentId -> [ts]
+
+/** 读取 Key 档采样率（热路径读 60s 缓存，未热则回落默认 1） */
+function keyRatePerSec() {
+  try {
+    const c = agentConfigService.peekConfig();
+    if (c && Number.isFinite(c.observeRateKey) && c.observeRateKey > 0) return c.observeRateKey;
+  } catch (e) { /* ignore */ }
+  return OBSERVE_RATE_LIMIT_DEFAULT;
+}
 
 function rateLimitObserve(req, res, next) {
   const tier = req.tier || AGENT_TIER_KEY;
-  // 游客走 tierService 的专用限频（1 次/2s），Key Agent 走既有 1Hz
+  // 游客走 tierService 的专用限频（1 次/2s），Key Agent 走可配采样率
   if (tierService.isGuest(tier)) {
     const agentId = req.agent ? req.agent.id : 'unknown';
     const r = tierService.checkActionRate(tier, agentId, 'observe');
@@ -49,14 +60,15 @@ function rateLimitObserve(req, res, next) {
     return next();
   }
 
+  const limit = keyRatePerSec();
   const agentId = req.agent ? req.agent.id : 'unknown';
   const now = Date.now();
   const list = (observeWindow.get(agentId) || []).filter(ts => now - ts < 1000);
-  if (list.length >= OBSERVE_RATE_LIMIT_PER_SEC) {
+  if (list.length >= limit) {
     const oldest = list[0];
     const retryAfterMs = 1000 - (now - oldest);
     return res.status(429).json({
-      error: '观察请求过于频繁（eco 档限 1Hz）',
+      error: `观察请求过于频繁（当前限 ${limit}Hz，可用 agent_observe_rate_key 调整）`,
       retryAfter: Math.max(1, Math.ceil(retryAfterMs / 1000)),
       code: 'AGENT_OBSERVE_RATE_LIMITED'
     });

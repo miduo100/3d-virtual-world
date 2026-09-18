@@ -5,9 +5,10 @@
  * 故卡片逻辑放独立模块，页面只保留卡片标记与入口调用（switchSubTab 懒加载钩子）。
  *
  * 依赖页面元素：
- *   AI Agent  — agent-enabled-checkbox / agent-push-default / agent-movement-push /
+ *   AI Agent  — agent-enabled-checkbox / agent-push-default /
  *               agent-voice-relay-checkbox / max-agents / agent-save-msg /
- *               new-agent-name / new-agent-description / new-agent-glburl / agent-list-content
+ *               new-agent-name / new-agent-description / new-agent-glburl /
+ *               new-agent-push-tier / agent-list-content
  *   聊天归档  — chat-log-enabled-checkbox / chat-log-retention-days /
  *               chat-log-remote-enabled-checkbox / chat-log-remote-provider /
  *               chat-log-upload-hour / chat-log-s3-endpoint|bucket|prefix|access-key|secret-key /
@@ -82,6 +83,7 @@
     '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);color:var(--muted)">' +
     '三档都<b>不会</b>限制 AI 自己开口问：不管选哪一档，「看看周围有什么」「走过去」「说句话」这些 AI 都可以主动做。' +
     '区别只在于<b>服务器愿不愿意主动喂数据</b>给它。<br>' +
+    '位置流<b>没有单独的开关</b>：选哪一档就决定了位置怎么推（第 1 档完全没有 / 第 2 档每秒一包 / 第 3 档动一次推一条）。<br>' +
     '另外：以上只对<b>有 API Key</b> 的 AI 生效；没有 Key 的游客 AI 一律<b>什么都不主动推</b>，只能自己问。' +
     '</div>';
 
@@ -100,7 +102,6 @@
     const setVal = (id, v) => { const el = $(id); if (el && v !== undefined && v !== null) el.value = v; };
     setCb('agent-enabled-checkbox', cfg.agentEnabled);
     setVal('agent-push-default', cfg.pushDefault);
-    setVal('agent-movement-push', cfg.movementPush);
     setCb('agent-voice-relay-checkbox', cfg.voiceRelay);
     setVal('max-agents', cfg.maxAgents);
     updatePushTierHint();
@@ -142,7 +143,6 @@
     const body = {
       agent_enabled: !!($('agent-enabled-checkbox') || {}).checked,
       agent_push_default: ($('agent-push-default') || {}).value,
-      agent_movement_push: ($('agent-movement-push') || {}).value,
       agent_voice_relay: !!($('agent-voice-relay-checkbox') || {}).checked,
       max_agents: String(maxAgents)
     };
@@ -223,6 +223,19 @@
     return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
   }
 
+  // 档位下拉选项（Key Agent：跟随全局默认 / 第 2 档 / 第 3 档；第 1 档是公开游客，不在此列）
+  const TIER_OPTIONS = [
+    { v: 'inherit', label: '跟随全局默认' },
+    { v: 'standard', label: '第 2 档' },
+    { v: 'realtime', label: '第 3 档' }
+  ];
+  const TIER_LABELS = {
+    inherit: '跟随全局默认',
+    eco: '第 1 档',
+    standard: '第 2 档',
+    realtime: '第 3 档'
+  };
+
   function renderAgents(agents) {
     const box = $('agent-list-content');
     if (!box) return;
@@ -237,14 +250,22 @@
         ? '<span style="color:var(--green)">● 启用</span>'
         : '<span style="color:var(--red)">● 停用</span>';
       const keyInfo = a.lastKeyPrefix ? esc(a.lastKeyPrefix) + '…' : '无';
-      const actions = a.status === 'active'
+      const actions = (a.status === 'active'
         ? `<button class="btn btn-sm btn-secondary" onclick="adminAgentSettings.regenerateKey('${esc(a.id)}')">🔑 重发Key</button>
            <button class="btn btn-sm btn-danger" onclick="adminAgentSettings.disableAgent('${esc(a.id)}')">⏸ 停用</button>`
-        : `<button class="btn btn-sm btn-blue" onclick="adminAgentSettings.enableAgent('${esc(a.id)}')">▶ 启用</button>`;
+        : `<button class="btn btn-sm btn-blue" onclick="adminAgentSettings.enableAgent('${esc(a.id)}')">▶ 启用</button>`)
+        + ` <button class="btn btn-sm btn-danger" onclick="adminAgentSettings.deleteAgent('${esc(a.id)}')">🗑 删除</button>`;
+      // 档位内联下拉：改完立即生效（在线连接即时切换，无需重连）
+      const tierSel = `<select onchange="adminAgentSettings.changeTier('${esc(a.id)}', this.value)"
+          style="font-size:11px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;">
+          ${TIER_OPTIONS.map(o => `<option value="${o.v}"${o.v === (a.pushTier || 'inherit') ? ' selected' : ''}>${o.label}</option>`).join('')}
+        </select>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">生效：${esc(TIER_LABELS[a.effectivePushTier] || a.effectivePushTier || '—')}</div>`;
       return `<tr>
         <td>${esc(a.name)}</td>
         <td>${esc(a.description || '')}</td>
         <td>${badge}</td>
+        <td>${tierSel}</td>
         <td>${a.activeKeyCount}</td>
         <td><code style="font-size:11px">${keyInfo}</code></td>
         <td>${esc(a.canTeleport ? '是' : '否')}</td>
@@ -254,7 +275,7 @@
     }).join('');
     box.innerHTML = `<table>
       <thead><tr>
-        <th>名称</th><th>描述</th><th>状态</th><th>有效Key</th><th>最近Key前缀</th>
+        <th>名称</th><th>描述</th><th>状态</th><th>推送档位</th><th>有效Key</th><th>最近Key前缀</th>
         <th>可传送</th><th>创建时间</th><th>操作</th>
       </tr></thead>
       <tbody>${rows}</tbody></table>`;
@@ -290,10 +311,12 @@
       return;
     }
     const glbUrl = glbEl ? glbEl.value.trim() : '';
+    const tierEl = $('new-agent-push-tier');
     const body = {
       name,
       description: descEl ? descEl.value.trim() : '',
-      avatarConfig: glbUrl ? { glbUrl } : {}
+      avatarConfig: glbUrl ? { glbUrl } : {},
+      pushTier: tierEl ? tierEl.value : 'inherit'
     };
     showMsg('agent-save-msg', '创建中...', true);
     try {
@@ -301,6 +324,7 @@
       if (nameEl) nameEl.value = '';
       if (descEl) descEl.value = '';
       if (glbEl) glbEl.value = '';
+      if (tierEl) tierEl.value = 'inherit';
       // 明文 Key 仅此一次返回，必须立刻展示给管理员
       const key = r.apiKey || '';
       showMsg('agent-save-msg', '✅ 创建成功（Key 仅显示一次，请立即复制）：' + key, true);
@@ -345,6 +369,29 @@
     }
   }
 
+  async function deleteAgent(id) {
+    if (window.confirm && !window.confirm('永久删除该 Agent？\n\n· API Key 与全部会话一并清除，不可恢复\n· 在线中的 Agent 会被立即踢出\n· 聊天记录保留（只删身份）')) return;
+    try {
+      const r = await jreq('DELETE', API + '/agents/' + encodeURIComponent(id), {});
+      showMsg('agent-save-msg', '✅ 已删除：' + (r.deleted || '') + (r.kicked ? '（踢出在线连接 ' + r.kicked + ' 个）' : ''), true);
+      await loadAgentsList();
+    } catch (e) {
+      showMsg('agent-save-msg', '❌ 删除失败：' + e.message, false);
+    }
+  }
+
+  async function changeTier(id, tier) {
+    try {
+      const r = await jreq('POST', API + '/agents/' + encodeURIComponent(id) + '/tier', { pushTier: tier });
+      const note = r.applied > 0 ? '（在线连接已即时切换）' : '';
+      showMsg('agent-save-msg', '✅ 档位已改为「' + (TIER_LABELS[r.effectivePushTier] || r.effectivePushTier) + '」' + note, true);
+      await loadAgentsList();
+    } catch (e) {
+      showMsg('agent-save-msg', '❌ 改档失败：' + e.message, false);
+      await loadAgentsList();  // 失败时回读真实值，避免下拉显示与实际不符
+    }
+  }
+
   window.adminAgentSettings = {
     loadAgentConfig,
     saveAgentConfig,
@@ -353,6 +400,8 @@
     disableAgent,
     enableAgent,
     regenerateKey,
+    deleteAgent,
+    changeTier,
     saveChatArchiveConfig,
     runArchiveNowTest
   };

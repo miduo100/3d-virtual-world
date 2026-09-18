@@ -556,14 +556,6 @@
             <div id="agent-push-tier-hint" style="margin-top:8px;padding:10px 12px;background:rgba(255,255,255,0.04);border-left:3px solid var(--blue);border-radius:6px;font-size:12px;color:#ccc;line-height:1.75;"></div>
           </div>
           <div class="form-group">
-            <label>位置流策略</label>
-            <select id="agent-movement-push" style="padding:6px 10px;">
-              <option value="off">off（关闭位置流推送）</option>
-              <option value="batched">batched（1s 聚合）</option>
-              <option value="realtime">realtime（10Hz 逐条）</option>
-            </select>
-          </div>
-          <div class="form-group">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
               <input type="checkbox" id="agent-voice-relay-checkbox" style="width:auto;">
               <span>语音中继给 Agent（默认关；开启后 AI 可收到附近语音 base64，转写由 AI 客户端自接）</span>
@@ -587,7 +579,7 @@
           </div>
           <div style="background:rgba(255,255,255,0.04);border:1px solid var(--border);padding:11px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;color:#ccc;">
             <div style="font-weight:600;color:#ddd;margin-bottom:6px;">➕ 创建新 Agent</div>
-            <div style="display:grid;grid-template-columns:1fr 2fr 2fr auto;gap:8px;align-items:end;">
+            <div style="display:grid;grid-template-columns:1fr 1.6fr 1.6fr 170px auto;gap:8px;align-items:end;">
               <div>
                 <label style="font-size:11px;color:var(--muted);">名称（2-100 字符）</label>
                 <input type="text" id="new-agent-name" placeholder="如：客服助手-Alice" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:4px;">
@@ -601,10 +593,21 @@
                 <input type="text" id="new-agent-glburl" placeholder="/uploads/xxx.glb 或绝对 URL" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:4px;">
               </div>
               <div>
+                <label style="font-size:11px;color:var(--muted);">推送档位</label>
+                <select id="new-agent-push-tier" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:4px;">
+                  <option value="inherit">跟随全局默认档（推荐）</option>
+                  <option value="standard">第 2 档 · 聊天 + 每秒位置</option>
+                  <option value="realtime">第 3 档 · 聊天 + 实时位置</option>
+                </select>
+              </div>
+              <div>
                 <button class="btn" onclick="adminAgentSettings.createAgent()">➕ 创建</button>
               </div>
             </div>
-            <div style="margin-top:8px;font-size:11px;color:var(--muted);">⚠️ 创建成功后明文 API Key <b>仅显示一次</b>，请立即复制保存（页面刷新后无法找回）。</div>
+            <div style="margin-top:8px;font-size:11px;color:var(--muted);line-height:1.7;">
+              第 1 档（公开游客）<b>无需在此创建</b>：任何人通过域名即可自动获得，此处新建的 Key Agent 只能在第 2/3 档之间选（档位可随时在列表里改）。<br>
+              ⚠️ 创建成功后明文 API Key <b>仅显示一次</b>，请立即复制保存（页面刷新后无法找回）。
+            </div>
           </div>
           <div class="table-wrap">
             <div id="agent-list-content" class="loading">点击「刷新」加载</div>
@@ -1121,6 +1124,11 @@
               <label data-i18n="adminAssets.tagsOptional">标签（可选，用逗号分隔）</label>
               <input type="text" id="upload-model-tags" placeholder="例如：建筑,现代,高楼" data-i18n-placeholder="adminAssets.tagsPlaceholder">
             </div>
+            <div class="form-group">
+              <label style="color:var(--purple)">🤖 AI 描述（给 AI 看，玩家不可见，可选）</label>
+              <textarea id="upload-model-agent-desc" rows="3" maxlength="500" placeholder="告诉 AI 这是什么、能干什么。AI 看不到 3D 模型，只靠名称和这段话认识物体。" style="width:100%;resize:vertical;"></textarea>
+              <div style="font-size:11px;color:#888;margin-top:3px;">所有 AI（含公开游客）都能看到，勿写敏感信息；放置到世界时自动携带。</div>
+            </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
               <button class="btn btn-secondary" onclick="closeUploadModelModal()" data-i18n="adminAssets.cancel">取消</button>
               <button class="btn" onclick="uploadModel()" data-i18n="adminAssets.upload">上传</button>
@@ -1168,6 +1176,10 @@
             <div class="form-group">
               <label data-i18n="adminAssets.tagsComma">标签（用逗号分隔）</label>
               <input type="text" id="edit-tags-input" placeholder="例如：建筑,现代,高楼" data-i18n-placeholder="adminAssets.tagsPlaceholder">
+            </div>
+            <div class="form-group">
+              <label style="color:var(--purple)">🤖 AI 描述（给 AI 看，玩家不可见）</label>
+              <textarea id="edit-tags-agent-desc" rows="3" maxlength="500" placeholder="告诉 AI 这是什么、能干什么。留空 = AI 只能靠名称猜测。" style="width:100%;resize:vertical;"></textarea>
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
               <button class="btn btn-secondary" onclick="closeEditTagsModal()" data-i18n="adminAssets.cancel">取消</button>
@@ -3809,7 +3821,7 @@
 <script src="js/adminProfile.js" defer></script>
 <script src="js/adminSky.js" defer></script>
 <script src="js/adminModelLod.js?v=4" defer></script>
-<script src="js/adminAgentSettings.js?v=2" defer></script>
+<script src="js/adminAgentSettings.js?v=4" defer></script>
 <script>
   // ===== 认证 =====
   document.addEventListener('DOMContentLoaded', function checkAdminAuth() {
@@ -5452,6 +5464,8 @@
     document.getElementById('upload-model-file').value = '';
     document.getElementById('upload-model-name').value = '';
     document.getElementById('upload-model-tags').value = '';
+    const _descEl = document.getElementById('upload-model-agent-desc');
+    if (_descEl) _descEl.value = '';
     const listEl = document.getElementById('upload-file-list');
     const progEl = document.getElementById('upload-progress-container');
     if (listEl) listEl.style.display = 'none';
@@ -5528,7 +5542,7 @@
     statusEl.textContent = window.i18n.t('adminAssets.compressFailed');
   }
 
-  function _uploadOneFile(file, displayName, tagsInput, index, total) {
+  function _uploadOneFile(file, displayName, tagsInput, index, total, agentDesc) {
     return new Promise(function(resolve) {
       const statusEl = document.getElementById('upf-status-' + index);
       const subEl = statusEl ? statusEl.parentElement.querySelector('.upf-sub') : null;
@@ -5539,6 +5553,7 @@
       fd.append('model', file);
       fd.append('display_name', displayName);
       if (tagsInput) fd.append('tags', tagsInput);
+      if (agentDesc) fd.append('agent_description', agentDesc);   // 🤖 AI 描述
 
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/upload-model');
@@ -5612,10 +5627,11 @@
     let failCount = 0;
     const total = files.length;
 
+    const agentDescInput = (document.getElementById('upload-model-agent-desc') || {}).value ? document.getElementById('upload-model-agent-desc').value.trim().slice(0, 500) : '';
     for (let i = 0; i < total; i++) {
       // 命名规则：单文件用输入名称，多文件 名称-1、名称-2…
       const displayName = total === 1 ? nameInput : nameInput + '-' + (i + 1);
-      const ok = await _uploadOneFile(files[i], displayName, tagsInput, i, total);
+      const ok = await _uploadOneFile(files[i], displayName, tagsInput, i, total, agentDescInput);
       if (ok) successCount++; else failCount++;
       const done = i + 1;
       document.getElementById('upload-total-fill').style.width = Math.round((done / total) * 100) + '%';
@@ -5632,7 +5648,7 @@
 
   function showModelPreviewModal(modelId) {
     currentModelId = modelId;
-    const model = allUploadedModels.find(m => m.id === modelId);
+    const model = allUploadedModels.find(m => String(m.id) === String(modelId));
     if (!model) return;
     document.getElementById('model-preview-info').innerHTML = `
       <div><strong>${window.i18n.t('adminAssets.colModelName')}:</strong> ${model.display_name || model.file_name}</div>
@@ -5654,12 +5670,15 @@
     currentModelId = null;
   }
 
-  function editModelTags() {
+  function editModelTags(id) {
+    if (id) currentModelId = id;   // 列表按钮直接传 id；预览弹窗入口不带参，沿用已选模型
     if (!currentModelId) return;
-    const model = allUploadedModels.find(m => m.id === currentModelId);
+    const model = allUploadedModels.find(m => String(m.id) === String(currentModelId));
     if (!model) return;
     document.getElementById('edit-tags-model-name').value = model.display_name || model.file_name;
     document.getElementById('edit-tags-input').value = (model.tags || []).join(', ');
+    const _ed = document.getElementById('edit-tags-agent-desc');
+    if (_ed) _ed.value = model.description || '';
     document.getElementById('edit-tags-modal').classList.add('active');
   }
 
@@ -5671,6 +5690,8 @@
     if (!currentModelId) return;
     const tagsInput = document.getElementById('edit-tags-input').value.trim();
     const tags = tagsInput ? tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
+    const _ed = document.getElementById('edit-tags-agent-desc');
+    const agentDesc = _ed ? _ed.value.trim().slice(0, 500) : '';
 
     try {
       const response = await fetch(`/api/tags/model/uploaded/${currentModelId}`, {
@@ -5681,6 +5702,14 @@
 
       const data = await response.json();
       if (data.success) {
+        // 🤖 同步保存 AI 描述（失败不阻断标签保存结果）
+        try {
+          await fetch(`/api/uploaded-models/${currentModelId}/agent-description`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agent_description: agentDesc || null })
+          });
+        } catch (e) { console.warn('AI 描述保存失败:', e); }
         showToast(window.i18n.t('adminAssets.tagsUpdated'));
         closeEditTagsModal();
         closeModelPreviewModal();
@@ -5757,7 +5786,7 @@
         <td style="color:var(--muted)">${m.created_at ? new Date(m.created_at).toLocaleDateString('zh-CN') : '-'}</td>
         <td>
           <div class="action-btns">
-            <button class="btn btn-sm" onclick="editModelTags()" data-id="${m.id}">✏️ ${window.i18n.t('adminAssets.editTags')}</button>
+            <button class="btn btn-sm" onclick="editModelTags('${m.id}')">✏️ ${window.i18n.t('adminAssets.editTags')}</button>
             <button class="btn btn-sm btn-danger" onclick="deleteUploadedModel('${m.id}')">${window.i18n.t('adminAssets.delete')}</button>
           </div>
         </td>

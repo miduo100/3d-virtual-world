@@ -128,22 +128,27 @@ router.post('/upload-model', upload.single('model'), async (req, res) => {
 
     // 用户自定义名称（可选）
     const displayName = req.body.display_name || null;
+    // 🤖 AI 描述（可选，给 AI/Agent 看，最长 500 字）
+    const agentDescription = req.body.agent_description
+      ? String(req.body.agent_description).slice(0, 500)
+      : null;
 
     // 保存到数据库
     const insertQuery = `
-      INSERT INTO uploaded_models 
-      (file_name, saved_file_name, path, file_type, file_size, display_name, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      INSERT INTO uploaded_models
+      (file_name, saved_file_name, path, file_type, file_size, display_name, description, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
       RETURNING *
     `;
-    
+
     const result = await pool.query(insertQuery, [
       fileName,
       savedFileName,
       filePath,
       fileType,
       fileSize,
-      displayName
+      displayName,
+      agentDescription
     ]);
 
     console.log('✅ 模型已保存到数据库:', result.rows[0]);
@@ -272,21 +277,34 @@ router.post('/upload-models-batch', upload.array('models', 20), async (req, res)
           } catch(e) { /* ignore parse error */ }
         }
 
+        // 🤖 AI 描述（批量：req.body.agent_descriptions JSON数组，按文件顺序对应；最长 500 字）
+        let agentDescription = null;
+        if (req.body.agent_descriptions) {
+          try {
+            const descs = JSON.parse(req.body.agent_descriptions);
+            const idx = req.files.indexOf(file);
+            if (Array.isArray(descs) && descs[idx]) {
+              agentDescription = String(descs[idx]).slice(0, 500);
+            }
+          } catch(e) { /* ignore parse error */ }
+        }
+
         // 保存到数据库
         const insertQuery = `
-          INSERT INTO uploaded_models 
-          (file_name, saved_file_name, path, file_type, file_size, display_name, created_at)
-          VALUES ($1, $2, $3, $4, $5, $6, NOW())
+          INSERT INTO uploaded_models
+          (file_name, saved_file_name, path, file_type, file_size, display_name, description, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
           RETURNING *
         `;
-        
+
         const result = await pool.query(insertQuery, [
           fileName,
           savedFileName,
           filePath,
           fileType,
           fileSize,
-          displayName
+          displayName,
+          agentDescription
         ]);
 
         console.log('✅ 模型已保存到数据库:', result.rows[0].id);

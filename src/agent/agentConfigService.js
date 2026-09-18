@@ -12,10 +12,17 @@ const { query } = require('../database/db');
 // 5.3 节 Agent 接入配置
 const AGENT_CONFIG_DEFAULTS = {
   agent_enabled: { value: 'false', description: 'Agent 接入总开关（默认关，上线手动开）' },
-  agent_push_default: { value: 'eco', description: 'Agent 推送默认档（eco|standard|realtime）' },
-  agent_movement_push: { value: 'batched', description: '位置流策略（off|batched|realtime）' },
+  agent_push_default: { value: 'eco', description: 'Agent 推送默认档（eco|standard|realtime，位置流一并由此决定）' },
   agent_voice_relay: { value: 'false', description: '语音是否中继给 Agent（默认关）' },
   max_agents: { value: '50', description: '全局并发 Agent 上限' },
+  // 第一轮联测缺陷 B：同一 Agent 允许的并发 WS 连接数（默认 1；超出时新连接顶掉最旧连接）
+  agent_max_connections_per_agent: { value: '1', description: '单个 Agent 并发连接上限（1~10，超出时新连接顶掉旧连接）' },
+  // 第一轮联测缺陷 C 配套：Agent 移动速度上限（m/s）。真人约 9 m/s（player.js 0.15/帧 @60fps），
+  // 默认与真人对齐；用户实测"Agent 速度应与真人一致"（原固定 5 m/s 会被正常走路/奔跑的真人越拉越远）
+  agent_max_speed: { value: '9', description: 'Agent 移动速度上限 m/s（1~20，默认 9 与真人一致）' },
+  // 第一轮联测缺陷 D：Key Agent 的 observe 采样率（次/秒）。默认 1 = 与修复前完全一致；
+  // 调高可让客户端闭环跟随更稳（游客档固定 1 次/2 秒，不受此键影响）
+  agent_observe_rate_key: { value: '1', description: 'Key Agent observe 采样率（次/秒，1~10，默认 1）' },
   // 5.5 节 聊天记录与归档配置（P4）
   chat_log_enabled: { value: 'true', description: '聊天记录总开关（关后停止写入 world_chat_log）' },
   chat_log_retention_days: { value: '7', description: '本地保留天数（1~365），到期清除已成功归档的本地行' },
@@ -58,7 +65,7 @@ async function ensureDefaultConfig() {
 
 /**
  * 读取全部 Agent 配置（60s 缓存）
- * 返回 { agentEnabled, pushDefault, movementPush, voiceRelay, maxAgents }
+ * 返回 { agentEnabled, pushDefault, voiceRelay, maxAgents }
  */
 async function getConfig(force = false) {
   const now = Date.now();
@@ -125,7 +132,16 @@ async function setConfigValue(key, value) {
       [key, strVal, AGENT_CONFIG_DEFAULTS[key].description]
     );
   }
-  cache = null; // 失效缓存，下次读取重新加载
+  // 缓存处理：**必须就地更新**而不是简单置 null——
+  // 移动速度 / observe 采样率等热路径用 peekConfig() 同步读取 60s 缓存，若只置 null，
+  // 在下一次 getConfig() 之前 peekConfig() 会回落默认值，表现为"后台改了要等几十秒才生效"
+  // （缺陷 D 验收 D2 实测踩到）。敏感键不写缓存（保持从 DB 解密读取）。
+  if (cache && cache.values && !isSensitive) {
+    cache.values[key] = strVal;
+    cache.loadedAt = Date.now();
+  } else {
+    cache = null;
+  }
 }
 
 /**
@@ -153,9 +169,14 @@ function shapeValues(v) {
   return {
     agentEnabled: String(v.agent_enabled) === 'true',
     pushDefault: v.agent_push_default || 'eco',
-    movementPush: v.agent_movement_push || 'batched',
     voiceRelay: String(v.agent_voice_relay) === 'true',
     maxAgents: parseInt(v.max_agents, 10) || 50,
+    // 缺陷 B：单 Agent 并发连接上限（1~10）
+    maxConnectionsPerAgent: Math.min(10, Math.max(1, parseInt(v.agent_max_connections_per_agent, 10) || 1)),
+    // 缺陷 C 配套：移动速度上限（1~20 m/s）
+    maxSpeed: Math.min(20, Math.max(1, Number(v.agent_max_speed) || 9)),
+    // 缺陷 D：Key Agent observe 采样率（1~10 次/秒，默认 1）
+    observeRateKey: Math.min(10, Math.max(1, parseInt(v.agent_observe_rate_key, 10) || 1)),
     // 聊天记录与归档配置（P4）
     chatLogEnabled: String(v.chat_log_enabled) === 'true',
     chatLogRetentionDays: Math.min(365, Math.max(1, parseInt(v.chat_log_retention_days, 10) || 7)),
@@ -165,6 +186,14 @@ function shapeValues(v) {
   };
 }
 
+/**
+ * 同步读取缓存配置（热路径用：移动/跟随每 tick 取速度上限，不能每 tick 查库）
+ * 缓存未热时返回 null，调用方回落默认值；WS 连接建立时已 await getConfig() 预热。
+ */
+function peekConfig() {
+  return cache ? shapeValues(cache.values) : null;
+}
+
 module.exports = {
   AGENT_CONFIG_DEFAULTS,
   SENSITIVE_KEYS,
@@ -172,5 +201,6 @@ module.exports = {
   getConfig,
   getRawConfig,
   setConfigValue,
-  getSensitiveValue
+  getSensitiveValue,
+  peekConfig
 };

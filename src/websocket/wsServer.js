@@ -13,6 +13,23 @@ let wss = null;
 const playerPositions = new Map();
 const activeConnections = new Map();
 
+// 未登记连接（断线重连但没重发 PLAYER_JOIN 的"幽灵"）告警去重时间戳
+const ghostWarnAt = new Map();
+
+/**
+ * 连接已建立但服务器没有它的玩家登记（playerPositions）时的提示。
+ * 这类连接发来的位置/模型更新会被静默忽略，对方就"永远看不到它移动"，
+ * 排查时极难发现，因此每 30s 打一次日志（前端 wsPresenceGuard 会自动重发
+ * PLAYER_JOIN 根治该状态，这里只做可观测性兜底）。
+ */
+function warnUnregistered(connectionId, type) {
+  const now = Date.now();
+  const last = ghostWarnAt.get(connectionId) || 0;
+  if (now - last < 30000) return;
+  ghostWarnAt.set(connectionId, now);
+  console.warn(`[WS] ${type} 来自未登记连接（该连接未发 PLAYER_JOIN），已忽略: ${connectionId}`);
+}
+
 /**
  * 设置 WebSocket 服务器，附加到现有的 HTTP server 上（共享端口）
  * @param {import('http').Server} httpServer - Express HTTP server 实例
@@ -61,6 +78,7 @@ function setupWebSocketServer(httpServer) {
         
         activeConnections.delete(connectionId);
         playerPositions.delete(connectionId);
+        ghostWarnAt.delete(connectionId);
         voiceRelay.handleDisconnect(connectionId);
         
         // 广播玩家离线
@@ -138,6 +156,13 @@ function handleMessage(connectionId, ws, data) {
 
     case 'VOICE_COMMAND':
       handleVoiceCommand(connectionId, payload);
+      break;
+
+    case 'PING':
+      // 客户端应用层探活（public/js/wsPresenceGuard.js）：立刻回 PONG。
+      // 半开连接（TCP 已死但 onclose 不触发）时客户端收不到 PONG，
+      // 据此判定链路失效并强制重连——协议层 ping/pong 在浏览器端没有 JS 事件。
+      try { ws.send(JSON.stringify({ type: 'PONG', payload: { t: Date.now() } })); } catch (e) {}
       break;
 
     case 'VOICE_START':
@@ -228,6 +253,9 @@ function handleModelUpdate(connectionId, payload) {
     p.glbUrl = glbUrl || null;
     if (animUrls) p.animUrls = animUrls;
     p.isSelfContainedBundle = isSelfContainedBundle === true;
+  } else {
+    warnUnregistered(connectionId, 'MODEL_UPDATE');
+    return;
   }
   // 广播给所有其他玩家，让他们刷新该玩家的模型和动画
   broadcastToAll({
@@ -243,6 +271,19 @@ function handleModelUpdate(connectionId, payload) {
 
 function handlePlayerJoin(connectionId, ws, payload) {
   const { characterId, characterName, position, glbUrl, animUrls, weaponConfig, boneMapConfig, weaponSocketConfig, calibrationConfig, isGuest, isSelfContainedBundle } = payload;
+
+  // 同一角色的旧连接残留（断线重连/半开连接被心跳清理前）：若旧连接已死则清掉，
+  // 否则 WORLD_STATE 里同一角色会出现两条记录——新加入者会先按旧条建角色、
+  // 再被旧条的位置覆盖，出现"复活在旧坐标 / 位置反复回跳"。
+  playerPositions.forEach((p, cid) => {
+    if (cid === connectionId || !p || p.characterId !== characterId) return;
+    const old = activeConnections.get(cid);
+    if (!old || old.readyState !== WebSocket.OPEN) {
+      playerPositions.delete(cid);
+      ghostWarnAt.delete(cid);
+      console.log(`♻️ 清理角色 ${characterId} 的旧连接残留: ${cid}`);
+    }
+  });
 
   playerPositions.set(connectionId, {
     characterId,
@@ -314,24 +355,29 @@ function handlePlayerJoin(connectionId, ws, payload) {
 function handlePositionUpdate(connectionId, payload) {
   const { position, characterId, animMode, rotation } = payload;
 
-  if (playerPositions.has(connectionId)) {
-    const player = playerPositions.get(connectionId);
-    player.position = position;
-    if (animMode !== undefined) player.animMode = animMode;
-    if (rotation !== undefined) player.rotation = rotation;
-    player.lastUpdate = new Date();
-
-    // Broadcast position to nearby players
-    broadcastToAll({
-      type: 'POSITION_UPDATE',
-      payload: {
-        characterId,
-        position,
-        animMode: animMode || null,
-        rotation: rotation !== undefined ? rotation : null,
-      },
-    });
+  if (!playerPositions.has(connectionId)) {
+    // 断线重连后没重发 PLAYER_JOIN 的连接会一直走到这里：此前是静默丢弃，
+    // 表现为"对方完全看不到我移动"，而前端毫无提示（前端已加 wsPresenceGuard 自愈）
+    warnUnregistered(connectionId, 'POSITION_UPDATE');
+    return;
   }
+
+  const player = playerPositions.get(connectionId);
+  player.position = position;
+  if (animMode !== undefined) player.animMode = animMode;
+  if (rotation !== undefined) player.rotation = rotation;
+  player.lastUpdate = new Date();
+
+  // Broadcast position to nearby players
+  broadcastToAll({
+    type: 'POSITION_UPDATE',
+    payload: {
+      characterId,
+      position,
+      animMode: animMode || null,
+      rotation: rotation !== undefined ? rotation : null,
+    },
+  });
 }
 
 function handleSkillCast(connectionId, payload) {

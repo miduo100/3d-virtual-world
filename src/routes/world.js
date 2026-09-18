@@ -231,7 +231,8 @@ router.post('/objects', async (req, res) => {
       world_id = 1,
       threejs_code = null,
       has_collision = false,
-      custom_config = null
+      custom_config = null,
+      agent_description = null          // 🤖 AI 描述（给 AI/Agent 看，玩家不可见）
     } = req.body;
 
     if (!type || !name) {
@@ -242,11 +243,11 @@ router.post('/objects', async (req, res) => {
     }
 
     const insertQuery = `
-      INSERT INTO world_objects 
-      (type, name, model_path, model_type, position_x, position_y, position_z, 
+      INSERT INTO world_objects
+      (type, name, model_path, model_type, position_x, position_y, position_z,
        rotation_x, rotation_y, rotation_z, scale_x, scale_y, scale_z,
-       building_id, world_id, threejs_code, has_collision, custom_config, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW(), NOW())
+       building_id, world_id, threejs_code, has_collision, custom_config, agent_description, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW(), NOW())
       RETURNING *
     `;
 
@@ -259,7 +260,8 @@ router.post('/objects', async (req, res) => {
       world_id,
       threejs_code,
       has_collision,
-      custom_config ? JSON.stringify(custom_config) : null
+      custom_config ? JSON.stringify(custom_config) : null,
+      agent_description
     ]);
 
     console.log('✅ 世界对象已创建:', result.rows[0]);
@@ -285,7 +287,7 @@ router.post('/objects', async (req, res) => {
 router.put('/objects/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, position_x, position_y, position_z, rotation_x, rotation_y, rotation_z, scale_x, scale_y, scale_z, video_props, visible, castShadow, receiveShadow, has_collision, custom_config } = req.body;
+    const { name, position_x, position_y, position_z, rotation_x, rotation_y, rotation_z, scale_x, scale_y, scale_z, video_props, visible, castShadow, receiveShadow, has_collision, custom_config, agent_description } = req.body;
 
     console.log('📝 更新对象请求 - ID:', id, '类型:', typeof id);
 
@@ -541,7 +543,12 @@ router.put('/objects/:id', async (req, res) => {
       updateFields.push(`custom_config = $${paramIndex++}`);
       updateValues.push(typeof custom_config === 'string' ? custom_config : JSON.stringify(custom_config));
     }
-    
+    // 🤖 AI 描述（给 AI/Agent 看，最长 500 字）
+    if (agent_description !== undefined) {
+      updateFields.push(`agent_description = $${paramIndex++}`);
+      updateValues.push(agent_description === null ? null : String(agent_description).slice(0, 500));
+    }
+
     updateFields.push(`updated_at = NOW()`);
     updateValues.push(id);
     
@@ -704,11 +711,11 @@ router.post('/objects/:id/copy', async (req, res) => {
 
     // Create copy with offset position
     const insertQuery = `
-      INSERT INTO world_objects 
-      (type, name, model_path, position_x, position_y, position_z, 
+      INSERT INTO world_objects
+      (type, name, model_path, position_x, position_y, position_z,
        rotation_x, rotation_y, rotation_z, scale_x, scale_y, scale_z,
-       building_id, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+       building_id, agent_description, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
       RETURNING *
     `;
 
@@ -725,7 +732,8 @@ router.post('/objects/:id/copy', async (req, res) => {
       newSclX,
       newSclY,
       newSclZ,
-      original.building_id
+      original.building_id,
+      original.agent_description || null
     ]);
 
     res.json({

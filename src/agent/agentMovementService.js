@@ -17,10 +17,20 @@
 
 const presenceBridge = require('./agentPresenceBridge');
 const agentSessionManager = require('./agentSessionManager');
+const agentConfigService = require('./agentConfigService');
 
 // ==================== 物理常量 ====================
 
-const MAX_SPEED = 5;                         // 5 m/s（红线：服务端权威定速）
+const MAX_SPEED = 5;                         // 默认上限（红线：服务端权威定速）
+// 缺陷 C 配套（2026-09-19 用户决策"速度应与真人一致"）：速度上限改为后台可配
+// agent_max_speed（默认 9 m/s = 真人速度 player.js 0.15/帧 @60fps），热路径读 60s 缓存不查库。
+function getMaxSpeed() {
+  try {
+    const c = agentConfigService.peekConfig();
+    if (c && Number.isFinite(c.maxSpeed) && c.maxSpeed > 0) return c.maxSpeed;
+  } catch (e) { /* 缓存未热时回落默认 */ }
+  return MAX_SPEED;
+}
 const WORLD_BOUNDARY = 1000;                  // 世界边界 ±1000m（超出 clamp）
 const TICK_INTERVAL_MS = 100;                 // 10Hz 推进
 const JUMP_INITIAL_VELOCITY = 4;              // 跳跃初速 4 m/s
@@ -43,7 +53,7 @@ const activeMovements = new Map();
  * @param target     { x, z } 目标坐标
  * @returns { ok, error?, estimatedMs? }
  */
-function startWalkTo(connectionId, agent, session, target) {
+function startWalkTo(connectionId, agent, session, target, opts) {
   // 校验目标
   if (!target || !Number.isFinite(target.x) || !Number.isFinite(target.z)) {
     return { ok: false, error: 'invalid_target' };
@@ -53,16 +63,16 @@ function startWalkTo(connectionId, agent, session, target) {
     return { ok: false, error: 'out_of_bounds' };
   }
 
-  const cur = getCurrentPosition(session);
+  // 取消既有任务（E：被打断的上一段 walk_to 会收到带 reason 的 ACTION_COMPLETED）
+  cancelMovement(connectionId, 'superseded');
+
+  const cur = getCurrentPosition(session, connectionId);
   const dx = target.x - cur.x;
   const dz = target.z - cur.z;
   const dist = Math.sqrt(dx * dx + dz * dz);
   if (dist <= ARRIVAL_THRESHOLD) {
     return { ok: true, arrivedImmediately: true, estimatedMs: 0 };
   }
-
-  // 取消既有任务
-  cancelMovement(connectionId);
 
   const groundY = cur.y || GROUND_Y_DEFAULT;
   const intervalId = setInterval(() => {
@@ -73,6 +83,8 @@ function startWalkTo(connectionId, agent, session, target) {
   activeMovements.set(connectionId, {
     agent, session,
     currentPos: { ...cur, y: groundY },
+    requestId: opts && opts.requestId,          // E：到达回执用
+    reply: opts && opts.reply,                  // E：回执发送器（WS 层注入）
     currentYaw: cur.yaw || 0,
     mode: 'walk_to',
     target: { x: target.x, z: target.z, y: groundY },
@@ -82,7 +94,7 @@ function startWalkTo(connectionId, agent, session, target) {
     intervalId
   });
 
-  const estimatedMs = Math.ceil((dist / MAX_SPEED) * 1000);
+  const estimatedMs = Math.ceil((dist / getMaxSpeed()) * 1000);
   return { ok: true, estimatedMs };
 }
 
@@ -101,7 +113,7 @@ function startMove(connectionId, agent, session, direction) {
 
   cancelMovement(connectionId);
 
-  const cur = getCurrentPosition(session);
+  const cur = getCurrentPosition(session, connectionId);
   const groundY = cur.y || GROUND_Y_DEFAULT;
   const intervalId = setInterval(() => {
     tickMove(connectionId, agent, session, normDir, groundY);
@@ -147,7 +159,7 @@ function rotate(connectionId, agent, session, yaw) {
   if (!Number.isFinite(yaw)) return { ok: false, error: 'invalid_yaw' };
   let task = activeMovements.get(connectionId);
   if (!task) {
-    const cur = getCurrentPosition(session);
+    const cur = getCurrentPosition(session, connectionId);
     task = {
       agent, session,
       currentPos: { ...cur, y: cur.y || GROUND_Y_DEFAULT },
@@ -171,7 +183,7 @@ function rotate(connectionId, agent, session, yaw) {
 function jump(connectionId, agent, session) {
   let task = activeMovements.get(connectionId);
   if (!task) {
-    const cur = getCurrentPosition(session);
+    const cur = getCurrentPosition(session, connectionId);
     task = {
       agent, session,
       currentPos: { ...cur, y: cur.y || GROUND_Y_DEFAULT },
@@ -196,11 +208,23 @@ function jump(connectionId, agent, session) {
 /**
  * 取消所有移动任务（Agent WS 断开时调用）
  */
-function cancelMovement(connectionId) {
+function cancelMovement(connectionId, reason) {
   const task = activeMovements.get(connectionId);
   if (!task) return;
   if (task.intervalId) { clearInterval(task.intervalId); task.intervalId = null; }
   activeMovements.delete(connectionId);
+  // E：被新指令打断 / 断线时补发 ACTION_COMPLETED（否则客户端只能靠轮询位置推断）
+  if (task.requestId) notifyCompleted(task, reason || 'interrupted');
+}
+
+/**
+ * 移动类完成回执（缺陷 E）
+ * walk_to 的到达 / 被打断 / 超时都通过这里补发 ACTION_COMPLETED { requestId, reason }。
+ * 旧客户端收到未知回执会忽略，向后兼容。
+ */
+function notifyCompleted(task, reason, extra) {
+  if (!task || !task.reply) return;
+  try { task.reply('ACTION_COMPLETED', Object.assign({ requestId: task.requestId, reason }, extra || {})); } catch (e) { /* ignore */ }
 }
 
 // ==================== 推进逻辑 ====================
@@ -220,20 +244,21 @@ function tickWalkTo(connectionId, agent, session, target, groundY) {
   const dist = Math.sqrt(dx * dx + dz * dz);
 
   if (dist <= ARRIVAL_THRESHOLD) {
-    // 到达：停 + animMode idle
+    // 到达：停 + animMode idle + 回执（E：reason='arrived'，客户端不必再轮询位置推断）
     clearInterval(task.intervalId);
     task.intervalId = null;
     task.mode = 'idle';
     task.direction = null;
     publishPosition(connectionId, task, 'idle');
     activeMovements.delete(connectionId);
+    notifyCompleted(task, 'arrived', { position: { ...task.currentPos } });
     return;
   }
 
   // 朝向目标
   task.currentYaw = Math.atan2(dx, dz);
   // 限速推进
-  const step = MAX_SPEED * (TICK_INTERVAL_MS / 1000); // 0.5m/tick
+  const step = getMaxSpeed() * (TICK_INTERVAL_MS / 1000); // 默认 0.5m/tick（速度可配）
   const ratio = Math.min(1, step / dist);
   task.currentPos.x += dx * ratio;
   task.currentPos.z += dz * ratio;
@@ -254,7 +279,7 @@ function tickMove(connectionId, agent, session, normDir, groundY) {
     // 跳跃中同时推进水平（保持 jump 前的方向）
   }
 
-  const step = MAX_SPEED * (TICK_INTERVAL_MS / 1000);
+  const step = getMaxSpeed() * (TICK_INTERVAL_MS / 1000);
   task.currentPos.x = clampBoundary(task.currentPos.x + normDir.x * step);
   task.currentPos.z = clampBoundary(task.currentPos.z + normDir.z * step);
   task.currentPos.y = groundY;
@@ -294,7 +319,24 @@ function publishPosition(connectionId, task, animModeOverride) {
   agentSessionManager.updatePosition(task.session.id, task.currentPos, task.session.isTransient).catch(() => {});
 }
 
-function getCurrentPosition(session) {
+/**
+ * 取"当前真实位置"（推进起点）
+ *
+ * ① playerPositions 实时条目（presenceBridge 每 tick 写入）——**权威**
+ * ② session.current_position 兜底（无在线连接时，如跨世界传送刚恢复）
+ *
+ * 2026-09-19 联测实锤（缺陷 I）：旧实现只取 ②，而 session 行是 WS 连接时读入内存的快照，
+ * 之后只在 DB 里更新、内存对象永不刷新 → 每发一条新移动指令，推进起点都会被重置回出生点，
+ * Agent 位置出现"从出生点重新走向目标"的循环（实测周期 = 重发间隔 4s，`estimatedMs` 恒按
+ * (0,0,0) 起算），真人观感正是"你在原地徘徊 / 不能跟着我走"。
+ */
+function getCurrentPosition(session, connectionId) {
+  if (connectionId) {
+    const live = presenceBridge.getEntry(connectionId);
+    if (live) {
+      return { x: live.position.x, y: live.position.y || GROUND_Y_DEFAULT, z: live.position.z, yaw: live.yaw || 0 };
+    }
+  }
   if (session && session.current_position) {
     const p = typeof session.current_position === 'string'
       ? safeParse(session.current_position) : session.current_position;
@@ -320,6 +362,7 @@ function getTask(connectionId) { return activeMovements.get(connectionId); }
 
 module.exports = {
   MAX_SPEED,
+  getMaxSpeed,
   WORLD_BOUNDARY,
   TICK_INTERVAL_MS,
   startWalkTo,

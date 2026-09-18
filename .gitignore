@@ -88,3 +88,6 @@ public/js/skirtDiag.js
 /scan_zh.js
 
 世界居民工坊-设计文档.md
+
+# Agent 联测运行时产物（events.jsonl / state.json / follow.log / inbox / done），保留到联测结束再清理
+examples/agent-client/live/

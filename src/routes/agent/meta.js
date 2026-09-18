@@ -21,11 +21,71 @@ const {
   SESSION_TTL_SECONDS,
   GUEST_SESSION_TTL_SECONDS,
   AGENT_TIER_GUEST,
-  AGENT_TIER_KEY
+  AGENT_TIER_KEY,
+  GUEST_OBSERVE_MAX_RADIUS,
+  KEY_OBSERVE_MAX_RADIUS
 } = require('../../agent/agentSchema');
 const tierService = require('../../agent/agentTierService');
 
 const PROTOCOL_VERSION = 'v1';
+
+/**
+ * 实体标识契约（缺陷 F，2026-09-19 固化）——机器可读版本
+ *
+ * 来源：第一轮真人联测用户实测指正——世界里同名是常态（多个"米多"），
+ * 按 name 定位实体不可靠；唯一标识是 id(=characterId)。
+ * 本轮实测再次验证：playerPositions 里同时存在两条同名"米多"（不同 id）与一个
+ * id 不带 agent: 前缀的旧 Agent 条目，客户端盲选"最近的 human"会跟错目标。
+ */
+const ENTITY_IDENTITY = {
+  uniqueIdField: 'id',
+  aliases: ['characterId'],
+  nameIsDisplayOnly: true,
+  chatSenderIdEqualsEntityId: true,
+  chatIdFields: ['characterId', 'senderId'],
+  chatSenderNameField: 'sender',
+  duplicateConnectionsDeduped: true,
+  dedupeRule: '同一 characterId 有多条连接时，entities 只返回一条（优先带 animMode/最新位置）',
+  note: 'entities[].id === characterId 是唯一标识；name 仅供显示（同名是常态）。标准用法：收到 CHAT 先取 characterId/senderId，再在 entities 里按 id 定位说话者。'
+};
+
+/**
+ * 共享发现段（缺陷 H：/.well-known 与 /capabilities 必须同源同形）
+ */
+function buildSharedSections(config) {
+  return {
+    tiers: {
+      default: AGENT_TIER_GUEST,
+      options: [AGENT_TIER_GUEST, AGENT_TIER_KEY],
+      [AGENT_TIER_GUEST]: tierService.describeTier(AGENT_TIER_GUEST),
+      [AGENT_TIER_KEY]: tierService.describeTier(AGENT_TIER_KEY)
+    },
+    scopes: {
+      allowed: AGENT_SCOPES,
+      forbidden: FORBIDDEN_SCOPES
+    },
+    actions: ['move', 'walk_to', 'follow', 'rotate', 'jump', 'say', 'interact'],
+    pushTiers: {
+      default: config.pushDefault,
+      options: ['eco', 'standard', 'realtime']
+    },
+    limits: {
+      observeRadiusMax: KEY_OBSERVE_MAX_RADIUS,
+      observeRadiusMaxGuest: GUEST_OBSERVE_MAX_RADIUS,
+      observeRateLimitPerSecond: config.observeRateKey,
+      guestObserveIntervalSeconds: 2,
+      sayMaxLength: 200,
+      interactMaxDistance: 5,
+      movementSpeed: config.maxSpeed,          // m/s，后台 agent_max_speed 可配（默认 9 = 真人速度）
+      worldBoundary: 1000,
+      followStopDistanceDefault: 2,
+      followMaxDurationMs: 600000,
+      maxAgents: config.maxAgents,
+      maxConnectionsPerAgent: config.maxConnectionsPerAgent
+    },
+    entityIdentity: ENTITY_IDENTITY
+  };
+}
 
 // ==================== GET /capabilities ====================
 
@@ -55,22 +115,9 @@ router.get('/capabilities', async (req, res) => {
         wellKnown: baseUrl + '/.well-known/virtual-world-agent.json',
         guestSession: baseUrl + '/api/agent/v1/guest/session'
       },
-      // P8：拉/推双模式。无 Key 可凭公开临时票进场（纯拉），Key 解锁推流特权。
-      tiers: {
-        default: AGENT_TIER_GUEST,
-        options: [AGENT_TIER_GUEST, AGENT_TIER_KEY],
-        [AGENT_TIER_GUEST]: tierService.describeTier(AGENT_TIER_GUEST),
-        [AGENT_TIER_KEY]: tierService.describeTier(AGENT_TIER_KEY)
-      },
-      scopes: {
-        allowed: AGENT_SCOPES,
-        forbidden: FORBIDDEN_SCOPES
-      },
-      actions: ['move', 'walk_to', 'rotate', 'jump', 'say', 'interact'],
-      pushTiers: {
-        default: config.pushDefault,
-        options: ['eco', 'standard', 'realtime']
-      },
+      // F/H：本段与 /.well-known/virtual-world-agent.json 同源（buildSharedSections），
+      // 含 tiers/scopes/actions/pushTiers/limits/entityIdentity——两处字段必须逐字一致。
+      ...buildSharedSections(config),
       session: {
         ttlSeconds: SESSION_TTL_SECONDS,
         tokenType: 'Bearer'
@@ -186,27 +233,8 @@ async function buildWellKnown(req) {
       guestSessionEndpoint: '/api/agent/v1/guest/session',
       guestSessionTtlSeconds: GUEST_SESSION_TTL_SECONDS
     },
-    tiers: {
-      default: AGENT_TIER_GUEST,
-      options: [AGENT_TIER_GUEST, AGENT_TIER_KEY],
-      [AGENT_TIER_GUEST]: tierService.describeTier(AGENT_TIER_GUEST),
-      [AGENT_TIER_KEY]: tierService.describeTier(AGENT_TIER_KEY)
-    },
-    scopes: {
-      allowed: AGENT_SCOPES,
-      forbidden: FORBIDDEN_SCOPES
-    },
-    actions: ['move', 'walk_to', 'rotate', 'jump', 'say', 'interact'],
-    pushTiers: ['eco', 'standard', 'realtime'],
-    limits: {
-      observeRadiusMax: 200,
-      observeRateLimitPerSecond: 1,
-      sayMaxLength: 200,
-      interactMaxDistance: 5,
-      movementSpeed: 5,        // m/s, 服务端权威限速
-      worldBoundary: 1000,     // ±1000m
-      maxAgents: config.maxAgents
-    }
+    // F/H：与 /capabilities 同源（buildSharedSections），避免两处字段不一致
+    ...buildSharedSections(config)
   };
 }
 
@@ -341,12 +369,12 @@ function buildOpenApiSpec(baseUrl, wsUrl, agentEnabled) {
         get: {
           tags: ['observe'],
           summary: 'Spatial radar: nearby entities / objects / portals',
-          description: 'Rate-limited: 1Hz per agent (Key tier) / 1 per 2s (guest tier). Radius hard cap: 200m for Key, 30m for guest.',
+          description: 'self.position is the **live** position of the calling Agent (falls back to the session position when it has no live WS connection); every distance is measured from it. Rate-limited: `agent_observe_rate_key` (default 1/s) for Key tier, 1 per 2s for guest tier. Radius hard cap: 200m for Key, 30m for guest. Entity identity: `entities[].id` (=== characterId) is the ONLY identifier, `name` is display-only (duplicates by name are normal); `chat.characterId` / `chat/history.senderId` share the same namespace — see `x-entity-identity`.',
           security: [{ AgentJwt: [] }],
           parameters: [
             { name: 'radius', in: 'query', schema: { type: 'number', maximum: 200 }, description: 'Search radius in meters (≤200)' },
             { name: 'limit', in: 'query', schema: { type: 'integer' }, description: 'Max items per section' },
-            { name: 'include', in: 'query', schema: { type: 'string' }, description: 'Comma-separated: entities,objects,portals' },
+            { name: 'include', in: 'query', schema: { type: 'string' }, description: 'Comma-separated world_objects.type filter (e.g. uploaded_model,geometry_building,media_image). Omit to return all types. NOTE: filters object types, not response sections — sections are always returned.' },
             { name: 'x', in: 'query', schema: { type: 'number' }, description: 'Override observer x (defaults to current position)' },
             { name: 'y', in: 'query', schema: { type: 'number' } },
             { name: 'z', in: 'query', schema: { type: 'number' } }
@@ -373,7 +401,7 @@ function buildOpenApiSpec(baseUrl, wsUrl, agentEnabled) {
           summary: 'HTTP fallback entry (limited; primary is WS ACTION)',
           description: 'Returns 501 WS_REQUIRED for all actions. Use WebSocket /ws/agent ACTION message instead.',
           security: [{ AgentJwt: [] }],
-          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { action: { type: 'string', enum: ['say', 'rotate', 'move', 'walk_to', 'jump', 'interact'] } } } } } },
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { action: { type: 'string', enum: ['say', 'rotate', 'move', 'walk_to', 'follow', 'jump', 'interact'] } } } } } },
           responses: { 501: { description: 'WS_REQUIRED — use /ws/agent ACTION instead', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } } }
         }
       },
@@ -405,8 +433,9 @@ function buildOpenApiSpec(baseUrl, wsUrl, agentEnabled) {
       authMode: 'Bearer in HTTP Authorization header at upgrade time',
       inbound: ['SUBSCRIBE', 'UNSUBSCRIBE', 'PING', 'ACTION'],
       outbound: ['READY', 'WORLD_SNAPSHOT', 'ENTITY_ADDED', 'ENTITY_UPDATED', 'ENTITY_REMOVED', 'ENTITY_MOVEMENT_BATCH', 'CHAT', 'VOICE_MESSAGE', 'ACTION_ACCEPTED', 'ACTION_COMPLETED', 'ACTION_REJECTED', 'PONG', 'ERROR'],
-      actions: ['move', 'walk_to', 'rotate', 'jump', 'say', 'interact']
+      actions: ['move', 'walk_to', 'follow', 'rotate', 'jump', 'say', 'interact']
     },
+    'x-entity-identity': ENTITY_IDENTITY,
     'x-agent-enabled': agentEnabled
   };
 }

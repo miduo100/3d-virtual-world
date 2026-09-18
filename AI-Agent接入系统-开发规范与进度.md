@@ -12,6 +12,7 @@
 1. 先读本文档第 7 节进度表，**复述当前状态**（已完成什么、正在做什么、下一步做什么）；
 2. 按"下一步"继续开发，**不要重做已完成阶段，不要重新代码审计**（P0 结论已固化在第 2、8 节）；
 3. 每阶段开工前先读第 3 节红线清单。
+4. **注意当前阶段（2026-09-19 起）**：代码已解冻，进入 **第一轮联测缺陷修复** 阶段——按第七节「多轮联测与缺陷待办」逐条修复。第一批 A/B（P0）、第二批 C/E（P1）、第三批 D（P1）、第四批 F/G/H（P2）均已修复并验收；本轮联测另**新发现 I（walk_to 推进起点用会话快照 → 位置每 4 秒循环）与 J（新会话出生点 (0,0,0) → 重连瞬移）两项 P0 级缺陷**，已一并修复。每批修复后由用户真人复测，收尾按下方三件事。
 
 ### 收尾三件事（每会话结束前必做）
 1. **更新第 7 节进度表**（checkbox 状态 + 日期 + 会话摘要）；
@@ -186,22 +187,31 @@ S→C:  READY { agentId, avatar, spawn }
       ERROR / PONG
 ```
 
-ACTION 六动作（P4）：`move(target)` 连续位移、`walk_to(target)` 走到点（服务端 5m/s 限速逐帧推进+animMode:walk）、`rotate(yaw)`、`jump()`、`say(text)`（≤200 字，走 CHAT 管线）、`interact(targetId)`（距离校验）。全部要求：scope 校验→参数 schema→距离/边界校验→限频→服务端权威→requestId 回执。
+ACTION 七动作（P4 + 2026-09-19 新增 `follow`）：`move(target)` 连续位移、`walk_to(target)` 走到点（服务端限速逐帧推进 + animMode:walk）、**`follow(targetId, stopDistance=2, maxDurationMs=60000)` 持续跟随**（服务端每 100ms 追目标、进入 stopDistance 停住、目标消失/超时/被新指令打断即结束）、`rotate(yaw)`、`jump()`、`say(text)`（≤200 字，走 CHAT 管线）、`interact(targetId)`（距离校验）。全部要求：scope 校验→参数 schema→距离/边界校验→限频→服务端权威→requestId 回执。
+
+**移动类回执契约（2026-09-19 缺陷 E 修复）**：`ACTION_COMPLETED { requestId, reason }` 由**服务端在移动结束时补发**，`reason ∈ arrived | superseded | target_lost | timeout | disconnected`（walk_to 到达 / 被打断；follow 结束）。**移动类动作（move/walk_to/jump/follow）互斥**：同一连接同一时刻只有一个移动任务，新指令打断旧任务并向旧 requestId 发 `reason=superseded`。**速度上限 `agent_max_speed`（默认 9 m/s = 真人速度，后台可配 1~20）。**
 
 ### 5.3 推送三档（system_config，后台单选热切换）
 
 | 配置键 | 类型/默认 | 说明 |
 |---|---|---|
 | `agent_enabled` | bool / false | 总开关（**默认关，上线时手动开**） |
-| `agent_push_default` | eco \| standard \| realtime / eco | 新 Agent 默认档 |
-| `agent_movement_push` | off \| batched \| realtime / batched | 位置流策略（batched=1s 聚合） |
+| `agent_push_default` | eco \| standard \| realtime / eco | 新 Agent 默认档（**位置流一并由此决定，无独立开关**） |
 | `agent_voice_relay` | bool / **false** | 语音是否中继给 Agent |
 | `max_agents` | int / 50 | 全局并发上限 |
+| `agent_max_connections_per_agent` | int / **1** | 单 Agent 并发 WS 连接上限（1~10）；超出时新连接顶掉最旧连接（close 4004 `REPLACED_BY_NEW_CONNECTION`），被顶掉的连接**静默清理**（不广播 PLAYER_LEFT，避免真人端 avatar 闪断）——缺陷 B |
+| `agent_max_speed` | number / **9** | Agent 移动速度上限 m/s（1~20）。默认 9 = 真人速度（`player.js` 0.15/帧 @60fps ≈ 9 m/s）；原固定 5 m/s 会被正常走路/奔跑的真人越拉越远（用户实测中位 6.0、峰值 11+ m/s）——缺陷 C 配套 |
+| `agent_observe_rate_key` | int / **1** | Key Agent observe 采样率（次/秒，1~10）。默认 1 = **与修复前完全一致**（向后兼容）；游客档固定 1 次/2 秒，不受此键影响——缺陷 D |
+
+- **热路径读配置（2026-09-19 实测坑）**：移动速度与 observe 采样率在 10Hz 热路径读取，用 `agentConfigService.peekConfig()` 同步读 60s 缓存；`setConfigValue` 必须**就地更新缓存**（只把 cache 置 null 会让热路径回落默认值，表现为"后台改了要等几十秒才生效"）。
 
 - eco：observe 限 1Hz + CHAT 实时推；无实体/位置推送。
 - standard：+ ENTITY_ADDED/REMOVED + 1s 聚合位置流。
 - realtime：位置流 10Hz 原始频率（复用现有 POSITION_UPDATE 广播，仅发给订阅了的 Agent）。
+- ~~`agent_movement_push`（位置流策略 off/batched/realtime）~~：**已移除**（2026-09-18）。三档本身已完整定义位置流行为，该键从未被推送逻辑读取，留着会误导管理员（以为可以叠加组合）。位置流完全由 `agent_push_default` 决定。
 - 后台卡片：admin.html 新卡片"Agent 接入"，参考 adminModelLod 卡片先例（system_config 读写 + 60s 缓存热生效 + 客户端校验）。
+- **Agent 独立档位（2026-09-18 追加）**：`agents.push_tier`（inherit \| eco \| standard \| realtime，默认 inherit = 跟随全局默认档）。WS 连接时游客仍强制 eco（红线不动）；Key Agent 优先用自身档位，inherit 才回落全局。后台「AI 注册用户列表」：创建表单可选档（跟随/第2/第3），列表档位内联下拉改档（`POST /admin/agents/:id/tier`，在线连接经 `agentWsServer.applyAgentTier` 即时生效无需重连）。第 1 档（公开游客）无需创建，任何人通过域名 `POST /guest/session` 自动获得（需 agent_enabled=true）。
+- **Agent 删除（2026-09-18 追加）**：`DELETE /admin/agents/:id` 永久删除——先吊销 Key 防删除瞬间旧 Key 仍可用，`agent_api_keys`/`agent_sessions` 靠 `ON DELETE CASCADE` 级联清理，在线连接由 `agentWsServer.kickAgent` 踢出（close 4003），审计事件 `delete`。聊天记录保留（只删身份）。
 
 ### 5.4 observe 返回结构
 
@@ -215,7 +225,17 @@ ACTION 六动作（P4）：`move(target)` 连续位移、`walk_to(target)` 走�
   "timestamp", "sequence"
 }
 ```
-复用：`worldSpatial /around`（objects+portals）+ `playerPositions`（entities）。radius 硬上限 200m；不含管理员私有字段；每 Agent 1Hz 限频（eco 档）。
+复用：`worldSpatial /around`（objects+portals）+ `playerPositions`（entities）。radius 硬上限 200m；不含管理员私有字段；Key 档限频 = `agent_observe_rate_key`（默认 1Hz），游客档 1 次/2 秒。
+
+> **`self.position` 与 `distance` 的原点（2026-09-19 缺陷 A 修复）**：优先取该 Agent 在 `playerPositions` 里的**实时位置**（WS 权威），`session.current_position` 仅作无在线连接时的兜底，最后才回落 `(0,0,0)`。修复前只取 session 快照，纯 HTTP 会话调 observe 时 `self` 恒为 `(0,0,0)`，所有 `distance` 也跟着错（第一轮"原地徘徊"的直接原因）。
+
+**实体标识契约（2026-09-18 固化，2026-09-19 机器可读化）**：
+
+- `entities[].id` = `characterId`，**这是唯一标识**；`name` 只用于显示——**同名是正常现象**（游客可能大量同名、不同角色也可能同名），任何"按 `name` 定位实体"的实现都不可靠。
+- `chat/history` 的 `senderId` 与 `entities[].id` 是**同一命名空间**（实测逐字一致：`a8eaecfd-9e45-4dc8-8739-b81b313ae581`）；推流 `CHAT` 的 `characterId` 同为该口径（`sender` 是显示名）。**标准用法**：收到 `CHAT` → 取 `characterId`/`senderId` → 按 `id` 在 `entities` 里定位发言者。
+- **同角色多连接（2026-09-19 已修复，缺陷 B）**：`entities` 按 `characterId` 去重（同 id 只返回一条，优先带 `animMode`/位置最新）；服务端同时保证单 Agent 并发连接数不超过 `agent_max_connections_per_agent`（默认 1，新连接顶掉旧连接并 close 4004）。
+- **机器可读发布（2026-09-19，缺陷 F/H）**：本契约以 `entityIdentity` 段同时出现在 `GET /api/agent/v1/capabilities`、`/.well-known/virtual-world-agent.json` 与 `openapi.json` 的 `x-entity-identity`（**三处同源同形**，由 `buildSharedSections` 统一产出）。
+- **实测教训**：世界里同时存在两条同名"米多"（`2adb4c4c…` / `a8eaecfd…`，不同 id）与一个 id 不带 `agent:` 前缀的旧 Agent 条目——客户端按"最近的 human"盲选目标会跟错人（本轮临时跟随脚本踩过），**任何按 name 或"看起来像人"的启发式定位都不可靠**。
 
 ### 5.5 聊天记录与归档（2026-09-17 定稿）
 
@@ -382,7 +402,7 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
   - `POST /api/agent/v1/guest/session` 公开端点签临时票（JWT 30min，`tier:'guest-pull'`，复用 AGENT_JWT_SECRET）
   - 会话落 `agent_transient_sessions`（无 agents 外键），`source_world_id='guest-pull'` 标记；**不建 agents 行、不建 user/character**，刷新即换身份零残留
   - 能力（纯请求-响应）：`observe`（30m、1 次/2s）、`chat/history`、`say`（1 条/5s）、`move/walk_to/rotate/jump/interact`（1 次/2s）
-  - **禁止推流**：SUBSCRIBE 直接拒绝（`GUEST_PUSH_FORBIDDEN`）；连接级强制 eco + 位置流 off + 语音中继 off（即使后台默认档 realtime）
+  - **禁止推流**：SUBSCRIBE 直接拒绝（`GUEST_PUSH_FORBIDDEN`）；连接级强制 eco（即无位置流）+ 语音中继 off（即使后台默认档 realtime）
   - 限制矩阵：每 IP 并发 1 连接（WS 侧 acquire/release）、每 IP 签票 10 次/时、共享 max_agents 总闸、复用空闲踢出（5min）
   - 身份与审计：无 Key，按 tier 区分，审计日志记 IP（`guest_ticket_issued`）
 - [x] **Key Agent（推模式，现有体系不动）**：
@@ -418,6 +438,70 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 
 ---
 
+### 多轮联测与缺陷待办 ✅ 首轮缺陷全部修复（2026-09-18 联测 → 2026-09-19 修复）
+
+> **用户决策（2026-09-18）**：本轮及后续若干轮只做联测、只记录问题，不改代码；等多轮（含多 Agent × 多真人同时在线）跑完，把问题集中整理后再统一开发。
+> **2026-09-19 用户解冻代码并授权修复**：第一批 A/B（P0）→ 第二批 C/E（P1）→ 第三批 D（P1）→ 第四批 F/G/H（P2）已全部修复并验收，联测期间另新发现 **I / J 两项 P0 级缺陷**（见表），也已一并修复。修复结果与验收证据见下方「修复结果」表。
+
+**测试方式**：用户真人浏览器进场 + AI 助手经 Agent 接口长连接驻场（`examples/agent-client/ai-live.mjs`，Key Agent `workbuddy`，key-push/realtime 档），世界里实时对话 + 指挥移动。
+
+**本轮结论**：跟随最终成功（234 次采样、末值 0.16m、实测移动速度 4.9~5.8 m/s，与 `MAX_SPEED=5` 一致），但客户端需先绕开 A 项才能工作；用户体感"总在找我"由 C/D/E 三项共同造成。
+
+> **定位修正（用户实测补充，2026-09-18）**：真人端**并没有看到两个 workbuddy**，观感是"**移动的时候原地徘徊**"。B 项是**接口层**的重复实体（前端按 characterId 只画一个 avatar），不是两个 avatar；而"原地徘徊"另有已证实成因——本轮跟随脚本一开始在两个同名人类之间来回切换目标（已修）。复现时需把两者区分开，故 B 项在文档中保留为"待复现确认"。
+
+| # | 优先级 | 缺陷 | 现象与证据（2026-09-18 实测） | 建议方案 |
+|---|---|---|---|---|
+| A | P0 | **`self` 与实体表双源不一致（位置视图自相矛盾）** | 用第二条只读会话（纯 HTTP、无 WS）调 `GET /observe`：`self` 恒为 `(0,0,0)`，同一 agent 在 `entities` 里另有真实位置条目 `(-6.36,-3.97) animMode=idle`，且所有实体的 `distance` 都以 `(0,0,0)` 为原点（`distance=7.5=√(6.36²+3.97²)`）。客户端按 `self` 算距离 → 跟随逻辑直接跑偏（第一轮"原地徘徊"根因）。代码：`src/agent/agentObservationService.js:36-49`（观察点解析 `query x/z → session.current_position → (0,0,0)`）、`:188-240`（`collectEntities`/`shapeSelf`） | `self` 与 `distance` 原点优先取 `playerPositions` 中该 agent 的**实时位置**（WS 连接权威）；`session.current_position` 仅在该 agent 无在线连接时兜底。本轮客户端已临时规避（自行用实体表里的自身条目算距离） |
+| B | P0（**待复现确认**） | **同一角色的多条连接 → `observe` 出现同 id 的重复实体（接口层未去重）** | 另一进程用同一 API Key 连接后，`GET /observe` 的 `entities` 出现**两条同 id** 记录：一条 `animMode=idle`（真实位置，如 `(-6.36,-3.97)`）、一条 `animMode=null` 且位置 `(0,0,0)` 停在出生点。audit 日志同一 agentId 反复 `ws_connected`/`ws_idle_timeout`（`6162bf35` 10:23:39→10:29:04 被空闲踢出、`ad4f87fb` 10:29:09→10:34:34、`b0253d82` 10:34:39 重连）。代码依据：`agentObservationService.collectEntities():201-221` 遍历 `playerPositions`（**按 connectionId 存**）后以 `p.characterId` 作为 `id` 输出，**未按 characterId 去重**。**用户实测补充**：真人端**看不到两个 workbuddy**（前端按 characterId 只画一个 avatar），只见"移动时原地徘徊"——怀疑两条连接各自广播 `POSITION_UPDATE`，同一个 avatar 被两个位置源来回拉扯（`agentPositionSmoother` 以 5.4m/s 逼近目标点）；**但"原地徘徊"同时还有另一个已证实成因**（本轮跟随脚本在两个同名人类间来回切目标，已修），需复现区分。属真实场景（AI 客户端崩溃重连 / 多开 / 用户同时开两个客户端） | ①`entities` 按 `characterId` 去重（同 id 只保留一条，优先带 `animMode`/最新位置）；②同一 agent 新连接顶掉旧连接（或加 `max_connections_per_agent` 配置）；③复现脚本：同一 Key 开两条连接，一条走动、一条停出生点，观察真人端 avatar 是否被拉扯 + `observe` 是否仍返回同 id 两条 |
+| C | P1 | **缺少"跟随/持续目标"动作** | 只有一次性 `walk_to`，持续跟随必须客户端高频重发；每次重发都会 `cancelMovement` + 重建 10Hz interval（`src/agent/agentMovementService.js:65, 68-83`）→ 走走停停、位置与 DB 写放大。实测 6 分钟下发 **220+ 条 walk_to**（`ACTION_ACCEPTED=221`） | 新增服务端 `follow{targetId, stopDistance}`（10Hz 追目标、进入 stopDistance 即停），或 `walk_to` 支持 `continuous:true` |
+| D | P1 | **闭环采样率过低（observe 1Hz + 推流约 1Hz）** | `src/routes/agent/observe.js:33-67` 对非游客 tier 硬限 1Hz，实测频繁 429；推流 `ENTITY_UPDATED` 实测间隔约 1s（10:42:55/56…10:43:01，偶有 5s 间隔）。跟随误差 1~3m，AI 端"总在找"的体感来源 | Key 档 `observe` 提频（5~10Hz）；或 realtime 档位置流按固定帧率聚合批量下发（standard 档已有 `ENTITY_MOVEMENT_BATCH` 可复用），供客户端闭环 |
+| E | P1 | **`walk_to` 无到达回执** | 实测 `ACTION_ACCEPTED=221` 而 `ACTION_COMPLETED=16`（16 条全是 `say` 的 `delivered` 回执）→ 到达只能靠客户端轮询位置推断，1Hz 下延迟 1~3s | 到达 / 超时 / 被新指令打断时补发 `ACTION_COMPLETED`（带 `reason`） |
+| F | P2（**契约项，非缺陷**） | **实体标识契约需固化：同名是常态，必须按 `id` 定位** | 用户实测指正：**同名非常正常**（游客可能大量同名、不同角色也可能同名），按 `name` 定位不可靠；实测两条同名"米多"实体 `id` 不同（`a8eaecfd…` / `2adb4c4c…`）= 两个不同角色。已核实事实：`entities[].id = p.characterId`（`agentObservationService.js:208`）；`chat` / `chat/history` 的 `senderId` 与 `entities[].id` **是同一命名空间**（实测真人发言 `senderId=a8eaecfd-9e45-4dc8-8739-b81b313ae581` 与实体 `id` 逐字一致）→ "谁在跟我说话"可精确关联。**本轮反面教材**：跟随脚本一开始用 `name` 兜底匹配目标，在两个同名实体间来回切换，直接导致"原地徘徊" | 不是缺陷而是**要写进协议**：①第 5.1/5.4 节明确"实体唯一标识 = `id`(=characterId)，`name` 仅供显示，任何按名字定位都不可靠"；②明确 `chat.senderId ≡ entities[].id`，给出标准用法"先收 `chat` 拿 `senderId` → 再按 `id` 找实体"；③同角色多连接的重复实体先按 B 项去重后再按 `id` 定位（否则 `id` 也不唯一） |
+| G | P2 | **示例客户端聊天双通道重复**（客户端问题，非服务端） | `ai-live.mjs` 同时用 WS `CHAT` 推送 + `/chat/history` 轮询，同一条真人消息在 `events.jsonl` 记两遍（实测 10:42:38 / 10:42:39 同一句） | 示例客户端按 `(senderId, createdAt, message)` 去重，或两条通道二选一 |
+| H | P2 | **capabilities 缺 tier/limits 明细** | `/.well-known/virtual-world-agent.json` 有 `limits` 与 `tiers` 明细（含 `actionRates`），`/api/agent/v1/capabilities` 只有 `actions`/`scopes`/`tiers` 名字 | 两处输出对齐（同一 buildWellKnown 数据源） |
+
+**修复结果（2026-09-19，逐条验收脚本可重跑）**：
+
+| # | 状态 | 修复内容（文件） | 验收证据 |
+|---|---|---|---|
+| A | ✅ 修复 | `agentObservationService.resolvePosition` 优先级改为 query x/z → **playerPositions 实时位置**（`pickLiveEntry()` 取"带 animMode/最新"的一条）→ `session.current_position` → `(0,0,0)`；`shapeSelf` 的 yaw 也取实时朝向 | `accept_agent_fix_a.js` **24/24**：WS 会话与**纯 HTTP 第二会话** self 均 = 实时位置 `(29.95,19.97)`；自身条目 `distance=0`；106 个 object/portal 的 distance 与实时原点最大误差 **0.0048m**（与 (0,0,0) 口径差 **36.00m**） |
+| B | ✅ 修复 | 新增 `src/agent/agentConnectionRegistry.js`（并发上限 + 新连接顶掉旧连接 close 4004 + 被顶掉的连接**静默清理**不广播 PLAYER_LEFT）；`collectEntities` 按 characterId 去重；`agent_max_connections_per_agent` 配置 | `accept_agent_fix_b.js` **24/24**：旧连接收 `4004 REPLACED_BY_NEW_CONNECTION`；audit `ws_replaced`；observe 该 id **恰好 1 条**；真人侧观察者收 `PLAYER_JOINED` 2 次、**`PLAYER_LEFT` 0 次**（avatar 不闪断）；上限=2 时两连接共存且仍去重。**真人复测**：同一 Key 开第二条连接双向 4004，换连接后位置未变（仍在真人 1.3m 旁） |
+| C | ✅ 新增 | 新增 `src/agent/agentFollowService.js`：`follow{targetId, stopDistance=2, maxDurationMs=60000}`，服务端 10Hz 追目标（不依赖客户端重发）；与 move/walk_to/jump 互斥 | `accept_agent_fix_c.js` **15/15**：目标直线移动 30s、27 次采样**全部 ≤2.80m**（stopDistance+1 内）、末值 2.00m；`walk→idle` 切换正确；`target_lost`/`timeout(2067ms)`/`superseded` 回执齐全。**真人复测**：一条 follow 指令后 78.6m→13.1m 用 8s |
+| D | ✅ 修复 | 新增 `agent_observe_rate_key`（次/秒，1~10，**默认 1 = 行为不变**）；`observe.js` 读热路径缓存；游客档固定 1 次/2 秒不受影响 | `accept_agent_fix_d.js` **10/10**：默认 `200,429,429`（1Hz 不变）；调 5Hz 后 `200,200,200,200,200,429,429`；retryAfter=1；非法值被忽略；调回 1 恢复 |
+| E | ✅ 修复 | `agentMovementService` 在移动任务上注入 `reply` 发送器，**到达 / 被新指令打断 / 断线**时补发 `ACTION_COMPLETED{requestId, reason}`（`arrived`/`superseded`/…） | `accept_agent_fix_e.js` **12/12**：`estimatedMs=4800` vs 实测 `4946ms`（+3%）；到达位置误差 0.5m；`superseded`、`arrived` 均正确；非法请求只发 REJECTED 不发 COMPLETED |
+| F | ✅ 契约固化 | `entityIdentity` 段（`uniqueIdField`/`aliases`/`nameIsDisplayOnly`/`chatSenderIdEqualsEntityId`/`duplicateConnectionsDeduped`+去重规则）写进 capabilities、well-known 与 openapi `x-entity-identity` | `accept_agent_fix_f.js` **14/14**（F1/F2/F2b/F6/F6b/F7） |
+| G | ✅ 修复 | `examples/agent-client/ai-live.mjs`：**两层去重**——① history 通道用**持久 seen 表**（按行 id/createdAt），② 跨通道用「同发送者 + 同文本 + 10s 窗口」。**第二轮真人实测补修**：只做 ② 时窗口一过期就把同一批历史行**再报一遍**（实测每 10s 重复上报 11 条），必须加 ① | 重启后同一批历史消息只上报一次（20s 观察窗口内无重复） |
+| H | ✅ 修复 | `meta.js` 抽出 `buildSharedSections(config)`，两处发现端点**同源同形**（含 tiers/scopes/actions/pushTiers/limits/entityIdentity）；`pushTiers` 由"一处数组一处对象"统一为对象 | `accept_agent_fix_f.js` **14/14**（F3 六段深比较全等、F4 capabilities 有 limits、F5 pushTiers 同形、F8 反映实时配置） |
+| **I**（联测新发现） | ✅ 修复 | **P0**：`walk_to` 推进起点用 `session.current_position`——那是 WS 连接时读入内存的快照，此后只在 DB 更新、内存永不刷新 → **每发一条新移动指令都从出生点重新走**。实测位置序列每 4 秒原样循环 `(2.4,3.8)→(5.1,8.0)→(7.7,12.3)→(10.4,16.5)→跳回`，`estimatedMs` 恒按 (0,0,0) 算（目标 23.5m→4704ms、永远走不完）。**这正是用户第一轮"你在原地徘徊 / 跟随中间做了无用的走动"的根因**。修复：`getCurrentPosition(session, connectionId)` 优先取 `presenceBridge.getEntry(connectionId)` 实时位置 | 修复后 `estimatedMs` 与真实相对距离一致（1921/742/458ms）；跟随时序单调收敛（26.8→0.3m，无循环）；真人复测"**现在做得很好，嗯也能跟上**"（用户原话） |
+| **J**（联测新发现） | ✅ 修复 | **P0**：Agent 重连必须重新 `POST /session`（新 jti），新会话 `current_position` 为空 → `presenceBridge` 退回 `(0,0,0)` 当出生点 → **任何 AI 客户端一重连就瞬移回原点**。修复：`agentSessionManager.getLatestPosition(agentId, excludeJti)` 让新连接继承该 Agent 上次落库位置（重连续位） | 实测：换连接后 READY `spawn=(-62.7,18.0)`（= 上一会话位置，非原点）；B 测试双向换连接期间真人视野内位置不变 |
+| **速度**（用户现场决策） | ✅ 修复 | Agent 速度上限原为固定 5 m/s，而真人实测中位 **6.03 m/s**、峰值 11+（`player.js` 0.15/帧 @60fps ≈ 9 m/s）→ 只要真人正常走路，Agent 永远追不上。改为 `agent_max_speed` 后台可配，**默认 9 m/s 与真人一致** | 真人复测：78.6→13.1m 用 8s（≈8.2 m/s 有效速度）；`fix_c` C4 在 9 m/s 下仍全样本 ≤2.80m |
+
+**本轮已确认无问题（作为下一轮复测基线）**：
+
+- 服务端限速推进准确（速度上限现已可配、默认 9 m/s；限速与到达判定 0.5m 有效）
+- 推流位置字段正确（`ENTITY_UPDATED` 带 `position`/`animMode`/`name`/`type`）；`follow` 服务端闭环稳定
+- realtime 推流字段正确（`ENTITY_UPDATED` 带 `position`/`animMode`/`name`/`type`）
+- `say` 投递 0.2~0.4s；scope 拦截与 `ACTION_REJECTED` 正常；空闲踢出、日志三分流正常
+
+**下一轮多端联测检查清单（计划 3 Agent + 5 真人同时在线）**：
+
+- [ ] 多 Agent 同时 `observe` 的 429 率与限频公平性（Key 档采样率现已可配 `agent_observe_rate_key`，需实测多 Agent 同调时的公平性）
+- [ ] 9.5 节坑 5：`POSITION_UPDATE` 全量广播在 3 Agent + 5 真人下的带宽/CPU（Server 2核4G 基线）——**注意 `follow` 是服务端 10Hz 推进，多 Agent 同时跟随的推送量与 CPU 需重点观察**
+- [ ] B 项放大复测：多 Agent 重连/多开时的实体重复与"幽灵"清理（去重 + 顶替 + 静默清理已实现，需在 3 Agent 场景复测 `entities` 唯一性与真人端观感）
+- [ ] F 项验证：按 `id` 定位的契约（同名实体、游客同名、同角色多连接去重后 `id` 是否唯一）+ `chat.senderId` / 推流 `CHAT.characterId` ≡ `entities[].id` 的稳定性（契约已机器可读发布，可直接对着 `entityIdentity` 断言）
+- [ ] `follow` 与 `interact`/`say` 的组合：一边跟随一边说话/互动是否互相干扰（现在移动类动作会互相打断）
+- [ ] Agent 之间互相可见 / 互相聊天 / 语音 / 碰撞（当前 Agent 之间只走 broadcastToNearby）
+- [ ] 多个 Key Agent 的 `push_tier` 混合档（eco/standard/realtime）同场推流表现
+- [ ] `world_chat_log` 写入量与归档任务在多端高频聊天下的表现
+- [ ] 真人端 0 console error + FPS 基线（对照几何/合批基线）
+- [ ] **realtime 档位置流帧率**（缺陷 D 只做了 ①；②「按固定帧率聚合批量下发，复用 standard 的 `ENTITY_MOVEMENT_BATCH`」未做——实测推流仍是 push loop 的 1s tick，即"第三档≈1Hz"，本轮改用**服务端 follow + 到达回执**绕开了对高帧率推流的依赖，是否需要真正 10Hz 留待下一轮按需要评估）
+
+**联测期使用说明**：临时工具 `scripts/_tmp_follow.js`（**v4 = 服务端 follow + keeper**，只在启动/停摆/到期时下发 follow，不再每秒重发 walk_to）、`scripts/_tmp_wait_chat.js`（增量读取真人聊天，UTF-8 安全）、`scripts/_tmp_where.js`（会话/位置诊断）、`scripts/_tmp_who.js`（推流实体 id 汇总）、`scripts/_tmp_fixb_live.js`（B 项真人侧顶替测试）；运行时产物在 `examples/agent-client/live/`（`events.jsonl` / `state.json` / `follow.log` / `inbox` / `done`）。上述临时脚本与产物保留到多轮联测全部结束再清理（用户已授权临时脚本可直接删除）。**本轮新增可重跑验收脚本**：`accept_agent_fix_a/b/c/d/e/f.js`。
+
+> ⚠️ **运维注意（本轮实测踩到）**：`inbox/` 是"一命令一文件、执行即移走"，**目录里只要出现 `{"action":"__stop"}` 或任何旧命令文件就会被立即执行**——本轮驻场进程 10:43:30 就是被一个旧 `000009_stop.json` 意外结束的（`live/done/` 里的历史文件疑似被外部进程/客户端复原回 `inbox/`，同一现象也造成过 10:30:42 一条 say 被重复下发）。**重启驻场进程前先清空 `inbox/*.json`**；`events.jsonl` 是证据文件不要删。
+
+---
+
 ## 第八节：已核对的代码坐标速查（写代码时直接引用）
 
 | 用途 | 位置 |
@@ -443,6 +527,13 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 | tier 判定/限频/并发/半径（P8） | `src/agent/agentTierService.js`；常量 `src/agent/agentSchema.js`（AGENT_TIER_* / TIER_ACTION_RATES） |
 | 游客公开签票（P8） | `src/routes/agent/guest.js`；签发 `src/agent/agentAuth.js`（issueGuestAgentJwt / buildGuestIdentity） |
 | 游客/transient 会话表 | `src/agent/agentTransientSessionManager.js`（createGuestSession / buildAgentProfile 返回 _tier） |
+| 连接注册表（缺陷 B） | `src/agent/agentConnectionRegistry.js`（register/unregister + 4004 顶替 + 被顶掉的连接静默清理）；接线 `agentWsServer` 连接处与 `handleClose` |
+| 移动推进起点（缺陷 I） | `src/agent/agentMovementService.js` 的 `getCurrentPosition(session, connectionId)` + `agentPresenceBridge.getEntry(connectionId)` |
+| 重连续位（缺陷 J） | `src/agent/agentSessionManager.js` 的 `getLatestPosition(agentId, excludeJti)`；`agentWsServer` 连接处作为第 5 参传入 `presenceBridge.onConnect` |
+| 跟随服务（缺陷 C） | `src/agent/agentFollowService.js`（startFollow/cancelFollow）+ `agentActionService.handleFollow` + 移动类互斥 |
+| 移动回执（缺陷 E） | `agentMovementService.notifyCompleted` / `cancelMovement(reason)`；WS 层注入 `ctx.reply`（`agentWsServer.handleAction`） |
+| 发现端点同源（F/H） | `src/routes/agent/meta.js` 的 `ENTITY_IDENTITY` / `buildSharedSections(config)` |
+| observe 采样率（缺陷 D） | `src/routes/agent/observe.js`（`keyRatePerSec()` 读 `agentConfigService.peekConfig()`） |
 | 聊天持久化现状（无表，唯一例外 NPC） | `src/routes/npc.js:416-421`、`database/init.sql:391` |
 
 ---
@@ -463,6 +554,10 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 12. **project 文件大小规则**：迁移放 `database/migrations/add_*.sql`（无序号前缀，幂等）。
 13. **npm install 清包坑**：新增 `@aws-sdk/client-s3` 依赖必须登记进 package.json（否则下次 npm install 被清）；sharp 安装需 --ignore-scripts 先例可参考。
 14. **归档防丢铁律**：未成功上传远端的本地聊天数据永不删除；重试 7 次仍失败则保留本地并告警，由人工介入。
+15. **热路径配置必须"就地更新缓存"**（2026-09-19 缺陷 D 验收踩到）：移动速度 / observe 采样率在 10Hz 热路径上用 `agentConfigService.peekConfig()` 同步读 60s 缓存；`setConfigValue` 若只把 `cache` 置 null，热路径会**回落默认值**直到下一次 `getConfig()`，表现为"后台改了要等几十秒才生效"。正确做法：写完 DB 后把新值写进缓存对象的 `values`（敏感键除外）。
+16. **`state.session` 是快照，不是实时状态**（缺陷 I/J 根因）：它是 WS 连接时从 DB 读入的那一行，之后只在 DB 更新、内存对象永不刷新。任何"当前位置"都不能读它（`walk_to` 用它当推进起点 → 每条新指令都从出生点重走、位置每 4 秒循环）；新会话（重连必换 jti）没有位置 → 要用 `getLatestPosition` 继承上次位置，否则 Agent 一重连就瞬移回原点。
+17. **客户端定位实体必须按 `id`**：世界里存在同名角色（实测两条"米多"= 两个不同 id）与 id 不带 `agent:` 前缀的旧 Agent 条目；按"最近的 human"等启发式盲选会跟错目标（本轮临时跟随脚本踩过）。
+18. **Agent 速度必须与真人同量级**：真人 ≈9 m/s（`player.js` 0.15/帧 @60fps），Agent 原固定 5 m/s 在真人正常走路时就永远追不上（用户现场决策：改为 `agent_max_speed` 可配、默认 9）。
 
 ---
 
@@ -505,3 +600,5 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 | 2026-09-18 | **P8 规划定稿（拉/推双模式开放生态，用户提出）**：核心洞察=上线初期风险是"没人来"而非滥用；把门禁倒过来——稀缺的是服务器推流成本而非进门资格。游客 Agent（无 Key）=拉模式：公开临时票 30min、纯请求-响应（observe 30m/2s、say 1条/5s、动作 1次/2s）、禁 SUBSCRIBE 推流、每 IP 并发 1、复用空闲踢出；Key Agent=推模式（现有三档推送成为 Key 特权）；升级漏斗=游客玩出粘性→管理员发 Key 转正。红线 3 修订（Key 从进门凭证降级为推流特权）。工作量 1~1.5 会话，未开工。详见第 7 节 P8 规划 | P8 ⬜ 规划定稿待开发 |
 | 2026-09-18 | **【事故】工作区文件丢失 + 内存恢复**（13:16 发生，永久性删除未进回收站）：src/agent 下 5 个、src/routes/agent 下 5 个、agentFederation.js、chatArchiveService.js 被删；observe.js 与 upgradeRouter.js 被截断为 0 字节；session.js 回退到 P2 旧版（丢 P5 transient 分支）。服务器一旦重启即崩溃。恢复方式=服务器进程启动于删除之前，用 `process._debugProcess(PID)` 附加 V8 inspector，经 CDP `Debugger.enable` + `Debugger.getScriptSource` 取回全部脚本源码（sha256 校验逐字节一致）；重建 2 个迁移 SQL（按 information_schema 核对）+ adminAgentSettings.js + agentPositionSmoother.js（内存无副本）。**未能恢复**：examples/agent-client/{node-agent.mjs,ai-view.mjs,ai-live.mjs,README.md}、accept_agent_p4/p5/p6 系列、agent_federation_mock_world.js。教训：未提交改动随时可能消失，新会话引用记忆结论前必须核对文件存在性（与 2026-09-14 卡顿治理代码丢失同源） | 事故已处理，P0-P6 全部恢复（commit a2e0f688） |
 | 2026-09-18 | **P8 完成（拉/推双模式，一轮会话）**：①`src/services/logger.js` 日志三分流（access 7天/ops 30天/audit 365天，按天轮转 + 过期清理 + Express 中间件过滤 /health），server.js 3 处接线，session.js 与 agentWsServer.js 的 `audit()` 改分流，新增 WS 连断与签票 access 条目；②`src/agent/agentTierService.js`（tier 判定 / 限频 / 每 IP 并发 / 半径钳制）；③`src/routes/agent/guest.js` 公开签票端点（30min，`agent:guest:<uuid>` 合成身份落 agent_transient_sessions 无外键表）；④agentAuth.issueGuestAgentJwt + buildGuestIdentity；⑤agentWsServer 游客处理（IP 并发闸门、强制 eco/off/off、SUBSCRIBE 拒绝 GUEST_PUSH_FORBIDDEN、READY 带 tierInfo、close 归还名额）；⑥observe.js 按 tier 钳半径与限频（游客 1/2s，Key 1Hz 不变）；⑦agentActionService 按 tier 动作限频；⑧**修复真 bug：`authenticateAgentToken` 用 `getAgentById(payload.sub)` 查游客/transient 身份会因 `agent:guest:<uuid>` 不是合法 UUID 抛类型错误 → 改从 session 行重建 profile**（与 agentWsServer 同口径）；⑨发现端点同步（well-known / capabilities 加 tiers 段，openapi 加 /guest/session）；⑩重建 examples/agent-client（node-agent.mjs + README，含拉模式路径）；⑪README 加双模式表 + 红线 14/15 + 日志运维章节。验收 **accept_agent_p8.js 52/52 PASS**；回归 P1 14/14、P2 14/14、P3 12/12。环境：agent_enabled 恢复 false；服务器 3002 已重启跑 P8 代码 | **P8 ✅**（P0-P6+P8 全部完成） |
+| 2026-09-18 | **第一轮多端联测（代码冻结，只记录不修）**：用户真人浏览器 + AI 助手经 Agent 接口驻场（Key Agent `workbuddy`，key-push/realtime 档）实时对话 + 跟随实测。过程：先在客户端侧绕开两处（a 自身位置改用实体表条目自行算距离、b 目标选择改为"正在移动的人"）后跟随成功——234 次采样、距离末值 0.16m、实测移动速度 4.9~5.8 m/s（与 MAX_SPEED=5 一致）；用户体感"总在找我"归因于 C/D/E 三项。新发现 **8 条待办**：A `self` 双源不一致（P0）/ B 同角色多连接 → observe 重复实体（P0，**接口层重复；用户实测真人端看不到两个 avatar，仅表现为"移动时原地徘徊"，含另一个已证实成因，待复现区分**）/ C 无跟随语义（P1）/ D observe 1Hz 限制闭环（P1）/ E walk_to 无到达回执（P1）/ F 实体标识契约（同名是常态、必须按 `id` 定位，P2 契约项）/ G 示例客户端聊天双通道重复（P2）/ H capabilities 缺 tier 明细（P2），详见第七节新增「多轮联测与缺陷待办」。**用户决策：先不改代码，后续再做多轮（计划 3 Agent + 5 真人同时在线）集中整理后统一开发**。临时工具 `scripts/_tmp_follow.js`、`scripts/_tmp_wait_chat.js` 与 `examples/agent-client/live/` 产物保留到联测结束 | **代码冻结，多轮联测中（第一轮 ✅）** |
+| 2026-09-19 | **第一轮联测缺陷全部修复（代码解冻后一轮会话，含两轮真人现场联测）**：①**A（P0）**`agentObservationService.resolvePosition` 观察点优先取 playerPositions 实时位置（`pickLiveEntry` 取带 animMode/最新的一条），`self` 与所有 `distance` 同源修正 → `accept_agent_fix_a.js` 24/24（纯 HTTP 第二会话 self 不再恒为 (0,0,0)，106 项 distance 误差 0.0048m）。②**B（P0）**新增 `src/agent/agentConnectionRegistry.js`：`entities` 按 characterId 去重 + 单 Agent 并发上限 `agent_max_connections_per_agent`（默认 1，新连接顶掉旧连接 close 4004，被顶掉的连接**静默清理不广播 PLAYER_LEFT** 防 avatar 闪断）→ `accept_agent_fix_b.js` 24/24；真人复测双向 4004、换连接后位置不变。③**C（P1）**新增 `agentFollowService.js`：`follow{targetId,stopDistance,maxDurationMs}` 服务端 10Hz 持续跟随（不再客户端每秒重发 walk_to）→ `accept_agent_fix_c.js` 15/15（目标直线移动 30s、27 次采样全 ≤2.80m）。④**E（P1）**移动任务注入 `reply`，到达/被打断/断线补发 `ACTION_COMPLETED{reason: arrived\|superseded\|target_lost\|timeout}` → `accept_agent_fix_e.js` 12/12（estimatedMs 4800 vs 实测 4946ms）。⑤**D（P1）**`agent_observe_rate_key`（默认 1 = 行为不变，可调 1~10）→ `accept_agent_fix_d.js` 10/10（5Hz 时 `200×5,429,429`）。⑥**F/H（P2）**`meta.js` 抽出 `ENTITY_IDENTITY` + `buildSharedSections`，capabilities / well-known / openapi 三处同源同形（含 entityIdentity 契约与 limits）→ `accept_agent_fix_f.js` 14/14。⑦**G（P2）**`ai-live.mjs` 双通道聊天去重。**联测现场另发现并修复两项 P0**：**I** `walk_to` 推进起点用会话快照（内存永不更新）→ 位置每 4 秒原样循环、`estimatedMs` 恒按 (0,0,0) 算（**用户第一轮"你在原地徘徊/跟随中做了无用的走动"的真正根因**），改取实时位置后跟随时序单调收敛；**J** 新会话无位置 → 出生点回落 (0,0,0) → 任何 AI 客户端重连即瞬移回原点，新增 `getLatestPosition` 重连续位。**用户现场决策**：Agent 速度上限由固定 5 m/s 改为可配 `agent_max_speed`、默认 9 m/s 与真人一致（真人实测中位 6.03、峰值 11+ m/s）。回归全绿：fix_a 24/24、fix_b 24/24、fix_c 15/15、fix_d 10/10、fix_e 12/12、fix_f 14/14、P1 14/14、P2 14/14、P3 12/12、P8 52/52、WS 重连 9/9、主世界冒烟 9/9。服务器 3002 已重启跑新代码；联测用 Key Agent `workbuddy`（realtime 档）；临时工具 `_tmp_follow.js` 升级为 v4（服务端 follow + keeper） | **首轮缺陷全部修复并验收 ✅**（下一轮：多 Agent × 多真人压测） |

@@ -55,7 +55,9 @@ async function initializeDatabase() {
     'migrations/add_agents.sql',
     'migrations/add_agent_sessions.sql',
     'migrations/add_world_chat_log.sql',
-    'migrations/add_federation_nonce.sql'  // P5: 联邦传送 nonce 防重放 + transient session 表
+    'migrations/add_federation_nonce.sql',  // P5: 联邦传送 nonce 防重放 + transient session 表
+    'migrations/add_agent_push_tier.sql',   // P8 后续: 每个 Key Agent 独立推送档 + 删除能力
+    'migrations/add_world_objects_agent_description.sql'  // 🤖 AI 物体描述（observe 下发给 Agent）
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);

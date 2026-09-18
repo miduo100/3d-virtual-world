@@ -3,8 +3,10 @@
  * 挂在 /api/agent/v1，全部走 authenticateAdminToken（管理员 JWT）
  *
  * 端点：
- *   GET    /admin/agents              列出全部 Agent（含 active key 数与前缀）
- *   POST   /admin/agents              创建 Agent（返回明文 API Key 仅一次）
+ *   GET    /admin/agents              列出全部 Agent（含 active key 数与前缀、档位）
+ *   POST   /admin/agents              创建 Agent（返回明文 API Key 仅一次；可选 pushTier）
+ *   DELETE /admin/agents/:id          永久删除 Agent（级联清 Key/会话 + 踢在线连接，不可恢复）
+ *   POST   /admin/agents/:id/tier     修改 Agent 推送档（在线连接即时生效）
  *   POST   /admin/agents/:id/disable  停用 Agent（吊销全部 Key + 全部 session）
  *   POST   /admin/agents/:id/enable   启用 Agent
  *   GET    /admin/config              读取全部配置（含聊天归档）
@@ -27,6 +29,7 @@ router.use(authenticateAdminToken);
 router.get('/admin/agents', async (req, res) => {
   try {
     const agents = await agentManager.listAgents();
+    const cfg = await agentConfigService.getConfig();
     res.json({
       success: true,
       agents: agents.map(a => ({
@@ -37,6 +40,9 @@ router.get('/admin/agents', async (req, res) => {
         homeWorldUrl: a.home_world_url,
         avatarConfig: a.avatar_config,
         canTeleport: a.can_teleport,
+        // 档位：库里的原始值 + 解析后的生效档（inherit 回落到全局默认档）
+        pushTier: a.push_tier || 'inherit',
+        effectivePushTier: agentManager.resolvePushTier(a.push_tier, cfg.pushDefault),
         createdAt: a.created_at,
         updatedAt: a.updated_at,
         activeKeyCount: parseInt(a.active_key_count, 10) || 0,
@@ -54,7 +60,7 @@ router.get('/admin/agents', async (req, res) => {
 
 router.post('/admin/agents', async (req, res) => {
   try {
-    const { name, description, homeWorldUrl, avatarConfig } = req.body || {};
+    const { name, description, homeWorldUrl, avatarConfig, pushTier } = req.body || {};
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
       return res.status(400).json({ error: '名称至少 2 字符' });
     }
@@ -62,14 +68,15 @@ router.post('/admin/agents', async (req, res) => {
       name: name.trim(),
       description,
       homeWorldUrl,
-      avatarConfig
+      avatarConfig,
+      pushTier    // inherit | eco | standard | realtime（非法值由 normalizePushTier 兜底为 inherit）
     });
-    await logAdminAction(req.adminUser.id, 'create', 'agent', agent.id, { name: agent.name }, req.ip);
+    await logAdminAction(req.adminUser.id, 'create', 'agent', agent.id, { name: agent.name, pushTier: agent.push_tier }, req.ip);
     // createAgent 返回的 apiKey 是 { key, keyPrefix } 对象（仅含明文 key），统一整形为字符串
     const key = typeof apiKey === 'string' ? apiKey : apiKey.key;
     res.json({
       success: true,
-      agent: { id: agent.id, name: agent.name, status: agent.status, createdAt: agent.created_at },
+      agent: { id: agent.id, name: agent.name, status: agent.status, pushTier: agent.push_tier, createdAt: agent.created_at },
       apiKey: key,           // 明文 API Key 仅此一次返回
       apiKeyPrefix: key.slice(0, 16)
     });
@@ -79,6 +86,64 @@ router.post('/admin/agents', async (req, res) => {
       return res.status(409).json({ error: error.message });
     }
     res.status(500).json({ error: '创建 Agent 失败' });
+  }
+});
+
+// ==================== DELETE /admin/agents/:id（永久删除，不可恢复）====================
+
+router.delete('/admin/agents/:id', async (req, res) => {
+  try {
+    const agentId = req.params.id;
+    const agent = await agentManager.getAgentById(agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent 不存在' });
+
+    // 级联：agent_api_keys / agent_sessions 均 ON DELETE CASCADE；先吊销 Key 防删除瞬间旧 Key 仍可用
+    await agentManager.revokeAllKeys(agentId);
+    try { await agentSessionManager.revokeAllSessions(agentId); } catch (e) { /* 会话表可能无行 */ }
+    await agentManager.deleteAgent(agentId);
+
+    // 踢掉在线连接（惰性 require 避免加载期循环依赖）
+    let kicked = 0;
+    try {
+      kicked = require('../../websocket/agentWsServer').kickAgent(agentId, 'agent deleted');
+    } catch (e) { /* 未启动 Agent WS 时忽略 */ }
+
+    await logAdminAction(req.adminUser.id, 'delete', 'agent', agentId, { name: agent.name, kicked }, req.ip);
+    res.json({ success: true, deleted: agent.name, kicked });
+  } catch (error) {
+    console.error('[Agent admin] 删除失败:', error);
+    res.status(500).json({ error: '删除 Agent 失败' });
+  }
+});
+
+// ==================== POST /admin/agents/:id/tier（修改推送档，在线即时生效）====================
+
+router.post('/admin/agents/:id/tier', async (req, res) => {
+  try {
+    const agentId = req.params.id;
+    const { pushTier } = req.body || {};
+    const agent = await agentManager.getAgentById(agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent 不存在' });
+
+    const updated = await agentManager.setAgentPushTier(agentId, pushTier);
+
+    // 在线连接即时生效：inherit 换算为当前全局默认档后再下发
+    let effective = updated.push_tier;
+    if (effective === 'inherit') {
+      const cfg = await agentConfigService.getConfig();
+      effective = cfg.pushDefault;
+    }
+    let applied = 0;
+    try {
+      applied = require('../../websocket/agentWsServer').applyAgentTier(agentId, effective);
+    } catch (e) { /* 未启动 Agent WS 时忽略 */ }
+
+    await logAdminAction(req.adminUser.id, 'set-tier', 'agent', agentId,
+      { name: updated.name, pushTier: updated.push_tier, effective, applied }, req.ip);
+    res.json({ success: true, pushTier: updated.push_tier, effectivePushTier: effective, applied });
+  } catch (error) {
+    console.error('[Agent admin] 改档失败:', error);
+    res.status(500).json({ error: '修改档位失败' });
   }
 });
 
@@ -156,9 +221,14 @@ router.get('/admin/config', async (req, res) => {
       config: {
         agentEnabled: cfg.agentEnabled,
         pushDefault: cfg.pushDefault,
-        movementPush: cfg.movementPush,
         voiceRelay: cfg.voiceRelay,
         maxAgents: cfg.maxAgents,
+        // 缺陷 B：单 Agent 并发连接上限（1~10，默认 1）
+        maxConnectionsPerAgent: cfg.maxConnectionsPerAgent,
+        // 缺陷 C 配套：Agent 移动速度上限 m/s（默认 9，与真人一致）
+        maxSpeed: cfg.maxSpeed,
+        // 缺陷 D：Key Agent observe 采样率（次/秒，默认 1）
+        observeRateKey: cfg.observeRateKey,
         chatLogEnabled: cfg.chatLogEnabled,
         chatLogRetentionDays: cfg.chatLogRetentionDays,
         chatLogRemoteEnabled: cfg.chatLogRemoteEnabled,
@@ -186,20 +256,19 @@ router.put('/admin/config', async (req, res) => {
     const body = req.body || {};
     // 客户端校验：仅允许白名单键 + 值域校验
     const allowedKeys = [
-      'agent_enabled', 'agent_push_default', 'agent_movement_push', 'agent_voice_relay', 'max_agents',
+      'agent_enabled', 'agent_push_default', 'agent_voice_relay', 'max_agents',
+      'agent_max_connections_per_agent', 'agent_max_speed', 'agent_observe_rate_key',
       'chat_log_enabled', 'chat_log_retention_days', 'chat_log_remote_enabled',
       'chat_log_remote_provider', 'chat_log_s3_endpoint', 'chat_log_s3_bucket',
       'chat_log_s3_prefix', 'chat_log_s3_access_key', 'chat_log_s3_secret_key', 'chat_log_upload_hour'
     ];
     const pushDefaults = ['eco', 'standard', 'realtime'];
-    const movementPushes = ['off', 'batched', 'realtime'];
     const providers = ['none', 's3', 'baidu'];
 
     for (const [key, value] of Object.entries(body)) {
       if (!allowedKeys.includes(key)) continue;
       // 值域校验
       if (key === 'agent_push_default' && !pushDefaults.includes(value)) continue;
-      if (key === 'agent_movement_push' && !movementPushes.includes(value)) continue;
       if (key === 'chat_log_remote_provider' && !providers.includes(value)) continue;
       if (key === 'chat_log_retention_days') {
         const n = parseInt(value, 10);
@@ -212,6 +281,18 @@ router.put('/admin/config', async (req, res) => {
       if (key === 'max_agents') {
         const n = parseInt(value, 10);
         if (!Number.isFinite(n) || n < 1 || n > 500) continue;
+      }
+      if (key === 'agent_max_connections_per_agent') {
+        const n = parseInt(value, 10);
+        if (!Number.isFinite(n) || n < 1 || n > 10) continue;
+      }
+      if (key === 'agent_max_speed') {
+        const n = Number(value);
+        if (!Number.isFinite(n) || n < 1 || n > 20) continue;
+      }
+      if (key === 'agent_observe_rate_key') {
+        const n = parseInt(value, 10);
+        if (!Number.isFinite(n) || n < 1 || n > 10) continue;
       }
       // 布尔键规范化
       if (['agent_enabled', 'agent_voice_relay', 'chat_log_enabled', 'chat_log_remote_enabled'].includes(key)) {

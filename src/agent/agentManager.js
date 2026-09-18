@@ -7,16 +7,37 @@
 
 const { query } = require('../database/db');
 const agentAuth = require('./agentAuth');
-const { isValidAgentName } = require('./agentSchema');
+const {
+  isValidAgentName,
+  AGENT_PUSH_TIERS,
+  AGENT_PUSH_TIER_INHERIT
+} = require('./agentSchema');
 
 // ==================== Agent 主体 ====================
 
 /**
+ * 档位规范化：非法值一律兜底为 inherit（跟随全局默认档）
+ */
+function normalizePushTier(tier) {
+  const v = String(tier === undefined || tier === null ? '' : tier).trim();
+  return (v === AGENT_PUSH_TIER_INHERIT || AGENT_PUSH_TIERS.includes(v)) ? v : AGENT_PUSH_TIER_INHERIT;
+}
+
+/**
+ * 解析生效档位：inherit 时回落到全局默认档
+ */
+function resolvePushTier(agentPushTier, globalDefault) {
+  const v = String(agentPushTier || AGENT_PUSH_TIER_INHERIT);
+  return v === AGENT_PUSH_TIER_INHERIT ? (globalDefault || 'eco') : v;
+}
+
+/**
  * 创建 Agent（同名拒绝）
  * avatarConfig: { glbUrl, animUrls, weaponConfig, boneMapConfig, weaponSocketConfig, calibrationConfig }
+ * pushTier: inherit | eco | standard | realtime（默认 inherit = 跟随全局默认档）
  * 返回 { agent, apiKey(明文，仅此一次) }
  */
-async function createAgent({ name, description, homeWorldUrl, avatarConfig }) {
+async function createAgent({ name, description, homeWorldUrl, avatarConfig, pushTier }) {
   if (!isValidAgentName(name)) {
     throw new Error('Agent 名称须为 2-100 字符');
   }
@@ -27,10 +48,16 @@ async function createAgent({ name, description, homeWorldUrl, avatarConfig }) {
   }
 
   const result = await query(
-    `INSERT INTO agents (name, description, home_world_url, avatar_config)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO agents (name, description, home_world_url, avatar_config, push_tier)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-    [name.trim(), description || null, homeWorldUrl || null, JSON.stringify(avatarConfig || {})]
+    [
+      name.trim(),
+      description || null,
+      homeWorldUrl || null,
+      JSON.stringify(avatarConfig || {}),
+      normalizePushTier(pushTier)
+    ]
   );
   const agent = result.rows[0];
 
@@ -87,6 +114,34 @@ async function setAgentStatus(agentId, status) {
     [agentId, status]
   );
   return result.rows[0] || null;
+}
+
+/**
+ * 修改 Agent 推送档（inherit | eco | standard | realtime）
+ * 注意：只改库，在线连接由调用方经 agentWsServer.applyAgentTier 即时生效
+ */
+async function setAgentPushTier(agentId, pushTier) {
+  const result = await query(
+    `UPDATE agents SET push_tier = $2, updated_at = NOW() WHERE id = $1 RETURNING *`,
+    [agentId, normalizePushTier(pushTier)]
+  );
+  return result.rows[0] || null;
+}
+
+/**
+ * 永久删除 Agent（不可恢复）
+ * agent_api_keys / agent_sessions 均有 ON DELETE CASCADE，删行即级联清理 Key 与会话；
+ * 在线 WS 连接由调用方经 agentWsServer.kickAgent 主动踢出（本模块不持有连接状态）。
+ * 返回被删除的 agent（不存在返回 null）
+ */
+async function deleteAgent(agentId) {
+  const agent = await getAgentById(agentId);
+  if (!agent) return null;
+
+  // 先吊销 Key：防止删除的瞬间仍有请求凭旧 Key 通过鉴权
+  await revokeAllKeys(agentId);
+  await query('DELETE FROM agents WHERE id = $1', [agentId]);
+  return agent;
 }
 
 // ==================== API Key ====================
@@ -165,6 +220,10 @@ module.exports = {
   getAgentByName,
   listAgents,
   setAgentStatus,
+  setAgentPushTier,
+  deleteAgent,
+  normalizePushTier,
+  resolvePushTier,
   createApiKey,
   revokeAllKeys,
   findAgentByApiKey,
