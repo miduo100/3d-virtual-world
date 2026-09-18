@@ -48,6 +48,51 @@
     if (ok) setTimeout(() => { el.style.display = 'none'; }, 3000);
   }
 
+  // ==================== 推送档位白话说明 ====================
+  // 面向不懂技术的管理员：不出现任何专业术语，只讲"服务器会给 AI 什么、AI 还得自己问什么"。
+  const PUSH_TIER_HINTS = {
+    eco: [
+      '<b>这一档：AI 只能收到「聊天」。</b>',
+      '· 附近有人说话 → AI 立刻收到，跟真人一样快。',
+      '· 有人走动 → <b style="color:var(--red)">AI 完全不知道</b>，谁在哪、在动没动，它一概不知。',
+      '· AI 想知道「我旁边有谁、他们在哪、在干什么」→ <b>必须 AI 自己开口问一次</b>，服务器才答一次；不问就没有。',
+      '· 周围的房子、树、传送门也一样：AI 不问，就看不到。',
+      '<span style="color:var(--green)">适合：只想让 AI 陪人聊天，不关心谁在哪。这一档最省服务器。</span>'
+    ],
+    standard: [
+      '<b>这一档：在第 1 档基础上，多给 AI「谁在动」。</b>',
+      '· 有人说话 → 照样立刻收到。',
+      '· 有人走动 → 服务器<b>每 1 秒</b>把「这一秒里所有动过的人」打包发一次给 AI，一个包里可能装好几个人。',
+      '· 所以 AI 看到的移动是<b>「一秒跳一下」</b>，不是连续流畅的。',
+      '· 周围的房子、树、传送门，<b>仍然要 AI 自己开口问</b>，服务器不会主动给。',
+      '<span style="color:var(--green)">适合：想让 AI 知道「附近有谁、大概在往哪走」，不需要精确到每一步。</span>'
+    ],
+    realtime: [
+      '<b>这一档：只要有人动一下，服务器就马上单独发一条给 AI。</b>',
+      '· 有人说话 → 照样立刻收到。',
+      '· 有人走动 → 动一次发一条。10 个人同时走动，就是 10 条。',
+      '· AI 看到的移动<b>最连贯、最跟手</b>，几乎和真人看到的同步。',
+      '· <b style="color:var(--yellow)">代价：人越多，服务器要发的东西越多</b>，流量和性能开销是三档里最大的。',
+      '· 周围的房子、树、传送门，<b>仍然要 AI 自己开口问</b>。',
+      '<span style="color:var(--green)">适合：需要 AI 紧跟真人走位，比如带路、跟随、实时讲解。</span>'
+    ]
+  };
+
+  const PUSH_TIER_FOOTER =
+    '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);color:var(--muted)">' +
+    '三档都<b>不会</b>限制 AI 自己开口问：不管选哪一档，「看看周围有什么」「走过去」「说句话」这些 AI 都可以主动做。' +
+    '区别只在于<b>服务器愿不愿意主动喂数据</b>给它。<br>' +
+    '另外：以上只对<b>有 API Key</b> 的 AI 生效；没有 Key 的游客 AI 一律<b>什么都不主动推</b>，只能自己问。' +
+    '</div>';
+
+  function updatePushTierHint() {
+    const sel = $('agent-push-default');
+    const box = $('agent-push-tier-hint');
+    if (!sel || !box) return;
+    const lines = PUSH_TIER_HINTS[sel.value] || PUSH_TIER_HINTS.eco;
+    box.innerHTML = lines.map(l => '<div>' + l + '</div>').join('') + PUSH_TIER_FOOTER;
+  }
+
   // ==================== 接入设置（5.3 节） ====================
 
   function fillAgentConfig(cfg) {
@@ -58,6 +103,7 @@
     setVal('agent-movement-push', cfg.movementPush);
     setCb('agent-voice-relay-checkbox', cfg.voiceRelay);
     setVal('max-agents', cfg.maxAgents);
+    updatePushTierHint();
   }
 
   function fillChatArchiveConfig(cfg) {
@@ -224,6 +270,15 @@
       if (box) { box.className = ''; box.textContent = '❌ 加载失败：' + e.message; }
     }
   }
+
+  // 推送档位下拉联动说明（管理员切换时立刻看到这一档到底推什么）
+  (function bindPushTierHint() {
+    const sel = $('agent-push-default');
+    if (sel && !sel.dataset.pushHintBound) {
+      sel.dataset.pushHintBound = '1';
+      sel.addEventListener('change', updatePushTierHint);
+    }
+  })();
 
   async function createAgent() {
     const nameEl = $('new-agent-name');

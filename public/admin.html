@@ -547,12 +547,13 @@
             </label>
           </div>
           <div class="form-group">
-            <label>推送档位</label>
+            <label>推送档位（服务器主动"喂"给 AI 多少东西）</label>
             <select id="agent-push-default" style="padding:6px 10px;">
-              <option value="eco">eco（省流：仅 CHAT）</option>
-              <option value="standard">standard（标准：1s 聚合位置流）</option>
-              <option value="realtime">realtime（实时：10Hz 逐条）</option>
+              <option value="eco">第 1 档 · 只推聊天（最省服务器）</option>
+              <option value="standard">第 2 档 · 聊天 + 每秒汇报一次位置（比较均衡）</option>
+              <option value="realtime">第 3 档 · 聊天 + 谁动一下就推一条（最及时，也最费服务器）</option>
             </select>
+            <div id="agent-push-tier-hint" style="margin-top:8px;padding:10px 12px;background:rgba(255,255,255,0.04);border-left:3px solid var(--blue);border-radius:6px;font-size:12px;color:#ccc;line-height:1.75;"></div>
           </div>
           <div class="form-group">
             <label>位置流策略</label>
@@ -3808,7 +3809,7 @@
 <script src="js/adminProfile.js" defer></script>
 <script src="js/adminSky.js" defer></script>
 <script src="js/adminModelLod.js?v=4" defer></script>
-<script src="js/adminAgentSettings.js?v=1" defer></script>
+<script src="js/adminAgentSettings.js?v=2" defer></script>
 <script>
   // ===== 认证 =====
   document.addEventListener('DOMContentLoaded', function checkAdminAuth() {
