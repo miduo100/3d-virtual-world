@@ -14,6 +14,7 @@ const agentManager = require('../../agent/agentManager');
 const agentSessionManager = require('../../agent/agentSessionManager');
 const permissionService = require('../../agent/agentPermissionService');
 const agentConfigService = require('../../agent/agentConfigService');
+const logger = require('../../services/logger');
 const {
   extractBearerToken,
   isValidApiKeyFormat,
@@ -87,8 +88,16 @@ async function authenticateAgentToken(req, res, next) {
     return res.status(403).json({ error: `会话无效: ${sessionCheck.error}`, code: sessionCheck.error.toUpperCase() });
   }
 
-  // Agent 仍须处于 active 状态
-  const agent = await agentManager.getAgentById(payload.sub);
+  // Agent 仍须处于 active 状态。
+  // P5/P8：transient session（跨世界传送）与游客 session（P8 拉模式）本地无 agents 行，
+  // 且 agent id 形如 agent:guest:<uuid> 不是合法 UUID，直接查表会抛类型错误
+  // → 从 session 行重建 agent profile（与 agentWsServer.authenticateUpgrade 同口径）。
+  let agent;
+  if (sessionCheck.session.isTransient) {
+    agent = require('../../agent/agentTransientSessionManager').buildAgentProfile(sessionCheck.session);
+  } else {
+    agent = await agentManager.getAgentById(payload.sub);
+  }
   if (!agent || agent.status !== 'active') {
     return res.status(403).json({ error: 'Agent 已停用', code: 'AGENT_DISABLED' });
   }
@@ -205,10 +214,10 @@ router.post('/session/revoke', authenticateAgentToken, async (req, res) => {
   }
 });
 
-// ==================== 审计日志（结构化 console）====================
+// ==================== 审计日志（P8：三分流 audit.log）====================
 
 function audit(event, data) {
-  console.log(JSON.stringify({ ts: new Date().toISOString(), scope: 'agent-auth', event, ...data }));
+  logger.audit(event, { scope: 'agent-auth', ...data });
 }
 
 // 导出认证中间件供 observe/action 等子路由复用（P2+）

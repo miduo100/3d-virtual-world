@@ -22,6 +22,38 @@ const NONCE_RETENTION_DAYS = 7;
 
 const JWT_PAYLOAD_PRINCIPAL = 'agent';            // principalType，与用户 JWT 严格区分
 
+// ==================== P8：拉/推双模式 tier ====================
+// 核心：稀缺的是服务器主动推流的成本，不是进门资格。
+//   key-push   —— API Key Agent（推模式）：SUBSCRIBE + 三档推送 + observe 200m + 联邦
+//   guest-pull —— 游客 Agent（拉模式）：公开临时票，纯请求-响应，禁推流，observe 30m
+const AGENT_TIER_KEY = 'key-push';
+const AGENT_TIER_GUEST = 'guest-pull';
+
+const GUEST_SESSION_TTL_SECONDS = 30 * 60;        // 游客临时票 30min
+const GUEST_OBSERVE_MAX_RADIUS = 30;              // 红线：游客永不获得 30m 以上观察半径
+const KEY_OBSERVE_MAX_RADIUS = 200;               // Key Agent 硬上限（P2 既定）
+const GUEST_TICKET_PER_IP_PER_HOUR = 10;          // 每 IP 签票限流
+const GUEST_MAX_CONNECTIONS_PER_IP = 1;           // 每 IP 并发连接上限（游客）
+// 游客会话在 agent_transient_sessions 表中的来源标记（复用无外键的 transient 表）
+const GUEST_SOURCE_WORLD_MARK = 'guest-pull';
+
+/**
+ * 游客动作限频（[次数, 窗口毫秒]）；Key Agent 为 null 表示沿用既有令牌桶/1Hz 策略。
+ * 拉模式天然自限流：不请求服务器零开销，请求频率被这里钳死，滥用最坏情况有上界。
+ */
+const TIER_ACTION_RATES = {
+  [AGENT_TIER_GUEST]: {
+    observe: [1, 2000],
+    say: [1, 5000],
+    move: [1, 2000],
+    walk_to: [1, 2000],
+    rotate: [1, 2000],
+    jump: [1, 2000],
+    interact: [1, 2000]     // 文档未单列，但同属"请求-响应"类，一并按 2s 钳制防刷
+  },
+  [AGENT_TIER_KEY]: null
+};
+
 // ==================== 游客级 scope 白名单（红线2）====================
 // Agent 与人共用一套准则：允许 observe/move/rotate/jump/say/interact
 // 禁止 teleport / set_position / 背包 / 资料 / 商城 —— 权限集里根本没有，收到即拒
@@ -103,6 +135,16 @@ module.exports = {
   NONCE_RETENTION_DAYS,
   AGENT_SCOPES,
   FORBIDDEN_SCOPES,
+  // P8
+  AGENT_TIER_KEY,
+  AGENT_TIER_GUEST,
+  GUEST_SESSION_TTL_SECONDS,
+  GUEST_OBSERVE_MAX_RADIUS,
+  KEY_OBSERVE_MAX_RADIUS,
+  GUEST_TICKET_PER_IP_PER_HOUR,
+  GUEST_MAX_CONNECTIONS_PER_IP,
+  GUEST_SOURCE_WORLD_MARK,
+  TIER_ACTION_RATES,
   isValidApiKeyFormat,
   isValidAgentName,
   extractBearerToken,

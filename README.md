@@ -352,12 +352,30 @@ Returns the world identity, API base, WebSocket endpoint, scopes, push tiers, an
 | `GET /api/agent/v1/capabilities` | none | Machine-readable capability list |
 | `GET /api/agent/v1/openapi.json` | none | OpenAPI 3.0 schema (only actually-implemented endpoints) |
 
+### Two Modes — Pull (no Key) vs Push (Key)
+
+Access is deliberately **open by default**: at launch the real risk is "nobody comes", not abuse. Pull mode is self-limiting — if you don't ask, the server does nothing; if you ask too fast, you get rate-limited. The scarce resource is **server-initiated push**, not entry. So an API Key is a *push privilege*, not a door pass.
+
+| | `guest-pull` (pull mode) | `key-push` (push mode) |
+|---|---|---|
+| Credential | none — public 30-min ticket via `POST /api/agent/v1/guest/session` | API Key (`agk_live_<64 hex>`) |
+| Push stream (`SUBSCRIBE`) | **never** — rejected with `GUEST_PUSH_FORBIDDEN` | yes, eco / standard / realtime |
+| `observe` radius | **clamped to 30 m** (hard) | up to 200 m |
+| Action rate limit | observe 1/2s, say 1/5s, movement 1/2s | none (existing token bucket) |
+| Per-IP concurrency | 1 connection | unlimited |
+| Ticket rate limit | 10/hour per IP | n/a |
+| Actions allowed | identical tourist-level set | identical tourist-level set |
+| Federation teleport | no | yes (with `can_teleport=true`) |
+
+Both modes share **exactly the same behavioral rules** (tourist-level scope). The upgrade funnel: a guest Agent that becomes useful → admin issues an API Key → push stream, larger radar, federation unlocked.
+
 ### Identity & Permission Model
 
 Agents have **tourist-level permissions** — the same rules that apply to human tourists. Allowed: `observe / move / rotate / jump / say / interact`. Forbidden: `teleport / set_position / inventory / shop / profile` (server-side scope rejection — bypassing the front-end `if` guards that protect human tourists is not enough; the scope set simply does not contain these).
 
-- **API Key** (`agk_live_<64 hex>`): generated once per Agent in the admin console. Stored only as a bcrypt hash; the plaintext is shown exactly once on creation.
-- **Agent JWT** (15min TTL, signed with a dedicated `AGENT_JWT_SECRET` — independent from the human JWT). One `jti` per session, validated against the DB on every request (revocation is immediate).
+- **API Key** (`agk_live_<64 hex>`): generated once per Agent in the admin console. Stored only as a bcrypt hash; the plaintext is shown exactly once on creation. Required only for **push mode**.
+- **Guest ticket**: public, no Key, 30-min JWT, fresh synthetic identity each time (no `agents` row, no user/character created — zero residue).
+- **Agent JWT** (15 min for Key sessions, 30 min for guest tickets, signed with a dedicated `AGENT_JWT_SECRET` — independent from the human JWT). One `jti` per session, validated against the DB on every request (revocation is immediate).
 - Master switch `agent_enabled` defaults to `false` (off until the admin explicitly opens it). Hot-reload 60s after a config change in admin.
 
 ### The Six Actions (over WS `ACTION` message)
@@ -396,16 +414,19 @@ WS   wss://target-host/ws/agent                   # transient JWT works like a n
 A complete Node.js reference client lives at [`examples/agent-client/`](./examples/agent-client/). Three steps from zero to a walking, talking AI in your world:
 
 ```bash
-# 1) Admin console → AI Agent tab → create an Agent, copy the API Key, flip agent_enabled=true
+# Pull mode — no credential at all (P8)
+AGENT_HOST=http://localhost:3002 node examples/agent-client/node-agent.mjs
+
+# Push mode — needs an API Key
+# 1) Admin console → 用户与角色 → 🤖 AI Agent → create an Agent, copy the API Key, flip agent_enabled=true
 # 2) Run the client
-node examples/agent-client/node-agent.mjs \
-  --host http://localhost:3002 \
-  --key  agk_live_your_key_here
+AGENT_HOST=http://localhost:3002 AGENT_API_KEY=agk_live_your_key_here \
+  node examples/agent-client/node-agent.mjs
 ```
 
 The script:
 1. Discovers the world via `GET /.well-known/virtual-world-agent.json`
-2. Exchanges the API Key for a 15-min JWT
+2. Exchanges the API Key for a 15-min JWT (or takes a public 30-min guest ticket when no Key is set)
 3. Connects `wss://host/ws/agent`, receives `READY` + `WORLD_SNAPSHOT`
 4. Subscribes to `chat` / `presence` / `movement` streams
 5. Calls `observe` to read the spatial radar
@@ -430,6 +451,20 @@ Requires **Node.js 18+** (uses built-in `fetch` + `WebSocket`, zero dependencies
 11. Engineering safety: `max_agents` rejection; per-Agent token bucket (low-priority dropped first, chat never lost); backpressure monitor (warn >1MB, kill >4MB buffered); 30s heartbeat.
 12. Federation trust reuse only: `federationSystem.js` is read-only (no new code in the 33KB blacklisted file).
 13. Federation handoff tokens use `principalType:'agent'` + transient sessions — never create a local user/character on the target world.
+14. **Guest Agents (pull mode) never receive push streams** — `SUBSCRIBE` is always rejected; push is an API-Key privilege.
+15. **Guest Agents never see beyond 30 m** — `observe` radius is hard-clamped regardless of the requested value.
+
+### Operations — Log Tri-Channel
+
+Server logs are split by purpose, rotated daily, and auto-pruned (`logs/`):
+
+| File | Format | Content | Retention |
+|---|---|---|---|
+| `logs/access-YYYY-MM-DD.log` | JSONL | HTTP requests (method/path/status/ms/IP), WS connect/disconnect, ticket issuance | 7 days |
+| `logs/ops-YYYY-MM-DD.log` | human | startup/shutdown, migrations, Agent lifecycle, archiving, errors | 30 days |
+| `logs/audit-YYYY-MM-DD.log` | JSONL | logins, Agent create/disable, Key issuance, config changes, IP blocks | 365 days |
+
+`/health` and `/favicon.ico` are filtered out of `access.log`. Set `LOG_DIR` / `AUDIT_LOG_RETENTION_DAYS` to override.
 
 ### Documentation
 

@@ -23,6 +23,8 @@ const agentConfigService = require('../agent/agentConfigService');
 const presenceBridge = require('../agent/agentPresenceBridge');
 const agentActionService = require('../agent/agentActionService');  // P4：六动作分发
 const transientSessionManager = require('../agent/agentTransientSessionManager');  // P5：跨世界 transient session
+const tierService = require('../agent/agentTierService');                            // P8：拉/推双模式
+const logger = require('../services/logger');                                       // P8：日志三分流
 const wsServer = require('./wsServer');
 
 const wss = new WebSocket.Server({ noServer: true });
@@ -76,7 +78,9 @@ async function authenticateUpgrade(request) {
     agent = await agentManager.getAgentById(payload.sub);
     if (!agent || agent.status !== 'active') return { ok: false, code: 'AGENT_DISABLED' };
   }
-  return { ok: true, payload, session: sessionCheck.session, agent };
+  // P8：tier 决定"服务器是否主动推流 / 能看多远"，不影响动作 scope（两者行为准则一致）
+  const tier = tierService.resolveTier(payload, sessionCheck.session);
+  return { ok: true, payload, session: sessionCheck.session, agent, tier };
 }
 
 function handleUpgrade(request, socket, head) {
@@ -101,8 +105,9 @@ function handleUpgrade(request, socket, head) {
 // ==================== 连接生命周期 ====================
 
 wss.on('connection', async (ws, request, authResult) => {
-  const { agent, session, payload: jwt } = authResult;
+  const { agent, session, payload: jwt, tier } = authResult;
   const connectionId = uuidv4();
+  const ip = request.socket.remoteAddress;
 
   const config = await agentConfigService.getConfig();
   if (activeAgents.size >= config.maxAgents) {
@@ -112,14 +117,26 @@ wss.on('connection', async (ws, request, authResult) => {
     return;
   }
 
+  // P8：游客每 IP 并发 1 连接（Key Agent 不受此限制）
+  const slot = tierService.acquireIpSlot(tier, ip, connectionId);
+  if (!slot.ok) {
+    try { ws.send(JSON.stringify({ type: 'ERROR', payload: { code: slot.code, message: `游客每 IP 并发上限 ${slot.limit}，请先断开已有连接或申请 API Key 转正` } })); } catch (e) {}
+    ws.close(1013, 'guest ip concurrency limit');
+    audit('ws_rejected', { code: slot.code, agent: agent.name, ip, tier });
+    return;
+  }
+
   const avatar = agentManager.shapeAvatar(agent);
   presenceBridge.onConnect(connectionId, agent, session, avatar);
 
+  // P8 红线：游客永不获得推流 —— 强制 eco 档 + 关闭位置流 + 关闭语音中继。
+  // 即使后台把默认档调成 realtime，游客也拿不到任何主动推送（SUBSCRIBE 亦被拒）。
+  const isGuest = tierService.isGuest(tier);
   const state = {
-    ws, agent, session, jwt, connectionId,
-    pushTier: config.pushDefault,
-    movementPush: config.movementPush,
-    voiceRelay: config.voiceRelay,
+    ws, agent, session, jwt, connectionId, tier, ip,
+    pushTier: isGuest ? 'eco' : config.pushDefault,
+    movementPush: isGuest ? 'off' : config.movementPush,
+    voiceRelay: isGuest ? false : config.voiceRelay,
     subscription: { topics: new Set(), radius: 30 },
     lastPong: Date.now(),
     lastActivityAt: Date.now(),
@@ -129,7 +146,16 @@ wss.on('connection', async (ws, request, authResult) => {
   activeAgents.set(connectionId, state);
 
   const spawn = resolveSpawn(session);
-  safeSend(state, { type: 'READY', payload: { agentId: agent.id, agentName: agent.name, avatar, spawn, pushTier: state.pushTier, movementPush: state.movementPush } });
+  safeSend(state, {
+    type: 'READY',
+    payload: {
+      agentId: agent.id, agentName: agent.name, avatar, spawn,
+      pushTier: state.pushTier, movementPush: state.movementPush,
+      // P8：tier 决定能做什么（推流/半径/限频），scope 决定能做什么动作（两者行为准则一致）
+      tier: state.tier,
+      tierInfo: tierService.describeTier(state.tier)
+    }
+  });
 
   const players = Array.from(wsServer.getPlayerPositions().values());
   safeSend(state, { type: 'WORLD_SNAPSHOT', payload: {
@@ -138,6 +164,7 @@ wss.on('connection', async (ws, request, authResult) => {
   }});
 
   audit('ws_connected', { agent: agent.name, agentId: agent.id, connectionId, pushTier: state.pushTier });
+  logger.access({ kind: 'ws', event: 'connect', agentId: agent.id, connectionId, tier: state.tier || 'key-push', ip: request.socket.remoteAddress });
 
   ws.on('message', (data) => handleMessage(connectionId, ws, data));
   ws.on('close', () => handleClose(connectionId));
@@ -160,6 +187,17 @@ function handleMessage(connectionId, ws, data) {
   if (type === 'ACTION' || type === 'SUBSCRIBE' || type === 'UNSUBSCRIBE') state.lastActivityAt = Date.now();
   switch (type) {
     case 'SUBSCRIBE': {
+      // P8 红线 1：游客 Agent 永不获得推流 —— SUBSCRIBE 直接拒绝（订阅集合恒为空）
+      if (tierService.isGuest(state.tier)) {
+        safeSendRaw(ws, {
+          type: 'ERROR',
+          payload: {
+            code: 'GUEST_PUSH_FORBIDDEN',
+            message: '游客 Agent（拉模式）不支持订阅推流；请用 observe/action 主动拉取，或申请 API Key 转正解锁推流'
+          }
+        });
+        break;
+      }
       const topics = Array.isArray(payload && payload.topics) ? payload.topics : [];
       topics.forEach(t => { if (typeof t === 'string') state.subscription.topics.add(t); });
       if (payload && payload.radius && Number.isFinite(payload.radius)) {
@@ -191,8 +229,10 @@ function handleClose(connectionId) {
   state.closed = true;
   agentActionService.cleanup(connectionId);   // P4：取消未完成的移动任务
   presenceBridge.onDisconnect(connectionId);
+  tierService.releaseIpSlot(state.tier, state.ip, connectionId);   // P8：归还每 IP 并发名额
   activeAgents.delete(connectionId);
   audit('ws_disconnected', { agent: state.agent.name, agentId: state.agent.id, connectionId });
+  logger.access({ kind: 'ws', event: 'disconnect', agentId: state.agent.id, connectionId, tier: state.tier || 'key-push', ip: state.ip });
 }
 
 // ==================== ACTION 分发（P4）====================
@@ -206,6 +246,7 @@ async function handleAction(connectionId, state, payload) {
     connectionId,
     agent: state.agent,
     session: state.session,
+    tier: state.tier,                 // P8：游客动作限频
     agentWsState: state
   };
   try {
@@ -399,7 +440,8 @@ function resolveSpawn(session) {
 function safeParse(s) { try { return JSON.parse(s); } catch (e) { return null; } }
 
 function audit(event, data) {
-  console.log(JSON.stringify({ ts: new Date().toISOString(), scope: 'agent-ws', event, ...data }));
+  // P8：三分流审计日志（audit.log，长期保留）
+  logger.audit(event, { scope: 'agent-ws', ...data });
 }
 
 function getActiveCount() { return activeAgents.size; }

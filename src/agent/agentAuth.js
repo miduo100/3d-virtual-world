@@ -16,7 +16,10 @@ const {
   API_KEY_PREFIX_DISPLAY_LEN,
   SESSION_TTL_SECONDS,
   AGENT_TRANSIENT_SESSION_TTL_SECONDS,
-  JWT_PAYLOAD_PRINCIPAL
+  GUEST_SESSION_TTL_SECONDS,
+  AGENT_TIER_GUEST,
+  JWT_PAYLOAD_PRINCIPAL,
+  AGENT_SCOPES: GUEST_SCOPES
 } = require('./agentSchema');
 
 const BCRYPT_ROUNDS = 10;
@@ -141,6 +144,54 @@ function issueTransientAgentJwt({ agentId, agentName, worldId }) {
   return { token, jti, expiresAt, payload };
 }
 
+// ==================== 游客临时票（P8 拉模式）====================
+
+/**
+ * 签发游客 Agent JWT（公开端点 POST /guest/session 调用）
+ *
+ * 与 Key Agent JWT 的区别：
+ *   - tier: 'guest-pull' —— 拉模式：禁推流、observe 半径钳到 30m、动作限频
+ *   - isGuest: true —— 会话落 agent_transient_sessions（无 agents 行、无外键约束）
+ *   - TTL 30min（比 Key 的 15min 长：游客没有 Key 可续，重签要走限流）
+ *   - scopes 与 Key Agent 完全相同（游客级白名单）——两者行为准则一致，
+ *     差异只在"服务器是否主动推流"与"能看多远"，不在"能做什么"
+ *
+ * @param {{ agentId, agentName, worldId }} params
+ * @returns {{ token, jti, expiresAt, payload }}
+ */
+function issueGuestAgentJwt({ agentId, agentName, worldId }) {
+  if (!isConfigured()) {
+    throw new Error('AGENT_JWT_SECRET not configured');
+  }
+  const jti = uuidv4();
+  const payload = {
+    sub: agentId,                     // agent:guest:<uuid>
+    name: agentName,
+    principalType: JWT_PAYLOAD_PRINCIPAL,
+    worldId: worldId || null,
+    tier: AGENT_TIER_GUEST,
+    isGuest: true,
+    scopes: GUEST_SCOPES.slice()
+  };
+  const token = jwt.sign(payload, getSecret(), {
+    expiresIn: GUEST_SESSION_TTL_SECONDS,
+    jwtid: jti
+  });
+  const expiresAt = new Date(Date.now() + GUEST_SESSION_TTL_SECONDS * 1000).toISOString();
+  return { token, jti, expiresAt, payload };
+}
+
+/**
+ * 生成游客 Agent 合成身份（每次签票一个新 uuid，刷新即换人）
+ */
+function buildGuestIdentity() {
+  const short = uuidv4().replace(/-/g, '').slice(0, 8);
+  return {
+    agentId: 'agent:guest:' + uuidv4(),
+    agentName: '游客AI-' + short
+  };
+}
+
 // ==================== 世界身份 ====================
 
 let worldIdCache = null;
@@ -172,7 +223,10 @@ module.exports = {
   verifyApiKey,
   issueAgentJwt,
   issueTransientAgentJwt,
+  issueGuestAgentJwt,
+  buildGuestIdentity,
   verifyAgentJwt,
   getWorldId,
-  SESSION_TTL_SECONDS
+  SESSION_TTL_SECONDS,
+  GUEST_SESSION_TTL_SECONDS
 };

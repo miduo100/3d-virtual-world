@@ -17,6 +17,7 @@
 
 const movement = require('./agentMovementService');
 const permissionService = require('./agentPermissionService');
+const tierService = require('./agentTierService');
 const presenceBridge = require('./agentPresenceBridge');
 const wsServer = require('../websocket/wsServer');
 const chatLogService = require('./chatLogService');
@@ -42,6 +43,13 @@ async function dispatch(ctx, payload) {
   // 1) action 字段校验
   if (!action || typeof action !== 'string') {
     return reject(requestId, 'missing_action', '缺少 action 字段');
+  }
+
+  // 1.5) P8：tier 动作限频（游客拉模式；Key Agent 直接放行沿用既有令牌桶）
+  const tier = ctx.tier || tierService.resolveTier(ctx.jwt, ctx.session);
+  const rate = tierService.checkActionRate(tier, agent && agent.id, action);
+  if (!rate.ok) {
+    return reject(requestId, 'rate_limited', `动作过于频繁（${action} 限 ${rate.limit}）`);
   }
 
   // 2) scope 校验（红线2：FORBIDDEN_SCOPES 含 teleport/set_position）

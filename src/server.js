@@ -28,6 +28,12 @@ if (!process.env.ADMIN_JWT_SECRET) {
 
 const app = express();
 
+// ==================== 日志三分流（P8 基建：access / ops / audit）====================
+// 必须在所有路由之前挂载，才能记录到全部 HTTP 请求；/health 等噪音路径已过滤
+const logger = require('./services/logger');
+logger.start();
+app.use(logger.httpMiddleware());
+
 // Middleware
 app.use(cors({
   origin: '*',
@@ -502,6 +508,7 @@ async function start() {
     const PORT = process.env.PORT || 3000;
     const server = app.listen(PORT, async () => {
       console.log(`Server running on http://localhost:${PORT}`);
+      logger.ops('服务器已启动', { port: PORT, pid: process.pid });
       // 上传/保存请求可能较慢，避免服务端提前断开导致前端 "Failed to fetch"
       server.setTimeout(5 * 60 * 1000); // 5 分钟
       server.keepAliveTimeout = 65000;    // 略大于常见负载均衡 60s

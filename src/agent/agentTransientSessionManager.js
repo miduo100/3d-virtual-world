@@ -9,7 +9,12 @@
  */
 
 const { query } = require('../database/db');
-const { AGENT_TRANSIENT_SESSION_TTL_SECONDS } = require('./agentSchema');
+const {
+  AGENT_TRANSIENT_SESSION_TTL_SECONDS,
+  GUEST_SOURCE_WORLD_MARK,
+  AGENT_TIER_GUEST,
+  AGENT_TIER_KEY
+} = require('./agentSchema');
 
 // ==================== 创建 ====================
 
@@ -39,6 +44,30 @@ async function createTransientSession(params) {
       JSON.stringify(params.avatarConfig || {}),
       params.homeWorldUrl || null,
       JSON.stringify(params.initialPosition || { x: 0, y: 0, z: 0 }),
+      expiresAt
+    ]
+  );
+  return result.rows[0];
+}
+
+/**
+ * P8：创建游客会话（拉模式）
+ * 复用 agent_transient_sessions（无 agents 外键），以 source_world_id = 'guest-pull' 标记。
+ * 不创建 agents 行、不创建 user/character —— 游客刷新即得新身份，零残留。
+ */
+async function createGuestSession({ jti, agentId, agentName, expiresAt }) {
+  const result = await query(
+    `INSERT INTO agent_transient_sessions
+       (jti, source_world_id, agent_id, agent_name, avatar_config, initial_position, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING *`,
+    [
+      jti,
+      GUEST_SOURCE_WORLD_MARK,
+      agentId,
+      agentName,
+      JSON.stringify({}),
+      JSON.stringify({ x: 0, y: 0, z: 0 }),
       expiresAt
     ]
   );
@@ -144,6 +173,8 @@ function buildAgentProfile(session) {
   if (!session) return null;
   const avatarConfig = typeof session.avatar_config === 'string'
     ? safeParse(session.avatar_config) : session.avatar_config;
+  // P8：source_world_id = 'guest-pull' 的会话是游客拉模式（无 Key 公开签票）
+  const isGuest = session.source_world_id === GUEST_SOURCE_WORLD_MARK;
   return {
     id: session.agent_id,                  // 合成 ID agent:<uuid>
     name: session.agent_name,
@@ -153,6 +184,8 @@ function buildAgentProfile(session) {
     can_teleport: false,                    // 红线：transient session 不允许链式传送
     home_world_url: session.home_world_url,
     _transient: true,                       // 标记，供日志/审计区分
+    _guest: isGuest,                        // P8：游客拉模式标记
+    _tier: isGuest ? AGENT_TIER_GUEST : AGENT_TIER_KEY,
     _sourceWorldId: session.source_world_id,
     _sourceWorldName: session.source_world_name
   };
@@ -162,6 +195,7 @@ function safeParse(s) { try { return JSON.parse(s); } catch (e) { return null; }
 
 module.exports = {
   createTransientSession,
+  createGuestSession,
   verifyTransientSession,
   touchTransientSession,
   updateTransientPosition,

@@ -15,7 +15,15 @@ const router = express.Router();
 
 const agentAuth = require('../../agent/agentAuth');
 const agentConfigService = require('../../agent/agentConfigService');
-const { AGENT_SCOPES, FORBIDDEN_SCOPES, SESSION_TTL_SECONDS } = require('../../agent/agentSchema');
+const {
+  AGENT_SCOPES,
+  FORBIDDEN_SCOPES,
+  SESSION_TTL_SECONDS,
+  GUEST_SESSION_TTL_SECONDS,
+  AGENT_TIER_GUEST,
+  AGENT_TIER_KEY
+} = require('../../agent/agentSchema');
+const tierService = require('../../agent/agentTierService');
 
 const PROTOCOL_VERSION = 'v1';
 
@@ -44,7 +52,15 @@ router.get('/capabilities', async (req, res) => {
         federationInfo: baseUrl + '/api/agent/federation/info',
         federationAccept: baseUrl + '/api/agent/federation/teleport/accept',
         websocket: baseUrl.replace(/^http/, 'ws') + '/ws/agent',
-        wellKnown: baseUrl + '/.well-known/virtual-world-agent.json'
+        wellKnown: baseUrl + '/.well-known/virtual-world-agent.json',
+        guestSession: baseUrl + '/api/agent/v1/guest/session'
+      },
+      // P8：拉/推双模式。无 Key 可凭公开临时票进场（纯拉），Key 解锁推流特权。
+      tiers: {
+        default: AGENT_TIER_GUEST,
+        options: [AGENT_TIER_GUEST, AGENT_TIER_KEY],
+        [AGENT_TIER_GUEST]: tierService.describeTier(AGENT_TIER_GUEST),
+        [AGENT_TIER_KEY]: tierService.describeTier(AGENT_TIER_KEY)
       },
       scopes: {
         allowed: AGENT_SCOPES,
@@ -165,7 +181,16 @@ async function buildWellKnown(req) {
       apiKeyHeader: 'Authorization: Bearer agk_live_...',
       agentJwtHeader: 'Authorization: Bearer <jwt>',
       sessionEndpoint: '/api/agent/v1/session',
-      sessionTtlSeconds: SESSION_TTL_SECONDS
+      sessionTtlSeconds: SESSION_TTL_SECONDS,
+      // P8：无 Key 也能进——公开临时票（拉模式）。API Key = 推流特权，不是进门凭证。
+      guestSessionEndpoint: '/api/agent/v1/guest/session',
+      guestSessionTtlSeconds: GUEST_SESSION_TTL_SECONDS
+    },
+    tiers: {
+      default: AGENT_TIER_GUEST,
+      options: [AGENT_TIER_GUEST, AGENT_TIER_KEY],
+      [AGENT_TIER_GUEST]: tierService.describeTier(AGENT_TIER_GUEST),
+      [AGENT_TIER_KEY]: tierService.describeTier(AGENT_TIER_KEY)
     },
     scopes: {
       allowed: AGENT_SCOPES,
@@ -228,6 +253,7 @@ function buildOpenApiSpec(baseUrl, wsUrl, agentEnabled) {
     },
     tags: [
       { name: 'session', description: 'API Key → Agent JWT' },
+      { name: 'guest', description: 'P8: public temporary ticket (pull mode, no API Key)' },
       { name: 'observe', description: 'Spatial radar' },
       { name: 'chat', description: 'Chat history' },
       { name: 'action', description: 'HTTP action fallback (use WS for primary)' },
@@ -235,6 +261,34 @@ function buildOpenApiSpec(baseUrl, wsUrl, agentEnabled) {
       { name: 'meta', description: 'Capabilities / OpenAPI / well-known' }
     ],
     paths: {
+      '/guest/session': {
+        post: {
+          tags: ['guest'],
+          summary: 'Issue a public temporary Agent ticket (no API Key required)',
+          description: 'P8 pull mode: request-response only. No push stream (SUBSCRIBE rejected), observe radius clamped to 30m, actions rate-limited. Rate-limited: 10/hour per IP.',
+          requestBody: { required: false, content: { 'application/json': { schema: { type: 'object', properties: {} } } } },
+          responses: {
+            200: {
+              description: 'Guest ticket issued',
+              content: { 'application/json': { schema: {
+                type: 'object',
+                properties: {
+                  success: { type: 'boolean' },
+                  token: { type: 'string' },
+                  tokenType: { type: 'string', example: 'Bearer' },
+                  tier: { type: 'string', example: 'guest-pull' },
+                  mode: { type: 'string', example: 'pull' },
+                  expiresIn: { type: 'integer', example: 1800 },
+                  expiresAt: { type: 'string', format: 'date-time' },
+                  agent: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, scopes: { type: 'array', items: { type: 'string' } } } }
+                }
+              } } }
+            },
+            429: { description: 'Ticket rate limited', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+            503: { description: 'Agent access disabled or secret missing', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+          }
+        }
+      },
       '/session': {
         post: {
           tags: ['session'],
@@ -287,7 +341,7 @@ function buildOpenApiSpec(baseUrl, wsUrl, agentEnabled) {
         get: {
           tags: ['observe'],
           summary: 'Spatial radar: nearby entities / objects / portals',
-          description: 'Rate-limited: 1Hz per agent (eco tier). Radius hard cap: 200m.',
+          description: 'Rate-limited: 1Hz per agent (Key tier) / 1 per 2s (guest tier). Radius hard cap: 200m for Key, 30m for guest.',
           security: [{ AgentJwt: [] }],
           parameters: [
             { name: 'radius', in: 'query', schema: { type: 'number', maximum: 200 }, description: 'Search radius in meters (≤200)' },

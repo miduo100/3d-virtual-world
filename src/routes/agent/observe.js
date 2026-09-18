@@ -12,15 +12,43 @@ const express = require('express');
 const router = express.Router();
 
 const observationService = require('../../agent/agentObservationService');
+const tierService = require('../../agent/agentTierService');
+const { AGENT_TIER_KEY } = require('../../agent/agentSchema');
 const sessionRouter = require('./session');
 const authenticateAgentToken = sessionRouter.authenticateAgentToken;
 
-// ==================== 1Hz 限频（per agentId，eco 档）====================
+/**
+ * P8：解析请求 tier（JWT payload 优先，缺省按会话兜底），挂到 req.tier 供后续中间件使用。
+ * 必须在 authenticateAgentToken 之后执行（依赖 req.agentJwt / req.agentSession）。
+ */
+function resolveTier(req, res, next) {
+  req.tier = tierService.resolveTier(req.agentJwt, req.agentSession);
+  next();
+}
 
-const OBSERVE_RATE_LIMIT_PER_SEC = 1;          // eco 档：每秒 1 次
+// ==================== 限频（P8：按 tier 分级）====================
+// Key Agent：1 次/秒（P2 既定 eco 档口径）
+// 游客 Agent：1 次/2 秒（拉模式天然自限流，不请求服务器零开销）
+
+const OBSERVE_RATE_LIMIT_PER_SEC = 1;          // Key Agent：每秒 1 次
 const observeWindow = new Map();               // agentId -> [ts]
 
 function rateLimitObserve(req, res, next) {
+  const tier = req.tier || AGENT_TIER_KEY;
+  // 游客走 tierService 的专用限频（1 次/2s），Key Agent 走既有 1Hz
+  if (tierService.isGuest(tier)) {
+    const agentId = req.agent ? req.agent.id : 'unknown';
+    const r = tierService.checkActionRate(tier, agentId, 'observe');
+    if (!r.ok) {
+      return res.status(429).json({
+        error: `观察请求过于频繁（游客拉模式限 ${r.limit}）`,
+        retryAfter: Math.max(1, Math.ceil(r.retryAfterMs / 1000)),
+        code: 'GUEST_OBSERVE_RATE_LIMITED'
+      });
+    }
+    return next();
+  }
+
   const agentId = req.agent ? req.agent.id : 'unknown';
   const now = Date.now();
   const list = (observeWindow.get(agentId) || []).filter(ts => now - ts < 1000);
@@ -49,7 +77,7 @@ setInterval(() => {
 
 // ==================== GET /observe ====================
 
-router.get('/observe', authenticateAgentToken, rateLimitObserve, async (req, res) => {
+router.get('/observe', authenticateAgentToken, resolveTier, rateLimitObserve, async (req, res) => {
   try {
     // scope 校验：必须有 observe
     const scopes = (req.agentJwt && req.agentJwt.scopes) || [];
@@ -62,7 +90,8 @@ router.get('/observe', authenticateAgentToken, rateLimitObserve, async (req, res
 
     // 解析 query 参数
     const opts = {
-      radius: req.query.radius,
+      // P8 红线 2：游客观察半径硬钳 30m（请求更大的值静默收敛，不报错）
+      radius: tierService.clampObserveRadius(req.tier, req.query.radius),
       limit: req.query.limit,
       include: req.query.include,
       x: req.query.x !== undefined ? Number(req.query.x) : undefined,
@@ -71,7 +100,7 @@ router.get('/observe', authenticateAgentToken, rateLimitObserve, async (req, res
     };
 
     const result = await observationService.observe(req.agent, req.agentSession, opts);
-    res.json({ success: true, ...result });
+    res.json({ success: true, tier: req.tier, ...result });
   } catch (error) {
     console.error('[Agent] /observe 失败:', error);
     res.status(500).json({ error: 'observe 失败', code: 'OBSERVE_FAILED' });

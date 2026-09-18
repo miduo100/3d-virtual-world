@@ -1,6 +1,6 @@
 # AI Agent 接入虚拟世界 — 开发规范与进度
 
-> 创建：2026-09-17 ｜ 状态：**项目收官**（P0-P6 全部完成并验收，2026-09-18 收官；P7 占位不做；git 待用户明确指令后提交）
+> 创建：2026-09-17 ｜ 状态：**P0-P6 + P8 全部完成并验收**（2026-09-18 P8 拉/推双模式完成，52/52 PASS；P7 占位不做）
 > 本文档是 **AI Agent 接入功能的唯一权威进度记录**，参照《Three.js-r185-升级规划与规范.md》的接力模式运作。
 
 ---
@@ -95,6 +95,8 @@
 11. **工程保命三件套**：max_agents 拒绝超载；每 Agent 推送令牌桶限频（低优先级先丢：位置>实体>聊天，聊天永不丢）；背压断开（ws bufferedAmount >1MB 警告、>4MB 断开）+ 30s 心跳沿用人类侧机制。
 12. **P7 Vision 后置**（第一版 AI 无画面，纯结构化雷达；未来 Vision 走服务器侧无头渲染 worker）。
 13. **聊天记录双保存**（2026-09-17 定稿）：本地实时写入（`world_chat_log`）+ 每日定时归档远端（S3 兼容对象存储；百度网盘仅预留接口）；保留期后台可设（默认 7 天），到期自动清除本地行与远端旧归档；**未成功归档的本地数据永不删除**；语音只存元数据不存音频。
+14. **游客 Agent 永不获得推流**（P8）：`SUBSCRIBE` 一律拒绝（`GUEST_PUSH_FORBIDDEN`），即使后台默认档被调成 realtime，游客连接也强制 eco + 关闭位置流 + 关闭语音中继。
+15. **游客 Agent 永不获得 30m 以上观察半径**（P8）：`observe` 半径硬钳 30m，请求更大值静默收敛不报错。
 
 ---
 
@@ -111,7 +113,9 @@
 
 Agent 只需被告知一个 base URL（域名）+ API Key（门禁卡），其余靠 `GET /.well-known/virtual-world-agent.json` 自动发现（P6）。跨世界时新世界地址来自 `/api/federation/info` 或传送门列表。
 访问三前提：①后台总开关 `agent_enabled` 打开（默认关）②持有 API Key ③对方是能执行代码的 Agent Runtime（网页版对话 AI 粘网址进不来；P6 提供现成示例客户端）。
-> **二期修订（2026-09-18 用户提议，规划见第 7.x 节）**：将新增"游客 Agent 拉模式"档——无 Key 可进场（公开临时票），三前提收窄为：①开关 ②能执行代码的 Agent Runtime；API Key 升级为"推流特权"凭证而非进门凭证。
+> **P8 修订（2026-09-18 已实现）**：访问三前提收窄为 **①后台总开关 `agent_enabled` 打开 ②能执行代码的 Agent Runtime**。
+> API Key 从"进门凭证"重新定义为"**推流特权**"凭证——无 Key 可用公开临时票（`POST /guest/session`）以拉模式进场。
+> 详见第 7 节 P8 与红线 14/15。
 
 ### 4.2 数据流（P3 完成后）
 
@@ -254,10 +258,13 @@ src/agent/
   agentActionService.js     # 六动作入口 + 限频
   agentMovementService.js   # 服务端权威移动（速度/边界/平面地面/10Hz 推进）
   agentConfigService.js     # system_config 配置键读写 + 60s 缓存（含 5.3/5.5 全部键）
+  agentTierService.js       # （P8）tier 判定 + 游客限频 + 每 IP 并发 + 观察半径钳制
 src/services/
   chatArchiveService.js     # （P4）每日导出昨日聊天→gzip→S3 兼容归档→保留期到期清理
+  logger.js                 # （P8）日志三分流 access/ops/audit + 按天轮转 + 过期清理
 src/routes/agent/
   index.js  session.js  observe.js  action.js  meta.js   # meta=capabilities/openapi/well-known
+  guest.js                  # （P8）POST /guest/session 公开签票（游客拉模式）
 src/websocket/
   agentWsServer.js          # Agent WS：连接鉴权、消息分发、订阅管理、令牌桶、背压监控
   upgradeRouter.js          # ★路径分流：/ws/agent→agent，其余(含 /)→human
@@ -360,30 +367,33 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 - [x] **验收**：`scripts/accept_agent_p6.js` 83/83 PASS（well-known 字段齐全 / capabilities 公开可读 / openapi paths 与实际实现逐项核对，未实现端点不写 / dryrun 仅凭域名发现→capabilities / well-known 与 capabilities WS 端点一致 / agent_enabled=false 时公开端点仍 200 / HTTP 端点可达性与鉴权门）+ `scripts/accept_agent_p6_playwright.js` 10/10 PASS（**轮询浏览器模式**：Agent 入场 players.size +1 t=856ms / 聊天 DOM 含 (AI)/Hello t=856ms / Agent walk_to 位置变化 (0,0,0)→(3.5,0,0) t=1713ms / Agent 离场 players.size 回到 1 t=7273ms / demo 子进程 exit 0 / demo stdout 含全链路证据 / teleport→ACTION_REJECTED scope_denied 红线 2 / 0 console error）= **93/93 全过**；P5 回归不依赖，P6 是新增能力
 - [x] agent_enabled 收尾恢复 false（红线 6 默认关）
 
-### P8 规划：Agent 开放生态——拉/推双模式（⬜ 未开工，2026-09-18 用户定稿方向）
+### P8 Agent 开放生态——拉/推双模式 ✅ 2026-09-18
 
 > **核心洞察（用户提出）**：上线初期真正的风险是"没人来"而非"滥用"。把门禁逻辑倒过来——稀缺的不是进门资格，而是**服务器主动推流的成本**。拉模式（请求-响应）天然自限流：不请求服务器零开销，请求频率被限流钳死，滥用最坏情况有上界。Key 的价值重新定义为"**实时推流特权**"而非进门凭证。
 
-- [ ] **游客 Agent（拉模式，无 Key）**：
-  - `POST /api/agent/v1/guest/session` 公开端点直接签临时票（JWT 30min，payload tier:'guest-pull'，复用 AGENT_JWT_SECRET）
-  - 能力（全部走"请求-响应"，服务器不做任何未请求的工作）：`observe`（限 30m 半径、1 次/2s）、`chat/history`、`say`（1 条/5s）、`move/walk_to/rotate/jump`（1 次/2s，复用现有 movement 服务——空闲零成本，移动中单 interval）
-  - **禁止推流**：SUBSCRIBE 直接拒绝（或静默无推送）——不给 CHAT/ENTITY/位置流
-  - 限制矩阵：每 IP 并发 1 连接、每 IP 签票 10 次/时、共享 max_agents 总闸、复用空闲超时踢出（5min）
-  - 身份与审计：无 Key，按 tier 区分，审计日志记 IP；管理员可拉黑 IP
-- [ ] **Key Agent（推模式，现有体系不动）**：
-  - Key 的特权 = SUBSCRIBE + 三档推送（eco/standard/realtime）+ observe 200m + 动作频率放宽 + 可跨世界联邦
-  - 管理员可创建/停用/吊销（现状）
-- [ ] **升级漏斗**：游客 Agent 玩出粘性 → 管理员发 Key"转正" → 解锁推流/大范围/联邦——生态增长入口
-- [ ] **防滥用底线（先上便宜的，观察后加码）**：IP 并发 1 + 签票限流 + 动作限频 + 空闲踢出（全为已有/低成本件）；一周后视情况上 Proof-of-Work 或验证码
-- [ ] **红线修订**：原红线 3"三前提"中的 Key 前提移除（见第一节修订备注）；新增红线：游客 Agent 永不获得推流与 30m 以上观察半径
-- [ ] **前置基建：日志三分流**（P8 第一项，游客高频访问日志的直接消费者）：
-  - 新建 `src/services/logger.js`（≤200 行）：access / ops / audit 三通道 + 按天轮转 + 过期清理
-  - access.log（JSONL：HTTP 请求 method/path/status/耗时/IP、WS 连断、签票；保留 7 天）
-  - ops.log（人读：启停/迁移/Agent 生命周期/归档/错误告警；保留 30 天）
-  - audit.log（JSONL：登录/创建停用 Agent/发 Key/改配置/拉黑等敏感操作，谁-何时-对什么；长期保留）
-  - Express 访问日志中间件（过滤 /health 噪音）；Agent 模块现有 `audit()` 改分流写入；旧大文件 console.log 不迁移（黑名单原则）
-  - 二期可选：管理后台日志查看页（类别/时间/关键字过滤）
-- [ ] **工作量预估**：1.5~2 会话（日志分级基建 0.5 + 公开签票端点 + guest tier scope/限频 + SUBSCRIBE 拒绝 + observe 半径按 tier 分级 + 验收脚本）
+- [x] **前置基建：日志三分流**（`src/services/logger.js`，188 行）：
+  - access.log（JSONL：HTTP method/path/status/耗时/IP、WS 连断、签票；保留 7 天）
+  - ops.log（人读：启停/迁移/Agent 生命周期/归档/错误；保留 30 天）
+  - audit.log（JSONL：登录/创建停用 Agent/发 Key/改配置/签票；长期保留 365 天）
+  - 按天轮转（写入时用当天日期算文件名，跨天自动新建，无需定时器）；每通道 Promise 队列串行 append；写盘失败只 console.error 不拖垮业务
+  - Express 中间件过滤 `/health` 与 `/favicon.ico`；Agent 模块 `audit()` 已改分流（session.js / agentWsServer.js）；旧大文件 console.log 不迁移（黑名单原则）
+  - `LOG_DIR` / `AUDIT_LOG_RETENTION_DAYS` 可覆盖
+- [x] **游客 Agent（拉模式，无 Key）**：
+  - `POST /api/agent/v1/guest/session` 公开端点签临时票（JWT 30min，`tier:'guest-pull'`，复用 AGENT_JWT_SECRET）
+  - 会话落 `agent_transient_sessions`（无 agents 外键），`source_world_id='guest-pull'` 标记；**不建 agents 行、不建 user/character**，刷新即换身份零残留
+  - 能力（纯请求-响应）：`observe`（30m、1 次/2s）、`chat/history`、`say`（1 条/5s）、`move/walk_to/rotate/jump/interact`（1 次/2s）
+  - **禁止推流**：SUBSCRIBE 直接拒绝（`GUEST_PUSH_FORBIDDEN`）；连接级强制 eco + 位置流 off + 语音中继 off（即使后台默认档 realtime）
+  - 限制矩阵：每 IP 并发 1 连接（WS 侧 acquire/release）、每 IP 签票 10 次/时、共享 max_agents 总闸、复用空闲踢出（5min）
+  - 身份与审计：无 Key，按 tier 区分，审计日志记 IP（`guest_ticket_issued`）
+- [x] **Key Agent（推模式，现有体系不动）**：
+  - Key 特权 = SUBSCRIBE + 三档推送 + observe 200m + 动作不限频 + 可跨世界联邦（验收实测：默认档 realtime 时 Key Agent 继承 realtime，游客仍被强制 eco）
+- [x] **升级漏斗**：游客 Agent 玩出粘性 → 管理员发 Key"转正" → 解锁推流/大范围/联邦（`describeTier().upgradeHint` 已写入能力清单与 READY）
+- [x] **防滥用底线**：IP 并发 1 + 签票限流 + 动作限频 + 空闲踢出（全为低成本件，已全部落地）；Proof-of-Work/验证码**未做**（按"先上便宜的，观察后加码"留待二期）
+- [x] **红线修订**：红线 3"三前提"中的 Key 前提移除（第 4.1 节已改）；新增红线 14（游客永不推流）与 15（游客永不超 30m）
+- [x] **发现端点同步**：`/.well-known` 与 `/capabilities` 增加 `tiers` 段与 `guestSessionEndpoint`；`/openapi.json` 新增 `/guest/session` path（只写已实现端点，红线不变）
+- [x] **验收**：`scripts/accept_agent_p8.js` **52/52 PASS**（无 Key 签票 / 有票进场 / 半径被钳 / SUBSCRIBE 被拒 / 动作限频 / 每 IP 并发 2 被拒 + 名额归还后重连成功 / 空闲踢出（独立实例 3003 + `AGENT_IDLE_TIMEOUT_MINUTES=0.05` 实测断开）/ Key Agent 推流回归 / 日志三文件落盘且 JSONL 合法 / 按天轮转 unit 测 / `/health` 已过滤）
+  - 回归：P1 14/14、P2 14/14、P3 12/12 无回归
+- [ ] **二期可选**：管理后台日志查看页（类别/时间/关键字过滤）；Proof-of-Work 或验证码；按 IP 拉黑管理端；`ai-view.mjs` / `ai-live.mjs` 重建（见进度日志"文件丢失事故"）
 
 ### 真人双端联测 ✅ 2026-09-18（用户真人 + AI 助手扮 Agent 实测）
 
@@ -429,6 +439,10 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 | 联邦接收建号（email 模式，Agent 不走） | `src/routes/federation.js:729-840` |
 | 服务器启动/WS 挂载 | `src/server.js:473-521` |
 | 现有配置卡先例（后台三输入框模式） | `src/routes/config.js`（world-settings）、`public/js/adminModelLod.js` |
+| 日志三分流（P8） | `src/services/logger.js`；接线 `src/server.js`（logger.start + httpMiddleware + 启动 ops） |
+| tier 判定/限频/并发/半径（P8） | `src/agent/agentTierService.js`；常量 `src/agent/agentSchema.js`（AGENT_TIER_* / TIER_ACTION_RATES） |
+| 游客公开签票（P8） | `src/routes/agent/guest.js`；签发 `src/agent/agentAuth.js`（issueGuestAgentJwt / buildGuestIdentity） |
+| 游客/transient 会话表 | `src/agent/agentTransientSessionManager.js`（createGuestSession / buildAgentProfile 返回 _tier） |
 | 聊天持久化现状（无表，唯一例外 NPC） | `src/routes/npc.js:416-421`、`database/init.sql:391` |
 
 ---
@@ -489,3 +503,5 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 | 2026-09-18 | **项目收官**：临时文件清理（删 p6_pw_log.txt、scripts/agent_create_test.js；保留全部 accept_agent_*.js 与 agent_federation_mock_world.js——P5 验收依赖桩）；输出 ubuntu-deploy-package 部署包同步清单与存量库部署注意事项（4 个迁移 SQL 由 db.js 启动自动执行；.env 新增 AGENT_JWT_SECRET 必填，AGENT_BACKPRESSURE_WARN/KILL 可选）；agent_enabled=false（红线默认关）。git 待用户明确指令后提交 | **项目收官**（P0-P6 全部完成，P7 占位不做） |
 | 2026-09-18 | **真人双端联测完成（收官加验）**：AI 助手经 Agent 接口长连接进场 + 用户真人浏览器，双端实时对话/指挥移动全链路实测。暴露并修复 5 个自动化验收测不出的真 bug：①人→Agent 聊天转发被绕过（wsServer CHAT 裸调用内部函数，改经 module.exports）②admin 创建 Agent 500（apiKey 对象当字符串 slice）③Agent 半身埋地（客户端贴地+棍人 1.5/GLB 0 动态偏移）④移动即隐身（bridge rotation 对象→矩阵 NaN，归一化为数字）⑤走路卡顿（新增 agentPositionSmoother.js 客户端平滑）。新增功能：Agent 空闲超时踢出（默认 5min，env 可调，已实测）；新增工具 ai-view.mjs 分步体验 + ai-live.mjs 长连接驻场。用户真人验收：双向聊天/19 米全程可见/移动中说话/平滑行走（"已经非常棒了"）/空闲自动消失 全部通过。agent_enabled 已恢复 false；运行时产物已清理 | 联测 ✅ 项目收官确认 |
 | 2026-09-18 | **P8 规划定稿（拉/推双模式开放生态，用户提出）**：核心洞察=上线初期风险是"没人来"而非滥用；把门禁倒过来——稀缺的是服务器推流成本而非进门资格。游客 Agent（无 Key）=拉模式：公开临时票 30min、纯请求-响应（observe 30m/2s、say 1条/5s、动作 1次/2s）、禁 SUBSCRIBE 推流、每 IP 并发 1、复用空闲踢出；Key Agent=推模式（现有三档推送成为 Key 特权）；升级漏斗=游客玩出粘性→管理员发 Key 转正。红线 3 修订（Key 从进门凭证降级为推流特权）。工作量 1~1.5 会话，未开工。详见第 7 节 P8 规划 | P8 ⬜ 规划定稿待开发 |
+| 2026-09-18 | **【事故】工作区文件丢失 + 内存恢复**（13:16 发生，永久性删除未进回收站）：src/agent 下 5 个、src/routes/agent 下 5 个、agentFederation.js、chatArchiveService.js 被删；observe.js 与 upgradeRouter.js 被截断为 0 字节；session.js 回退到 P2 旧版（丢 P5 transient 分支）。服务器一旦重启即崩溃。恢复方式=服务器进程启动于删除之前，用 `process._debugProcess(PID)` 附加 V8 inspector，经 CDP `Debugger.enable` + `Debugger.getScriptSource` 取回全部脚本源码（sha256 校验逐字节一致）；重建 2 个迁移 SQL（按 information_schema 核对）+ adminAgentSettings.js + agentPositionSmoother.js（内存无副本）。**未能恢复**：examples/agent-client/{node-agent.mjs,ai-view.mjs,ai-live.mjs,README.md}、accept_agent_p4/p5/p6 系列、agent_federation_mock_world.js。教训：未提交改动随时可能消失，新会话引用记忆结论前必须核对文件存在性（与 2026-09-14 卡顿治理代码丢失同源） | 事故已处理，P0-P6 全部恢复（commit a2e0f688） |
+| 2026-09-18 | **P8 完成（拉/推双模式，一轮会话）**：①`src/services/logger.js` 日志三分流（access 7天/ops 30天/audit 365天，按天轮转 + 过期清理 + Express 中间件过滤 /health），server.js 3 处接线，session.js 与 agentWsServer.js 的 `audit()` 改分流，新增 WS 连断与签票 access 条目；②`src/agent/agentTierService.js`（tier 判定 / 限频 / 每 IP 并发 / 半径钳制）；③`src/routes/agent/guest.js` 公开签票端点（30min，`agent:guest:<uuid>` 合成身份落 agent_transient_sessions 无外键表）；④agentAuth.issueGuestAgentJwt + buildGuestIdentity；⑤agentWsServer 游客处理（IP 并发闸门、强制 eco/off/off、SUBSCRIBE 拒绝 GUEST_PUSH_FORBIDDEN、READY 带 tierInfo、close 归还名额）；⑥observe.js 按 tier 钳半径与限频（游客 1/2s，Key 1Hz 不变）；⑦agentActionService 按 tier 动作限频；⑧**修复真 bug：`authenticateAgentToken` 用 `getAgentById(payload.sub)` 查游客/transient 身份会因 `agent:guest:<uuid>` 不是合法 UUID 抛类型错误 → 改从 session 行重建 profile**（与 agentWsServer 同口径）；⑨发现端点同步（well-known / capabilities 加 tiers 段，openapi 加 /guest/session）；⑩重建 examples/agent-client（node-agent.mjs + README，含拉模式路径）；⑪README 加双模式表 + 红线 14/15 + 日志运维章节。验收 **accept_agent_p8.js 52/52 PASS**；回归 P1 14/14、P2 14/14、P3 12/12。环境：agent_enabled 恢复 false；服务器 3002 已重启跑 P8 代码 | **P8 ✅**（P0-P6+P8 全部完成） |

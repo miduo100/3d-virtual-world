@@ -21,6 +21,7 @@ router.use('/', require('./action'));   // P4: POST /action（备用入口，主
 router.use('/', require('./chatHistory')); // P4: GET /chat/history（AI 重连恢复上下文）
 router.use('/federation', require('./federation')); // P5: Agent 联邦传送（必须在 admin 之前，避免被 authenticateAdminToken 拦截）
 router.use('/', require('./meta'));      // P6: capabilities + openapi + well-known（公开无鉴权，必须在 admin 之前——admin.js 内部 router.use(authenticateAdminToken) 是子路由级全局中间件，会拦截所有未匹配路径）
+router.use('/', require('./guest'));     // P8: POST /guest/session 公开签票（游客拉模式，必须在 admin 之前，同上）
 router.use('/', require('./admin'));     // P4: 后台管理（list/create/revoke agents + 配置读写，router.use(authenticateAdminToken) 会拦截所有未被前面匹配的路径——放最后）
 
 module.exports = router;
