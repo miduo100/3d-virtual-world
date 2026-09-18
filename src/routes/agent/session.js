@@ -93,7 +93,7 @@ async function authenticateAgentToken(req, res, next) {
     return res.status(403).json({ error: 'Agent 已停用', code: 'AGENT_DISABLED' });
   }
 
-  await agentSessionManager.touchSession(sessionCheck.session.id);
+  await agentSessionManager.touchSession(sessionCheck.session.id, sessionCheck.session.isTransient);
   req.agent = agent;
   req.agentJwt = payload;
   req.agentSession = sessionCheck.session;
