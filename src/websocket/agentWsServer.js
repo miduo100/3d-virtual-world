@@ -114,6 +114,22 @@ wss.on('connection', async (ws, request, authResult) => {
   // 会让"游客每 IP 1 连接"退化为"全世界 1 条连接"。见 middleware/clientIp.js
   const ip = clientIp.resolveClientIp(request);
 
+  // ==================== 缺陷 v2-1 修复①：生命周期监听器必须先注册（早于任何 await）====================
+  // 原实现把这四行放在本函数末尾，中间隔着 `await getConfig()` 与 `await getLatestPosition()` 两次
+  // 异步等待。客户端若在这段窗口内断开（open 后立刻 close / 客户端崩溃 / 探活脚本 cancel），
+  // Node 已经 emit 过 'close' 事件，监听器永远挂不上 → handleClose 不执行，三项永久泄漏：
+  //   ① 该 IP 的每 IP 名额被永久占用（同 IP 换新票仍 GUEST_IP_CONCURRENCY）
+  //   ② playerPositions 留下不动的幽灵 avatar（真人可见、observe 返回）
+  //   ③ activeAgents 条目常驻占用 max_agents 名额，心跳/空闲超时对它无效（socket 早已关闭）
+  //   → 只能重启进程清理（v2 联测实测 3/3 复现，含"连接 800ms 后关闭"更宽的竞态窗口）
+  // 现在：先注册（earlyClosed 记录"早到的 close"），await 之后再用 readyState 兜底（修复②）。
+  let earlyClosed = false;
+  ws.on('message', (data) => handleMessage(connectionId, ws, data));
+  ws.on('close', () => { earlyClosed = true; handleClose(connectionId); });
+  ws.on('error', (err) => { console.error(`[AgentWs] ${agent.name} ws error:`, err.message); });
+  // 注意：此处不能引用后面才初始化的 state（const 的 TDZ 会直接抛 ReferenceError），按 connectionId 查表
+  ws.on('pong', () => { const s = activeAgents.get(connectionId); if (s) s.lastPong = Date.now(); });
+
   const config = await agentConfigService.getConfig();
   if (activeAgents.size >= config.maxAgents) {
     try { ws.send(JSON.stringify({ type: 'ERROR', payload: { code: 'MAX_AGENTS_REACHED', message: `在线 Agent 上限 ${config.maxAgents}` } })); } catch (e) {}
@@ -134,6 +150,17 @@ wss.on('connection', async (ws, request, authResult) => {
   const avatar = agentManager.shapeAvatar(agent);
   // 缺陷 J：新会话没有 current_position 时继承该 Agent 上次落库位置（防重连瞬移回原点）
   const spawn = (await agentSessionManager.getLatestPosition(agent.id, session.jti)) || resolveSpawn(session);
+
+  // 缺陷 v2-1 修复②：await 期间连接可能已经关闭 —— 此刻 state 尚未建立，handleClose 无处可清，
+  // 这里直接归还刚拿到的每 IP 名额并退出（同时避免为一条已死的连接广播 PLAYER_JOINED）。
+  // 审计口径与正常断开保持一致（ws_disconnected），便于运维统计"从未 READY 就断开"的连接。
+  if (earlyClosed || ws.readyState !== WebSocket.OPEN) {
+    tierService.releaseIpSlot(tier, ip, connectionId);
+    audit('ws_disconnected', { agent: agent.name, agentId: agent.id, connectionId, phase: 'closed_before_ready' });
+    logger.access({ kind: 'ws', event: 'disconnect', agentId: agent.id, connectionId, tier, ip });
+    return;
+  }
+
   presenceBridge.onConnect(connectionId, agent, session, avatar, spawn);
 
   // P8 红线：游客永不获得推流 —— 强制 eco 档 + 关闭语音中继。
@@ -156,6 +183,11 @@ wss.on('connection', async (ws, request, authResult) => {
   // 缺陷 B：同一 Agent 新连接顶掉旧连接（上限 system_config agent_max_connections_per_agent，默认 1）
   connectionRegistry.register(agent.id, connectionId, config.maxConnectionsPerAgent);
 
+  // 缺陷 v2-1 修复③（纵深防御，与修复② 互为保险）：state 已就绪，此刻 handleClose 能一次性完整清理
+  // （广播 PLAYER_LEFT / 归还名额 / 注销注册表 / activeAgents 出表 / 取消移动任务）。
+  // 正常路径下本段同步代码中间没有 await、事件循环插不进来，保留它是为了防止将来在中间插入 await 时旧缺陷复活。
+  if (ws.readyState !== WebSocket.OPEN) { handleClose(connectionId); return; }
+
   safeSend(state, {
     type: 'READY',
     payload: {
@@ -176,10 +208,8 @@ wss.on('connection', async (ws, request, authResult) => {
   audit('ws_connected', { agent: agent.name, agentId: agent.id, connectionId, pushTier: state.pushTier });
   logger.access({ kind: 'ws', event: 'connect', agentId: agent.id, connectionId, tier: state.tier || 'key-push', ip });
 
-  ws.on('message', (data) => handleMessage(connectionId, ws, data));
-  ws.on('close', () => handleClose(connectionId));
-  ws.on('pong', () => { if (state) state.lastPong = Date.now(); });
-  ws.on('error', (err) => { console.error(`[AgentWs] ${agent.name} ws error:`, err.message); });
+  // 缺陷 v2-1 修复①：ws.on('message'/'close'/'pong'/'error') 一律在本函数开头注册（早于任何 await），
+  // 不允许再放回这里——放回末尾会重现"注册晚于 close 事件 → handleClose 永不执行"的永久泄漏。
 });
 
 // ==================== 消息处理 ====================

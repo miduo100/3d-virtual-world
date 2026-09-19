@@ -3,7 +3,7 @@
  *
  * 覆盖提示词 §1.1 用例表全部条目（除"票 30 分钟到期"用合成过期 token 代替、多端部分在 Key 脚本）：
  *   A 发现端点公开性 / B 签票 / C WS 鉴权边界 / D observe 边界 / E 动作边界
- *   F 签票限流 / G 聊天历史 / H 总开关（临时关闭再恢复）
+ *   F 签票限流 / G 聊天历史 / H 总开关（临时关闭再恢复）/ X 瞬时断开泄漏回归（缺陷 v2-1）
  *
  * 运行：node scripts/accept_agent_v2_auth_guest.js
  * 报告：examples/agent-client/live/v2-auth-guest.json
@@ -253,13 +253,15 @@ async function groupC(ownerTicket, ownerAgentId) {
   return { conn: ready3 ? conn3 : null };
 }
 
-// ==================== X. 缺陷 v2-1：瞬时断开 → 名额/实体泄漏 ====================
-// 现象：客户端在 upgrade 成功瞬间断开（e.g. 探活脚本、客户端崩溃、立刻 cancel），
+// ==================== X. 瞬时断开 → 名额/实体泄漏（缺陷 v2-1，已修复 2026-09-19）====================
+// 现象（修复前，实测 3/3）：客户端在 upgrade 成功瞬间断开（e.g. 探活脚本、客户端崩溃、立刻 cancel），
 //       服务端 handleClose 不执行 → ①每 IP 并发名额永久占用 ②playerPositions 幽灵实体常驻
 // 根因（代码级）：agentWsServer.js 的 wss.on('connection') 是 async 函数，
 //       ws.on('close')/ws.on('message') 注册在函数末尾，中间隔着
 //       `await agentConfigService.getConfig()` 与 `await agentSessionManager.getLatestPosition()`
 //       两次异步等待；若 close 帧先到，Node 已经 emit 过 'close'，监听器永远挂不上。
+// 修复：① 监听器前置注册（早于任何 await）+ ② await 后 readyState 兜底（早退归还每 IP 名额）。
+//       专项验收（含审计日志证据 / jump 回执）见 scripts/accept_agent_v2_defects_fix.js（7/7）。
 async function groupX() {
   const ATTEMPTS = 3;
   const results = [];
@@ -312,9 +314,9 @@ async function groupX() {
   const ghosts = results.filter(x => x.ghost).length;
   const leaks = results.filter(x => x.slotLeak === true).length;
   const bad = results.filter(x => x.error).length;
-  R.check('[已知缺陷 v2-1] 瞬时断开不应永久占用"每 IP 1 连接"名额',
+  R.check('X1 瞬时断开后同 IP 用新票可立刻重连（名额未被永久占用，v2-1 修复）',
     leaks === 0, { 泄漏次数: leaks, 尝试次数: ATTEMPTS, 失败尝试: bad });
-  R.check('[已知缺陷 v2-1] 瞬时断开不应在世界留下幽灵 AI 实体（真人会看到不动的 avatar）',
+  R.check('X2 瞬时断开后不留下幽灵 AI 实体（真人会看到不动的 avatar，v2-1 修复）',
     ghosts === 0, { 幽灵次数: ghosts, 尝试次数: ATTEMPTS });
   if (ghosts) {
     R.info('幽灵实体明细（真人在世界里可见、observe 也返回）',
@@ -415,8 +417,9 @@ async function groupE(conn, ticket) {
   const sup = await waitAction(conn.msgs, id5, ['ACTION_COMPLETED'], 4000);
   // §5.2 移动类回执契约："移动类动作（move/walk_to/jump/follow）互斥：新指令打断旧任务
   //                    并向旧 requestId 发 reason=superseded"
-  // 实测：walk_to 打断 move 时，旧 move 的 requestId 收不到任何回执（已知缺陷 v2-3）
-  R.check('[已知缺陷 v2-3] move 被打断应补发 ACTION_COMPLETED{superseded}（契约 §5.2）',
+  // v2-3 修复前：walk_to 打断 move 时旧 move 的 requestId 收不到任何回执（实测）；
+  //              修复后 startMove 注入 { requestId, reply }，被打断即补发 superseded。
+  R.check('E6 move 被打断补发 ACTION_COMPLETED{superseded}（契约 §5.2，v2-3 修复）',
     !!sup && sup.payload.reason === 'superseded',
     sup ? { reason: sup.payload.reason } : '旧 move 的 requestId 未收到任何回执');
   R.check('E6b walk_to 被接受', !!r6 && r6.type === 'ACTION_ACCEPTED', r6 && (r6.payload.code || r6.type));

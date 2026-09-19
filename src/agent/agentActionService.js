@@ -86,7 +86,11 @@ async function dispatch(ctx, payload) {
 function handleMove(ctx, payload) {
   const { connectionId, agent, session } = ctx;
   const direction = payload.direction || payload.target;
-  const result = movement.startMove(connectionId, agent, session, direction);
+  // v2-3：与 walk_to 一样注入回执发送器（移动类互斥契约 §5.2）——
+  // 连续 move 没有"到达"事件，被新指令打断 / 断线时由 movement service 补发 ACTION_COMPLETED
+  const result = movement.startMove(connectionId, agent, session, direction, {
+    requestId: payload.requestId, reply: ctx.reply
+  });
   if (!result.ok) return reject(payload.requestId, result.error, 'move 启动失败');
   return { accepted: true, requestId: payload.requestId };
 }
@@ -137,7 +141,10 @@ function handleRotate(ctx, payload) {
 
 function handleJump(ctx, payload) {
   const { connectionId, agent, session } = ctx;
-  const result = movement.jump(connectionId, agent, session);
+  // v2-3：同上——jump 被打断/断线时补发 ACTION_COMPLETED（movement.jump 内部负责不覆盖旧 requestId）
+  const result = movement.jump(connectionId, agent, session, {
+    requestId: payload.requestId, reply: ctx.reply
+  });
   if (!result.ok) return reject(payload.requestId, result.error, 'jump 失败');
   return { accepted: true, requestId: payload.requestId };
 }

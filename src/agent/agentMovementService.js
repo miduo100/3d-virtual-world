@@ -99,10 +99,12 @@ function startWalkTo(connectionId, agent, session, target, opts) {
 }
 
 /**
- * 开始 move(direction) 连续移动（直到 stop / cancel / 断线）
+ * 开始 move(direction) 连续移动（直到被新指令打断 / 断线）
  * @param direction { x, z } 归一化方向向量（Agent 责任归一化）
+ * @param opts      { requestId, reply } —— v2-3：移动类回执契约（§5.2），
+ *                  被打断时补发 ACTION_COMPLETED{reason:'superseded'}、断线时 {reason:'disconnected'}
  */
-function startMove(connectionId, agent, session, direction) {
+function startMove(connectionId, agent, session, direction, opts) {
   if (!direction || !Number.isFinite(direction.x) || !Number.isFinite(direction.z)) {
     return { ok: false, error: 'invalid_direction' };
   }
@@ -111,7 +113,9 @@ function startMove(connectionId, agent, session, direction) {
   if (mag < 1e-6) return { ok: false, error: 'zero_direction' };
   const normDir = { x: direction.x / mag, z: direction.z / mag };
 
-  cancelMovement(connectionId);
+  // v2-3：被这条新指令打断的旧移动任务，其 requestId 同样要收到 superseded 回执
+  //（旧实现不传 reason → 'interrupted'，与契约 §5.2 的取值集合不符）
+  cancelMovement(connectionId, 'superseded');
 
   const cur = getCurrentPosition(session, connectionId);
   const groundY = cur.y || GROUND_Y_DEFAULT;
@@ -123,6 +127,8 @@ function startMove(connectionId, agent, session, direction) {
   activeMovements.set(connectionId, {
     agent, session,
     currentPos: { ...cur, y: groundY },
+    requestId: opts && opts.requestId,          // v2-3：回执用（move 没有"到达"，只在被打断/断线时回执）
+    reply: opts && opts.reply,
     currentYaw: cur.yaw || 0,
     mode: 'move',
     target: null,
@@ -179,14 +185,21 @@ function rotate(connectionId, agent, session, yaw) {
 
 /**
  * 跳跃（jump）：垂直方向瞬时给一个初速，重力下落
+ * @param opts { requestId, reply } —— v2-3：被打断/断线时补发 ACTION_COMPLETED（契约 §5.2）
+ *
+ * 注意：jump 可能**复用**已存在的任务对象（例如正在连续 move 的那条）。
+ * 复用时绝不覆盖 task 上已有的 requestId —— 那是上一个移动指令尚未发出的回执，
+ * 覆盖会让旧指令永远收不到 superseded（v2-3 验收要求）。
  */
-function jump(connectionId, agent, session) {
+function jump(connectionId, agent, session, opts) {
   let task = activeMovements.get(connectionId);
   if (!task) {
     const cur = getCurrentPosition(session, connectionId);
     task = {
       agent, session,
       currentPos: { ...cur, y: cur.y || GROUND_Y_DEFAULT },
+      requestId: opts && opts.requestId,
+      reply: opts && opts.reply,
       currentYaw: cur.yaw || 0,
       mode: 'idle',
       target: null, direction: null,
@@ -194,6 +207,10 @@ function jump(connectionId, agent, session) {
       intervalId: null
     };
     activeMovements.set(connectionId, task);
+  } else if (!task.requestId && opts && opts.requestId) {
+    // 复用既有任务（如 rotate 留下的 idle 任务）：没有待回执的旧指令，可以安全挂上本条
+    task.requestId = opts.requestId;
+    task.reply = opts.reply;
   }
   if (task.jumping) return { ok: false, error: 'already_jumping' };
   task.jumping = true;
