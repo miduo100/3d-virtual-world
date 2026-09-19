@@ -17,6 +17,7 @@
 5. **注意当前阶段（2026-09-19 v3 轮，代码已解冻）**：v2-1（P1）与 v2-3（P2）**已修复并验收**（见第七节「v2 登录与多端联测」的**修复结果**与新增的「v3 缺陷修复轮」小节）：监听器前置注册 + readyState 兜底解决瞬时断开泄漏；`move`/`jump` 注入 `{ requestId, reply }` 补发 `ACTION_COMPLETED{superseded}`。矩阵复跑 **游客 75/75、Key 38/38、多端 25/25**，专项脚本 `accept_agent_v2_defects_fix.js` **7/7**，既有回归全绿。
 6. **观察项状态**：v2-5（多 Agent 跟随同一目标完全重合）已于 2026-09-19 以缺陷 T9 修复（环形避让）；**v2-2**（`SESSION_NOT_FOUND` 口径统一 401/403）、**v2-4**（是否新增 `stop` 动作）、**v2-6**（`guest.js` 的 `clientIp()` 与中间件合并）仍未动，**改前须用户拍板（红线 11）**。
 7. **当前阶段（2026-09-19 三档推送与真人端观感修复轮，代码已解冻）**：按 `AI-Agent修复提示词-v4-三档推送与真人端观感.md` 执行，**T1/T2/T3/T4/T5/T6/T8/T9/T10 全部修复并验收**（T7 用户已决策不修）。tier 六轮 **48/48、12/12、17/17、13/13、20/20、7/7** 全绿，既有回归 14 个脚本全绿，详见第七节「三档推送层与真人端观感修复」。用户决策记录：D1=**修**（jump 幅度维持 0.82m）/ D2=**真 10Hz** / D3=**位置流脱离令牌桶** / D4=**环形避让**。
+8. **Agent 语音：不做**（用户 2026-09-19 决策："AI 目前不用语音，后期用再开发"）。`agent_voice_relay` 键保留占位，代码无实现路径；capabilities/openapi 仍列 `VOICE_MESSAGE` 属遗留缺口（待决定是否移除）。**下一会话入口**：见第七节「三档推送层与真人端观感修复」末尾的「后续决策记录与待办」——优先候选 = v2-4 加 `stop`、100 Agent 压测（含 >30 分钟长会话）。
 
 ### 收尾三件事（每会话结束前必做）
 1. **更新第 7 节进度表**（checkbox 状态 + 日期 + 会话摘要）；
@@ -91,7 +92,7 @@
    - 实现层面：人类游客靠前端 if 拦截（现状不动）；**Agent 靠服务端 scope 校验**（权限集里根本没有 teleport，收到即拒）。不开发任何 teleport action。
 3. **agents 表预留 `can_teleport BOOLEAN DEFAULT false`** 字段（今天不用，未来开放不改表）。
 4. **服务器对语音零加工**：不做 ASR/TTS、不接任何转换服务；VOICE_MESSAGE base64 原样中继；转写由 AI 客户端自己接（Whisper/豆包 ASR 等）。
-5. **`agent_voice_relay` 默认关闭**（AI 默认不收语音；需 AI 主动 SUBSCRIBE voice 且后台开关打开）。
+5. **`agent_voice_relay` 默认关闭**（AI 默认不收语音；需 AI 主动 SUBSCRIBE voice 且后台开关打开）。**2026-09-19 用户决策：Agent 语音中继不做**（"AI 目前不用语音，后期用再开发"）——配置键保留占位，**当前代码没有任何把 `VOICE_MESSAGE` 中继给 Agent 的实现路径**（`agentWsServer` 里 voice 只有 `state.voiceRelay = config.voiceRelay` 一行），**不要把它当作可用功能**；真要做属新功能立项（需同时定：成本开关、单 Agent 语音配额、Agent 端自接 STT —— 红线 4 服务端零加工不变）。
 6. **推送三档后台可配置**（eco/standard/realtime，单选即选即生效，60s 内热跟进，不重启）；`max_agents` 全局上限；默认档 = eco。
 7. **位置流聚合**：standard 档 1 秒聚合 1 条（ENTITY_MOVEMENT_BATCH），realtime 才 10Hz。
 8. **AI 标识**：`entityType:'agent'` → 系统消息显示 "(AI)加入了"、头顶名字加 🤖（约 5 行前端改动）。
@@ -185,7 +186,7 @@ S→C:  READY { agentId, avatar, spawn }
       ENTITY_ADDED / ENTITY_UPDATED / ENTITY_REMOVED   (standard+)
       ENTITY_MOVEMENT_BATCH { moves:[...] }            (standard 档 1s 聚合)
       CHAT { sender, characterId, message, timestamp }  (所有档，30m)
-      VOICE_MESSAGE { characterId, characterName, audio(base64), durationMs }  (默认关)
+      VOICE_MESSAGE { characterId, characterName, audio(base64), durationMs }  (⚠️ 未实现/不做，见下)
       ACTION_ACCEPTED / ACTION_COMPLETED / ACTION_REJECTED { requestId, reason }
       SPEECH ── 即 CHAT 的别名口径，不单独实现
       ERROR / PONG
@@ -209,7 +210,7 @@ ACTION 七动作（P4 + 2026-09-19 新增 `follow`）：`move(target)` 连续位
 |---|---|---|
 | `agent_enabled` | bool / false | 总开关（**默认关，上线时手动开**） |
 | `agent_push_default` | eco \| standard \| realtime / eco | 新 Agent 默认档（**位置流一并由此决定，无独立开关**） |
-| `agent_voice_relay` | bool / **false** | 语音是否中继给 Agent |
+| `agent_voice_relay` | bool / **false** | 语音是否中继给 Agent。**⚠️ 未实现且已决策不做**（2026-09-19 用户：AI 目前不用语音，后期用再开发）：`agentWsServer` 只有读取该配置的一行、**没有任何中继逻辑**，`topics.has('voice')` 也无处理。同时 `meta.js` 的 capabilities / openapi `outboundMessages` **仍列着 `VOICE_MESSAGE`**（历史遗留的文档-实现缺口，待决定是否从发现端点移除；人类侧语音协议 `voiceRelay.js` 完全独立且已实现，不受此影响） |
 | `max_agents` | int / 50 | 全局并发上限 |
 | `agent_max_connections_per_agent` | int / **1** | 单 Agent 并发 WS 连接上限（1~10）；超出时新连接顶掉最旧连接（close 4004 `REPLACED_BY_NEW_CONNECTION`），被顶掉的连接**静默清理**（不广播 PLAYER_LEFT，避免真人端 avatar 闪断）——缺陷 B |
 | `agent_max_speed` | number / **9** | Agent 移动速度上限 m/s（1~20）。默认 9 = 真人速度（`player.js` 0.15/帧 @60fps ≈ 9 m/s）；原固定 5 m/s 会被正常走路/奔跑的真人越拉越远（用户实测中位 6.0、峰值 11+ m/s）——缺陷 C 配套 |
@@ -699,6 +700,15 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 
 **环境收尾**：`agent_enabled=false`（红线 6）、`pushDefault=eco`、`maxAgents=50`、`maxConnectionsPerAgent=1`、`maxSpeed=12`、`observeRateKey=1`；服务器 3002 跑本轮代码。
 
+**后续决策记录与待办（2026-09-19，供下一会话接力）**：
+
+- **Agent 语音中继 = 不做**（用户明确："AI 目前不用语音，后期用再开发"）。已同步红线 5 与 §5.3。**遗留缺口**：`meta.js` 的 capabilities / openapi `outboundMessages` 仍列 `VOICE_MESSAGE`（代码从未实现）—— 待用户决定是否从发现端点移除（1 行改动；人类侧 `voiceRelay.js` 不受影响）。
+- **仍未动的 3 个观察项（改前须用户拍板，红线 11）及影响评估**：
+  1. **v2-4 新增 `stop` 动作**（推荐优先做，成本 1~2 小时）：`move` 是持续位移，当前**没有干净停法**（只能 observe 拿坐标后 `walk_to` 到自己，或发另一条移动指令打断），LLM Agent"停下看看"会写出绕远路指令（第一轮"原地徘徊"的残留成因之一）；`movementService.stopMove()` 仍是零调用死代码。**需先定回执语义**：新增 `reason='stopped'`（推荐，旧客户端忽略未知 reason）或复用 `superseded`。改动点：`agentActionService` + `meta.js` 两处 actions 数组 + 游客 `TIER_ACTION_RATES` + 文档 + 示例客户端。
+  2. **v2-2 统一 `SESSION_NOT_FOUND` 口径**（P3，15 分钟）：HTTP=403（`session.js:88`）而 WS=401（`agentWsServer.js:92` 只把 `TOKEN_EXPIRED` 映 403）。只影响 SDK 作者的错误分支，实际恢复动作（换票重连）恰好正确 → 属一致性/可诊断性，非功能缺陷。
+  3. **v2-6 `guest.js` 自带 `clientIp()` 与中间件合并**（P3，5 分钟）：本地版取 XFF **第一段**（中间件取最后一段），当前因 `req.ip` 恒有值而不可达；风险是未来被复制后引入"伪造 XFF 绕开每 IP 限流"（与 D2 修复方向相反）。
+- **深化联测建议（用户尚未选）**：① **100 Agent 压测**（成本最低的落地手段，需先调大 `max_agents`、游客需 100 个不同 IP；真正瓶颈是**每个移动 Agent 每 100ms 向所有人类连接 `broadcastToAll` = 1000×H msg/s** 这一预置结构性扇出，与 Agent 功能无关，见坑 5）→ 产出 `max_agents` / realtime 配额依据；② **>30 分钟长会话**（可与①同场，无需改代码；已知 JWT TTL 900s 只在建连校验、空闲超时 5 分钟）；③ ~~Agent 间语音~~ = **不做**。
+
 ---
 
 ## 第八节：已核对的代码坐标速查（写代码时直接引用）
@@ -828,3 +838,4 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 | 2026-09-19 | **v2 轮联测（登录与多端，用户指令"只测不改代码"）**：按 `AI-Agent联测提示词-v2-登录与多端.md` 执行 §1 登录/鉴权边界 + §2 多端同时在线，产出 3 个可重跑矩阵脚本与公共工具 `scripts/agentV2TestKit.js`。**结果**：游客档矩阵 **72/75**（3 FAIL = 已知缺陷 v2-1×2 + v2-3×1）、Key 档 **38/38**、多端 **25/25**。**新发现 6 条缺陷/观察项（均未修）**：**v2-1（P1）**WS 升级后瞬时断开 → `agentWsServer` 的 `ws.on('close')` 注册在两次 `await` 之后收不到 close 事件 → `handleClose` 永不执行 → ①该 IP 游客名额永久占用（同 IP 换新票仍 `GUEST_IP_CONCURRENCY`）②`playerPositions` 幽灵 avatar（真人可见、observe 返回）③`activeAgents` 常驻占 `max_agents` 名额，心跳/空闲超时对其无效（socket 已关）→ 只能重启清理；实测 **3/3 复现**，对照"正常关闭（已收 READY）后名额立即释放"PASS（C17b），另观测到一次"连接 800ms 后关闭"也泄漏；**v2-2** `SESSION_NOT_FOUND` 在 WS=401 / HTTP=403 口径不一致；**v2-3（P2）**`move` 被打断不发 `ACTION_COMPLETED{superseded}`（`startMove` 未注入 requestId/reply，只有 `walkTo` 注入），与 §5.2 契约不符；**v2-4** 无 `stop` 动作、`movementService.stopMove()` 零调用（连续 move 无法显式停止）；**v2-5** 多 Agent 同时 follow 同一目标位置完全重合（实测最小间距 0.00m，无 Agent 间避让）；**v2-6** `guest.js` 自带 `clientIp()` 兜底取 XFF 第一段（与 `middleware/clientIp.js` 口径相反，实际不可达）。**多端实测数据**：realtime 档 **105 条 ENTITY_UPDATED/20s ≈ 1Hz/实体（非 10Hz）**、≈1KB/s per Agent（量化证实"第三档≈1Hz"遗留项）；游客同窗口 **0 消息 0 字节**（红线 14 反证）；服务器 **0.19 核秒/20s ≈ 1% 单核**；`CHAT.characterId ≡ entities[].id` 逐字一致、Agent 互聊 + 真人侧同收；3 Agent 同时 follow 全部收敛 2.2~2.5m；真人端（playwright headless chrome 真 GPU）**0 console error（唯一 404=favicon，按 `m.location().url` 判定）、players.size=11、FPS 60**；`world_chat_log` 177→180。联测期间另有驻场游客 Agent 与真人「米多」实时对话/跟随（jump/follow/say 全通）。文档同步：§0 阶段说明、§7 v2 小节（含 6 条缺陷表与实测数据）、§9 新增坑 22/23/24。**agent_enabled 收尾恢复 false（红线 6）** | **v2 轮联测完成 ✅（待用户决策：先修 v2-1 还是继续下一轮）** |
 | 2026-09-19 | **v3 轮：v2-1（P1）+ v2-3（P2）修复与专项验收（用户授权"按 v3 提示词开工"）**。开工核对：文件存在性全绿（`examples/agent-client/ai-view.mjs` 仍缺失，属已知丢失项，非本会话依赖）+ 环境自检 + **修复前基线复现**（游客矩阵 72/75，X 组 v2-1 两 FAIL 实测 3/3：名额泄漏 3 + 幽灵实体 3）。**① v2-1**：`agentWsServer.js` 连接处理函数把 `ws.on('message'/'close'/'error'/'pong')` **全部前置到第一个 `await` 之前**（`earlyClosed` 记录早到的 close），并在两处 `await` 之后加 `readyState !== WebSocket.OPEN` 兜底——state 未建时 `releaseIpSlot` + 审计 `ws_disconnected{phase:'closed_before_ready'}` 后退出（避免为死连接广播 PLAYER_JOINED），state 就绪后再兜底一次走幂等的 `handleClose`；**② v2-3**：`handleMove`/`handleJump` 注入 `{requestId, reply}`，`startMove/jump` 写入任务对象（`jump` 复用既有任务时不覆盖旧 requestId），`startMove` 打断旧任务显式传 `reason='superseded'`。**验收**：游客矩阵 **72/75 → 75/75**（X1/X2、E6 三条由 FAIL 转 PASS 并改名去掉 `[已知缺陷]` 标签）、Key 38/38、多端 25/25、**新增专项 `accept_agent_v2_defects_fix.js` 7/7**（V1 6/6 同 IP 换新票立刻重连、V2 幽灵 0、V3 审计 6 次断开产生 11~12 条 `closed_before_ready`（修复前 0 条）、V4 move 回执、V5 jump 回执、V6 walk_to 到达）；既有回归全绿：fix_a 24/24、fix_b 24/24、fix_c 15/15、fix_d 10/10、fix_e 12/12、fix_f 14/14、P1 14/14、P2 14/14、P3 12/12、P8 52/52、WS 重连 9/9 ACCEPTED、主世界冒烟 9/9。**本轮沉淀两个"测试自身缺陷"**（§9-25/26）：游客动作限频**按 action 分桶** 1 次/2s → 同类动作需 sleep 2.1s 否则测到的是限频（V5 首轮假失败）；管理员登录 IP 小时窗口把**成功登录也计数**（15 次/小时）→ 多脚本连跑必 `RATE_LIMITED_IP_HOUR`，需重启服务器清内存计数器（fix_d/e/f 首轮三 FATAL，重启后全绿）。**v2-2/4/5/6 四条观察项本轮未动**，待用户决策（红线 11）。服务器已重启跑新代码（pid 17876） | **v2-1/v2-3 修复并验收 ✅**（待用户决策：v2-2/4/5/6 观察项 or 深化联测） |
 | 2026-09-19 | **三档推送层与真人端观感修复轮（T1~T10，用户决策 D1~D4 全部按建议）**：按 `AI-Agent修复提示词-v4` 执行，开工先做文件/环境核对（HEAD=bb3bbaf1、3 个测试 Agent 在库、well-known 快照一致）→ 提 4 个决策点 + 4 项额外发现 → 拿到答复后分 5 批修复。**产品改动 8 文件**：`agentPositionSmoother.js`（T1 上限跟随 well-known×1.2 + EMA 自适应 + 吸附防误判）、`agentWsServer.js`（T3/T4/T8 订阅门控/半径过滤/ADDED-first；T5 `startRealtimeLoop` 10Hz 采样；T6 位置流脱离令牌桶、桶 60/60；pre-ready 消息缓存补发）、`agentMovementService.js`（T2/S1 `task.groundY` + 抛物线落地 + 广播 baseY）、`agentPresenceBridge.js`（baseY）、`agentFollowService.js`（T9 环形槽位避让）、`websocket.js`（T2 保留垂直偏移）、`observe.js`（T10 窗口 950ms）、`index.html`（v8/v2）。**脚本口径同步**：r3 的 S 阈值改 `agent_max_speed×1.5` 且 R 理论起点改"指令前显示位置"；r2a N 场景实体移入半径、G 源频率改 100ms；r4b A3 间隔 300→400ms；L 组（T7）改 INFO；示例客户端订阅加 movement/presence。**4 项额外发现并修复**：S1 服务端 jump 永钉顶点且地面逐次上浮（DB 实测 y 1.02→2.04）；S2 平滑器"水平到位提前返回"吞掉纯垂直变化（T2 首轮仍 Δ0 的真因）；S3 pre-ready SUBSCRIBE 静默丢失（v2-1 副作用 → P3 的 D1 红，加缓存后恢复）；S4 `wsServer` 内部裸调 `broadcastToAll` 使"事件驱动 realtime"收不到（改采样循环，不碰黑名单）。**验收**：tier 六轮 **48/48、12/12、17/17、13/13、20/20、7/7**（修复前 46/48、10/11、15/17、12/13、19/20、5/7）；regression 全绿 v2_guest 75/75、v2_key 38/38、v2_multiend 25/25、v2_defects 7/7、fix_a~f 24/24/24/24/15/15/10/10/12/12/14/14、p1 14/14、p2 14/14、p3 **11/12→12/12**、p8 52/52、WS 重连 9/9、主世界冒烟 9/9。新增环境前置脚本 `_tmp_tier_reset.js`（清 Agent 落库位置，防跨轮假失败）。agent_enabled 收尾 false（红线 6） | **T1~T10 全部修复并验收 ✅**（T7 用户决策不修；下一步待用户决策：v2-2/v2-4/v2-6 观察项 or 深化联测） |
+| 2026-09-19 | **决策记录：Agent 语音中继不做**（用户："不要语音转发，AI 目前不用语音，后期用再开发"）。文档同步 4 处：红线 5（配置键保留占位 + 明确无实现路径 + 真做属新功能立项）、§5.2 消息目录（`VOICE_MESSAGE` 标 ⚠️ 未实现/不做）、§5.3 配置表（补"未实现且已决策不做"与 capabilities/openapi 遗留缺口说明）、§0 第 8 条 + 第七节新增「后续决策记录与待办」（含 v2-2/v2-4/v2-6 的影响评估与推荐顺序、100 Agent 压测的瓶颈提示）。**本轮未改任何产品代码**；人类侧 `voiceRelay.js` 完全独立、不受影响。遗留待办：是否把 `VOICE_MESSAGE` 从 capabilities/openapi 的 outbound 列表移除（1 行，待用户决定） | **语音中继 = 不做 ✅（文档已固化）** |
