@@ -64,7 +64,9 @@ function buildSharedSections(config) {
       allowed: AGENT_SCOPES,
       forbidden: FORBIDDEN_SCOPES
     },
-    actions: ['move', 'walk_to', 'follow', 'rotate', 'jump', 'say', 'interact'],
+    // 动作集（2026-09-19 新增 stop，缺陷 v2-4）。⚠️ 本文件共有 **三处**动作清单必须同步：
+    // ①此处（capabilities / well-known 共享段）②openapi 的 `x-websocket.actions` ③openapi `/action` 的 requestBody enum。
+    actions: ['move', 'walk_to', 'follow', 'rotate', 'jump', 'say', 'interact', 'stop'],
     pushTiers: {
       default: config.pushDefault,
       options: ['eco', 'standard', 'realtime']
@@ -404,7 +406,7 @@ function buildOpenApiSpec(baseUrl, wsUrl, agentEnabled) {
           summary: 'HTTP fallback entry (limited; primary is WS ACTION)',
           description: 'Returns 501 WS_REQUIRED for all actions. Use WebSocket /ws/agent ACTION message instead.',
           security: [{ AgentJwt: [] }],
-          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { action: { type: 'string', enum: ['say', 'rotate', 'move', 'walk_to', 'follow', 'jump', 'interact'] } } } } } },
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { action: { type: 'string', enum: ['say', 'rotate', 'move', 'walk_to', 'follow', 'jump', 'interact', 'stop'] } } } } } },
           responses: { 501: { description: 'WS_REQUIRED — use /ws/agent ACTION instead', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } } }
         }
       },
@@ -437,7 +439,7 @@ function buildOpenApiSpec(baseUrl, wsUrl, agentEnabled) {
       inbound: ['SUBSCRIBE', 'UNSUBSCRIBE', 'PING', 'ACTION'],
       // VOICE_MESSAGE 已于 2026-09-19 移除（Agent 语音中继未实现且不计划做，见 /capabilities 注释同一处说明）
       outbound: ['READY', 'WORLD_SNAPSHOT', 'ENTITY_ADDED', 'ENTITY_UPDATED', 'ENTITY_REMOVED', 'ENTITY_MOVEMENT_BATCH', 'CHAT', 'ACTION_ACCEPTED', 'ACTION_COMPLETED', 'ACTION_REJECTED', 'PONG', 'ERROR'],
-      actions: ['move', 'walk_to', 'follow', 'rotate', 'jump', 'say', 'interact']
+      actions: ['move', 'walk_to', 'follow', 'rotate', 'jump', 'say', 'interact', 'stop']
     },
     'x-entity-identity': ENTITY_IDENTITY,
     'x-agent-enabled': agentEnabled

@@ -59,6 +59,21 @@ const STANDARD_BATCH_INTERVAL_MS = 1000;
 const REALTIME_INTERVAL_MS = 100;
 const CHAT_NEARBY_RANGE = 30;
 
+// ==================== upgrade 拒绝状态码口径（v2-2，2026-09-19 用户决策 D2-A）====================
+// 统一的语义划分（WS 与 HTTP 完全一致，见 routes/agent/session.js:80,88,102）：
+//   401 = 凭据缺失 / 无效（没有 token、签名错、不是 Agent token、principalType 不符）
+//   403 = 凭据有效但会话或身份无权（JWT 过期、jti 无会话、会话已吊销/过期、Agent 已停用）
+// 修复前只有 TOKEN_EXPIRED 映射 403，其余一律 401 → 同一个"会话不存在"在 WS=401 / HTTP=403
+// （`accept_agent_v2_auth_guest.js` 的 C5b 曾以 R.info 记录该不一致）。
+// 客户端只需记住：403 → 换票/重开会话或联系管理员；401 → 检查凭据本身。
+const FORBIDDEN_UPGRADE_CODES = new Set([
+  'TOKEN_EXPIRED',        // JWT 过期
+  'SESSION_NOT_FOUND',    // 凭据有效但 jti 在 DB 无会话
+  'SESSION_REVOKED',      // 会话已吊销（/session/revoke）
+  'SESSION_EXPIRED',      // JWT 未过期但会话行已过期
+  'AGENT_DISABLED'        // Agent 已停用（HTTP 侧同为 403）
+]);
+
 // ==================== 鉴权 ====================
 
 async function authenticateUpgrade(request) {
@@ -103,8 +118,12 @@ async function authenticateUpgrade(request) {
 function handleUpgrade(request, socket, head) {
   authenticateUpgrade(request).then(result => {
     if (!result.ok) {
-      const status = result.code === 'TOKEN_EXPIRED' ? 403 : 401;
-      try { socket.write(`HTTP/1.1 ${status} Unauthorized\r\nConnection: close\r\n\r\n`); } catch (e) {}
+      // v2-2 口径统一（D2-A）：见文件上方 FORBIDDEN_UPGRADE_CODES 说明 —— 与 HTTP 侧一致
+      const forbidden = FORBIDDEN_UPGRADE_CODES.has(result.code);
+      const status = forbidden ? 403 : 401;
+      try {
+        socket.write(`HTTP/1.1 ${status} ${forbidden ? 'Forbidden' : 'Unauthorized'}\r\nConnection: close\r\n\r\n`);
+      } catch (e) {}
       socket.destroy();
       audit('ws_rejected', { code: result.code, ip: clientIp.resolveClientIp(request) });
       return;

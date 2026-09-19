@@ -1,6 +1,6 @@
 {
-  "when": "2026-09-19T05:35:32.162Z",
-  "run": 72,
+  "when": "2026-09-19T09:21:17.433Z",
+  "run": 27,
   "groups": {
     "M1": {
       "entities": 8,
@@ -35,7 +35,7 @@
       ]
     },
     "M3": {
-      "bytesPerSec": 3595,
+      "bytesPerSec": 3597,
       "counts": {
         "ENTITY_UPDATED": 370,
         "ENTITY_ADDED": 2,
@@ -45,7 +45,7 @@
       "cpuCores": 0.01
     },
     "M4": {
-      "text": "契约探针-s22uo"
+      "text": "契约探针-0rj6f"
     },
     "M5": {
       "last": {
@@ -57,29 +57,29 @@
         },
         "pos": {
           "std": {
-            "x": 3.408578351292369,
+            "x": 4.452492373079891,
             "y": 0,
-            "z": 13.174496116720142
+            "z": 13.785860697694243
           },
           "rt": {
-            "x": 4.908578351292369,
+            "x": 4.452492373079891,
             "y": 0,
-            "z": 14.674496116720142
+            "z": 10.785860697694243
           },
           "guest": {
-            "x": 6.408578351292369,
+            "x": 5.513152544859713,
             "y": 0,
-            "z": 13.174496116720142
+            "z": 11.225200525914422
           }
         },
-        "std": 1.3709228252647683,
-        "rt": 2.431788145490282,
-        "guest": 2.148475101579444
+        "std": 1.5,
+        "rt": 1.5,
+        "guest": 1.5000000000000002
       }
     },
     "M7": {
       "players": 9,
-      "fps": 60,
+      "fps": 59,
       "revision": "185"
     }
   },
@@ -98,14 +98,14 @@
       "name": "M0b 两个 Key Agent（standard / realtime）WS 在线",
       "ok": true,
       "detail": [
-        "v2_multi_std_72:standard",
-        "v2_multi_rt_72:realtime"
+        "v2_multi_std_27:standard",
+        "v2_multi_rt_27:realtime"
       ]
     },
     {
       "name": "M0c 第 3 个 Agent（游客档）在线",
       "ok": true,
-      "detail": "游客AI-58e2c327"
+      "detail": "游客AI-ae80f2c4"
     },
     {
       "name": "M0d 5 个模拟真人上线（4Hz 位置更新）",
@@ -140,9 +140,9 @@
       "ok": true,
       "detail": {
         "agents": [
-          "v2_multi_std_72",
-          "v2_multi_rt_72",
-          "游客AI-58e2c327"
+          "v2_multi_std_27",
+          "v2_multi_rt_27",
+          "游客AI-ae80f2c4"
         ]
       }
     },
@@ -150,7 +150,7 @@
       "name": "M2 多 Agent 并发 observe：std(standard) 全部被服务（无饥饿）",
       "ok": true,
       "detail": {
-        "agent": "v2_multi_std_72",
+        "agent": "v2_multi_std_27",
         "ok": 13,
         "limited": 1,
         "other": 0,
@@ -162,7 +162,7 @@
       "name": "M2 多 Agent 并发 observe：rt(realtime) 全部被服务（无饥饿）",
       "ok": true,
       "detail": {
-        "agent": "v2_multi_rt_72",
+        "agent": "v2_multi_rt_27",
         "ok": 14,
         "limited": 0,
         "other": 0,
@@ -174,7 +174,7 @@
       "name": "M2 多 Agent 并发 observe：guest(eco) 全部被服务（无饥饿）",
       "ok": true,
       "detail": {
-        "agent": "游客AI-58e2c327",
+        "agent": "游客AI-ae80f2c4",
         "ok": 7,
         "limited": 0,
         "other": 0,
@@ -206,7 +206,7 @@
       "detail": {
         "秒": 20,
         "消息数": 374,
-        "字节每秒": 3595,
+        "字节每秒": 3597,
         "类型分布": {
           "ENTITY_UPDATED": 370,
           "ENTITY_ADDED": 2,
@@ -263,9 +263,9 @@
       "name": "M4b 契约：CHAT.characterId ≡ entities[].id（可直接按 id 定位发言者）",
       "ok": true,
       "detail": {
-        "chatCharacterId": "agent:guest:97567306-2953-4dce-85d7-19e6c35c9bdb",
-        "entityId": "agent:guest:97567306-2953-4dce-85d7-19e6c35c9bdb",
-        "entityName": "游客AI-58e2c327"
+        "chatCharacterId": "agent:guest:5a0de6f9-dd2d-40c1-b801-6caaf6f35603",
+        "entityId": "agent:guest:5a0de6f9-dd2d-40c1-b801-6caaf6f35603",
+        "entityName": "游客AI-ae80f2c4"
       }
     },
     {
@@ -278,7 +278,7 @@
       "ok": true,
       "detail": {
         "首值": 2.4,
-        "末值": 1.4,
+        "末值": 1.5,
         "采样": 10
       }
     },
@@ -286,8 +286,8 @@
       "name": "M5 多 Agent 同时 follow 同一真人：rt 收敛到目标附近",
       "ok": true,
       "detail": {
-        "首值": 2.1,
-        "末值": 2.4,
+        "首值": 2.6,
+        "末值": 1.5,
         "采样": 10
       }
     },
@@ -295,21 +295,21 @@
       "name": "M5 多 Agent 同时 follow 同一真人：guest 收敛到目标附近",
       "ok": true,
       "detail": {
-        "首值": 2.6,
-        "末值": 2.1,
+        "首值": 3,
+        "末值": 1.5,
         "采样": 10
       }
     },
     {
       "name": "M5b 跟随距离序列（相对目标）",
       "info": true,
-      "detail": "2.4/2.1/2.6 → 1.5/1.5/1.5 → 1.5/1.5/1.5 → 2.5/1.9/0.5 → 1.5/1.5/1.5 → 1.5/1.5/1.5 → 1.5/1.5/1.5 → 1.5/1.5/1.5 → 1.5/1.5/1.5 → 1.4/2.4/2.1"
+      "detail": "2.4/2.6/3.0 → 1.5/1.5/1.5 → 1.5/1.5/1.5 → 1.5/1.5/1.5 → 1.5/1.5/1.5 → 0.5/2.5/2.2 → 1.5/1.5/1.5 → 1.6/2.0/2.4 → 1.5/1.5/1.5 → 1.5/1.5/1.5"
     },
     {
       "name": "M5c 多 Agent 同时跟随同一目标时的彼此间距（无 Agent 间避让/碰撞）",
       "info": true,
       "detail": {
-        "最小间距m": 2.12,
+        "最小间距m": 1.15,
         "说明": "间距≈0 表示多个 Agent 位置重合（真人观感为叠在一起）"
       }
     },
@@ -317,8 +317,8 @@
       "name": "M6 多端聊天写入 world_chat_log（行数增长）",
       "ok": true,
       "detail": {
-        "before": 226,
-        "after": 227,
+        "before": 230,
+        "after": 231,
         "增量": 1
       }
     },
@@ -348,10 +348,10 @@
       "name": "M7c 真人端渲染帧率（headless chrome，真实 GPU；证明多端在线时渲染循环正常）",
       "info": true,
       "detail": {
-        "fps": 60,
+        "fps": 59,
         "revision": "185"
       }
     }
   ],
-  "durationMs": 76834
+  "durationMs": 77116
 }

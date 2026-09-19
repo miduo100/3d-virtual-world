@@ -155,7 +155,10 @@ async function groupC(ownerTicket, ownerAgentId) {
   R.check('C5 未过期但 jti 无会话（第二道门）被拒', r5.ok === false && (r5.statusCode === 401 || r5.statusCode === 403),
     { wsStatus: r5.statusCode, auditCode: 'SESSION_NOT_FOUND（见 audit.log）' });
   const httpSame = await K.httpJson('/api/agent/v1/observe?radius=30', { headers: { Authorization: 'Bearer ' + noSession } });
-  R.info('C5b 观察项：同一"会话不存在"在 WS 升级返回 401、HTTP 返回 403（口径不一致）',
+  // v2-2 修复（2026-09-19 用户决策 D2-A）：原为 R.info 记录的观察项（WS=401 / HTTP=403），
+  // 现 WS 侧 SESSION_* 也映射 403 → 提升为正式断言。
+  R.check('C5b 口径统一：同一"会话不存在"在 WS 升级与 HTTP 均为 403',
+    r5.statusCode === 403 && httpSame.status === 403,
     { ws: r5.statusCode, http: httpSame.status });
 
   const notAgent = jwt.sign({ sub: 'user-1', principalType: 'human' }, s, { jwtid: 'x2', expiresIn: 300 });

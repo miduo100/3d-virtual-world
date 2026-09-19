@@ -1,0 +1,285 @@
+{
+  "title": "accept_agent_longsession",
+  "startedAt": "2026-09-19T10:13:26.053Z",
+  "params": {
+    "minutes": 6,
+    "port": 3002,
+    "refreshIntervalMs": 120000
+  },
+  "sessions": [
+    {
+      "key": "eco",
+      "agentId": "02303f29-02be-495d-b99a-d59d37dcbcc9",
+      "pushTier": "eco"
+    },
+    {
+      "key": "standard",
+      "agentId": "4160170f-c6ed-43c4-8f8b-7a78e71b396a",
+      "pushTier": "standard"
+    },
+    {
+      "key": "realtime",
+      "agentId": "c34e5395-6971-4a44-858c-dcdfd5a5b59e",
+      "pushTier": "realtime"
+    }
+  ],
+  "positionChecks": [
+    {
+      "min": 5.05,
+      "observeOk": true,
+      "status": "200/200",
+      "from": {
+        "x": 137.2000000000001,
+        "y": 0,
+        "z": 3
+      },
+      "to": {
+        "x": 201.9999999999995,
+        "y": 0,
+        "z": 3
+      },
+      "step": 64.8
+    }
+  ],
+  "rssSamples": [
+    {
+      "min": 1.04,
+      "rssMB": 81
+    },
+    {
+      "min": 2.04,
+      "rssMB": 81
+    },
+    {
+      "min": 3.05,
+      "rssMB": 81
+    },
+    {
+      "min": 4.05,
+      "rssMB": 81
+    },
+    {
+      "min": 5.05,
+      "rssMB": 82
+    }
+  ],
+  "observeStats": {
+    "ok": 119,
+    "tokenExpired": 0,
+    "rateLimited": 0,
+    "other": 0
+  },
+  "refreshes": [
+    {
+      "tag": "t=2.0min",
+      "key": "eco",
+      "beforeStatus": 200,
+      "afterStatus": 200
+    },
+    {
+      "tag": "t=2.0min",
+      "key": "standard",
+      "beforeStatus": 200,
+      "afterStatus": 200
+    },
+    {
+      "tag": "t=2.0min",
+      "key": "realtime",
+      "beforeStatus": 200,
+      "afterStatus": 200
+    },
+    {
+      "tag": "t=4.0min",
+      "key": "eco",
+      "beforeStatus": 200,
+      "afterStatus": 200
+    },
+    {
+      "tag": "t=4.0min",
+      "key": "standard",
+      "beforeStatus": 200,
+      "afterStatus": 200
+    },
+    {
+      "tag": "t=4.0min",
+      "key": "realtime",
+      "beforeStatus": 200,
+      "afterStatus": 200
+    }
+  ],
+  "serverStat": {
+    "start": {
+      "cpuSeconds": 54.125,
+      "rssBytes": 84320256
+    },
+    "end": {
+      "cpuSeconds": 59.796875,
+      "rssBytes": 86020096
+    }
+  },
+  "result": {
+    "pass": 9,
+    "fail": 0,
+    "total": 9
+  },
+  "rows": [
+    {
+      "name": "P0 agent_enabled=true（长会话前置）",
+      "ok": true,
+      "detail": {
+        "wasEnabled": false
+      }
+    },
+    {
+      "name": "P1 3 个 Key Agent（eco/standard/realtime）全部 READY",
+      "ok": true,
+      "detail": [
+        "eco:eco",
+        "standard:standard",
+        "realtime:realtime"
+      ]
+    },
+    {
+      "name": "C1 6 分钟后 3 个连接仍全部存活（JWT TTL 900s 只在建连校验）",
+      "ok": true,
+      "detail": {
+        "alive": 3
+      }
+    },
+    {
+      "name": "C2 档位不变（READY.pushTier 与建连时一致）",
+      "ok": true,
+      "detail": {
+        "tiers": [
+          "eco",
+          "standard",
+          "realtime"
+        ]
+      }
+    },
+    {
+      "name": "C3 位置续位正常：每次移动检查都有效 observe + 真实位移（>10m）且不回原点",
+      "ok": true,
+      "detail": {
+        "checks": 1,
+        "validChecks": 1,
+        "movedOk": 1,
+        "samples": [
+          {
+            "min": 5.05,
+            "observeOk": true,
+            "status": "200/200",
+            "from": {
+              "x": 137.2000000000001,
+              "y": 0,
+              "z": 3
+            },
+            "to": {
+              "x": 201.9999999999995,
+              "y": 0,
+              "z": 3
+            },
+            "step": 64.8
+          }
+        ],
+        "observeStats": {
+          "ok": 119,
+          "tokenExpired": 0,
+          "rateLimited": 0,
+          "other": 0
+        }
+      }
+    },
+    {
+      "name": "C4 服务器内存无失控增长（后 1/3 中位 < 前 1/3×1.5 + 200MB）",
+      "ok": true,
+      "detail": {
+        "rssMedianFirst": 81,
+        "rssMedianLast": 82,
+        "cap": 322,
+        "samples": 5
+      }
+    },
+    {
+      "name": "C5 断开后无幽灵实体（其它 Agent observe 不再看到它）",
+      "ok": true,
+      "detail": {
+        "witnessObserveStatus": 200,
+        "afterObserveStatus": 200,
+        "seenBefore": true,
+        "seenAfter": false,
+        "victimId": "c34e5395-6971-4a44-858c-dcdfd5a5b59e"
+      }
+    },
+    {
+      "name": "C6 重连续位：新会话出生点继承该 Agent 自己断开前的位置（非原点）",
+      "ok": true,
+      "detail": {
+        "victimPosBefore": {
+          "x": 29.953810596162388,
+          "y": 0,
+          "z": 19.969207064108257
+        },
+        "newSpawn": {
+          "x": 29.953810596162388,
+          "y": 0,
+          "z": 19.969207064108257
+        },
+        "deltaM": 0
+      }
+    },
+    {
+      "name": "C7 JWT 续期有效：换票后 HTTP observe 恢复 200，且 WS 连接全程未断（无需重连）",
+      "ok": true,
+      "detail": {
+        "refreshes": [
+          {
+            "tag": "t=2.0min",
+            "key": "eco",
+            "beforeStatus": 200,
+            "afterStatus": 200
+          },
+          {
+            "tag": "t=2.0min",
+            "key": "standard",
+            "beforeStatus": 200,
+            "afterStatus": 200
+          },
+          {
+            "tag": "t=2.0min",
+            "key": "realtime",
+            "beforeStatus": 200,
+            "afterStatus": 200
+          },
+          {
+            "tag": "t=4.0min",
+            "key": "eco",
+            "beforeStatus": 200,
+            "afterStatus": 200
+          },
+          {
+            "tag": "t=4.0min",
+            "key": "standard",
+            "beforeStatus": 200,
+            "afterStatus": 200
+          },
+          {
+            "tag": "t=4.0min",
+            "key": "realtime",
+            "beforeStatus": 200,
+            "afterStatus": 200
+          }
+        ],
+        "recoveringCount": 0,
+        "observeStats": {
+          "ok": 119,
+          "tokenExpired": 0,
+          "rateLimited": 0,
+          "other": 0
+        },
+        "alive": 3
+      }
+    }
+  ],
+  "durationMs": 377463
+}

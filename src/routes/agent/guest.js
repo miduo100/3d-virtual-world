@@ -25,18 +25,19 @@ const transientSessionManager = require('../../agent/agentTransientSessionManage
 const agentConfigService = require('../../agent/agentConfigService');
 const agentSchema = require('../../agent/agentSchema');
 const logger = require('../../services/logger');
-
-function clientIp(req) {
-  return req.ip
-    || (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
-    || (req.socket && req.socket.remoteAddress)
-    || 'unknown';
-}
+// v2-6（2026-09-19 用户决策 D3-A+）：**IP 口径只允许有一处权威实现**。
+// 本文件原先自带一份 `clientIp()`，取 X-Forwarded-For 的**第一段**——与
+// `middleware/clientIp.js` 的"X-Real-IP 优先 → XFF 最后一段"口径**相反**
+// （D2 联测修复的成果：单层反代下最后一段才是我们代理看到的真实对端）；
+// 且在本地因 `req.ip` 恒有值 → 那个 XFF 分支**不可达**（死代码）。
+// 风险：一旦被复制到别的端点，就变成"客户端伪造 XFF 第一段绕开每 IP 限流"
+// （游客 10 张票/小时、每 IP 1 连接）——与 D2 修复方向完全相反。
+const clientIp = require('../../middleware/clientIp');
 
 // ==================== POST /guest/session ====================
 
 router.post('/guest/session', async (req, res) => {
-  const ip = clientIp(req);
+  const ip = clientIp.resolveClientIp(req);
   try {
     // 0) 前置：独立密钥（缺则全部 Agent 功能不可用）
     if (!agentAuth.isConfigured()) {

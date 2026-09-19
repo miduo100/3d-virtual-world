@@ -1,20 +1,20 @@
 {
-  "when": "2026-09-19T05:32:38.872Z",
-  "run": 78,
+  "when": "2026-09-19T09:14:28.922Z",
+  "run": 68,
   "ips": {
-    "owner": "203.0.113.78",
-    "auth": "203.0.113.108",
-    "main": "203.0.113.118",
-    "c18": "203.0.113.198",
-    "owner2": "203.0.113.178",
-    "rate": "198.51.100.78",
-    "fresh": "203.0.113.128",
-    "fresh2": "203.0.113.228",
-    "xObserver": "203.0.113.148",
+    "owner": "203.0.113.68",
+    "auth": "203.0.113.98",
+    "main": "203.0.113.108",
+    "c18": "203.0.113.188",
+    "owner2": "203.0.113.168",
+    "rate": "198.51.100.68",
+    "fresh": "203.0.113.118",
+    "fresh2": "203.0.113.218",
+    "xObserver": "203.0.113.138",
     "xAttempts": [
-      "203.0.113.138",
-      "203.0.113.139",
-      "203.0.113.140"
+      "203.0.113.128",
+      "203.0.113.129",
+      "203.0.113.130"
     ]
   },
   "groups": {
@@ -88,6 +88,10 @@
               "interact": [
                 1,
                 2000
+              ],
+              "stop": [
+                1,
+                2000
               ]
             },
             "upgradeHint": "需要实时推流 / 更大观察半径 / 跨世界联邦，请联系管理员申请 API Key 转正"
@@ -126,7 +130,8 @@
           "rotate",
           "jump",
           "say",
-          "interact"
+          "interact",
+          "stop"
         ],
         "pushTiers": {
           "default": "eco",
@@ -233,6 +238,10 @@
               "interact": [
                 1,
                 2000
+              ],
+              "stop": [
+                1,
+                2000
               ]
             },
             "upgradeHint": "需要实时推流 / 更大观察半径 / 跨世界联邦，请联系管理员申请 API Key 转正"
@@ -271,7 +280,8 @@
           "rotate",
           "jump",
           "say",
-          "interact"
+          "interact",
+          "stop"
         ],
         "pushTiers": {
           "default": "eco",
@@ -332,7 +342,6 @@
             "ENTITY_REMOVED",
             "ENTITY_MOVEMENT_BATCH",
             "CHAT",
-            "VOICE_MESSAGE",
             "ACTION_ACCEPTED",
             "ACTION_COMPLETED",
             "ACTION_REJECTED",
@@ -829,7 +838,8 @@
                             "walk_to",
                             "follow",
                             "jump",
-                            "interact"
+                            "interact",
+                            "stop"
                           ]
                         }
                       }
@@ -977,7 +987,6 @@
             "ENTITY_REMOVED",
             "ENTITY_MOVEMENT_BATCH",
             "CHAT",
-            "VOICE_MESSAGE",
             "ACTION_ACCEPTED",
             "ACTION_COMPLETED",
             "ACTION_REJECTED",
@@ -991,7 +1000,8 @@
             "rotate",
             "jump",
             "say",
-            "interact"
+            "interact",
+            "stop"
           ]
         },
         "x-entity-identity": {
@@ -1014,8 +1024,8 @@
       }
     },
     "B": {
-      "agentId": "agent:guest:c28c061a-538b-4d5e-b114-3fac8bbc9d4c",
-      "name": "游客AI-22e4514a"
+      "agentId": "agent:guest:979cd315-ed0a-4241-ae9f-7f2369835dda",
+      "name": "游客AI-e5828c36"
     },
     "C": {
       "connected": true
@@ -1033,22 +1043,22 @@
       "results": [
         {
           "attempt": 1,
-          "ip": "203.0.113.138",
-          "agentId": "agent:guest:bfd344b5-086b-4778-b0e2-c86ef0c81331",
+          "ip": "203.0.113.128",
+          "agentId": "agent:guest:2d9a8c97-615e-4414-8105-b4c9710168ba",
           "ghost": false,
           "slotLeak": false
         },
         {
           "attempt": 2,
-          "ip": "203.0.113.139",
-          "agentId": "agent:guest:b9fd989d-f8fc-4df2-8005-c480c695d17b",
+          "ip": "203.0.113.129",
+          "agentId": "agent:guest:c8af64b6-4cc2-4dbf-9f5d-b6bd3ed51c0e",
           "ghost": false,
           "slotLeak": false
         },
         {
           "attempt": 3,
-          "ip": "203.0.113.140",
-          "agentId": "agent:guest:8ac87346-9bc8-43ba-b1ac-d079536ce188",
+          "ip": "203.0.113.130",
+          "agentId": "agent:guest:32533b2c-29dd-404d-9d03-0d081047685d",
           "ghost": false,
           "slotLeak": false
         }
@@ -1059,9 +1069,9 @@
   },
   "fatal": null,
   "result": {
-    "pass": 75,
+    "pass": 76,
     "fail": 0,
-    "total": 75
+    "total": 76
   },
   "rows": [
     {
@@ -1155,12 +1165,12 @@
     {
       "name": "B4 agent.id 形如 agent:guest:<uuid>",
       "ok": true,
-      "detail": "agent:guest:c28c061a-538b-4d5e-b114-3fac8bbc9d4c"
+      "detail": "agent:guest:979cd315-ed0a-4241-ae9f-7f2369835dda"
     },
     {
       "name": "B5 agent.name 以 游客AI- 开头",
       "ok": true,
-      "detail": "游客AI-22e4514a"
+      "detail": "游客AI-e5828c36"
     },
     {
       "name": "B6 tierInfo.pushAllowed=false（红线 14）",
@@ -1218,15 +1228,15 @@
       "name": "C5 未过期但 jti 无会话（第二道门）被拒",
       "ok": true,
       "detail": {
-        "wsStatus": 401,
+        "wsStatus": 403,
         "auditCode": "SESSION_NOT_FOUND（见 audit.log）"
       }
     },
     {
-      "name": "C5b 观察项：同一\"会话不存在\"在 WS 升级返回 401、HTTP 返回 403（口径不一致）",
-      "info": true,
+      "name": "C5b 口径统一：同一\"会话不存在\"在 WS 升级与 HTTP 均为 403",
+      "ok": true,
       "detail": {
-        "ws": 401,
+        "ws": 403,
         "http": 403
       }
     },
@@ -1268,7 +1278,7 @@
     {
       "name": "C12 WORLD_SNAPSHOT.self.id = 本 Agent",
       "ok": true,
-      "detail": "agent:guest:c28c061a-538b-4d5e-b114-3fac8bbc9d4c"
+      "detail": "agent:guest:979cd315-ed0a-4241-ae9f-7f2369835dda"
     },
     {
       "name": "C14 游客 SUBSCRIBE → GUEST_PUSH_FORBIDDEN",
@@ -1334,7 +1344,7 @@
     {
       "name": "D3 self.id = 本 Agent（同一命名空间）",
       "ok": true,
-      "detail": "agent:guest:c28c061a-538b-4d5e-b114-3fac8bbc9d4c"
+      "detail": "agent:guest:979cd315-ed0a-4241-ae9f-7f2369835dda"
     },
     {
       "name": "D4 tier 字段回显 guest-pull",
@@ -1579,5 +1589,5 @@
       "detail": "联测收尾需按红线 6 恢复 agent_enabled=false"
     }
   ],
-  "durationMs": 32151
+  "durationMs": 32152
 }

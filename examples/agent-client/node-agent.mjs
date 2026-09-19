@@ -13,7 +13,8 @@
  *
  * 演示链路：
  *   discover → session（Key 或游客票）→ WS?token= → READY/WORLD_SNAPSHOT
- *   → SUBSCRIBE（仅 Key）→ observe → say → walk_to → teleport（红线：必被 REJECTED）
+ *   → SUBSCRIBE（仅 Key）→ observe → say → walk_to → move + stop（v2-4 新增动作）
+ *   → teleport（红线：必被 REJECTED）
  */
 
 const HOST = (process.env.AGENT_HOST || 'http://localhost:3002').replace(/\/+$/, '');
@@ -52,6 +53,17 @@ function openWs(url) {
     ws.addEventListener('error', (e) => reject(new Error('WS error: ' + (e.message || 'unknown'))), { once: true });
     setTimeout(() => reject(new Error('WS open timeout')), 8000);
   });
+}
+
+/** 按 requestId 等待某类回执（inbox 只增不减，"按类型找"可能命中更早那条指令的回执） */
+async function waitReq(inbox, type, requestId, ms = 5000) {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    const m = inbox.find(x => x.type === type && x.payload && x.payload.requestId === requestId);
+    if (m) return m;
+    await sleep(80);
+  }
+  return null;
 }
 
 async function waitFor(inbox, type, ms = 5000) {
@@ -129,10 +141,26 @@ async function waitFor(inbox, type, ms = 5000) {
   log('[7] walk_to:', walk ? walk.type + ' ' + JSON.stringify(walk.payload) : 'TIMEOUT');
   await sleep(2500);
 
-  // 8) 红线演示：teleport 必被拒
+  // 8) 连续移动 + 主动停止（v2-4 新增 `stop` 动作）
+  //    `move` 是**持续位移**，修复前没有干净停法（只能 observe 拿坐标后 walk_to 到自己，
+  //    或再发一条移动指令打断=继续走）→ LLM Agent"停下看看"会写出绕远路的指令。
+  //    `stop` = 立刻终止本连接一切移动类任务（move/walk_to/follow）并原地切 idle。
+  ws.send(JSON.stringify({ type: 'ACTION', payload: { requestId: 'move-1', action: 'move', direction: { x: 1, z: 0 } } }));
+  const moveAck = await waitReq(inbox, 'ACTION_ACCEPTED', 'move-1', 4000)
+    || await waitReq(inbox, 'ACTION_REJECTED', 'move-1', 2000);
+  log('[8] move:', moveAck ? moveAck.type + ' ' + JSON.stringify(moveAck.payload) : 'TIMEOUT');
+  await sleep(1200);
+  ws.send(JSON.stringify({ type: 'ACTION', payload: { requestId: 'stop-1', action: 'stop' } }));
+  // 两条回执都会到：①被打断的 move → reason='stopped'；②stop 自身 → result.wasMoving
+  const moveStopped = await waitReq(inbox, 'ACTION_COMPLETED', 'move-1', 4000);
+  const stopDone = await waitReq(inbox, 'ACTION_COMPLETED', 'stop-1', 4000);
+  log('[8b] stop:', stopDone ? JSON.stringify(stopDone.payload) : 'TIMEOUT',
+    '| 被打断的 move:', moveStopped ? JSON.stringify(moveStopped.payload) : 'TIMEOUT');
+
+  // 9) 红线演示：teleport 必被拒
   ws.send(JSON.stringify({ type: 'ACTION', payload: { requestId: 'tp-1', action: 'teleport', target: { x: 100, z: 100 } } }));
-  const tp = await waitFor(inbox, 'ACTION_REJECTED', 4000);
-  log('[8] teleport:', tp ? 'REJECTED ' + tp.payload.code + '（红线：Agent 无传送权限）' : 'TIMEOUT');
+  const tp = await waitReq(inbox, 'ACTION_REJECTED', 'tp-1', 4000);
+  log('[9] teleport:', tp ? 'REJECTED ' + tp.payload.code + '（红线：Agent 无传送权限）' : 'TIMEOUT');
 
   log('\n=== demo done (tier=' + tier + ') ===');
   ws.close();

@@ -1,0 +1,366 @@
+{
+  "title": "accept_agent_stop",
+  "startedAt": "2026-09-19T09:06:55.460Z",
+  "groups": {
+    "moveStop": {
+      "base": {
+        "x": 36.79999999999999,
+        "y": 0,
+        "z": 1.5
+      },
+      "o1": {
+        "x": 50.00000000000002,
+        "y": 0,
+        "z": 1.5
+      },
+      "o2": {
+        "x": 51.200000000000024,
+        "y": 0,
+        "z": 1.5
+      },
+      "o3": {
+        "x": 51.200000000000024,
+        "y": 0,
+        "z": 1.5
+      },
+      "drift": 0
+    },
+    "walkToStop": {
+      "target": {
+        "x": 111.20000000000002,
+        "z": 1.5
+      },
+      "receipts": [
+        {
+          "requestId": "stop-walk-1",
+          "reason": "stopped"
+        }
+      ],
+      "drift": 0
+    },
+    "followStop": {
+      "before": {
+        "x": 72.40000000000005,
+        "y": 0,
+        "z": 3
+      },
+      "after": {
+        "x": 72.40000000000005,
+        "y": 0,
+        "z": 3
+      },
+      "humanMovedTo": {
+        "x": 97.40000000000005,
+        "y": 0,
+        "z": 26.5
+      },
+      "chased": 0
+    },
+    "idempotent": {
+      "requestId": "stop-idem-1",
+      "result": {
+        "wasMoving": false
+      }
+    },
+    "guestStop": {
+      "first": {
+        "requestId": "guest-stop-1",
+        "result": {
+          "wasMoving": false
+        }
+      },
+      "second": {
+        "requestId": "guest-stop-2",
+        "reason": "动作过于频繁（stop 限 1次/2000ms）",
+        "code": "rate_limited"
+      }
+    },
+    "discovery": {
+      "capsActions": [
+        "move",
+        "walk_to",
+        "follow",
+        "rotate",
+        "jump",
+        "say",
+        "interact",
+        "stop"
+      ],
+      "wkActions": [
+        "move",
+        "walk_to",
+        "follow",
+        "rotate",
+        "jump",
+        "say",
+        "interact",
+        "stop"
+      ],
+      "wsActions": [
+        "move",
+        "walk_to",
+        "follow",
+        "rotate",
+        "jump",
+        "say",
+        "interact",
+        "stop"
+      ],
+      "actionEnum": [
+        "say",
+        "rotate",
+        "move",
+        "walk_to",
+        "follow",
+        "jump",
+        "interact",
+        "stop"
+      ],
+      "stopRate": [
+        1,
+        2000
+      ]
+    }
+  },
+  "result": {
+    "pass": 24,
+    "fail": 0,
+    "total": 24
+  },
+  "rows": [
+    {
+      "name": "P0 基线配置可读（agent_enabled 原值由收尾恢复）",
+      "ok": true,
+      "detail": {
+        "agentEnabled": false
+      }
+    },
+    {
+      "name": "P0b agent_enabled=true（联测期前置，必要时已自动开启）",
+      "ok": true,
+      "detail": {
+        "agentEnabled": true
+      }
+    },
+    {
+      "name": "P1 前置：Key Agent WS 已 READY",
+      "ok": true,
+      "detail": "tier_eco_87393"
+    },
+    {
+      "name": "S0 前置：Agent 在线且可 observe",
+      "ok": true,
+      "detail": {
+        "spawn": {
+          "x": 36.79999999999999,
+          "y": 0,
+          "z": 1.5
+        },
+        "agentId": "02303f29-02be-495d-b99a-d59d37dcbcc9"
+      }
+    },
+    {
+      "name": "S1a move 生效（1.3s 内位移 >5m）",
+      "ok": true,
+      "detail": {
+        "moved": 13.2,
+        "at": {
+          "x": 50.00000000000002,
+          "y": 0,
+          "z": 1.5
+        }
+      }
+    },
+    {
+      "name": "S1b stop 后位置冻结（1s 内漂移 ≤0.3m）",
+      "ok": true,
+      "detail": {
+        "p2": {
+          "x": 51.200000000000024,
+          "y": 0,
+          "z": 1.5
+        },
+        "p3": {
+          "x": 51.200000000000024,
+          "y": 0,
+          "z": 1.5
+        },
+        "drift": 0
+      }
+    },
+    {
+      "name": "S1c stop 后 animMode=idle（entities[self]）",
+      "ok": true,
+      "detail": {
+        "animMode": "idle"
+      }
+    },
+    {
+      "name": "S2 move 的 requestId 收 ACTION_COMPLETED{reason:stopped}",
+      "ok": true,
+      "detail": {
+        "requestId": "stop-move-1",
+        "reason": "stopped"
+      }
+    },
+    {
+      "name": "S3 stop 自身收 ACTION_COMPLETED{result.wasMoving:true}",
+      "ok": true,
+      "detail": {
+        "requestId": "stop-1",
+        "result": {
+          "wasMoving": true
+        }
+      }
+    },
+    {
+      "name": "S4a walk_to 途中 stop → requestId 收 reason=stopped（非 arrived）",
+      "ok": true,
+      "detail": {
+        "requestId": "stop-walk-1",
+        "reason": "stopped"
+      }
+    },
+    {
+      "name": "S4b 同一 requestId 仅一条终态回执（arrived 未重复发）",
+      "ok": true,
+      "detail": [
+        "stopped"
+      ]
+    },
+    {
+      "name": "S4c stop 后不再朝目标推进（1s 漂移 ≤0.3m）",
+      "ok": true,
+      "detail": 0
+    },
+    {
+      "name": "S5-0 前置：真人观察者已入场（follow 需要目标实体）",
+      "ok": true,
+      "detail": "upgraded"
+    },
+    {
+      "name": "S5a follow 途中 stop → follow 的 requestId 收 reason=stopped",
+      "ok": true,
+      "detail": {
+        "requestId": "stop-follow-1",
+        "reason": "stopped"
+      }
+    },
+    {
+      "name": "S5b stop 后目标再动不再被跟随（Agent 位移 ≤0.5m）",
+      "ok": true,
+      "detail": {
+        "before": {
+          "x": 72.40000000000005,
+          "y": 0,
+          "z": 3
+        },
+        "after": {
+          "x": 72.40000000000005,
+          "y": 0,
+          "z": 3
+        },
+        "movedTowardTarget": 0
+      }
+    },
+    {
+      "name": "S6 幂等：无移动任务时 stop 成功且 wasMoving=false",
+      "ok": true,
+      "detail": {
+        "requestId": "stop-idem-1",
+        "result": {
+          "wasMoving": false
+        }
+      }
+    },
+    {
+      "name": "S6b 幂等调用不产生 ACTION_REJECTED",
+      "ok": true,
+      "detail": "none"
+    },
+    {
+      "name": "S7a 游客档 stop 可用（ACTION_COMPLETED，wasMoving=false）",
+      "ok": true,
+      "detail": {
+        "requestId": "guest-stop-1",
+        "result": {
+          "wasMoving": false
+        }
+      }
+    },
+    {
+      "name": "S7b 2s 内第二次 stop → rate_limited（TIER_ACTION_RATES 已加表项）",
+      "ok": true,
+      "detail": {
+        "requestId": "guest-stop-2",
+        "reason": "动作过于频繁（stop 限 1次/2000ms）",
+        "code": "rate_limited"
+      }
+    },
+    {
+      "name": "S8a capabilities.actions 含 stop",
+      "ok": true,
+      "detail": [
+        "move",
+        "walk_to",
+        "follow",
+        "rotate",
+        "jump",
+        "say",
+        "interact",
+        "stop"
+      ]
+    },
+    {
+      "name": "S8b well-known.actions 含 stop（与 capabilities 同源）",
+      "ok": true,
+      "detail": [
+        "move",
+        "walk_to",
+        "follow",
+        "rotate",
+        "jump",
+        "say",
+        "interact",
+        "stop"
+      ]
+    },
+    {
+      "name": "S8c openapi x-websocket.actions 含 stop",
+      "ok": true,
+      "detail": [
+        "move",
+        "walk_to",
+        "follow",
+        "rotate",
+        "jump",
+        "say",
+        "interact",
+        "stop"
+      ]
+    },
+    {
+      "name": "S8d openapi /action requestBody enum 含 stop（第三处清单）",
+      "ok": true,
+      "detail": [
+        "say",
+        "rotate",
+        "move",
+        "walk_to",
+        "follow",
+        "jump",
+        "interact",
+        "stop"
+      ]
+    },
+    {
+      "name": "S8e 游客限频表已下发 stop:[1,2000]（免费断言点）",
+      "ok": true,
+      "detail": [
+        1,
+        2000
+      ]
+    }
+  ],
+  "durationMs": 15224
+}

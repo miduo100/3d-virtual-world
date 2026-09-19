@@ -147,20 +147,45 @@ function startMove(connectionId, agent, session, direction, opts) {
 }
 
 /**
- * 停止连续移动（move 模式专用，walk_to 自动到点停止）
+ * 判断任务是否处于"正在移动"状态（stop 的 wasMoving 判据）
+ * 注意：`rotate` 也会留下一个 mode='idle' 的任务对象，它不是移动任务，不应算 moving。
  */
-function stopMove(connectionId) {
+function isMovingTask(task) {
+  if (!task) return false;
+  if (task.jumping) return true;
+  return task.mode === 'move' || task.mode === 'walk_to';
+}
+
+/**
+ * 停止该连接上的一切移动任务（新增动作 `stop` 的落地实现，缺陷 v2-4）
+ *
+ * 用户决策 D1-A（2026-09-19）：新增 reason='stopped'。
+ *
+ * 修复前的问题：本函数只处理 `mode === 'move'`（对 walk_to / jump 无效），且**全项目零调用**；
+ * 而 walk_to 最后一条广播是 animMode='walk'，被打断后不补 idle 广播 → 真人端会残留
+ * "原地走路"姿态。现在统一为：
+ *   清 interval → 摘任务 → 补一次 `idle` 广播（仅移动中才补）→ 给旧 requestId 补
+ *   `ACTION_COMPLETED{reason:'stopped'}`。
+ * 幂等：无任务（或任务处于 idle 且未跳跃，如 rotate 留下的对象）时返回 `wasMoving:false`，
+ * 不广播、不回执。
+ *
+ * @param reason 传给旧指令的回执 reason，默认 'stopped'（断线清理路径由 cancelMovement 负责）
+ */
+function stopMove(connectionId, reason) {
   const task = activeMovements.get(connectionId);
-  if (!task || task.mode !== 'move') return { ok: true, wasNotMoving: true };
-  // 保留任务对象但停止推进（AnimMode=idle）
-  clearInterval(task.intervalId);
-  task.mode = 'idle';
-  task.direction = null;
-  // 派发一次位置 + idle 状态
-  publishPosition(connectionId, task);
-  // 释放任务表项（已 idle）
+  if (!task) return { ok: true, wasMoving: false };
+  const wasMoving = isMovingTask(task);
+  if (task.intervalId) { clearInterval(task.intervalId); task.intervalId = null; }
   activeMovements.delete(connectionId);
-  return { ok: true };
+  if (wasMoving) {
+    // 位置不变，只把 animMode 切回 idle —— 补广播，防真人端残留 walking 姿态
+    publishPosition(connectionId, {
+      ...task, mode: 'idle', direction: null, jumping: false, jumpVel: 0
+    }, 'idle');
+  }
+  // 终态回执：walk_to 已到达时任务早已被删除，不会重复发 arrived
+  if (task.requestId) notifyCompleted(task, reason || 'stopped');
+  return { ok: true, wasMoving };
 }
 
 /**

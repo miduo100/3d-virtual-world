@@ -1,51 +1,51 @@
 {
-  "when": "2026-09-19T05:32:16.711Z",
-  "run": 26,
+  "when": "2026-09-19T09:07:55.138Z",
+  "run": 85,
   "ips": {
-    "observer": "203.0.113.206"
+    "observer": "203.0.113.265"
   },
   "groups": {
     "transient": {
       "results": [
         {
           "attempt": 1,
-          "ip": "203.0.113.86",
-          "agentId": "agent:guest:ae822930-8632-4829-bf10-04008e6afc5c",
+          "ip": "203.0.113.145",
+          "agentId": "agent:guest:c4ba79d1-819e-4f21-8185-ac8c9e8b03cd",
           "ghost": false,
           "reconnect": true
         },
         {
           "attempt": 2,
-          "ip": "203.0.113.87",
-          "agentId": "agent:guest:0c4577df-9409-4567-b5eb-87ab58cba17c",
+          "ip": "203.0.113.146",
+          "agentId": "agent:guest:fb79158b-89ca-4fe2-a011-df98ad2bf0ce",
           "ghost": false,
           "reconnect": true
         },
         {
           "attempt": 3,
-          "ip": "203.0.113.88",
-          "agentId": "agent:guest:2a4c8f8d-1cbd-4c26-97f7-76f161931776",
+          "ip": "203.0.113.147",
+          "agentId": "agent:guest:20c5dbce-c7e9-4297-8e1f-2cbadae00ede",
           "ghost": false,
           "reconnect": true
         },
         {
           "attempt": 4,
-          "ip": "203.0.113.89",
-          "agentId": "agent:guest:c30ddc55-5f15-4a0f-bd3c-cd352fa07627",
+          "ip": "203.0.113.148",
+          "agentId": "agent:guest:b6ddc4f9-a594-4af7-9b0c-b44a07aa6325",
           "ghost": false,
           "reconnect": true
         },
         {
           "attempt": 5,
-          "ip": "203.0.113.90",
-          "agentId": "agent:guest:31a10614-99a9-4e45-89d8-dfe0920cdee0",
+          "ip": "203.0.113.149",
+          "agentId": "agent:guest:db3f6bee-03e0-4501-a958-3c6002c4a009",
           "ghost": false,
           "reconnect": true
         },
         {
           "attempt": 6,
-          "ip": "203.0.113.91",
-          "agentId": "agent:guest:6f6a1d20-9507-4b35-b195-05129f90d281",
+          "ip": "203.0.113.150",
+          "agentId": "agent:guest:3dbd1434-5407-4b52-912e-9f528761a86e",
           "ghost": false,
           "reconnect": true
         }
@@ -53,7 +53,7 @@
       "ghosts": 0,
       "reconnectFails": 0,
       "disconnects": 12,
-      "preReady": 11
+      "preReady": 12
     },
     "receipts": "see rows"
   },
@@ -93,14 +93,14 @@
       "ok": true,
       "detail": {
         "ws_disconnected": 12,
-        "closed_before_ready": 11,
-        "ws_connected": 2
+        "closed_before_ready": 12,
+        "ws_connected": 1
       }
     },
     {
       "name": "V3b 泄漏机理反证",
       "info": true,
-      "detail": "ws 监听器前置注册后，close 事件必然进入 handleClose：本次 6 次瞬时断开产生 11 条 phase=closed_before_ready 审计；修复前这 6 条连接不会产生任何 ws_disconnected（handleClose 未执行），且留下 6 个幽灵实体"
+      "detail": "ws 监听器前置注册后，close 事件必然进入 handleClose：本次 6 次瞬时断开产生 12 条 phase=closed_before_ready 审计；修复前这 6 条连接不会产生任何 ws_disconnected（handleClose 未执行），且留下 6 个幽灵实体"
     },
     {
       "name": "V4 move 被打断补发 ACTION_COMPLETED{reason:superseded}",
@@ -134,5 +134,5 @@
       "detail": "① move / jump 的 reason=disconnected 回执发给的是**已断开的连接**，客户端无法观测，其清理侧证据 = V3 的 ws_disconnected（handleClose → cleanup → cancelMovement）；② jump 若**复用**既有移动任务（如 walk_to 途中起跳），该 jump 不另占回执位（一条任务只挂一个待回执指令，不覆盖旧 requestId），此时只有主指令收到 superseded —— 属既定契约，非缺陷。"
     }
   ],
-  "durationMs": 21955
+  "durationMs": 21932
 }

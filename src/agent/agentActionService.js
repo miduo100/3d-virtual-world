@@ -1,6 +1,7 @@
 /**
  * AI Agent 接入 - 行动服务（P4 b/c）
- * 六动作：move/walk_to/rotate/jump/say/interact
+ * 八动作：move/walk_to/follow/rotate/jump/say/interact/stop
+ *  （2026-09-19 新增 `follow` 与 `stop`；`stop` = 缺陷 v2-4，用户决策 D1-A）
  *
  * 红线2：scope 集合不含 teleport/set_position——收到即 REJECTED（不开发任何 teleport action）
  * 红线10：Agent 不允许 set_position 裸接口（移动只能 walk_to/rotate/jump，服务端定速度）
@@ -11,7 +12,10 @@
  *
  * 回执协议：
  *   - ACTION_ACCEPTED { requestId } — 已接收，正在执行（移动类）
- *   - ACTION_COMPLETED { requestId, result } — 执行完成（rotate/jump 瞬时 / walk_to 到达 / say 已广播）
+ *   - ACTION_COMPLETED { requestId, result } — 执行完成（rotate/jump 瞬时 / walk_to 到达 / say 已广播 /
+ *     stop 停住并带 result.wasMoving）
+ *   - ACTION_COMPLETED { requestId, reason } — 移动类被服务端补发的终态回执，
+ *     reason ∈ arrived | superseded | stopped | target_lost | timeout | disconnected
  *   - ACTION_REJECTED { requestId, reason, code } — 校验失败
  */
 
@@ -54,8 +58,9 @@ async function dispatch(ctx, payload) {
   }
 
   // 2) scope 校验（红线2：FORBIDDEN_SCOPES 含 teleport/set_position）
-  //    walk_to / follow 视为 move 的子动作（共享 move scope）
-  const scopeForAction = (action === 'walk_to' || action === 'follow') ? 'move' : action;
+  //    walk_to / follow / stop 视为 move 的子动作（共享 move scope，AGENT_SCOPES 无需改动）
+  const scopeForAction = (action === 'walk_to' || action === 'follow' || action === 'stop')
+    ? 'move' : action;
   if (!permissionService.isScopeAllowed(agent, scopeForAction)) {
     // 红线：teleport / set_position 永远不在 scope 中，这里直接 REJECTED
     return reject(requestId, 'scope_denied', `动作 ${action} 不在 Agent 权限集中`);
@@ -63,6 +68,8 @@ async function dispatch(ctx, payload) {
 
   // 2.5) 移动类互斥（缺陷 C）：follow 与 move/walk_to/jump 互相打断
   //      —— 同一连接同一时刻只允许一个移动任务（follow 内部会取消既有移动任务与旧 follow）
+  //      注意：`stop` **故意不列在此处** —— 它要取消 follow 并给旧指令发 reason='stopped'
+  //      （如果在这里先 cancelFollow，旧 follow 会拿到 'superseded'，语义就不准了）。
   if (action === 'move' || action === 'walk_to' || action === 'jump') {
     followService.cancelFollow(connectionId, 'superseded');
   }
@@ -72,6 +79,7 @@ async function dispatch(ctx, payload) {
     case 'move':       return handleMove(ctx, payload);
     case 'walk_to':    return handleWalkTo(ctx, payload);
     case 'follow':     return handleFollow(ctx, payload);
+    case 'stop':       return handleStop(ctx, payload);
     case 'rotate':     return handleRotate(ctx, payload);
     case 'jump':       return handleJump(ctx, payload);
     case 'say':        return handleSay(ctx, payload);
@@ -81,7 +89,34 @@ async function dispatch(ctx, payload) {
   }
 }
 
-// ==================== 六动作 ====================
+// ==================== 八动作 ====================
+
+/**
+ * 新增动作 `stop`（缺陷 v2-4，用户决策 D1-A）
+ *
+ * 背景：`move` 是持续位移，此前没有干净的停法——客户端只能 ①observe 拿自己坐标再
+ * `walk_to` 到自己（会触发一次 `arrived` 回执 + 0.5m 到达阈值），或 ②发另一条移动指令
+ * 打断（那等于继续走）。LLM Agent 想"停下看看"会写出绕远路的指令（第一轮联调
+ * "你在原地徘徊 / 做了无用的走动"的残留成因之一），`movementService.stopMove()` 曾是
+ * 全项目零调用的死代码。
+ *
+ * 语义：立即终止该连接上的一切移动类任务（move / walk_to / follow），原地切 idle。
+ *   - 被打断的那条指令 → `ACTION_COMPLETED { requestId, reason: 'stopped' }`
+ *   - stop 自身       → `ACTION_COMPLETED { requestId, result: { wasMoving } }`
+ *   - 幂等：无移动任务时也成功（`wasMoving:false`），不报错
+ *
+ * 契约细节（§9 坑 23）：一条移动任务只挂一个待回执指令，所以回执发的是**旧任务**的
+ * requestId，stop 自己的回执单独回；若 walk_to 在 stop 之前已到达，其任务已被删除，
+ * 那条 requestId 只会收到过一次 `arrived`，不会重复发。
+ */
+function handleStop(ctx, payload) {
+  const { connectionId } = ctx;
+  // 先取消 follow、再取消移动任务：两者各自给旧 requestId 补 reason='stopped'
+  const followWasActive = followService.cancelFollow(connectionId, 'stopped');
+  const move = movement.stopMove(connectionId, 'stopped');
+  const wasMoving = Boolean((move && move.wasMoving) || followWasActive);
+  return { completed: true, requestId: payload.requestId, result: { wasMoving } };
+}
 
 function handleMove(ctx, payload) {
   const { connectionId, agent, session } = ctx;

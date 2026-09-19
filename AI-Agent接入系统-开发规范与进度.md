@@ -17,7 +17,8 @@
 5. **注意当前阶段（2026-09-19 v3 轮，代码已解冻）**：v2-1（P1）与 v2-3（P2）**已修复并验收**（见第七节「v2 登录与多端联测」的**修复结果**与新增的「v3 缺陷修复轮」小节）：监听器前置注册 + readyState 兜底解决瞬时断开泄漏；`move`/`jump` 注入 `{ requestId, reply }` 补发 `ACTION_COMPLETED{superseded}`。矩阵复跑 **游客 75/75、Key 38/38、多端 25/25**，专项脚本 `accept_agent_v2_defects_fix.js` **7/7**，既有回归全绿。
 6. **观察项状态**：v2-5（多 Agent 跟随同一目标完全重合）已于 2026-09-19 以缺陷 T9 修复（环形避让）；**v2-2**（`SESSION_NOT_FOUND` 口径统一 401/403）、**v2-4**（是否新增 `stop` 动作）、**v2-6**（`guest.js` 的 `clientIp()` 与中间件合并）仍未动，**改前须用户拍板（红线 11）**。
 7. **当前阶段（2026-09-19 三档推送与真人端观感修复轮，代码已解冻）**：按 `AI-Agent修复提示词-v4-三档推送与真人端观感.md` 执行，**T1/T2/T3/T4/T5/T6/T8/T9/T10 全部修复并验收**（T7 用户已决策不修）。tier 六轮 **48/48、12/12、17/17、13/13、20/20、7/7** 全绿，既有回归 14 个脚本全绿，详见第七节「三档推送层与真人端观感修复」。用户决策记录：D1=**修**（jump 幅度维持 0.82m）/ D2=**真 10Hz** / D3=**位置流脱离令牌桶** / D4=**环形避让**。
-8. **Agent 语音：不做**（用户 2026-09-19 决策："AI 目前不用语音，后期用再开发"）。`agent_voice_relay` 键保留占位，代码无实现路径；capabilities/openapi 仍列 `VOICE_MESSAGE` 属遗留缺口（待决定是否移除）。**下一会话入口**：见第七节「三档推送层与真人端观感修复」末尾的「后续决策记录与待办」——优先候选 = v2-4 加 `stop`、100 Agent 压测（含 >30 分钟长会话）。
+8. **Agent 语音：不做**（用户 2026-09-19 决策："AI 目前不用语音，后期用再开发"）。`agent_voice_relay` 键保留占位，代码无实现路径；**发现端点的遗留缺口已清理**（commit `a54aa4d7`：capabilities 与 openapi 的 outbound 列表均已移除 `VOICE_MESSAGE`，README 红线 4/5 同步改写）。
+9. **当前阶段（2026-09-19 v5 轮：剩余观察项收口 + 容量实测，代码已解冻）**：三条剩余观察项 **v2-4 / v2-2 / v2-6 全部收口并验收**（新增 `stop` 动作 / 会话失效口径统一 403 / IP 口径合并），并完成 **100 游客 Agent 容量实测 + 35 分钟长会话**。用户决策：D1=**A**（新增 `reason='stopped'`）、D2=**A**（改 WS 侧映射 403）、D3=**A+**（`guest.js` 与 `session.js` 两处一起合并）、D4=**100 游客 eco + 3 Key 长会话 35min**。详见第七节「剩余观察项收口与容量实测」。**下一会话入口**：该小节末尾的「承载结论与后续建议」。
 
 ### 收尾三件事（每会话结束前必做）
 1. **更新第 7 节进度表**（checkbox 状态 + 日期 + 会话摘要）；
@@ -174,7 +175,19 @@ Agent JWT payload：`{ sub: agentId, principalType: 'agent', worldId, scopes: [.
 
 ### 5.2 WebSocket（/ws/agent）消息
 
-连接即鉴权（HTTP upgrade 时读 Authorization header，拒绝无 token/过期 token）。
+连接即鉴权（HTTP upgrade 时读 Authorization header，或 `?token=` 降级路径）。
+
+**鉴权状态码口径（v2-2，2026-09-19 统一；WS 与 HTTP 逐项一致）**：
+- **401 = 凭据缺失/无效**：没有 token（`AGENT_TOKEN_MISSING`）、签名错、格式非法、`principalType ≠ agent`
+- **403 = 凭据有效但会话或身份无权**：JWT 过期（`TOKEN_EXPIRED`）、jti 无会话（`SESSION_NOT_FOUND`）、已吊销（`SESSION_REVOKED`）、会话过期（`SESSION_EXPIRED`）、Agent 已停用（`AGENT_DISABLED`）
+- 实现：WS 侧 `agentWsServer.FORBIDDEN_UPGRADE_CODES`，HTTP 侧 `routes/agent/session.js`（两侧注释互相指向，改动须同步）
+- 修复前只有 `TOKEN_EXPIRED` 在 WS 侧映射 403，其余一律 401 → 同一"会话不存在"WS=401 / HTTP=403（原 `accept_agent_v2_auth_guest.js` 的 C5b 观察项，现已升级为断言）。客户端只需记住：**403 → 换票/重开会话或联系管理员；401 → 检查凭据本身**。
+
+**⚠️ 会话有效期与续期（v5 轮长会话实测发现，务必告知 SDK 作者）**：Agent JWT TTL = **900s**。
+- **WS 只在建连时校验一次**（之后不逐消息校验）→ 连接可以远超 TTL 长期存活（实测 35 分钟无断）
+- **但所有 HTTP 端点每次调用都重新校验 JWT**（`authenticateAgentToken`）→ **JWT 到期后 `observe` / `/me` / `/chat/history` 等全部 403 `TOKEN_EXPIRED`**（实测 t≈15min 起）
+- **正确做法：长会话客户端每 <15 分钟（推荐 10 分钟）用 API Key 调一次 `POST /session` 换新 token 用于 HTTP 调用；WS 连接无需重连。**
+- 机制实证脚本：`scripts/accept_agent_jwt_expiry.js`（自签同 jti + 已过期 JWT → HTTP 403 / WS 建连 403 / 换票后新 token HTTP 200 且旧 WS 仍 `readyState=1`）
 
 ```
 C→S:  SUBSCRIBE { topics: ["chat","presence","movement"], radius }   ★ voice 主题未实现（见下）
@@ -199,9 +212,18 @@ S→C:  READY { agentId, avatar, spawn }
 - **实体首见先发 `ENTITY_ADDED`（带当时位置）→ 本 tick 不再进位置流，下一 tick 起走位置流**（客户端可把 ADDED 当作"实体出现"的可靠信号；修复前新实体总是先进 batch 并写 snap，ADDED 分支永不命中）。
 - **pre-ready 消息缓存**（2026-09-19）：客户端可在 WS `open` 回调里立刻发 SUBSCRIBE —— state 就绪前到达的消息会按序缓存（上限 32 条）并在 READY 之后补发（修复前被静默丢弃 → 订阅失效、永远收不到位置流）。
 
-ACTION 七动作（P4 + 2026-09-19 新增 `follow`）：`move(target)` 连续位移、`walk_to(target)` 走到点（服务端限速逐帧推进 + animMode:walk）、**`follow(targetId, stopDistance=2, maxDurationMs=60000)` 持续跟随**（服务端每 100ms 追目标、进入 stopDistance 停住、目标消失/超时/被新指令打断即结束）、`rotate(yaw)`、`jump()`、`say(text)`（≤200 字，走 CHAT 管线）、`interact(targetId)`（距离校验）。全部要求：scope 校验→参数 schema→距离/边界校验→限频→服务端权威→requestId 回执。
+ACTION 八动作（P4 + 2026-09-19 新增 `follow` 与 **`stop`**）：`move(target)` 连续位移、`walk_to(target)` 走到点（服务端限速逐帧推进 + animMode:walk）、**`follow(targetId, stopDistance=2, maxDurationMs=60000)` 持续跟随**（服务端每 100ms 追目标、进入 stopDistance 停住、目标消失/超时/被新指令打断即结束）、**`stop()` 停止一切移动类任务**（v2-4，见下）、`rotate(yaw)`、`jump()`、`say(text)`（≤200 字，走 CHAT 管线）、`interact(targetId)`（距离校验）。全部要求：scope 校验→参数 schema→距离/边界校验→限频→服务端权威→requestId 回执。
 
-**移动类回执契约（2026-09-19 缺陷 E 修复；v2-3 补齐 move/jump）**：`ACTION_COMPLETED { requestId, reason }` 由**服务端在移动结束时补发**，`reason ∈ arrived | superseded | target_lost | timeout | disconnected`（walk_to 到达 / 被打断；follow 结束）。**移动类动作（move/walk_to/jump/follow）互斥**：同一连接同一时刻只有一个移动任务，新指令打断旧任务并向旧 requestId 发 `reason=superseded`。**速度上限 `agent_max_speed`（默认 9 m/s = 真人速度，后台可配 1~20）。**
+**`stop` 语义（v2-4，2026-09-19 用户决策 D1-A）**：立即终止该连接上的一切移动类任务（move / walk_to / follow），Agent 原地切 `idle`。
+- 被打断的那条指令 → `ACTION_COMPLETED { requestId, reason: 'stopped' }`
+- `stop` 自身 → `ACTION_COMPLETED { requestId, result: { wasMoving } }`
+- **幂等**：无移动任务时也成功（`wasMoving:false`），不报错；`rotate` 留下的 idle 任务不算 moving
+- 停下后**必须补发一次 `idle` 位置广播**（否则 walk_to/follow 被打断后最后一条广播是 `walk`，真人端会残留"原地走路"姿态）
+- 游客限频：`TIER_ACTION_RATES[guest].stop = [1,2000]` —— **新增动作必须显式加表项**（`checkActionRate` 对无规则的动作直接放行，漏加等于游客可无限刷）
+- scope：与 walk_to/follow 共享 `move`（`AGENT_SCOPES` 无需改动）
+- 实现坐标：`agentActionService.handleStop`（先 `followService.cancelFollow('stopped')` 再 `movement.stopMove('stopped')`）+ `agentMovementService.stopMove(connectionId, reason)`（原为"只处理 mode==='move'"的零调用死代码，现为全模式）
+
+**移动类回执契约（2026-09-19 缺陷 E 修复；v2-3 补齐 move/jump；v5 新增 stopped）**：`ACTION_COMPLETED { requestId, reason }` 由**服务端在移动结束时补发**，`reason ∈ arrived | superseded | stopped | target_lost | timeout | disconnected`（walk_to 到达 / 被新指令打断 / 被 `stop` 主动停止 / 目标消失 / 超时 / 断线；follow 结束）。**移动类动作（move/walk_to/jump/follow）互斥**：同一连接同一时刻只有一个移动任务，新指令打断旧任务并向旧 requestId 发 `reason=superseded`。**速度上限 `agent_max_speed`（默认 9 m/s = 真人速度，后台可配 1~20）。**
 > **v2-3 补记（2026-09-19）**：`move` / `jump` 原先未注入 `{requestId, reply}`（被打断静默无回执），已与 `walk_to` / `follow` 对齐。两条细节：① 一条移动任务只挂**一个**待回执指令，`jump` 复用正在跑的任务（如 `walk_to` 途中起跳）时**不覆盖**旧 `requestId` → 此时只有主指令收到 `superseded`；② `reason='disconnected'` 的回执发送时 socket 已关闭（客户端观测不到），清理证据看审计日志 `ws_disconnected`。
 
 ### 5.3 推送三档（system_config，后台单选热切换）
@@ -711,6 +733,83 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 
 ---
 
+### 剩余观察项收口与容量实测（v2-4 / v2-2 / v2-6 + 100 Agent 承载）✅ 2026-09-19
+
+> 触发文档：`AI-Agent修复提示词-v5-剩余观察项与容量压测.md`。开工先做文件存在性 + 环境核对（HEAD=`a54aa4d7`、3 个测试 Agent 在库、well-known 快照一致；确认 `examples/agent-client/ai-view.mjs`、`accept_agent_p4/p5/p6*.js`、`agent_federation_mock_world.js` 仍是 2026-09-18 事故的已知缺失项）。
+> **用户决策（开工第一问，4 项）**：D1=**A**（新增 `reason='stopped'`）/ D2=**A**（v2-2 改 WS 侧统一 403）/ D3=**A+**（`guest.js` 与 `session.js` 两处 IP 口径一起合并）/ D4=**100 游客 eco + `max_agents` 临时调大 + 1 个真 GPU 页 + 3 Key 长会话 35min**。
+
+**本轮额外发现（3 条，开工核对时抓到的）**：① 动作清单在 `meta.js` 里是 **三处**（capabilities 共享段 + openapi `x-websocket.actions` + openapi `/action` 的 requestBody `enum`），提示词按两处描述 → 只改两处会让 openapi 自相矛盾；② `session.js` 的 `rateLimitSession` 也有与 `guest.js` 同源的 **XFF 第一段** 口径（同样不可达），D3 一并合并；③ `accept_agent_p3.js` 收尾**硬编码** `agent_enabled=false`（还有 `push_default=eco`、`max_agents=50`）→ 连续跑回归必须**每段前重开总闸**。
+
+**改动文件（产品代码 4 个 + 脚本 5 个）**：
+
+| 文件 | 改动 |
+|---|---|
+| `src/agent/agentMovementService.js` | `stopMove(connectionId, reason)` 从"只处理 `mode==='move'`"的零调用死代码扩展为**全模式**（清 interval → 摘任务 → **补一次 `idle` 广播** → 旧 requestId 补 `reason='stopped'`）；新增 `isMovingTask`（`rotate` 留下的 idle 任务不算 moving → 幂等 `wasMoving:false`） |
+| `src/agent/agentActionService.js` | 八动作；`scopeForAction` 加 `stop→move`；`case 'stop'` + `handleStop`（先 `cancelFollow('stopped')` 再 `stopMove('stopped')`）；**互斥分支故意不含 stop**（否则旧 follow 会拿到 `superseded`） |
+| `src/agent/agentSchema.js` | `TIER_ACTION_RATES[guest].stop = [1,2000]`（不加表项 = 游客无限刷） |
+| `src/routes/agent/meta.js` | **三处**动作清单同步加 `stop` |
+| `src/websocket/agentWsServer.js` | 新增 `FORBIDDEN_UPGRADE_CODES`（`TOKEN_EXPIRED`/`SESSION_NOT_FOUND`/`SESSION_REVOKED`/`SESSION_EXPIRED`/`AGENT_DISABLED` → **403**，其余仍 401）；响应行区分 `Forbidden`/`Unauthorized` |
+| `src/routes/agent/session.js` | 补 401/403 口径注释（与 WS 逐项一致）；`rateLimitSession` 改用 `middleware/clientIp.resolveClientIp` |
+| `src/routes/agent/guest.js` | 删自带 `clientIp()`，改用 `middleware/clientIp` |
+| `scripts/accept_agent_stop.js`（新） | stop 专项验收 24 条判据 |
+| `scripts/_tmp_agent_switch.js`（新） | 环境前置：开/关 `agent_enabled`（复用 adminToken，不烧登录限流） |
+| `scripts/accept_agent_capacity.js`（新） | 容量实测（N 游客 + 承载表 + 扇出量化 + 真 GPU 页） |
+| `scripts/accept_agent_longsession.js`（新） | 35 分钟长会话（3 Key Agent） |
+| `scripts/accept_agent_v2_auth_guest.js` | C5b 从 `R.info` 升级为断言（WS/HTTP 都须 403）→ 总数 75→76 |
+
+**批次 A/B 判据 before → after**：
+
+| 项 | 修复前 | 修复后 |
+|---|---|---|
+| v2-4 `stop` 动作 | 不存在（`stopMove()` 零调用死代码，只支持 `mode==='move'`） | `accept_agent_stop.js` **24/24**（含 move/walk_to/follow 三路打断、幂等、游客限频、发现端点四处清单、`actionRates.stop`） |
+| v2-2 会话失效口径 | WS **401** / HTTP **403**（C5b 以 `R.info` 记录） | `v2_auth_guest` **76/76**，C5b 断言实测 `{ws:403, http:403}`；`v2_auth_key` **38/38** |
+| v2-6 IP 口径 | `guest.js` 自带 XFF 第一段（与中间件相反、不可达） | `p8` **52/52**（每 IP 签票限流 + 每 IP 并发用例） |
+| 回归 | —— | `fix_a` 24/24、`fix_b` 24/24、`fix_c` 15/15、`fix_d` 10/10、`fix_e` 12/12、`fix_f` 14/14、`p1` 14/14、`p2` 14/14、`p3` 12/12、`v2_defects_fix` 7/7、`v2_multiend` 25/25、`ws_reconnect_presence` 9/9 ACCEPTED、`smoke_r185_world` 9/9（**全绿**） |
+
+**容量实测（`accept_agent_capacity.js` 12/12 PASS；100 游客 + 3 Key + 2 人类观察者同场）**：
+
+| 指标 | 实测 |
+|---|---|
+| 上线 | 100 游客全部 READY，0 失败，建连耗时 **11.9s**（10 个/批，批间 350ms） |
+| 服务器 CPU | **4.94 核秒 / 62.2s = 0.079 核均值**；峰值 **30.9% 单核**（出现在建连风暴的 t=8s） |
+| 服务器内存 | RSS **90MB → 92MB**（100 Agent + 3 Key 全在线），线程 12 |
+| observe（游客 1/2s × 12 个轮询） | 276 ok / **0 个 429** / 0 其他；**P50 7ms / P95 14ms** |
+| 人类侧扇出（10 个 Agent 持续移动） | 均值 **116.7 msg/s**、峰值 **158 msg/s**、26.2 KB/s；**每移动 Agent ≈11.67 msg/s/人类连接**（=10Hz + 抖动，与设计一致） |
+| 真人页（真 GPU `GTX 960 / D3D11`，1280×720） | FPS **60.1 / 60 / 60.2**，`players=105`，draw calls 628、tris 228,954、geometries 853、**0 console error** |
+| 总闸门 | `max_agents=103` 满额再来一个 → `ERROR.MAX_AGENTS_REACHED` + `close 1013` ✅ |
+| 每 IP 并发 | 同 IP 第二条游客 → `ERROR.GUEST_IP_CONCURRENCY` + `close 1013` ✅ |
+| `stop` 批量的可观测效果 | 10 个移动 Agent 全部 stop 后，人类侧扇出 **116.7 → 0 msg/s**（同时验证 stop 在 100 规模下可用、且扇出确实由"移动"驱动） |
+
+**承载结论（可直接对外口径）**：
+1. **Agent 侧极廉价**：100 个 eco 档游客 Agent 仅 **≈0.08 核**、+2MB RSS。服务器不是瓶颈。
+2. **瓶颈在人类侧扇出**（§9 坑 5 的预置设计被量化）：`POSITION_UPDATE` 走 `broadcastToAll`，成本 = **移动中 Agent 数 × ~11.7 msg/s × 人类连接数**。例：100 个 Agent 同时移动 + 10 个真人在线 ≈ **11,700 msg/s**（每真人 ≈300KB/s）。**本轮 10 个移动 Agent 下真人页仍 60FPS**，故客户端瓶颈未触达；但"全部 Agent 都在跑 + 真人数上量"时应按此公式预留带宽（<100 个 Agent 且移动比例 ≤20% 时，1 核 2G + 5Mbps 足够）。
+3. **realtime 档的成本另有量级**：每实体 ≈1.5KB/s（v4 实测）→ 100 个 realtime Agent ≈33Mbps，建议**保持按 Key 逐个开通 + 后台档位可降级**，不做批量默认 realtime。
+4. **`max_agents` 建议**：当前 50 在 `eco` 档下可安全上调至 **150~200**（0.08 核/100 的余量充足），但**上调前需先确认人类侧扇出**（见第 2 条公式）。
+
+**长会话实测（`accept_agent_longsession.js`，3 个 Key Agent = eco/standard/realtime 同挂）**：
+
+| 轮次 | 时长 | 结果 | 说明 |
+|---|---|---|---|
+| 第一次（原始脚本） | **35 分钟** | **6/8** | C1（35 分钟后 3 连接全存活）/ C2（档位不变）/ C4（RSS 中位 92→93MB）**PASS**；C3/C5/C6 FAIL |
+| 机制实证（`accept_agent_jwt_expiry.js`） | 秒级 | **6/6** | 定位上面 3 条 FAIL 的根因（见下） |
+| 第二次（修正脚本） | 11 分钟 | 7/9 | 两处**判据问题**：C7 用 `observe` 当续期探针 → 撞 1 次/秒限频拿 429；C6 错用**另一个 Agent**的位置当基准（差 108.6m） |
+| 第三次（修正脚本 + 短跑） | **6 分钟**（`--refresh-min=2`） | **9/9** | C1~C7 全绿；C6 `deltaM=0`；C7 六次续期 `/me` 200→200、0 次 TOKEN_EXPIRED、WS 全程未断 |
+
+**⚠️ 本轮最重要的运维发现（上面 3 条 FAIL 的真正根因）**：Agent JWT TTL = **900s**，**WS 只在建连时校验、之后不再校验**（所以 35 分钟连接一直活着），
+但**所有 HTTP 端点每次调用都重新校验 JWT**（`authenticateAgentToken`）→ **t≈15min 起 `observe` 全部 403 `TOKEN_EXPIRED`**。
+证据：位置检查在 t=5.05/10.07min 正常（位移 64.8m），t≥15.08min 起 observe 无 `self`（首版判据 `dist` 返回 `Infinity`，被 `>10` 误判"通过"，已修正为返回 `null`）。
+机制级实证（自签"同 jti + 已过期"JWT）：① HTTP observe → **403 `TOKEN_EXPIRED`**；② 过期 JWT 连 WS → 升级阶段 **403**；
+③ 换票后新 token 的 HTTP **200**、旧 token 仍 **403**、而 **WS 连接 `readyState` 仍 = 1**。
+> **运营结论：长会话 Agent 必须每 <15 分钟用 API Key 换一次会话（推荐 10 分钟）；换票后 WS 无需重连。** 修正脚本即按此实现（C7 断言 6 次续期全绿）。
+
+**证据文件**：`examples/agent-client/live/stop.json`、`capacity.json`、`longsession.json`、`Screenshot/_tmp_capacity_100_agents.png`。
+
+**承载结论与后续建议（下一会话入口）**：
+- 若继续深化：①人类侧扇出重构（把 `POSITION_UPDATE` 从 `broadcastToAll` 改为按半径/订阅投递）——**属重构，需用户拍板**（红线 11）；②realtime 档配额或自动降级；③`ENTITY_ADDED` 协议语义统一（§9 坑 21 的副作用提示）。
+- 已知未做：`ubuntu-deploy-package` 不在本工作区 → 同步清单见本节改动文件表 + §9 坑 2。
+
+---
+
 ## 第八节：已核对的代码坐标速查（写代码时直接引用）
 
 | 用途 | 位置 |
@@ -752,6 +851,10 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 | 平滑器速度上限（T1） | `public/js/agentPositionSmoother.js`：`refreshServerSpeed()`（well-known）、`recomputeLimit()`、`getStats()` |
 | follow 环形避让（T9） | `agentFollowService.assignSlot/hash32` + `tick()` 的 ring 目标点（`RING_RADIUS=1.5`、`RING_SLOTS=8`） |
 | 三档验收脚本与环境前置 | `scripts/accept_agent_tier_r1/r2a/r3_playwright/r4a/r4b/r5_client.js`、`scripts/_tmp_tier_setup.js`、`scripts/_tmp_tier_reset.js` |
+| `stop` 动作（v2-4） | 派发 `agentActionService.handleStop`（`scopeForAction` 加 `stop→move`、互斥分支**不含** stop）；实现 `agentMovementService.stopMove(connectionId, reason)` + `isMovingTask` |
+| 会话失效状态码（v2-2） | WS `agentWsServer.FORBIDDEN_UPGRADE_CODES`（在 `handleUpgrade` 里映射 403/401）；HTTP `routes/agent/session.js`（缺 token 401 / 过期 403 / 会话无效 403 / Agent 停用 403） |
+| 客户端 IP 口径（v2-6/D2） | **唯一权威** `src/middleware/clientIp.js`；调用点 `routes/agent/guest.js`（签票限流）、`routes/agent/session.js`（`rateLimitSession`）、`agentWsServer`（upgrade 审计 + 每 IP 名额） |
+| 容量/长会话/stop 验收（v5） | `scripts/accept_agent_capacity.js`、`scripts/accept_agent_longsession.js`、`scripts/accept_agent_stop.js`；环境前置 `scripts/_tmp_agent_switch.js`（开/关总闸，避免逐个脚本的 V0 判据假失败） |
 | 聊天持久化现状（无表，唯一例外 NPC） | `src/routes/npc.js:416-421`、`database/init.sql:391` |
 
 ---
@@ -790,6 +893,12 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 30. **推送频率/滞后判据必须随服务端速度缩放**（2026-09-19）：① r3 的瞬移阈值原写死"步进 >8 m/s"，服务端提速到 12 m/s 后**合法移动本身 >8** → 改为 `agent_max_speed × 1.5`；② R 的理论权威位置起点若用"首个采样点"，会凭空引入 `v × 采样延迟(≈150ms) ≈ 1.8m` 恒定偏差（修复后实测 max 3.32m 里 1.8m 是这个偏差）→ 要用"发指令前一刻的显示位置"（此刻 Agent 静止、显示 ≡ 权威）。
 31. **state 就绪前到达的 WS 消息会被静默丢弃**（2026-09-19 S3；v2-1"监听器前置"的副作用）：`handleMessage` 对 `activeAgents.get(connectionId)` 为空是 `return`，而 v2-1 让 `ws.on('message')` 早于两个 `await` 注册 → 在 `open` 回调里立刻 `SUBSCRIBE` 的客户端订阅失效（`accept_agent_p3` 的 D1 红掉）。已加 pre-ready 缓存（32 条上限）并在 READY 之后按序补发。**通用教训**：把监听器提前的同时，要考虑"早到消息"的处理策略（缓存/补发），否则修好泄漏却丢了消息。
 32. **`wsServer` 的内部广播是裸调用，monkey-patch 导出属性不能拦截**（2026-09-19 S4）：`handlePositionUpdate` 调的是模块内部 `broadcastToAll`（只有 CHAT 分支改成了 `module.exports.broadcastToAll` 才算被 patch 到）→ 想在 agentWsServer 侧"监听 POSITION_UPDATE 广播"实现 realtime 事件转发**实测 0 条**。**要么改 wsServer（黑名单贴线，需用户批准），要么改用采样循环**；本轮选了后者（`startRealtimeLoop` 100ms），对外契约不变。另注：人类客户端 `player.js` 的 `broadcastPosition` 是**每帧**发送（60Hz），任何"事件驱动"方案都必须先压到 10Hz 上限，否则放大 6 倍。
+33. **新增/修改动作要动 5 个地方，且发现端点里有 3 处动作清单**（2026-09-19 v5 轮，`stop` 落地清单）：① `agentActionService.dispatch`（`scopeForAction` + 移动类互斥分支 + `case`）+ 处理器函数；② `agentSchema.TIER_ACTION_RATES[guest]`（**必须显式加表项**：`checkActionRate` 对无规则的 action 直接 `{ok:true}` 放行，漏加 = 游客无限刷）；③ `agentMovementService` 的实现（若涉及移动）；④ **`meta.js` 三处**——capabilities/well-known 的共享 `actions`、openapi 的 `x-websocket.actions`、openapi `/action` 的 `requestBody.enum`（只改前两处会让 openapi 自相矛盾）；⑤ 文档 §5.2（动作集 + `reason` 取值集合）。`AGENT_SCOPES` 通常**不用**改（`walk_to`/`follow`/`stop` 共享 `move` scope）。另：`tierService.describeTier` 会把 `TIER_ACTION_RATES[guest]` 原样投到 well-known/capabilities 的 `tiers['guest-pull'].actionRates` —— 这是新增动作的**免费断言点**（客户端能自查限频）。
+34. **服务端闸门顺序：`max_agents` 先于"每 IP 名额"**（2026-09-19 v5 轮，容量脚本首跑 L6 假失败）：`agentWsServer` 连接处理里 `activeAgents.size >= config.maxAgents` 的判断在 `tierService.acquireIpSlot` **之前**。因此"测每 IP 并发"必须让**总闸有余量**（临时把 `max_agents` 抬高几个），否则拿到的是 `MAX_AGENTS_REACHED`，测不到目标闸门（首跑实测就是这个 FAIL：`code=MAX_AGENTS_REACHED` 而非 `GUEST_IP_CONCURRENCY`）。另注两条拒绝路径都是**升级成功后** `close(1013)` + 先发一条 `ERROR`（`code` 在消息体里），不是 upgrade 阶段拒绝。
+35. **`accept_agent_p3.js` 收尾硬编码把总闸按回 false**（2026-09-19 v5 轮踩到，连跑回归必踩）：它的 cleanup 是 `setConfigValue('agent_enabled','false')` + `push_default='eco'` + `max_agents=50`（写死，不是恢复运行前的值）→ 紧接其后的脚本全部 503 `AGENT_DISABLED_GLOBALLY`（本轮 `v2_auth_guest` 首跑 10/18、`v2_auth_key` 8/16 就是这个）。**同类问题**：v4 之前多个脚本有一条判据 `V0/P0 agent_enabled=true（联测期前置）`，它在**开跑前**读配置并要求已是 true —— 从干净态（红线 6 默认关）直接跑必然 FAIL，那是**判据口径问题而非产品缺陷**。**正确处理**：联测前先 `node scripts/_tmp_agent_switch.js true`（复用 adminToken 不烧登录限流），**每跑一组回归前重开一次**，全部跑完再 `false` 复位。
+36. **`stop` 的三个实现细节**（2026-09-19 v5 轮）：① `stopMove` 必须覆盖**全部移动模式**（原实现只认 `mode==='move'`，对 walk_to/jump/follow 无效）；② 停下后**必须补发一次 `idle` 位置广播**——否则 walk_to/follow 被打断时最后一条广播是 `animMode='walk'`，真人端会残留"原地走路"姿态（实测补广播后 `entities[self].animMode==='idle'`）；③ `wasMoving` 的判据要排除 `rotate` 留下的 idle 任务对象（`mode==='idle' && !jumping` 不算移动），否则幂等用例会拿到 `wasMoving:true`。另：`stop` **不要**放进 `dispatch` 的移动类互斥分支（那里用 `superseded`），否则被打断的 follow 会收到 `superseded` 而不是 `stopped`。
+37. **容量口径与测法**（2026-09-19 v5 轮）：① 服务器进程 CPU 用 PowerShell `Get-Process -Id <pid>` 的 `CPU`（累计核秒）两次差分 ÷ 间隔 = **核数**（`0.079 核` 这种口径），RSS 用 `WorkingSet64`；② **人类侧扇出可以直接量化**：真人 WS 观察者连根路径收 `POSITION_UPDATE` 计数 ÷ 时间 = msg/s（本轮 10 个移动 Agent → 116.7 msg/s，即**每移动 Agent ≈11.7 msg/s/人类连接**）；③ 游客 100 个需要 **100 个互不重复假 IP**（票不绑 IP，但"每 IP 并发 1 连接"看连接来源），IP 段要随运行号偏移（§9 坑 24）；④ observe 轮询间隔必须**大于**限频窗口（游客 2s → 用 2.2s），否则自造 429 假失败；⑤ 真人页必须是 `chromium.launch({channel:'chrome'})` 真 GPU（本轮 `GTX 960 D3D11`，100 avatar 下仍 60FPS；swiftshader 会失真，§9 坑 9 同源）。
+38. **Agent JWT 到期：WS 不校验、HTTP 每次校验**（2026-09-19 v5 轮长会话实测，**运维必知**）：JWT TTL 900s，`/ws/agent` 只在 upgrade 时验一次（连接可远超 TTL 存活，实测 35 分钟不断），但 `observe`/`/me`/`/chat/history` 等 HTTP 端点**每次调用**都走 `authenticateAgentToken` → **t≈15min 起全部 403 `TOKEN_EXPIRED`**（首版长会话脚本因此让 C3/C5/C6 假失败，且 `dist()` 返回 `Infinity` 被 `>10` 当成"通过"，双重掩盖）。**对策：长会话客户端每 <15 分钟（推荐 10 分钟）用 API Key 换一次 token 供 HTTP 使用；WS 不需重连。** 机制实证脚本 `scripts/accept_agent_jwt_expiry.js`（用 `AGENT_JWT_SECRET` 自签"同 jti + 已过期"token：HTTP 403 / WS 建连 403 / 换票后新 token 200 而旧 WS 仍 `readyState=1`）。**写长跑验收脚本的通用教训**：① 距离/差值函数在缺数据时**返回 `null` 而不是 `Infinity`**（`Infinity > 阈值` 恒真）；② 续期/重连后的"探活"别用有限频的端点（`observe` 1 次/秒 → 连续两次必 429），用 `/me`；③ 跨 Agent 做对比时基准必须是**同一个 Agent** 的历史值（本轮 C6 错用另一个 Agent 的位置 → 108.6m 假失败）。
 
 ---
 
@@ -839,3 +948,4 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 | 2026-09-19 | **v3 轮：v2-1（P1）+ v2-3（P2）修复与专项验收（用户授权"按 v3 提示词开工"）**。开工核对：文件存在性全绿（`examples/agent-client/ai-view.mjs` 仍缺失，属已知丢失项，非本会话依赖）+ 环境自检 + **修复前基线复现**（游客矩阵 72/75，X 组 v2-1 两 FAIL 实测 3/3：名额泄漏 3 + 幽灵实体 3）。**① v2-1**：`agentWsServer.js` 连接处理函数把 `ws.on('message'/'close'/'error'/'pong')` **全部前置到第一个 `await` 之前**（`earlyClosed` 记录早到的 close），并在两处 `await` 之后加 `readyState !== WebSocket.OPEN` 兜底——state 未建时 `releaseIpSlot` + 审计 `ws_disconnected{phase:'closed_before_ready'}` 后退出（避免为死连接广播 PLAYER_JOINED），state 就绪后再兜底一次走幂等的 `handleClose`；**② v2-3**：`handleMove`/`handleJump` 注入 `{requestId, reply}`，`startMove/jump` 写入任务对象（`jump` 复用既有任务时不覆盖旧 requestId），`startMove` 打断旧任务显式传 `reason='superseded'`。**验收**：游客矩阵 **72/75 → 75/75**（X1/X2、E6 三条由 FAIL 转 PASS 并改名去掉 `[已知缺陷]` 标签）、Key 38/38、多端 25/25、**新增专项 `accept_agent_v2_defects_fix.js` 7/7**（V1 6/6 同 IP 换新票立刻重连、V2 幽灵 0、V3 审计 6 次断开产生 11~12 条 `closed_before_ready`（修复前 0 条）、V4 move 回执、V5 jump 回执、V6 walk_to 到达）；既有回归全绿：fix_a 24/24、fix_b 24/24、fix_c 15/15、fix_d 10/10、fix_e 12/12、fix_f 14/14、P1 14/14、P2 14/14、P3 12/12、P8 52/52、WS 重连 9/9 ACCEPTED、主世界冒烟 9/9。**本轮沉淀两个"测试自身缺陷"**（§9-25/26）：游客动作限频**按 action 分桶** 1 次/2s → 同类动作需 sleep 2.1s 否则测到的是限频（V5 首轮假失败）；管理员登录 IP 小时窗口把**成功登录也计数**（15 次/小时）→ 多脚本连跑必 `RATE_LIMITED_IP_HOUR`，需重启服务器清内存计数器（fix_d/e/f 首轮三 FATAL，重启后全绿）。**v2-2/4/5/6 四条观察项本轮未动**，待用户决策（红线 11）。服务器已重启跑新代码（pid 17876） | **v2-1/v2-3 修复并验收 ✅**（待用户决策：v2-2/4/5/6 观察项 or 深化联测） |
 | 2026-09-19 | **三档推送层与真人端观感修复轮（T1~T10，用户决策 D1~D4 全部按建议）**：按 `AI-Agent修复提示词-v4` 执行，开工先做文件/环境核对（HEAD=bb3bbaf1、3 个测试 Agent 在库、well-known 快照一致）→ 提 4 个决策点 + 4 项额外发现 → 拿到答复后分 5 批修复。**产品改动 8 文件**：`agentPositionSmoother.js`（T1 上限跟随 well-known×1.2 + EMA 自适应 + 吸附防误判）、`agentWsServer.js`（T3/T4/T8 订阅门控/半径过滤/ADDED-first；T5 `startRealtimeLoop` 10Hz 采样；T6 位置流脱离令牌桶、桶 60/60；pre-ready 消息缓存补发）、`agentMovementService.js`（T2/S1 `task.groundY` + 抛物线落地 + 广播 baseY）、`agentPresenceBridge.js`（baseY）、`agentFollowService.js`（T9 环形槽位避让）、`websocket.js`（T2 保留垂直偏移）、`observe.js`（T10 窗口 950ms）、`index.html`（v8/v2）。**脚本口径同步**：r3 的 S 阈值改 `agent_max_speed×1.5` 且 R 理论起点改"指令前显示位置"；r2a N 场景实体移入半径、G 源频率改 100ms；r4b A3 间隔 300→400ms；L 组（T7）改 INFO；示例客户端订阅加 movement/presence。**4 项额外发现并修复**：S1 服务端 jump 永钉顶点且地面逐次上浮（DB 实测 y 1.02→2.04）；S2 平滑器"水平到位提前返回"吞掉纯垂直变化（T2 首轮仍 Δ0 的真因）；S3 pre-ready SUBSCRIBE 静默丢失（v2-1 副作用 → P3 的 D1 红，加缓存后恢复）；S4 `wsServer` 内部裸调 `broadcastToAll` 使"事件驱动 realtime"收不到（改采样循环，不碰黑名单）。**验收**：tier 六轮 **48/48、12/12、17/17、13/13、20/20、7/7**（修复前 46/48、10/11、15/17、12/13、19/20、5/7）；regression 全绿 v2_guest 75/75、v2_key 38/38、v2_multiend 25/25、v2_defects 7/7、fix_a~f 24/24/24/24/15/15/10/10/12/12/14/14、p1 14/14、p2 14/14、p3 **11/12→12/12**、p8 52/52、WS 重连 9/9、主世界冒烟 9/9。新增环境前置脚本 `_tmp_tier_reset.js`（清 Agent 落库位置，防跨轮假失败）。agent_enabled 收尾 false（红线 6） | **T1~T10 全部修复并验收 ✅**（T7 用户决策不修；下一步待用户决策：v2-2/v2-4/v2-6 观察项 or 深化联测） |
 | 2026-09-19 | **决策记录：Agent 语音中继不做**（用户："不要语音转发，AI 目前不用语音，后期用再开发"）。文档同步 4 处：红线 5（配置键保留占位 + 明确无实现路径 + 真做属新功能立项）、§5.2 消息目录（`VOICE_MESSAGE` 标 ⚠️ 未实现/不做）、§5.3 配置表（补"未实现且已决策不做"与 capabilities/openapi 遗留缺口说明）、§0 第 8 条 + 第七节新增「后续决策记录与待办」（含 v2-2/v2-4/v2-6 的影响评估与推荐顺序、100 Agent 压测的瓶颈提示）。**本轮未改任何产品代码**；人类侧 `voiceRelay.js` 完全独立、不受影响。遗留待办：是否把 `VOICE_MESSAGE` 从 capabilities/openapi 的 outbound 列表移除（1 行，待用户决定） | **语音中继 = 不做 ✅（文档已固化）** |
+| 2026-09-19 | **v5 轮：剩余观察项收口（v2-4 / v2-2 / v2-6）+ 容量与长会话实测**（用户决策 D1=**A** / D2=**A** / D3=**A+** / D4=**100 游客 eco + 3 Key 35min**）。① **v2-4 新增 `stop` 动作**（`reason='stopped'`、幂等 `wasMoving`、停下补 `idle` 广播、游客限频 `[1,2000]`、`meta.js` **三处**动作清单）→ `accept_agent_stop.js` **24/24**；② **v2-2** WS 侧会话失效统一 **403**（`FORBIDDEN_UPGRADE_CODES`）→ `v2_auth_guest` **76/76**（C5b 由 INFO 转正式断言，实测 `{ws:403,http:403}`）；③ **v2-6** `guest.js` + `session.js` 的 IP 口径合并到 `middleware/clientIp` → `p8` **52/52**；回归 13 个脚本全绿（fix_a~f 24/24/24/24/15/15/10/10/12/12/14/14、p1 14/14、p2 14/14、p3 12/12、v2_defects_fix 7/7、v2_multiend 25/25、ws_reconnect 9/9、smoke 9/9）。④ **容量实测**（`accept_agent_capacity.js` **12/12**；100 游客 + 3 Key + 2 人类观察者同场）：CPU **0.079 核均值**（峰值 30.9% 单核）、RSS 90→92MB、observe 276 ok / **0 个 429** / P50 7ms / P95 14ms、**人类侧扇出 116.7 msg/s**（每移动 Agent ≈11.7 msg/s/人类连接 = 10Hz）、真 GPU 页 **60FPS** / players=105 / draw calls 628 / **0 console error**、`max_agents` 与每 IP 并发两道闸均 `ERROR + close 1013`、`stop` 批量后扇出归零。⑤ **长会话**：35 分钟实跑 **6/8**（C1 连接全存活 / C2 档位不变 / C4 RSS 稳定 PASS）→ **发现真实机制**：**Agent JWT TTL 900s 只在建连时校验、HTTP 每次调用都校验 → t≈15min 起 `observe` 全 403 `TOKEN_EXPIRED`**（机制实证 `accept_agent_jwt_expiry.js` **6/6**：同 jti 过期 token → HTTP 403 / WS 建连 403 / 换票后新 token 200 而旧 WS 仍 `readyState=1`）→ 修正脚本（每 10 分钟换票）后 **9/9**（6 分钟短跑覆盖 C3/C5/C6/C7，C6 `deltaM=0`）。**改动**：产品代码 7 文件 + 新脚本 4 个（stop / capacity / longsession / jwt_expiry）+ 环境前置 `_tmp_agent_switch.js` + 示例客户端 `node-agent.mjs` 加 move→stop 演示（实跑验证）。收尾：`agent_enabled=false`、`max_agents=50`（红线 6 + 配置复位）；`ubuntu-deploy-package` 不在本工作区 → 同步清单见 §7 改动文件表。 | **v2-4 / v2-2 / v2-6 全部收口 ✅ + 承载表产出 ✅** |

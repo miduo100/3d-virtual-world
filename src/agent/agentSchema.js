@@ -65,7 +65,10 @@ const TIER_ACTION_RATES = {
     follow: [1, 2000],
     rotate: [1, 2000],
     jump: [1, 2000],
-    interact: [1, 2000]     // 文档未单列，但同属"请求-响应"类，一并按 2s 钳制防刷
+    interact: [1, 2000],    // 文档未单列，但同属"请求-响应"类，一并按 2s 钳制防刷
+    // 新增动作 `stop`（缺陷 v2-4）必须显式加表项：checkActionRate 对**无规则的动作直接放行**
+    // （`if (!rule) return { ok: true }`），漏加等于游客可无限刷 stop。
+    stop: [1, 2000]
   },
   [AGENT_TIER_KEY]: null
 };

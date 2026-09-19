@@ -15,6 +15,10 @@ const agentSessionManager = require('../../agent/agentSessionManager');
 const permissionService = require('../../agent/agentPermissionService');
 const agentConfigService = require('../../agent/agentConfigService');
 const logger = require('../../services/logger');
+// v2-6（2026-09-19 用户决策 D3-A+）：IP 口径统一走 middleware/clientIp（唯一权威实现）。
+// 原先这里自带 `req.ip || XFF 第一段` 的兜底，与 guest.js 同源、口径相反（且因 req.ip 恒有值而不可达）
+// —— 一并合并，避免留下第二个"取 XFF 第一段"的复制源（那会被用来伪造绕过每 IP 限流）。
+const clientIp = require('../../middleware/clientIp');
 const {
   extractBearerToken,
   isValidApiKeyFormat,
@@ -27,7 +31,7 @@ const {
 const ipWindow = new Map(); // ip -> [ts]
 
 function rateLimitSession(req, res, next) {
-  const ip = req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
+  const ip = clientIp.resolveClientIp(req);
   const now = Date.now();
   const list = (ipWindow.get(ip) || []).filter(ts => now - ts < 60000);
   if (list.length >= SESSION_RATE_LIMIT_PER_MIN) {
@@ -75,6 +79,9 @@ async function authenticateAgentToken(req, res, next) {
   }
 
   // 第一道门：JWT 验签
+  // 状态码口径（v2-2，2026-09-19 用户决策 D2-A；**WS 侧 agentWsServer.FORBIDDEN_UPGRADE_CODES 与之逐项一致**）：
+  //   401 = 凭据缺失/无效（缺 token、签名错、principalType 不符）
+  //   403 = 凭据有效但会话或身份无权（JWT 过期、无会话、已吊销/过期、Agent 停用）
   const verified = agentAuth.verifyAgentJwt(token);
   if (!verified.ok) {
     const status = verified.error === 'token_expired' ? 403 : 401;
