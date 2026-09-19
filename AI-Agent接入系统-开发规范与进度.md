@@ -12,7 +12,8 @@
 1. 先读本文档第 7 节进度表，**复述当前状态**（已完成什么、正在做什么、下一步做什么）；
 2. 按"下一步"继续开发，**不要重做已完成阶段，不要重新代码审计**（P0 结论已固化在第 2、8 节）；
 3. 每阶段开工前先读第 3 节红线清单。
-4. **注意当前阶段（2026-09-19 起）**：代码已解冻，进入 **第一轮联测缺陷修复** 阶段——按第七节「多轮联测与缺陷待办」逐条修复。第一批 A/B（P0）、第二批 C/E（P1）、第三批 D（P1）、第四批 F/G/H（P2）均已修复并验收；本轮联测另**新发现 I（walk_to 推进起点用会话快照 → 位置每 4 秒循环）与 J（新会话出生点 (0,0,0) → 重连瞬移）两项 P0 级缺陷**，已一并修复。每批修复后由用户真人复测，收尾按下方三件事。
+4. **注意当前阶段（2026-09-19 起）**：代码已解冻，进入 **第一轮联测缺陷修复** 阶段——按第七节「多轮联测与缺陷待办」逐条修复。第一批 A/B（P0）、第二批 C/E（P1）、第三批 D（P1）、第四批 F/G/H（P2）均已修复并验收；联测中另**新发现 I（walk_to 推进起点用会话快照 → 位置每 4 秒循环）与 J（新会话出生点 (0,0,0) → 重连瞬移）两项 P0 级缺陷**，已一并修复。
+   **2026-09-19 v2 轮（登录/鉴权边界 + 多端同时在线）按用户指令"只测不改代码"完成**，见第七节「v2 登录与多端联测」：3 个可重跑矩阵脚本（游客 72/75、Key 38/38、多端 25/25）+ 6 条新缺陷待办（**v2-1 为 P1：WS 瞬时断开致每 IP 名额/幽灵实体/在线名额三项永久泄漏，实测 3/3**）。**下一步由用户决定：先修 v2-1，还是继续下一轮联测（游客×多真人、多 Agent 语音等）。**
 
 ### 收尾三件事（每会话结束前必做）
 1. **更新第 7 节进度表**（checkbox 状态 + 日期 + 会话摘要）；
@@ -534,6 +535,46 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 - **游客票 30 分钟到期后的自然收尾**：HTTP `observe` 开始 401（客户端应重新签票），WS 仍连着但不再刷新活跃 → 5 分钟后被空闲超时踢出（等于一道天然的收尾阀门）。
 - **客户端示例已加保活**：`ai-live.mjs` 每 60 秒发一次 `PING`（Key 档续命；游客靠周期 `observe` 续命）。
 
+### v2 登录与多端联测 ✅ 2026-09-19（登录/鉴权边界矩阵 + 多端同时在线）
+
+> 触发文档：`AI-Agent联测提示词-v2-登录与多端.md`。**本轮按用户指令"只测不改代码"**，产物 = 3 个可重跑脚本 + 缺陷清单（未修）。
+> 方式：自动化矩阵（HTTP/WS 全链路）+ 驻场游客 Agent 与真人「米多」在世界内实时对话/跟随 + playwright 真浏览器观测真人端。
+
+**矩阵结果（可重跑）**：
+
+| 脚本 | 覆盖 | 结果 |
+|---|---|---|
+| `scripts/accept_agent_v2_auth_guest.js` | A 发现端点 / B 签票 / C WS 鉴权边界（401/403/4004/1013）/ D observe 半径与限频 / E 动作与红线 / F 签票限流 / G 聊天历史 / H 总开关 / X 缺陷复现 | **72/75**（3 个 FAIL 全部为已知缺陷 v2-1 ×2、v2-3 ×1） |
+| `scripts/accept_agent_v2_auth_key.js` | K1 建 Agent / K2 换票与错误 Key / K3 Key 档特权（自身档位、SUBSCRIBE、200m、1Hz）/ K4 同角色多连接 4004 顶替 / K5 无动作限频 / K6 revoke / K7 C2 空闲续命压缩回归（独立实例 3003 + 阈值 3s）/ K8 删除清理 | **38/38** |
+| `scripts/accept_agent_v2_multiend.js` | M1 多端在场与 entities 唯一性 / M2 多 Agent observe 公平性 / M3 带宽与 CPU + 红线 14 反证 / M4 Agent 互聊与契约 / M5 多 Agent 同时 follow / M6 聊天落库 / M7 真人端真浏览器 | **25/25** |
+
+公共工具：`scripts/agentV2TestKit.js`（HTTP / 游客签票 / WS 连接（含 upgrade 被拒状态码）/ 真人 WS 观察者）。
+
+**本轮新发现缺陷（均未修，按"只测不改"记录）**：
+
+| # | 级别 | 现象与证据 | 根因（代码级） | 建议修复 |
+|---|---|---|---|---|
+| **v2-1** | **P1** | **WS 升级后"瞬时断开"→ 每 IP 名额 + 幽灵实体 + activeAgents 三项永久泄漏**。实测 **3/3 复现**（X 组）：客户端 `open` 后立刻 close（探活脚本/客户端崩溃/立刻 cancel），服务端 `handleClose` 永不执行 → ①该 IP 后续游客连接恒被 `GUEST_IP_CONCURRENCY` 拒绝（实测同 IP 换新票仍被拒）②`playerPositions` 留下停在原点的**不动 avatar**（真人可见、observe 也返回）③`activeAgents` 条目常驻占 `max_agents` 名额，心跳/空闲超时对它无效（socket 已关，`close()` 无效果）→ **只能重启进程清理**。**对照**：正常关闭（已收到 READY）后名额立即释放（C17b PASS）；另观测到一次"连接 800ms 后关闭"也泄漏 → 竞态窗口比"瞬时"更宽 | `src/websocket/agentWsServer.js` 的 `wss.on('connection', async (ws, ...))` 把 `ws.on('close')` / `ws.on('message')` **注册在函数末尾**，中间隔着 `await agentConfigService.getConfig()` 与 `await agentSessionManager.getLatestPosition()` 两次异步等待；若 close 帧先到，Node 已 emit 过 `'close'`，监听器永远挂不上 | 把 `ws.on('close')` / `ws.on('error')` / `ws.on('message')` 注册**提到第一个 await 之前**；函数开头再加 `ws.readyState !== OPEN → 立即清理` 兜底 |
+| **v2-2** | P2（观察项） | 同一"会话不存在"（`SESSION_NOT_FOUND`）在 **WS 升级返回 401、HTTP 返回 403**（C5 实测 ws=401 / http=403） | `handleUpgrade` 只把 `TOKEN_EXPIRED` 映射 403，其余一律 401；`session.js` 的 `authenticateAgentToken` 对 `verifySession` 失败一律 403 | 统一口径或明确文档化差异 |
+| **v2-3** | P2 | **`move` 被打断不补发 `ACTION_COMPLETED{superseded}`**，与 §5.2"移动类（move/walk_to/jump/follow）互斥且回执"契约不符（E6 实测：旧 move 的 requestId 无任何回执）；`walk_to`/`follow` 已实现 | `agentMovementService.startMove()` 未把 `requestId`/`reply` 写入任务对象（只有 `startWalkTo` 传），`cancelMovement` 里的 `notifyCompleted` 直接 return；`jump` 同样未注入 | `handleMove`/`handleJump` 与 `handleWalkTo` 一样注入 `{requestId, reply}` |
+| **v2-4** | P3（观察项） | **连续 `move` 无显式停止入口**：七动作无 `stop`，`movementService.stopMove()` 导出但**零调用方**；只能靠 `walk_to` 到自身坐标或断线停下 | 动作集未定义停止语义 | 新增 `stop` 动作，或在协议文档明确"move 只能被其它移动指令打断" |
+| **v2-5** | P3（观察项） | 多 Agent 同时 follow 同一目标时**位置完全重合**（实测最小间距 **0.00m**）——无 Agent 间避让/碰撞，真人观感"叠在一起" | 设计如此（Agent 之间只走 broadcastToNearby，无碰撞） | 若在意观感，可在推进里按序号给目标点加偏移 |
+| **v2-6** | P3（代码卫生） | `src/routes/agent/guest.js` 自带 `clientIp()` 兜底取 `X-Forwarded-For` **第一段**（客户端可伪造段），与 `middleware/clientIp.js` 的"最后一段"口径相反 | 主路径 `req.ip`（Express trust proxy）恒有值 → 该兜底实际不可达（死代码） | 与 `middleware/clientIp.js` 合并为同一函数 |
+
+**多端实测数据（3 Agent × 5 模拟真人 + 真人端观测，本机口径）**：
+
+- **observe 公平性**：Key 档 13~14 次/15s（≈1Hz）、游客档 7 次/15s（0.5Hz）；三方并发全部被服务、互不饥饿；未超频时 0 误报 429。
+- **推流量（关键结论）**：realtime 档 Agent 实测 **105 条 `ENTITY_UPDATED` / 20s ≈ 5.2 条/秒 = ≈1Hz/实体**（5 个移动实体），**并非 10Hz** —— 量化证实第七节遗留项"第三档≈1Hz（推送循环为 1s tick）"；对应 **≈1KB/s / Agent**（推算 100 Agent ≈ 100KB/s ≈ 0.8Mbps，2 核 4G 可承载）。
+- **红线 14 反证**：游客连接在同一 20s 窗口内收到 **0 条消息 / 0 字节**。
+- **服务器 CPU**：多端在线期间 **0.19 核秒 / 20s ≈ 1% 单核**。
+- **契约**：`CHAT.characterId ≡ entities[].id` 实测逐字一致；Agent 之间互聊、真人侧同收（30m 投递口径一致）。
+- **多 Agent follow**：3 个 Agent 同时跟随同一真人全部收敛（2.2~2.5m）、各自任务互不干扰。
+- **真人端（playwright headless chrome，真实 GPU）**：0 console/page error（唯一 404 = `favicon.ico`，按 `m.location().url` 判定）、`players.size=11`、**FPS 60**。
+- **聊天落库**：`world_chat_log` 行数随多端发言增长（本轮 177→180）。
+
+**检查单完成情况**：提示词 §1（登录/鉴权边界）全部用例已覆盖并脚本化；§2（多端）已覆盖 entities 唯一性 / 限频公平 / 带宽 CPU / 互见互聊 / 多 Agent follow / 真人端 0 error + FPS。
+**本轮未覆盖**（留给下一轮）：Agent 之间的语音中继、多 Agent 抢占同一 follow 目标的"谁先到"、>30 分钟长会话的推流稳定性、`agent_observe_rate_key` 调高后多 Agent 的公平性。
+
 ---
 
 ## 第八节：已核对的代码坐标速查（写代码时直接引用）
@@ -595,6 +636,9 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 19. **反代后必须信任代理头取真实客户端 IP**（游客联测 D2，**部署阻断级**）：`req.ip` 与 `socket.remoteAddress` 在 Nginx 之后恒为 `127.0.0.1`，而 per-IP 限流（游客 10 张票/小时、每 IP 1 连接）全按它计数 → 全世界被算成一个 IP。已加 `src/middleware/clientIp.js` + `server.js` 的 `applyTrustProxy(app)`（默认信任 1 层、取 `X-Real-IP` 或 XFF 最后一段）；**若服务直接暴露公网必须设 `TRUST_PROXY=false`**，否则客户端可伪造这两个头绕开限流。
 20. **活跃度口径 = "客户端还活着"的信号**（游客联测 C2）：`ACTION`/`SUBSCRIBE`/`UNSUBSCRIBE` + **Key 档 `PING`** + **HTTP `observe`**（路由侧调 `agentWsServer.touchActivityByAgent`）；**游客 `PING` 故意不计**（临时票不可续期，防过期连接靠空转 PING 长期占住每 IP 名额）。以后新增消息类型或新增拉取端点，别忘了同步这里——否则纯拉模式客户端会被空闲超时误杀。
 21. **推送循环里"自己"必须在两处都排除**（游客联测 B2）：位置扫描阶段跳过 self（不进 `snap`），"新增实体集合"也必须同样跳过，否则 self 会被当成"没见过的新实体"每秒重复发 `ENTITY_ADDED`。**副作用提示**：修好后 `ENTITY_ADDED` 实际只在"实体没有 position"时才可能触发（有 position 的新实体一律由位置流以 `ENTITY_UPDATED` / `ENTITY_MOVEMENT_BATCH` 首次下发）——客户端应按"未知 id 即新建"处理，协议语义统一列入下一轮。
+22. **WS 事件监听器必须"先注册后 await"**（v2 联测 v2-1，P1）：`wss.on('connection', async ...)` 里任何 `await`（DB 查询等）都会把 `ws.on('close')` 的注册推迟；若客户端在注册前断开，Node 已经 emit 过 `'close'`，**监听器永远收不到** → `handleClose` 不执行 → 每 IP 名额 / `playerPositions` 幽灵实体 / `activeAgents` 名额三项永久泄漏，且只能靠重启清理（心跳与空闲超时对它无效，因为 socket 早已关闭）。**通用教训**：任何"连接生命周期清理"的注册都必须放在 `await` 之前，或加 `ws.readyState !== OPEN` 的同步兜底。
+23. **移动类回执只实现了一半**（v2-3/v2-4）：§5.2 的"移动类（move/walk_to/jump/follow）互斥 + `ACTION_COMPLETED{reason}`"契约里，**只有 `walk_to` / `follow` 真正注入了 `requestId`/`reply`**；`move` / `jump` 的任务对象没有这两个字段，被打断时 `notifyCompleted` 直接 return。同时动作集里**没有 `stop`**，`movementService.stopMove()` 是零调用死代码 → 连续 `move` 只能靠 `walk_to` 到自身坐标或断线停下。
+24. **写 Agent 联测脚本的三个坑**（v2 联测沉淀）：① **签票窗口会被烧掉**——同一 IP 每小时只有 10 张，且每张都算，脚本必须把"签票 IP"与"WS 连接 IP"解耦（票不绑 IP，只有"每 IP 并发 1 连接"看连接来源），并让每次运行的 IP 随运行号偏移，否则重跑必然 429；② **判定幽灵实体必须用"之后不再连接的票"**——同一张票重连会复用同一 `agentId`，用它去 observe 分不清幽灵与在线者；③ **`observe` 的 `distance` 是"相对请求方"的距离**，多 Agent 横向对比时必须自己按坐标算（否则会得出"三个 Agent 距离完全相同"的假结论）。
 
 ---
 
@@ -640,3 +684,4 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 | 2026-09-18 | **第一轮多端联测（代码冻结，只记录不修）**：用户真人浏览器 + AI 助手经 Agent 接口驻场（Key Agent `workbuddy`，key-push/realtime 档）实时对话 + 跟随实测。过程：先在客户端侧绕开两处（a 自身位置改用实体表条目自行算距离、b 目标选择改为"正在移动的人"）后跟随成功——234 次采样、距离末值 0.16m、实测移动速度 4.9~5.8 m/s（与 MAX_SPEED=5 一致）；用户体感"总在找我"归因于 C/D/E 三项。新发现 **8 条待办**：A `self` 双源不一致（P0）/ B 同角色多连接 → observe 重复实体（P0，**接口层重复；用户实测真人端看不到两个 avatar，仅表现为"移动时原地徘徊"，含另一个已证实成因，待复现区分**）/ C 无跟随语义（P1）/ D observe 1Hz 限制闭环（P1）/ E walk_to 无到达回执（P1）/ F 实体标识契约（同名是常态、必须按 `id` 定位，P2 契约项）/ G 示例客户端聊天双通道重复（P2）/ H capabilities 缺 tier 明细（P2），详见第七节新增「多轮联测与缺陷待办」。**用户决策：先不改代码，后续再做多轮（计划 3 Agent + 5 真人同时在线）集中整理后统一开发**。临时工具 `scripts/_tmp_follow.js`、`scripts/_tmp_wait_chat.js` 与 `examples/agent-client/live/` 产物保留到联测结束 | **代码冻结，多轮联测中（第一轮 ✅）** |
 | 2026-09-19 | **游客模式联测（无 API Key，仅凭域名接入）+ 4 项修复**：用游客临时票进场与真人联测六步链路（**36/37 PASS**；唯一 FAIL 为测试断言写错），红线 14 独立复验（探针 8 秒只收到 READY+WORLD_SNAPSHOT）。**新发现并修复 4 项**：**B2（P1）**非游客档每秒给自己重复发 `ENTITY_ADDED`（`currentIds` 未排除自身）→ 1 行修复 + 实测 8 秒 0 条；**顺带发现 `accept_agent_p3.js` 的 D1 原来"绿"是靠该缺陷蒙过**（先移动后挂监听 + 1s 聚合窗口竞态），已改为先挂监听再连续移动 → P3 恢复 12/12；**C2（P1）**5 分钟空闲超时踢掉纯拉模式客户端（实测 Key 档 workbuddy 全程在拉、只发过一条 SUBSCRIBE 就被踢）→ 活跃口径扩容为 Key 档 PING + HTTP observe（游客 PING 不计，保防滥用阀门）；**D2（部署阻断）**反代后 per-IP 限流把全世界算成一个 IP（`req.ip`/`socket.remoteAddress` 在 Nginx 后恒为 127.0.0.1 → 全球 10 张票/小时 + 同时只允许 1 个游客）→ 新增 `src/middleware/clientIp.js`（X-Real-IP → XFF 最后一段 → socket，`TRUST_PROXY=false` 可关）+ `server.js` 接线 + WS 侧改用它，实测不同真实 IP 可同时在线、同 IP 仍被拒；**E2（工具）**两个 `ai-live` 进程共用 `live/` 目录抢命令与证据混流（记入下一轮待办）。示例客户端 `ai-live.mjs` 加 60 秒 PING 保活。回归全绿：P1 14/14、P2 14/14、P3 12/12、P8 52/52、WS 重连 9/9、主世界冒烟 9/9；`_tmp_fix_bcd_verify.js` 11/11。服务器已重启跑新代码；联测期间 `agent_enabled=true`（收尾恢复 false） | **游客档（拉模式）可用 ✅** |
 | 2026-09-19 | **第一轮联测缺陷全部修复（代码解冻后一轮会话，含两轮真人现场联测）**：①**A（P0）**`agentObservationService.resolvePosition` 观察点优先取 playerPositions 实时位置（`pickLiveEntry` 取带 animMode/最新的一条），`self` 与所有 `distance` 同源修正 → `accept_agent_fix_a.js` 24/24（纯 HTTP 第二会话 self 不再恒为 (0,0,0)，106 项 distance 误差 0.0048m）。②**B（P0）**新增 `src/agent/agentConnectionRegistry.js`：`entities` 按 characterId 去重 + 单 Agent 并发上限 `agent_max_connections_per_agent`（默认 1，新连接顶掉旧连接 close 4004，被顶掉的连接**静默清理不广播 PLAYER_LEFT** 防 avatar 闪断）→ `accept_agent_fix_b.js` 24/24；真人复测双向 4004、换连接后位置不变。③**C（P1）**新增 `agentFollowService.js`：`follow{targetId,stopDistance,maxDurationMs}` 服务端 10Hz 持续跟随（不再客户端每秒重发 walk_to）→ `accept_agent_fix_c.js` 15/15（目标直线移动 30s、27 次采样全 ≤2.80m）。④**E（P1）**移动任务注入 `reply`，到达/被打断/断线补发 `ACTION_COMPLETED{reason: arrived\|superseded\|target_lost\|timeout}` → `accept_agent_fix_e.js` 12/12（estimatedMs 4800 vs 实测 4946ms）。⑤**D（P1）**`agent_observe_rate_key`（默认 1 = 行为不变，可调 1~10）→ `accept_agent_fix_d.js` 10/10（5Hz 时 `200×5,429,429`）。⑥**F/H（P2）**`meta.js` 抽出 `ENTITY_IDENTITY` + `buildSharedSections`，capabilities / well-known / openapi 三处同源同形（含 entityIdentity 契约与 limits）→ `accept_agent_fix_f.js` 14/14。⑦**G（P2）**`ai-live.mjs` 双通道聊天去重。**联测现场另发现并修复两项 P0**：**I** `walk_to` 推进起点用会话快照（内存永不更新）→ 位置每 4 秒原样循环、`estimatedMs` 恒按 (0,0,0) 算（**用户第一轮"你在原地徘徊/跟随中做了无用的走动"的真正根因**），改取实时位置后跟随时序单调收敛；**J** 新会话无位置 → 出生点回落 (0,0,0) → 任何 AI 客户端重连即瞬移回原点，新增 `getLatestPosition` 重连续位。**用户现场决策**：Agent 速度上限由固定 5 m/s 改为可配 `agent_max_speed`、默认 9 m/s 与真人一致（真人实测中位 6.03、峰值 11+ m/s）。回归全绿：fix_a 24/24、fix_b 24/24、fix_c 15/15、fix_d 10/10、fix_e 12/12、fix_f 14/14、P1 14/14、P2 14/14、P3 12/12、P8 52/52、WS 重连 9/9、主世界冒烟 9/9。服务器 3002 已重启跑新代码；联测用 Key Agent `workbuddy`（realtime 档）；临时工具 `_tmp_follow.js` 升级为 v4（服务端 follow + keeper） | **首轮缺陷全部修复并验收 ✅**（下一轮：多 Agent × 多真人压测） |
+| 2026-09-19 | **v2 轮联测（登录与多端，用户指令"只测不改代码"）**：按 `AI-Agent联测提示词-v2-登录与多端.md` 执行 §1 登录/鉴权边界 + §2 多端同时在线，产出 3 个可重跑矩阵脚本与公共工具 `scripts/agentV2TestKit.js`。**结果**：游客档矩阵 **72/75**（3 FAIL = 已知缺陷 v2-1×2 + v2-3×1）、Key 档 **38/38**、多端 **25/25**。**新发现 6 条缺陷/观察项（均未修）**：**v2-1（P1）**WS 升级后瞬时断开 → `agentWsServer` 的 `ws.on('close')` 注册在两次 `await` 之后收不到 close 事件 → `handleClose` 永不执行 → ①该 IP 游客名额永久占用（同 IP 换新票仍 `GUEST_IP_CONCURRENCY`）②`playerPositions` 幽灵 avatar（真人可见、observe 返回）③`activeAgents` 常驻占 `max_agents` 名额，心跳/空闲超时对其无效（socket 已关）→ 只能重启清理；实测 **3/3 复现**，对照"正常关闭（已收 READY）后名额立即释放"PASS（C17b），另观测到一次"连接 800ms 后关闭"也泄漏；**v2-2** `SESSION_NOT_FOUND` 在 WS=401 / HTTP=403 口径不一致；**v2-3（P2）**`move` 被打断不发 `ACTION_COMPLETED{superseded}`（`startMove` 未注入 requestId/reply，只有 `walkTo` 注入），与 §5.2 契约不符；**v2-4** 无 `stop` 动作、`movementService.stopMove()` 零调用（连续 move 无法显式停止）；**v2-5** 多 Agent 同时 follow 同一目标位置完全重合（实测最小间距 0.00m，无 Agent 间避让）；**v2-6** `guest.js` 自带 `clientIp()` 兜底取 XFF 第一段（与 `middleware/clientIp.js` 口径相反，实际不可达）。**多端实测数据**：realtime 档 **105 条 ENTITY_UPDATED/20s ≈ 1Hz/实体（非 10Hz）**、≈1KB/s per Agent（量化证实"第三档≈1Hz"遗留项）；游客同窗口 **0 消息 0 字节**（红线 14 反证）；服务器 **0.19 核秒/20s ≈ 1% 单核**；`CHAT.characterId ≡ entities[].id` 逐字一致、Agent 互聊 + 真人侧同收；3 Agent 同时 follow 全部收敛 2.2~2.5m；真人端（playwright headless chrome 真 GPU）**0 console error（唯一 404=favicon，按 `m.location().url` 判定）、players.size=11、FPS 60**；`world_chat_log` 177→180。联测期间另有驻场游客 Agent 与真人「米多」实时对话/跟随（jump/follow/say 全通）。文档同步：§0 阶段说明、§7 v2 小节（含 6 条缺陷表与实测数据）、§9 新增坑 22/23/24。**agent_enabled 收尾恢复 false（红线 6）** | **v2 轮联测完成 ✅（待用户决策：先修 v2-1 还是继续下一轮）** |
