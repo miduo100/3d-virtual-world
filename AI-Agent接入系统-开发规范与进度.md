@@ -15,7 +15,8 @@
 4. **注意当前阶段（2026-09-19 起）**：代码已解冻，进入 **第一轮联测缺陷修复** 阶段——按第七节「多轮联测与缺陷待办」逐条修复。第一批 A/B（P0）、第二批 C/E（P1）、第三批 D（P1）、第四批 F/G/H（P2）均已修复并验收；联测中另**新发现 I（walk_to 推进起点用会话快照 → 位置每 4 秒循环）与 J（新会话出生点 (0,0,0) → 重连瞬移）两项 P0 级缺陷**，已一并修复。
    **2026-09-19 v2 轮（登录/鉴权边界 + 多端同时在线）按用户指令"只测不改代码"完成**，见第七节「v2 登录与多端联测」：3 个可重跑矩阵脚本（游客 72/75、Key 38/38、多端 25/25）+ 6 条新缺陷待办（**v2-1 为 P1：WS 瞬时断开致每 IP 名额/幽灵实体/在线名额三项永久泄漏，实测 3/3**）。
 5. **注意当前阶段（2026-09-19 v3 轮，代码已解冻）**：v2-1（P1）与 v2-3（P2）**已修复并验收**（见第七节「v2 登录与多端联测」的**修复结果**与新增的「v3 缺陷修复轮」小节）：监听器前置注册 + readyState 兜底解决瞬时断开泄漏；`move`/`jump` 注入 `{ requestId, reply }` 补发 `ACTION_COMPLETED{superseded}`。矩阵复跑 **游客 75/75、Key 38/38、多端 25/25**，专项脚本 `accept_agent_v2_defects_fix.js` **7/7**，既有回归全绿。
-6. **下一步待用户决策**：v2-2（`SESSION_NOT_FOUND` 口径统一 401/403）、v2-4（是否新增 `stop` 动作）、v2-5（多 Agent 跟随同一目标的错位偏移）、v2-6（`guest.js` 的 `clientIp()` 与中间件合并）——**四条均为观察项，改前须用户拍板（红线 11）**；或继续深化联测（Agent 间语音、>30 分钟长会话、100 Agent 压测等，见 `AI-Agent联测提示词-v3-缺陷修复与深化联测.md` §3）。
+6. **观察项状态**：v2-5（多 Agent 跟随同一目标完全重合）已于 2026-09-19 以缺陷 T9 修复（环形避让）；**v2-2**（`SESSION_NOT_FOUND` 口径统一 401/403）、**v2-4**（是否新增 `stop` 动作）、**v2-6**（`guest.js` 的 `clientIp()` 与中间件合并）仍未动，**改前须用户拍板（红线 11）**。
+7. **当前阶段（2026-09-19 三档推送与真人端观感修复轮，代码已解冻）**：按 `AI-Agent修复提示词-v4-三档推送与真人端观感.md` 执行，**T1/T2/T3/T4/T5/T6/T8/T9/T10 全部修复并验收**（T7 用户已决策不修）。tier 六轮 **48/48、12/12、17/17、13/13、20/20、7/7** 全绿，既有回归 14 个脚本全绿，详见第七节「三档推送层与真人端观感修复」。用户决策记录：D1=**修**（jump 幅度维持 0.82m）/ D2=**真 10Hz** / D3=**位置流脱离令牌桶** / D4=**环形避让**。
 
 ### 收尾三件事（每会话结束前必做）
 1. **更新第 7 节进度表**（checkbox 状态 + 日期 + 会话摘要）；
@@ -96,7 +97,7 @@
 8. **AI 标识**：`entityType:'agent'` → 系统消息显示 "(AI)加入了"、头顶名字加 🤖（约 5 行前端改动）。
 9. **不动现有体系**：/ws 人类协议行为零变化；/api/auth/* 零变化；游客模式零变化。
 10. **服务器不做 ASR/TTS、Agent 不允许 set_position 裸接口**（移动只能 walk_to/rotate/jump，服务端定速度）。
-11. **工程保命三件套**：max_agents 拒绝超载；每 Agent 推送令牌桶限频（低优先级先丢：位置>实体>聊天，聊天永不丢）；背压断开（ws bufferedAmount >1MB 警告、>4MB 断开）+ 30s 心跳沿用人类侧机制。
+11. **工程保命三件套**：max_agents 拒绝超载；每 Agent 推送令牌桶限频（低优先级先丢：位置>实体>聊天，聊天永不丢）；背压断开（ws bufferedAmount >1MB 警告、>4MB 断开）+ 30s 心跳沿用人类侧机制。**（2026-09-19 T6 修订：位置流改为结构上限约束——standard 每 tick 最多 1 条 BATCH 消息、realtime 每实体每轮 ≤1 条——不再消耗令牌桶，令牌桶只约束实体上下线类消息；"聊天永不丢"不变。原因：25 实体同时移动会把桶打空导致部分实体永久收不到更新，见第七节 T6）**
 12. **P7 Vision 后置**（第一版 AI 无画面，纯结构化雷达；未来 Vision 走服务器侧无头渲染 worker）。
 13. **聊天记录双保存**（2026-09-17 定稿）：本地实时写入（`world_chat_log`）+ 每日定时归档远端（S3 兼容对象存储；百度网盘仅预留接口）；保留期后台可设（默认 7 天），到期自动清除本地行与远端旧归档；**未成功归档的本地数据永不删除**；语音只存元数据不存音频。
 14. **游客 Agent 永不获得推流**（P8）：`SUBSCRIBE` 一律拒绝（`GUEST_PUSH_FORBIDDEN`），即使后台默认档被调成 realtime，游客连接也强制 eco + 关闭位置流 + 关闭语音中继。
@@ -190,6 +191,13 @@ S→C:  READY { agentId, avatar, spawn }
       ERROR / PONG
 ```
 
+**订阅门控与半径（2026-09-19 三档联测 T3/T4/T8 定稿）**：
+- `movement` → 位置流（standard=ENTITY_MOVEMENT_BATCH / realtime=ENTITY_UPDATED）；`presence` → 实体上下线（ENTITY_ADDED / ENTITY_REMOVED）；`chat` → 聊天（30m，不受下表影响）。
+- **两者都未订阅 → 完全不推任何东西**（修复前只要档位不是 eco 就推，"不订阅"无法关掉推流成本）。
+- `radius`（默认 30，SUBSCRIBE 夹取 1~200）**对位置流与 ADDED 都生效**，距离口径 = 水平距离（x/z；y 不参与，避免跳跃导致实体忽进忽出）。
+- **实体首见先发 `ENTITY_ADDED`（带当时位置）→ 本 tick 不再进位置流，下一 tick 起走位置流**（客户端可把 ADDED 当作"实体出现"的可靠信号；修复前新实体总是先进 batch 并写 snap，ADDED 分支永不命中）。
+- **pre-ready 消息缓存**（2026-09-19）：客户端可在 WS `open` 回调里立刻发 SUBSCRIBE —— state 就绪前到达的消息会按序缓存（上限 32 条）并在 READY 之后补发（修复前被静默丢弃 → 订阅失效、永远收不到位置流）。
+
 ACTION 七动作（P4 + 2026-09-19 新增 `follow`）：`move(target)` 连续位移、`walk_to(target)` 走到点（服务端限速逐帧推进 + animMode:walk）、**`follow(targetId, stopDistance=2, maxDurationMs=60000)` 持续跟随**（服务端每 100ms 追目标、进入 stopDistance 停住、目标消失/超时/被新指令打断即结束）、`rotate(yaw)`、`jump()`、`say(text)`（≤200 字，走 CHAT 管线）、`interact(targetId)`（距离校验）。全部要求：scope 校验→参数 schema→距离/边界校验→限频→服务端权威→requestId 回执。
 
 **移动类回执契约（2026-09-19 缺陷 E 修复；v2-3 补齐 move/jump）**：`ACTION_COMPLETED { requestId, reason }` 由**服务端在移动结束时补发**，`reason ∈ arrived | superseded | target_lost | timeout | disconnected`（walk_to 到达 / 被打断；follow 结束）。**移动类动作（move/walk_to/jump/follow）互斥**：同一连接同一时刻只有一个移动任务，新指令打断旧任务并向旧 requestId 发 `reason=superseded`。**速度上限 `agent_max_speed`（默认 9 m/s = 真人速度，后台可配 1~20）。**
@@ -210,8 +218,12 @@ ACTION 七动作（P4 + 2026-09-19 新增 `follow`）：`move(target)` 连续位
 - **热路径读配置（2026-09-19 实测坑）**：移动速度与 observe 采样率在 10Hz 热路径读取，用 `agentConfigService.peekConfig()` 同步读 60s 缓存；`setConfigValue` 必须**就地更新缓存**（只把 cache 置 null 会让热路径回落默认值，表现为"后台改了要等几十秒才生效"）。
 
 - eco：observe 限 1Hz + CHAT 实时推；无实体/位置推送。
-- standard：+ ENTITY_ADDED/REMOVED + 1s 聚合位置流。
-- realtime：位置流 10Hz 原始频率（复用现有 POSITION_UPDATE 广播，仅发给订阅了的 Agent）。
+- standard：+ ENTITY_ADDED/REMOVED + 1s 聚合位置流（每 tick 最多 1 条 BATCH 消息）。
+- realtime：**真 10Hz 位置流**（2026-09-19 T5 修复）。实现 = `agentWsServer.startRealtimeLoop()` 每 100ms 采样 `playerPositions`，每实体每轮最多 1 条 `ENTITY_UPDATED`，只发水平位移有变化的实体；无 realtime 订阅者时首轮直接 return（成本≈0）。
+  - 为什么不走"事件驱动转发 POSITION_UPDATE 广播"：`wsServer.handlePositionUpdate` 用的是**模块内部裸调用** `broadcastToAll`（只有 CHAT 分支改成了 `module.exports.broadcastToAll`，见 `wsServer.js:214-220`），monkey-patch 导出属性收不到 → 实测 realtime 档 0 条。为不触碰黑名单文件 wsServer.js 改用采样循环，**对外契约不变**。
+  - 实测（3 实体、15s）：realtime 405 条 = **9.0 Hz/实体**、4.5 KB/s；同场景 standard 13 条 batch ≈ 0.4 KB/s。成本推算：30m 内 5 实体 ≈ 67 kbps/Agent；25 实体 ≈ 334 kbps/Agent；100 个 realtime Agent ≈ 33 Mbps + 25000 msg/s（用户已确认接受）。
+- **位置流不消耗令牌桶**（2026-09-19 T6 修复）：位置流改由"结构上限"约束（standard 每 tick 1 条消息、realtime 每实体每轮 ≤1 条）+ 既有背压硬保护（>4MB close 1011）；令牌桶（容量 60 / 补充 60 每秒）只约束实体上下线类消息。原因：原实现下 25 实体同时移动会把桶（容量 20 / 补充 10 每秒）打空，桶空后整批实体被丢弃且 snap 已更新 → 该帧更新永久丢失、按遍历顺序饥饿（实测 realtime 仅覆盖 20/25 实体）。**红线 11 的口径据此更新为"位置流靠结构上限 + 背压，实体/聊天走令牌桶，聊天永不丢"。**
+- **垂直偏移（T2）**：`POSITION_UPDATE` 由 presenceBridge 广播时新增 `baseY` 字段（= 该移动任务的服务端地面高度，恒 0）。客户端贴地公式 = `地形高度 + yOffset + (position.y − baseY)`，即"地形修正 + 保留服务器垂直偏移"；`baseY` 缺失（旧服务端/首次快照）时退化为旧行为。**服务端地面恒为 `GROUND_Y_DEFAULT`(0)**（服务器无地形数据），jump 的落地基准是任务上的 `task.groundY`，不再用"上一 tick 的 y"。
 - ~~`agent_movement_push`（位置流策略 off/batched/realtime）~~：**已移除**（2026-09-18）。三档本身已完整定义位置流行为，该键从未被推送逻辑读取，留着会误导管理员（以为可以叠加组合）。位置流完全由 `agent_push_default` 决定。
 - 后台卡片：admin.html 新卡片"Agent 接入"，参考 adminModelLod 卡片先例（system_config 读写 + 60s 缓存热生效 + 客户端校验）。
 - **Agent 独立档位（2026-09-18 追加）**：`agents.push_tier`（inherit \| eco \| standard \| realtime，默认 inherit = 跟随全局默认档）。WS 连接时游客仍强制 eco（红线不动）；Key Agent 优先用自身档位，inherit 才回落全局。后台「AI 注册用户列表」：创建表单可选档（跟随/第2/第3），列表档位内联下拉改档（`POST /admin/agents/:id/tier`，在线连接经 `agentWsServer.applyAgentTier` 即时生效无需重连）。第 1 档（公开游客）无需创建，任何人通过域名 `POST /guest/session` 自动获得（需 agent_enabled=true）。
@@ -620,6 +632,75 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 
 ---
 
+### 三档推送层与真人端观感修复（T1~T10）✅ 2026-09-19
+
+> 触发文档：`AI-Agent修复提示词-v4-三档推送与真人端观感.md`。**这是首次把"真人端渲染观感"纳入修复范围**。
+> **用户决策（开工第一问，4 项全部按建议）**：D1（T2 是否修）= **修**，跳跃幅度维持 0.82m；D2（T5）= **真 10Hz**；D3（T6）= **位置流脱离令牌桶**；D4（T9）= **环形避让**。T7（AI 感知真人跳跃/转向）**用户明确不需要，未动**。
+
+**改动文件（产品代码 8 个）**：
+
+| 文件 | 改动 |
+|---|---|
+| `public/js/agentPositionSmoother.js` | T1：上限不再写死 5.4 —— 跟随 `/.well-known` 的 `limits.movementSpeed × 1.2`（60s 刷新）+ 实测速率 EMA×1.3 自适应兜底，夹取 [5.4, 30]；吸附语义改为"连续 3 次目标更新仍 >20m 才吸附，>60m 立即吸附"；**修复"水平已到位提前返回吞掉纯垂直变化"**（跳跃不可见的真因） |
+| `src/websocket/agentWsServer.js` | T3/T4/T8（`startPushLoop` 订阅门控 / 半径过滤 / ADDED-first，realtime 不再写 snap）+ T5（`startRealtimeLoop` 100ms 采样 10Hz）+ T6（位置流不消耗令牌桶，桶 60/60）+ **pre-ready 消息缓存补发**（state 就绪前到达的 SUBSCRIBE 不再丢失） |
+| `src/agent/agentMovementService.js` | T2/S1：`task.groundY`（服务端地面恒 0）；`tickJump` 落地基准改用 `task.groundY`（原来用"上一 tick 的 y"→ 钉在顶点且每次跳跃抬高地面上浮）；`publishPosition` 广播 `baseY` |
+| `src/agent/agentPresenceBridge.js` | T2：`updatePosition(…, baseY)` 记录并在 `POSITION_UPDATE` 里下发 `baseY` |
+| `src/agent/agentFollowService.js` | T9：环形槽位（半径 `min(1.5m, stopDistance)`、8 槽、`agentId` 哈希稳定分配、被占则顺延）；地面恒 0 |
+| `public/js/websocket.js` | T2：`snapAgentPosition(position, yOffset, baseY)` = `地形高度 + yOffset + (serverY − baseY)`；`baseY` 缺失退化旧行为 |
+| `src/routes/agent/observe.js` | T10：限频窗口 `1000ms → 950ms`（留 50ms 抖动余量） |
+| `public/index.html` | `websocket.js?v=8`、`agentPositionSmoother.js?v=2` |
+| `examples/agent-client/ai-live.mjs` / `node-agent.mjs` | 订阅改为 `['chat','movement','presence']`（门控生效后只订阅 chat 收不到位置流） |
+
+**10 条问题 before → after**：
+
+| # | 问题 | 修复前 | 修复后 |
+|---|---|---|---|
+| T1 (P1) | 真人端 Agent 移动滞后 + 周期瞬移 | r3 **15/17**：滞后 max **21.01m** / avg 10.16m、1 次 20.70m 瞬移 | r3 **17/17**：max **1.37m** / avg 0.95m、瞬移 **0** 次（上限 14.4m/s） |
+| T2 (P2) | 真人端看不到 Agent 跳跃 | r5 CC FAIL：服务器 y 1.42→2.04 但显示 y 恒 1.5（Δ0） | r5 **7/7**：显示 y 1.5→**2.512**（Δ1.012m，= 服务端 lift） |
+| T3 (P2) | 位置流不受 SUBSCRIBE 门控 | 未订阅 6s 仍收 6 条 BATCH / 12 条 UPDATED | r1 **48/48**：未订阅三档均 **0 条 0 字节** |
+| T4 (P2) | 订阅半径不生效 | 半径 30m 仍收到 150m 外实体（standard/realtime 各 5 条） | r1/r2a：150m 外命中 **0/2** |
+| T5 (P2) | realtime 实为 1Hz，与 standard 等价 | 15s 65 条 ≈1Hz/实体 | r2a：源 10Hz 下 **9.0 Hz/实体**（405 条/15s/3 实体、4.5 KB/s） |
+| T6 (P2) | 令牌桶造成实体饥饿 | 25 实体仅覆盖 **20/25**（5 个实体 0 条） | r2a：**25/25** 全覆盖（单实体 43~45 条/10s） |
+| T8 (P3) | ENTITY_ADDED 不触发 | 晚入场实体 `added=0`，仅位置流 | `added=1`（先 ADDED 再 batch/UPDATED） |
+| T9 (P3) | 多 Agent follow 完全重合 | 三档最小间距 **0.00m** | **1.15m**（8 槽 45° 环、半径 1.5m）+ W/Z 收敛无回归 |
+| T10 | observe 限频无抖动余量 | 1000ms 轮询 1/10 次 429；r4b A3 用 900ms 实际间隔 → 7~8 次 429 | 窗口 950ms + 脚本间隔改 400ms（同一 Agent 1.2s）→ r4b **20/20**、A3 `12 ok / 0 个 429` |
+| T7 | AI 感知不到真人跳跃/转向 | —— | **用户决策不修**（r2a 中改为 INFO 口径说明，不再记 issue） |
+
+**本轮另外发现并修复的真 bug（4 项，均不在原 10 条表内）**：
+
+1. **S1 服务端 `jump` 落不下来且地面逐次上浮（P2，阻塞 T2）**：`tickJump` 里 `const groundY = task.currentPos.y` 把"上一 tick 的 y"当落地基准 → 落地判定在**刚过最高点的下一 tick**即成立，y 直接钉在顶点；再跳一次从顶点起跳 → 累积上浮。证据：r5 报告服务器 y 序列 `0.4/0.702/0.906/1.012/1.02` 后**永久停在 1.02**；DB 里同一 Agent 的落库 y 依次为 **1.02 → 2.04**（`_tmp_tier_reset.js` 输出实测）。修复后 y 序列 `0.4/0.702/0.906/1.012/1.02/0.93/0.742/0.456/0.072/0`（真实抛物线）。
+2. **S2 客户端平滑器"水平已到位提前返回"吞掉纯垂直变化**：Agent 原地起跳时 `d ≤ ARRIVE_EPSILON` 且 `arrived=true` → 不再调用 `updatePlayerPosition` → 真人端 y 不变（T2 首轮仍 Δ0 的真因）。修复：`!t.arrived || yChanged` 才跳过。
+3. **S3 pre-ready SUBSCRIBE 被静默丢弃（P2）**：v2-1 修复把 `ws.on('message')` 提到 `await` 之前，而 `handleMessage` 对"state 未建"是 `return` → 在 `open` 回调里立刻 SUBSCRIBE 的客户端订阅失效（`accept_agent_p3` 的 D1 因此红）。修复：state 就绪前缓存原始消息（上限 32 条），READY 之后按序补发。**P3 恢复 12/12**。
+4. **S4 realtime 不能走"事件驱动转发"**：`wsServer.handlePositionUpdate` 用模块内部裸调用 `broadcastToAll`（只有 CHAT 分支改成了 `module.exports`），monkey-patch 收不到 → realtime 实测 0 条。改为 `startRealtimeLoop` 100ms 采样（契约不变，且不触碰黑名单 wsServer.js）。
+
+**验收（全部可重跑；脚本本身也修了 2 处判据口径）**：
+
+| 脚本 | 修复前 | 修复后 |
+|---|---|---|
+| `accept_agent_tier_r1.js` | 46/48 + 2 issue | **48/48**，疑似问题（无） |
+| `accept_agent_tier_r2a.js` | 10/11 + 2 issue | **12/12**，疑似问题（无） |
+| `accept_agent_tier_r3_playwright.js` | 15/17 | **17/17**（真 GPU GTX960 / 60fps / 0 console error） |
+| `accept_agent_tier_r4a.js` | 12/13 | **13/13** |
+| `accept_agent_tier_r4b.js` | 19/20 | **20/20** |
+| `accept_agent_tier_r5_client.js` | 5/7 | **7/7** |
+| 回归：v2_auth_guest / v2_auth_key / v2_multiend / v2_defects_fix | 75/75、38/38、25/25、7/7 | 同前（**无回归**） |
+| 回归：fix_a~f | 24/24、24/24、15/15、10/10、12/12、14/14 | 同前（**无回归**） |
+| 回归：p1 / p2 / p3 / p8 | 14/14、14/14、**11/12**、52/52 | 14/14、14/14、**12/12**（S3 修复）、52/52 |
+| 回归：accept_ws_reconnect_presence / smoke_r185_world | 9/9、9/9 | 9/9 ACCEPTED、9/9 |
+
+**测试脚本侧同步修正（判据口径，非产品行为）**：
+- r3 的 S 判据原写死"步进 >8 m/s = 瞬移"，是 Agent 上限 5 m/s 时代的常量；服务端提速到 12 m/s 后**合法移动本身 >8** → 改为 `> agent_max_speed × 1.5`（并保留 8 m/s 计数作参考 `S_ref`）。R 的理论位置起点从"首个采样点"改为"**发指令前一刻的显示位置**"（前者在指令后 ≈150ms 才采到，凭空引入 `v×0.15 ≈ 1.8m` 恒定偏差）。
+- r2a 的 N 场景 25 实体原在 `x=20+i*1.5 / z=60`（距 Agent 聚集点 (10,10) 有 50m+）→ 半径过滤生效后全被过滤（standard/realtime 都 0 条），改为铺在 (10,20) 附近（≈10m）；G 场景源频率 200ms→**100ms**（与"真人每帧上报"同量级），否则测不出档位差异。
+- r4b 的 A3 循环原 `sleep(300)`（同一 Agent 实际间隔 900ms < 1s 窗口）→ 改 400（1.2s，与标签一致）。
+
+**环境前置（新增）**：`node scripts/_tmp_tier_reset.js` —— 清空三个测试 Agent 的 `agent_sessions.current_position`，使其下次连接从 (0,0,0) 出生。**原因**：Agent 出生点继承上次落库位置（缺陷 J 的设计），而 tier 各轮结束会把 Agent 留在远处 → 直接重跑后续轮次会出现"D 组 30m 内 CHAT 不可达 / E 组未在窗口内到达"等**假失败**（本轮实测：standard 上次停在 x=109.2）。
+
+**证据文件**：`examples/agent-client/live/tier-r1|r2a|r3|r4a|r4b|r5.json`、`tier-suite-summary.json`、`Screenshot/_tmp_tier_r3_agents_idle.png` / `_moving.png`。
+
+**环境收尾**：`agent_enabled=false`（红线 6）、`pushDefault=eco`、`maxAgents=50`、`maxConnectionsPerAgent=1`、`maxSpeed=12`、`observeRateKey=1`；服务器 3002 跑本轮代码。
+
+---
+
 ## 第八节：已核对的代码坐标速查（写代码时直接引用）
 
 | 用途 | 位置 |
@@ -651,7 +732,16 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 | 跟随服务（缺陷 C） | `src/agent/agentFollowService.js`（startFollow/cancelFollow）+ `agentActionService.handleFollow` + 移动类互斥 |
 | 移动回执（缺陷 E） | `agentMovementService.notifyCompleted` / `cancelMovement(reason)`；WS 层注入 `ctx.reply`（`agentWsServer.handleAction`） |
 | 发现端点同源（F/H） | `src/routes/agent/meta.js` 的 `ENTITY_IDENTITY` / `buildSharedSections(config)` |
-| observe 采样率（缺陷 D） | `src/routes/agent/observe.js`（`keyRatePerSec()` 读 `agentConfigService.peekConfig()`） |
+| observe 采样率（缺陷 D） | `src/routes/agent/observe.js`（`keyRatePerSec()` 读 `agentConfigService.peekConfig()`；限频窗口常量 `OBSERVE_WINDOW_MS=950`） |
+| 推送门控/半径/ADDED（T3/T4/T8） | `agentWsServer.startPushLoop()`（`wantMovement`/`wantPresence`、`withinRadius`、`entityKind/moveEntry`） |
+| realtime 10Hz（T5） | `agentWsServer.startRealtimeLoop()`（100ms 采样，`REALTIME_INTERVAL_MS`） |
+| pre-ready 消息补发 | `agentWsServer` 连接处理里的 `pendingMessages`（缓存 32 条，READY 之后 flush） |
+| 服务端地面与跳跃（T2/S1） | `agentMovementService`：`GROUND_Y_DEFAULT`、`taskGroundY(task)`、`tickJump`、`publishPosition(…, baseY)` |
+| 垂直偏移下发（T2） | `agentPresenceBridge.updatePosition(…, baseY)` → `POSITION_UPDATE.payload.baseY` |
+| 真人端贴地 + 垂直偏移（T1/T2） | `public/js/websocket.js` 的 `snapAgentPosition(position, yOffset, baseY)`、`handlePositionUpdate` |
+| 平滑器速度上限（T1） | `public/js/agentPositionSmoother.js`：`refreshServerSpeed()`（well-known）、`recomputeLimit()`、`getStats()` |
+| follow 环形避让（T9） | `agentFollowService.assignSlot/hash32` + `tick()` 的 ring 目标点（`RING_RADIUS=1.5`、`RING_SLOTS=8`） |
+| 三档验收脚本与环境前置 | `scripts/accept_agent_tier_r1/r2a/r3_playwright/r4a/r4b/r5_client.js`、`scripts/_tmp_tier_setup.js`、`scripts/_tmp_tier_reset.js` |
 | 聊天持久化现状（无表，唯一例外 NPC） | `src/routes/npc.js:416-421`、`database/init.sql:391` |
 
 ---
@@ -683,7 +773,13 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 23. **移动类回执的完整语义**（v2-3 **已修复 2026-09-19**；v2-4 仍待决策）：§5.2 的"移动类（move/walk_to/jump/follow）互斥 + `ACTION_COMPLETED{reason}`"契约里，原只有 `walk_to` / `follow` 注入了 `requestId`/`reply`，`move` / `jump` 被打断时 `notifyCompleted` 直接 return（已修：四个动作现在都注入）。**注意两条已定契约**：① 一条移动任务只挂**一个**待回执指令（`task.requestId`），`jump` 复用正在跑的任务（如 `walk_to` 途中起跳）时**不覆盖**旧 `requestId`，此时只有主指令收到 `superseded`；② `reason='disconnected'` 的回执发给的是**已断开的连接**，客户端观测不到，清理侧证据看审计日志 `ws_disconnected`。**仍未做**：动作集里**没有 `stop`**，`movementService.stopMove()` 是零调用死代码 → 连续 `move` 只能靠 `walk_to` 到自身坐标或被其它移动指令打断（v2-4 待用户决策）。
 24. **写 Agent 联测脚本的三个坑**（v2 联测沉淀）：① **签票窗口会被烧掉**——同一 IP 每小时只有 10 张，且每张都算，脚本必须把"签票 IP"与"WS 连接 IP"解耦（票不绑 IP，只有"每 IP 并发 1 连接"看连接来源），并让每次运行的 IP 随运行号偏移，否则重跑必然 429；② **判定幽灵实体必须用"之后不再连接的票"**——同一张票重连会复用同一 `agentId`，用它去 observe 分不清幽灵与在线者；③ **`observe` 的 `distance` 是"相对请求方"的距离**，多 Agent 横向对比时必须自己按坐标算（否则会得出"三个 Agent 距离完全相同"的假结论）。
 25. **游客动作限频是"按 action 分桶"的 1 次/2 秒**（v3 轮踩到，脚本假失败）：`agentSchema.TIER_ACTION_RATES[guest]` 里 `move`/`walk_to`/`jump`/`follow`/`rotate`/`interact`/`say`/`observe` 各自独立计数。同一动作 2 秒内第二次会被 `rate_limited` **直接拒掉，根本走不到被测逻辑**——专项脚本 V5 首轮因此假失败（误判"jump 回执没实现"）。写用例时：同一动作之间必须显式 `sleep(2100)`，或换用另一个动作类型做打断源。
-26. **管理员登录限流的 IP 小时窗口把"成功登录"也计数**（v3 轮踩到，回归前置失败）：`loginRateLimiter` 的 admin 策略 = IP **5 次/分钟 + 15 次/小时**（`RATE_LIMITED_IP_HOUR`，`retryAfter=3600`），而每个 `accept_agent_*.js` 都要先登录一次拿 admin token → 连续跑多个脚本必被打满（本轮 fix_d/e/f 三个全 FATAL）。计数器 `ipTracker` 在**内存**：**重启服务器即清空**；`login_attempts` 表只影响"账号锁定"，不影响 IP 小时窗口。**多条脚本连跑时，把它们分组、组间重启一次服务器**。
+26. **管理员登录限流的 IP 小时窗口把"成功登录"也计数**（v3 轮踩到，回归前置失败）：`loginRateLimiter` 的 admin 策略 = IP **5 次/分钟 + 15 次/小时**（`RATE_LIMITED_IP_HOUR`，`retryAfter=3600`），而每个 `accept_agent_*.js` 都要先登录一次拿 admin token → 连续跑多个脚本必被打满（本轮 fix_d/e/f 三个全 FATAL）。计数器 `ipTracker` 在**内存**：**重启服务器即清空**；`login_attempts` 表只影响"账号锁定"，不影响 IP 小时窗口。**多条脚本连跑时，把它们分组、组间重启一次服务器**（本轮按 3 组执行，全绿）。
+27. **Agent 出生点会继承上次落库位置 → tier 脚本连跑会假失败**（2026-09-19 踩到）：缺陷 J 的设计是"重连续位"（`getLatestPosition`），而 tier 各轮结束会把 Agent 留在远处（实测 standard 停在 x=109.2），下一轮若从中间轮次开始跑，D 组"30m 内 CHAT 可达"与 E 组"walk_to 在窗口内到达"会假失败（首轮 r1 因此 41/46）。**跑 tier 验收前先 `node scripts/_tmp_tier_reset.js`** 清空 `agent_sessions.current_position`。
+28. **服务端 `jump` 的落地基准必须是任务上的 `task.groundY`，不能读 `task.currentPos.y`**（2026-09-19 S1）：后者是"上一 tick 的高度"，会让落地判定在刚过最高点时成立 → y 钉死在顶点、且每次跳跃把"地面"抬高约 1m（DB 实测 1.02 → 2.04 累积）。**服务器无地形数据（坑 8），地面恒为 `GROUND_Y_DEFAULT`(0)**，任何移动任务都不应继承 `cur.y`。
+29. **客户端平滑器"水平已到位"的提前返回会吞掉纯垂直变化**（2026-09-19 S2）：`agentPositionSmoother.step()` 里 `d ≤ ARRIVE_EPSILON` 且 `arrived=true` 时若直接 `continue`，Agent 原地起跳只改 y → 一次 `updatePlayerPosition` 都不会调用 → 真人端看不到起跳（T2 首轮修复后仍 Δ0 的真因）。判定条件要写成 `!t.arrived || yChanged`。
+30. **推送频率/滞后判据必须随服务端速度缩放**（2026-09-19）：① r3 的瞬移阈值原写死"步进 >8 m/s"，服务端提速到 12 m/s 后**合法移动本身 >8** → 改为 `agent_max_speed × 1.5`；② R 的理论权威位置起点若用"首个采样点"，会凭空引入 `v × 采样延迟(≈150ms) ≈ 1.8m` 恒定偏差（修复后实测 max 3.32m 里 1.8m 是这个偏差）→ 要用"发指令前一刻的显示位置"（此刻 Agent 静止、显示 ≡ 权威）。
+31. **state 就绪前到达的 WS 消息会被静默丢弃**（2026-09-19 S3；v2-1"监听器前置"的副作用）：`handleMessage` 对 `activeAgents.get(connectionId)` 为空是 `return`，而 v2-1 让 `ws.on('message')` 早于两个 `await` 注册 → 在 `open` 回调里立刻 `SUBSCRIBE` 的客户端订阅失效（`accept_agent_p3` 的 D1 红掉）。已加 pre-ready 缓存（32 条上限）并在 READY 之后按序补发。**通用教训**：把监听器提前的同时，要考虑"早到消息"的处理策略（缓存/补发），否则修好泄漏却丢了消息。
+32. **`wsServer` 的内部广播是裸调用，monkey-patch 导出属性不能拦截**（2026-09-19 S4）：`handlePositionUpdate` 调的是模块内部 `broadcastToAll`（只有 CHAT 分支改成了 `module.exports.broadcastToAll` 才算被 patch 到）→ 想在 agentWsServer 侧"监听 POSITION_UPDATE 广播"实现 realtime 事件转发**实测 0 条**。**要么改 wsServer（黑名单贴线，需用户批准），要么改用采样循环**；本轮选了后者（`startRealtimeLoop` 100ms），对外契约不变。另注：人类客户端 `player.js` 的 `broadcastPosition` 是**每帧**发送（60Hz），任何"事件驱动"方案都必须先压到 10Hz 上限，否则放大 6 倍。
 
 ---
 
@@ -731,3 +827,4 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 | 2026-09-19 | **第一轮联测缺陷全部修复（代码解冻后一轮会话，含两轮真人现场联测）**：①**A（P0）**`agentObservationService.resolvePosition` 观察点优先取 playerPositions 实时位置（`pickLiveEntry` 取带 animMode/最新的一条），`self` 与所有 `distance` 同源修正 → `accept_agent_fix_a.js` 24/24（纯 HTTP 第二会话 self 不再恒为 (0,0,0)，106 项 distance 误差 0.0048m）。②**B（P0）**新增 `src/agent/agentConnectionRegistry.js`：`entities` 按 characterId 去重 + 单 Agent 并发上限 `agent_max_connections_per_agent`（默认 1，新连接顶掉旧连接 close 4004，被顶掉的连接**静默清理不广播 PLAYER_LEFT** 防 avatar 闪断）→ `accept_agent_fix_b.js` 24/24；真人复测双向 4004、换连接后位置不变。③**C（P1）**新增 `agentFollowService.js`：`follow{targetId,stopDistance,maxDurationMs}` 服务端 10Hz 持续跟随（不再客户端每秒重发 walk_to）→ `accept_agent_fix_c.js` 15/15（目标直线移动 30s、27 次采样全 ≤2.80m）。④**E（P1）**移动任务注入 `reply`，到达/被打断/断线补发 `ACTION_COMPLETED{reason: arrived\|superseded\|target_lost\|timeout}` → `accept_agent_fix_e.js` 12/12（estimatedMs 4800 vs 实测 4946ms）。⑤**D（P1）**`agent_observe_rate_key`（默认 1 = 行为不变，可调 1~10）→ `accept_agent_fix_d.js` 10/10（5Hz 时 `200×5,429,429`）。⑥**F/H（P2）**`meta.js` 抽出 `ENTITY_IDENTITY` + `buildSharedSections`，capabilities / well-known / openapi 三处同源同形（含 entityIdentity 契约与 limits）→ `accept_agent_fix_f.js` 14/14。⑦**G（P2）**`ai-live.mjs` 双通道聊天去重。**联测现场另发现并修复两项 P0**：**I** `walk_to` 推进起点用会话快照（内存永不更新）→ 位置每 4 秒原样循环、`estimatedMs` 恒按 (0,0,0) 算（**用户第一轮"你在原地徘徊/跟随中做了无用的走动"的真正根因**），改取实时位置后跟随时序单调收敛；**J** 新会话无位置 → 出生点回落 (0,0,0) → 任何 AI 客户端重连即瞬移回原点，新增 `getLatestPosition` 重连续位。**用户现场决策**：Agent 速度上限由固定 5 m/s 改为可配 `agent_max_speed`、默认 9 m/s 与真人一致（真人实测中位 6.03、峰值 11+ m/s）。回归全绿：fix_a 24/24、fix_b 24/24、fix_c 15/15、fix_d 10/10、fix_e 12/12、fix_f 14/14、P1 14/14、P2 14/14、P3 12/12、P8 52/52、WS 重连 9/9、主世界冒烟 9/9。服务器 3002 已重启跑新代码；联测用 Key Agent `workbuddy`（realtime 档）；临时工具 `_tmp_follow.js` 升级为 v4（服务端 follow + keeper） | **首轮缺陷全部修复并验收 ✅**（下一轮：多 Agent × 多真人压测） |
 | 2026-09-19 | **v2 轮联测（登录与多端，用户指令"只测不改代码"）**：按 `AI-Agent联测提示词-v2-登录与多端.md` 执行 §1 登录/鉴权边界 + §2 多端同时在线，产出 3 个可重跑矩阵脚本与公共工具 `scripts/agentV2TestKit.js`。**结果**：游客档矩阵 **72/75**（3 FAIL = 已知缺陷 v2-1×2 + v2-3×1）、Key 档 **38/38**、多端 **25/25**。**新发现 6 条缺陷/观察项（均未修）**：**v2-1（P1）**WS 升级后瞬时断开 → `agentWsServer` 的 `ws.on('close')` 注册在两次 `await` 之后收不到 close 事件 → `handleClose` 永不执行 → ①该 IP 游客名额永久占用（同 IP 换新票仍 `GUEST_IP_CONCURRENCY`）②`playerPositions` 幽灵 avatar（真人可见、observe 返回）③`activeAgents` 常驻占 `max_agents` 名额，心跳/空闲超时对其无效（socket 已关）→ 只能重启清理；实测 **3/3 复现**，对照"正常关闭（已收 READY）后名额立即释放"PASS（C17b），另观测到一次"连接 800ms 后关闭"也泄漏；**v2-2** `SESSION_NOT_FOUND` 在 WS=401 / HTTP=403 口径不一致；**v2-3（P2）**`move` 被打断不发 `ACTION_COMPLETED{superseded}`（`startMove` 未注入 requestId/reply，只有 `walkTo` 注入），与 §5.2 契约不符；**v2-4** 无 `stop` 动作、`movementService.stopMove()` 零调用（连续 move 无法显式停止）；**v2-5** 多 Agent 同时 follow 同一目标位置完全重合（实测最小间距 0.00m，无 Agent 间避让）；**v2-6** `guest.js` 自带 `clientIp()` 兜底取 XFF 第一段（与 `middleware/clientIp.js` 口径相反，实际不可达）。**多端实测数据**：realtime 档 **105 条 ENTITY_UPDATED/20s ≈ 1Hz/实体（非 10Hz）**、≈1KB/s per Agent（量化证实"第三档≈1Hz"遗留项）；游客同窗口 **0 消息 0 字节**（红线 14 反证）；服务器 **0.19 核秒/20s ≈ 1% 单核**；`CHAT.characterId ≡ entities[].id` 逐字一致、Agent 互聊 + 真人侧同收；3 Agent 同时 follow 全部收敛 2.2~2.5m；真人端（playwright headless chrome 真 GPU）**0 console error（唯一 404=favicon，按 `m.location().url` 判定）、players.size=11、FPS 60**；`world_chat_log` 177→180。联测期间另有驻场游客 Agent 与真人「米多」实时对话/跟随（jump/follow/say 全通）。文档同步：§0 阶段说明、§7 v2 小节（含 6 条缺陷表与实测数据）、§9 新增坑 22/23/24。**agent_enabled 收尾恢复 false（红线 6）** | **v2 轮联测完成 ✅（待用户决策：先修 v2-1 还是继续下一轮）** |
 | 2026-09-19 | **v3 轮：v2-1（P1）+ v2-3（P2）修复与专项验收（用户授权"按 v3 提示词开工"）**。开工核对：文件存在性全绿（`examples/agent-client/ai-view.mjs` 仍缺失，属已知丢失项，非本会话依赖）+ 环境自检 + **修复前基线复现**（游客矩阵 72/75，X 组 v2-1 两 FAIL 实测 3/3：名额泄漏 3 + 幽灵实体 3）。**① v2-1**：`agentWsServer.js` 连接处理函数把 `ws.on('message'/'close'/'error'/'pong')` **全部前置到第一个 `await` 之前**（`earlyClosed` 记录早到的 close），并在两处 `await` 之后加 `readyState !== WebSocket.OPEN` 兜底——state 未建时 `releaseIpSlot` + 审计 `ws_disconnected{phase:'closed_before_ready'}` 后退出（避免为死连接广播 PLAYER_JOINED），state 就绪后再兜底一次走幂等的 `handleClose`；**② v2-3**：`handleMove`/`handleJump` 注入 `{requestId, reply}`，`startMove/jump` 写入任务对象（`jump` 复用既有任务时不覆盖旧 requestId），`startMove` 打断旧任务显式传 `reason='superseded'`。**验收**：游客矩阵 **72/75 → 75/75**（X1/X2、E6 三条由 FAIL 转 PASS 并改名去掉 `[已知缺陷]` 标签）、Key 38/38、多端 25/25、**新增专项 `accept_agent_v2_defects_fix.js` 7/7**（V1 6/6 同 IP 换新票立刻重连、V2 幽灵 0、V3 审计 6 次断开产生 11~12 条 `closed_before_ready`（修复前 0 条）、V4 move 回执、V5 jump 回执、V6 walk_to 到达）；既有回归全绿：fix_a 24/24、fix_b 24/24、fix_c 15/15、fix_d 10/10、fix_e 12/12、fix_f 14/14、P1 14/14、P2 14/14、P3 12/12、P8 52/52、WS 重连 9/9 ACCEPTED、主世界冒烟 9/9。**本轮沉淀两个"测试自身缺陷"**（§9-25/26）：游客动作限频**按 action 分桶** 1 次/2s → 同类动作需 sleep 2.1s 否则测到的是限频（V5 首轮假失败）；管理员登录 IP 小时窗口把**成功登录也计数**（15 次/小时）→ 多脚本连跑必 `RATE_LIMITED_IP_HOUR`，需重启服务器清内存计数器（fix_d/e/f 首轮三 FATAL，重启后全绿）。**v2-2/4/5/6 四条观察项本轮未动**，待用户决策（红线 11）。服务器已重启跑新代码（pid 17876） | **v2-1/v2-3 修复并验收 ✅**（待用户决策：v2-2/4/5/6 观察项 or 深化联测） |
+| 2026-09-19 | **三档推送层与真人端观感修复轮（T1~T10，用户决策 D1~D4 全部按建议）**：按 `AI-Agent修复提示词-v4` 执行，开工先做文件/环境核对（HEAD=bb3bbaf1、3 个测试 Agent 在库、well-known 快照一致）→ 提 4 个决策点 + 4 项额外发现 → 拿到答复后分 5 批修复。**产品改动 8 文件**：`agentPositionSmoother.js`（T1 上限跟随 well-known×1.2 + EMA 自适应 + 吸附防误判）、`agentWsServer.js`（T3/T4/T8 订阅门控/半径过滤/ADDED-first；T5 `startRealtimeLoop` 10Hz 采样；T6 位置流脱离令牌桶、桶 60/60；pre-ready 消息缓存补发）、`agentMovementService.js`（T2/S1 `task.groundY` + 抛物线落地 + 广播 baseY）、`agentPresenceBridge.js`（baseY）、`agentFollowService.js`（T9 环形槽位避让）、`websocket.js`（T2 保留垂直偏移）、`observe.js`（T10 窗口 950ms）、`index.html`（v8/v2）。**脚本口径同步**：r3 的 S 阈值改 `agent_max_speed×1.5` 且 R 理论起点改"指令前显示位置"；r2a N 场景实体移入半径、G 源频率改 100ms；r4b A3 间隔 300→400ms；L 组（T7）改 INFO；示例客户端订阅加 movement/presence。**4 项额外发现并修复**：S1 服务端 jump 永钉顶点且地面逐次上浮（DB 实测 y 1.02→2.04）；S2 平滑器"水平到位提前返回"吞掉纯垂直变化（T2 首轮仍 Δ0 的真因）；S3 pre-ready SUBSCRIBE 静默丢失（v2-1 副作用 → P3 的 D1 红，加缓存后恢复）；S4 `wsServer` 内部裸调 `broadcastToAll` 使"事件驱动 realtime"收不到（改采样循环，不碰黑名单）。**验收**：tier 六轮 **48/48、12/12、17/17、13/13、20/20、7/7**（修复前 46/48、10/11、15/17、12/13、19/20、5/7）；regression 全绿 v2_guest 75/75、v2_key 38/38、v2_multiend 25/25、v2_defects 7/7、fix_a~f 24/24/24/24/15/15/10/10/12/12/14/14、p1 14/14、p2 14/14、p3 **11/12→12/12**、p8 52/52、WS 重连 9/9、主世界冒烟 9/9。新增环境前置脚本 `_tmp_tier_reset.js`（清 Agent 落库位置，防跨轮假失败）。agent_enabled 收尾 false（红线 6） | **T1~T10 全部修复并验收 ✅**（T7 用户决策不修；下一步待用户决策：v2-2/v2-4/v2-6 观察项 or 深化联测） |

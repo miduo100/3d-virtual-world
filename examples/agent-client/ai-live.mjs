@@ -145,8 +145,10 @@ function openWs(url) {
   });
   ws.addEventListener('close', (ev) => { log('ws closed code=' + ev.code + ' reason=' + ev.reason); writeState({ connected: false }); process.exit(0); });
 
-  // Key 模式订阅 chat（游客会被拒，忽略）
-  ws.send(JSON.stringify({ type: 'SUBSCRIBE', payload: { topics: ['chat'] } }));
+  // Key 模式订阅 chat / movement / presence（游客会被拒，忽略）。
+  // 2026-09-19 起位置流受订阅门控（T3）：只订阅 chat 的客户端收不到 ENTITY_* 推送，
+  // 半径默认 30m（T4 生效），需要更远可显式传 radius（1~200）。
+  ws.send(JSON.stringify({ type: 'SUBSCRIBE', payload: { topics: ['chat', 'movement', 'presence'], radius: 60 } }));
 
   // ---- 2b. 应用层保活（联测修复 C 配套）----
   // 服务端空闲超时 5 分钟；活跃信号 = WS ACTION/SUBSCRIBE/UNSUBSCRIBE + Key 档 PING + HTTP observe。

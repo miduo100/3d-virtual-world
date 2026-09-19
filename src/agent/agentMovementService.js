@@ -74,15 +74,19 @@ function startWalkTo(connectionId, agent, session, target, opts) {
     return { ok: true, arrivedImmediately: true, estimatedMs: 0 };
   }
 
-  const groundY = cur.y || GROUND_Y_DEFAULT;
+  // 服务端地面恒为 GROUND_Y_DEFAULT（服务器无地形/碰撞数据，§9 坑 8）。
+  // 缺陷 T2 配套：修复前这里继承 `cur.y`，而 tickJump 的落地判定把"上一 tick 的 y"当地面，
+  // 跳跃后 y 会逐次上浮且永不回落（实测 0 → 1.02 → 2.04 累积）→ 继承过来就再也降不下去。
+  const groundY = GROUND_Y_DEFAULT;
   const intervalId = setInterval(() => {
-    tickWalkTo(connectionId, agent, session, target, groundY);
+    tickWalkTo(connectionId, agent, session, target);
   }, TICK_INTERVAL_MS);
   if (intervalId.unref) intervalId.unref();
 
   activeMovements.set(connectionId, {
     agent, session,
     currentPos: { ...cur, y: groundY },
+    groundY,                                   // T2：客户端据此恢复"垂直偏移"（跳跃可见）
     requestId: opts && opts.requestId,          // E：到达回执用
     reply: opts && opts.reply,                  // E：回执发送器（WS 层注入）
     currentYaw: cur.yaw || 0,
@@ -118,15 +122,16 @@ function startMove(connectionId, agent, session, direction, opts) {
   cancelMovement(connectionId, 'superseded');
 
   const cur = getCurrentPosition(session, connectionId);
-  const groundY = cur.y || GROUND_Y_DEFAULT;
+  const groundY = GROUND_Y_DEFAULT;             // 同 startWalkTo：服务端地面恒 0（不继承脏 y）
   const intervalId = setInterval(() => {
-    tickMove(connectionId, agent, session, normDir, groundY);
+    tickMove(connectionId, agent, session, normDir);
   }, TICK_INTERVAL_MS);
   if (intervalId.unref) intervalId.unref();
 
   activeMovements.set(connectionId, {
     agent, session,
     currentPos: { ...cur, y: groundY },
+    groundY,                                   // T2：客户端据此恢复"垂直偏移"（跳跃可见）
     requestId: opts && opts.requestId,          // v2-3：回执用（move 没有"到达"，只在被打断/断线时回执）
     reply: opts && opts.reply,
     currentYaw: cur.yaw || 0,
@@ -168,7 +173,8 @@ function rotate(connectionId, agent, session, yaw) {
     const cur = getCurrentPosition(session, connectionId);
     task = {
       agent, session,
-      currentPos: { ...cur, y: cur.y || GROUND_Y_DEFAULT },
+      currentPos: { ...cur, y: GROUND_Y_DEFAULT },
+      groundY: GROUND_Y_DEFAULT,               // T2：垂直偏移基准
       currentYaw: yaw,
       mode: 'idle',
       target: null, direction: null,
@@ -197,7 +203,8 @@ function jump(connectionId, agent, session, opts) {
     const cur = getCurrentPosition(session, connectionId);
     task = {
       agent, session,
-      currentPos: { ...cur, y: cur.y || GROUND_Y_DEFAULT },
+      currentPos: { ...cur, y: GROUND_Y_DEFAULT },
+      groundY: GROUND_Y_DEFAULT,               // T2：垂直偏移基准（跳跃的落地高度）
       requestId: opts && opts.requestId,
       reply: opts && opts.reply,
       currentYaw: cur.yaw || 0,
@@ -246,7 +253,12 @@ function notifyCompleted(task, reason, extra) {
 
 // ==================== 推进逻辑 ====================
 
-function tickWalkTo(connectionId, agent, session, target, groundY) {
+/** 任务地面高度（T2：服务端地面恒为 GROUND_Y_DEFAULT，跳跃的落地基准） */
+function taskGroundY(task) {
+  return (task && Number.isFinite(task.groundY)) ? task.groundY : GROUND_Y_DEFAULT;
+}
+
+function tickWalkTo(connectionId, agent, session, target) {
   const task = activeMovements.get(connectionId);
   if (!task) return;
 
@@ -282,12 +294,12 @@ function tickWalkTo(connectionId, agent, session, target, groundY) {
   // 边界 clamp
   task.currentPos.x = clampBoundary(task.currentPos.x);
   task.currentPos.z = clampBoundary(task.currentPos.z);
-  task.currentPos.y = groundY;
+  task.currentPos.y = taskGroundY(task);
 
   publishPosition(connectionId, task, 'walk');
 }
 
-function tickMove(connectionId, agent, session, normDir, groundY) {
+function tickMove(connectionId, agent, session, normDir) {
   const task = activeMovements.get(connectionId);
   if (!task) return;
 
@@ -299,16 +311,25 @@ function tickMove(connectionId, agent, session, normDir, groundY) {
   const step = getMaxSpeed() * (TICK_INTERVAL_MS / 1000);
   task.currentPos.x = clampBoundary(task.currentPos.x + normDir.x * step);
   task.currentPos.z = clampBoundary(task.currentPos.z + normDir.z * step);
-  task.currentPos.y = groundY;
+  task.currentPos.y = taskGroundY(task);
   task.currentYaw = Math.atan2(normDir.x, normDir.z);
 
   publishPosition(connectionId, task, 'walk');
 }
 
+/**
+ * 跳跃推进（抛物线）
+ *
+ * 缺陷 T2/S1 修复（2026-09-19）：原实现 `const groundY = task.currentPos.y` 把**上一 tick 的 y**
+ * 当作地面，落地判定 `currentPos.y <= groundY` 于是在"刚过最高点的下一 tick"就成立
+ * → 直接钉死在顶点、永远降不回地面，且每次跳跃把地面抬高约 1m
+ * （实测 y 序列 0 → 0.4/0.702/0.906/1.012 → 钉在 1.02；再跳一次 1.02 → 钉在 2.04）。
+ * 现在落地基准取 task.groundY（服务端地面恒 0），恢复真实抛物线。
+ */
 function tickJump(connectionId) {
   const task = activeMovements.get(connectionId);
   if (!task || !task.jumping) return;
-  const groundY = task.currentPos.y; // 跳起前的地面 y
+  const groundY = taskGroundY(task);
   const dt = TICK_INTERVAL_MS / 1000;
   task.currentPos.y = (task.currentPos.y || groundY) + task.jumpVel * dt;
   task.jumpVel -= GRAVITY * dt;
@@ -331,7 +352,9 @@ function tickJump(connectionId) {
 function publishPosition(connectionId, task, animModeOverride) {
   if (!task) return;
   const animMode = animModeOverride || (task.jumping ? 'jump' : (task.direction || task.mode === 'walk_to' ? 'walk' : 'idle'));
-  presenceBridge.updatePosition(connectionId, { ...task.currentPos }, animMode, { yaw: task.currentYaw });
+  // T2：把"服务端认定的地面高度"一起广播，客户端据此保留 (position.y - baseY) 这段垂直偏移，
+  // 否则前端贴地逻辑会把服务器算出的跳跃抬升整个抹平（真人端看不到 AI 起跳）。
+  presenceBridge.updatePosition(connectionId, { ...task.currentPos }, animMode, { yaw: task.currentYaw }, taskGroundY(task));
   // 同步位置到 session（断线重连时从该位置恢复）
   agentSessionManager.updatePosition(task.session.id, task.currentPos, task.session.isTransient).catch(() => {});
 }
@@ -381,6 +404,7 @@ module.exports = {
   MAX_SPEED,
   getMaxSpeed,
   WORLD_BOUNDARY,
+  GROUND_Y_DEFAULT,
   TICK_INTERVAL_MS,
   startWalkTo,
   startMove,

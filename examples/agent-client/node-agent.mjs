@@ -104,7 +104,9 @@ async function waitFor(inbox, type, ms = 5000) {
   await waitFor(inbox, 'WORLD_SNAPSHOT', 3000);
 
   // 4) 订阅（红线：游客 SUBSCRIBE 会被拒绝）
-  ws.send(JSON.stringify({ type: 'SUBSCRIBE', payload: { topics: ['chat'] } }));
+  // Key 模式订阅三个 topic：movement=位置流、presence=实体上下线、chat=聊天；
+  // 2026-09-19 起位置流受订阅门控（未订阅 movement 收不到 ENTITY_*），radius 默认 30m（可传 1~200）。
+  ws.send(JSON.stringify({ type: 'SUBSCRIBE', payload: { topics: ['chat', 'movement', 'presence'] } }));
   const sub = await waitFor(inbox, 'SUBSCRIBED', 3000);
   const subErr = await waitFor(inbox, 'ERROR', 1500);
   if (sub) log('[4] SUBSCRIBED:', JSON.stringify(sub.payload));

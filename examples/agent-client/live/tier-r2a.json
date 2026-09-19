@@ -1,0 +1,424 @@
+{
+  "generatedAt": "2026-09-19T05:12:59.605Z",
+  "summary": {
+    "pass": 12,
+    "fail": 0,
+    "total": 12,
+    "rows": [
+      {
+        "name": "[eco] 三档同场就绪（READY.pushTier 一致）",
+        "ok": true,
+        "detail": "eco"
+      },
+      {
+        "name": "[standard] 三档同场就绪（READY.pushTier 一致）",
+        "ok": true,
+        "detail": "standard"
+      },
+      {
+        "name": "[realtime] 三档同场就绪（READY.pushTier 一致）",
+        "ok": true,
+        "detail": "realtime"
+      },
+      {
+        "name": "真人场景就绪",
+        "info": true,
+        "detail": "5 个模拟真人（3 近 5m / 2 远 150m）"
+      },
+      {
+        "name": "[eco] G 15s 推送",
+        "info": true,
+        "detail": {
+          "条数": 0,
+          "类型": {},
+          "字节": 0,
+          "实体数": 0,
+          "平均间隔ms": null
+        }
+      },
+      {
+        "name": "[eco] G 带宽",
+        "info": true,
+        "detail": "0 B/s（≈0.0 kbps）"
+      },
+      {
+        "name": "[standard] G 15s 推送",
+        "info": true,
+        "detail": {
+          "条数": 13,
+          "类型": {
+            "ENTITY_MOVEMENT_BATCH": 13
+          },
+          "字节": 5792,
+          "实体数": 3,
+          "平均间隔ms": 0
+        }
+      },
+      {
+        "name": "[standard] G 带宽",
+        "info": true,
+        "detail": "386 B/s（≈3.1 kbps）"
+      },
+      {
+        "name": "[realtime] G 15s 推送",
+        "info": true,
+        "detail": {
+          "条数": 405,
+          "类型": {
+            "ENTITY_UPDATED": 405
+          },
+          "字节": 67028,
+          "实体数": 3,
+          "平均间隔ms": 0
+        }
+      },
+      {
+        "name": "[realtime] G 带宽",
+        "info": true,
+        "detail": "4469 B/s（≈35.8 kbps）"
+      },
+      {
+        "name": "[eco] G 无位置流（仅 CHAT 可能）",
+        "ok": true,
+        "detail": {}
+      },
+      {
+        "name": "[realtime vs standard] 消息条数比",
+        "info": true,
+        "detail": "405 : 13"
+      },
+      {
+        "name": "[realtime] 档位速率",
+        "info": true,
+        "detail": "9.00 Hz/实体（源 10Hz）"
+      },
+      {
+        "name": "[realtime] 档位速率 ≥8Hz/实体（T5：真 10Hz 采样）",
+        "ok": true,
+        "detail": "9.00 Hz（405 条 / 15s / 3 实体）"
+      },
+      {
+        "name": "[eco] H 150m 外真人被推送的实体数",
+        "info": true,
+        "detail": "0/2"
+      },
+      {
+        "name": "[standard] H 150m 外真人被推送的实体数",
+        "info": true,
+        "detail": "0/2"
+      },
+      {
+        "name": "[realtime] H 150m 外真人被推送的实体数",
+        "info": true,
+        "detail": "0/2"
+      },
+      {
+        "name": "[eco] I 真人晚入场 3.5s",
+        "info": true,
+        "detail": {
+          "added": 0,
+          "types": {},
+          "gotLate": false
+        }
+      },
+      {
+        "name": "[standard] I 真人晚入场 3.5s",
+        "info": true,
+        "detail": {
+          "added": 1,
+          "types": {
+            "ENTITY_ADDED": 1,
+            "ENTITY_MOVEMENT_BATCH": 4
+          },
+          "gotLate": true
+        }
+      },
+      {
+        "name": "[realtime] I 真人晚入场 3.5s",
+        "info": true,
+        "detail": {
+          "added": 1,
+          "types": {
+            "ENTITY_UPDATED": 97,
+            "ENTITY_ADDED": 1
+          },
+          "gotLate": true
+        }
+      },
+      {
+        "name": "[standard] I 新入场实体被感知（ADDED 或位置流任一）",
+        "ok": true,
+        "detail": {
+          "added": 1,
+          "types": {
+            "ENTITY_ADDED": 1,
+            "ENTITY_MOVEMENT_BATCH": 4
+          },
+          "gotLate": true
+        }
+      },
+      {
+        "name": "[realtime] I 新入场实体被感知",
+        "ok": true,
+        "detail": {
+          "added": 1,
+          "types": {
+            "ENTITY_UPDATED": 97,
+            "ENTITY_ADDED": 1
+          },
+          "gotLate": true
+        }
+      },
+      {
+        "name": "[eco] J observe 结果",
+        "info": true,
+        "detail": {
+          "entities": 9,
+          "agentEntities": 3,
+          "seesOthers": 2
+        }
+      },
+      {
+        "name": "[standard] J observe 结果",
+        "info": true,
+        "detail": {
+          "entities": 9,
+          "agentEntities": 3,
+          "seesOthers": 2
+        }
+      },
+      {
+        "name": "[realtime] J observe 结果",
+        "info": true,
+        "detail": {
+          "entities": 9,
+          "agentEntities": 3,
+          "seesOthers": 2
+        }
+      },
+      {
+        "name": "[realtime] J Agent 能通过 observe 看到另外两个 Agent",
+        "ok": true,
+        "detail": {
+          "entities": 9,
+          "agentEntities": 3,
+          "seesOthers": 2
+        }
+      },
+      {
+        "name": "[eco] K 收到 CHAT 数",
+        "info": true,
+        "detail": 1
+      },
+      {
+        "name": "[standard] K 收到 CHAT 数",
+        "info": true,
+        "detail": 1
+      },
+      {
+        "name": "[realtime] K 收到 CHAT 数",
+        "info": true,
+        "detail": 1
+      },
+      {
+        "name": "[standard] K Agent 互相收到 say（30m 内）",
+        "ok": true,
+        "detail": [
+          {
+            "sender": "tier_eco_87393",
+            "msg": "广播-1789794"
+          }
+        ]
+      },
+      {
+        "name": "[realtime] K Agent 互相收到 say",
+        "ok": true,
+        "detail": [
+          {
+            "sender": "tier_eco_87393",
+            "msg": "广播-1789794"
+          }
+        ]
+      },
+      {
+        "name": "[eco] L 原地跳跃/转向期收到该实体更新数",
+        "info": true,
+        "detail": 0
+      },
+      {
+        "name": "[standard] L 原地跳跃/转向期收到该实体更新数",
+        "info": true,
+        "detail": 0
+      },
+      {
+        "name": "[realtime] L 原地跳跃/转向期收到该实体更新数",
+        "info": true,
+        "detail": 0
+      },
+      {
+        "name": "[standard] L 原地跳跃与转向不产生位置流（T7 已决策：仅 x/z 变化才推）",
+        "ok": true,
+        "detail": 0
+      },
+      {
+        "name": "L 感知盲区口径",
+        "info": true,
+        "detail": "仅 x/z 变化触发位置流；y/animMode/rotation 变化不推 —— 用户已决策接受（T7）"
+      },
+      {
+        "name": "[standard] N 25 实体同时移动 10s",
+        "info": true,
+        "detail": {
+          "messages": 9,
+          "entitiesCovered": 25,
+          "crowdSize": 25,
+          "perEntityMin": 9,
+          "perEntityMax": 9,
+          "perEntityAvg": 9
+        }
+      },
+      {
+        "name": "[realtime] N 25 实体同时移动 10s",
+        "info": true,
+        "detail": {
+          "messages": 1200,
+          "entitiesCovered": 25,
+          "crowdSize": 25,
+          "perEntityMin": 48,
+          "perEntityMax": 48,
+          "perEntityAvg": 48
+        }
+      },
+      {
+        "name": "[realtime] N 25 实体全部被至少推送一次",
+        "ok": true,
+        "detail": "25/25"
+      }
+    ]
+  },
+  "data": {
+    "agents": {},
+    "phases": {
+      "G": {
+        "eco": {
+          "count": 0,
+          "byType": {},
+          "bytes": 0,
+          "entityCount": 0,
+          "avgGapMs": null,
+          "perEntity": 0
+        },
+        "standard": {
+          "count": 13,
+          "byType": {
+            "ENTITY_MOVEMENT_BATCH": 13
+          },
+          "bytes": 5792,
+          "entityCount": 3,
+          "avgGapMs": 0,
+          "perEntity": 3
+        },
+        "realtime": {
+          "count": 405,
+          "byType": {
+            "ENTITY_UPDATED": 405
+          },
+          "bytes": 67028,
+          "entityCount": 3,
+          "avgGapMs": 0,
+          "perEntity": 3,
+          "ratePerEntityHz": 9
+        }
+      },
+      "H": {
+        "eco": 0,
+        "standard": 0,
+        "realtime": 0
+      },
+      "I": {
+        "eco": {
+          "added": 0,
+          "types": {},
+          "gotLate": false
+        },
+        "standard": {
+          "added": 1,
+          "types": {
+            "ENTITY_ADDED": 1,
+            "ENTITY_MOVEMENT_BATCH": 4
+          },
+          "gotLate": true
+        },
+        "realtime": {
+          "added": 1,
+          "types": {
+            "ENTITY_UPDATED": 97,
+            "ENTITY_ADDED": 1
+          },
+          "gotLate": true
+        }
+      },
+      "J": {
+        "eco": {
+          "entities": 9,
+          "agentEntities": 3,
+          "seesOthers": 2
+        },
+        "standard": {
+          "entities": 9,
+          "agentEntities": 3,
+          "seesOthers": 2
+        },
+        "realtime": {
+          "entities": 9,
+          "agentEntities": 3,
+          "seesOthers": 2
+        }
+      },
+      "K": {
+        "eco": [
+          {
+            "sender": "tier_eco_87393",
+            "msg": "广播-1789794"
+          }
+        ],
+        "standard": [
+          {
+            "sender": "tier_eco_87393",
+            "msg": "广播-1789794"
+          }
+        ],
+        "realtime": [
+          {
+            "sender": "tier_eco_87393",
+            "msg": "广播-1789794"
+          }
+        ]
+      },
+      "L": {
+        "eco": 0,
+        "standard": 0,
+        "realtime": 0
+      },
+      "N": {
+        "standard": {
+          "messages": 9,
+          "entitiesCovered": 25,
+          "crowdSize": 25,
+          "perEntityMin": 9,
+          "perEntityMax": 9,
+          "perEntityAvg": 9
+        },
+        "realtime": {
+          "messages": 1200,
+          "entitiesCovered": 25,
+          "crowdSize": 25,
+          "perEntityMin": 48,
+          "perEntityMax": 48,
+          "perEntityAvg": 48
+        }
+      }
+    }
+  },
+  "issues": []
+}

@@ -1,0 +1,323 @@
+{
+  "generatedAt": "2026-09-19T05:15:27.123Z",
+  "summary": {
+    "pass": 17,
+    "fail": 0,
+    "total": 17,
+    "rows": [
+      {
+        "name": "渲染后端",
+        "info": true,
+        "detail": "ANGLE (NVIDIA, NVIDIA GeForce GTX 960 (0x00001401) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+      },
+      {
+        "name": "P0 真人端世界就绪（gameWorld+player）",
+        "ok": true,
+        "detail": {
+          "ok": true,
+          "pos": {
+            "x": -26.32,
+            "y": 11.14,
+            "z": 12.560078164786237
+          },
+          "players": 1,
+          "smoother": {
+            "installed": true,
+            "tracking": 0,
+            "maxSpeed": 14.4,
+            "configSpeed": 12,
+            "observedSpeed": 0,
+            "snaps": 0,
+            "maxObservedLag": 0,
+            "lastSnap": null
+          },
+          "gl": "ANGLE (NVIDIA, NVIDIA GeForce GTX 960 (0x00001401) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+        }
+      },
+      {
+        "name": "P0b 位置平滑器已安装且上限 ≥ 服务端最大速度",
+        "ok": true,
+        "detail": {
+          "installed": true,
+          "tracking": 0,
+          "maxSpeed": 14.4,
+          "configSpeed": 12,
+          "observedSpeed": 0,
+          "snaps": 0,
+          "maxObservedLag": 0,
+          "lastSnap": null
+        }
+      },
+      {
+        "name": "P 三档 Agent 全部出现在真人端 players 中",
+        "ok": true,
+        "detail": [
+          "游客(agent=false)",
+          "🤖tier_eco_87393(agent=true)",
+          "🤖tier_std_87393(agent=true)",
+          "🤖tier_rt_87393(agent=true)"
+        ]
+      },
+      {
+        "name": "P2 Agent 名字带 🤖 前缀",
+        "ok": true,
+        "detail": [
+          "🤖tier_eco_87393",
+          "🤖tier_std_87393",
+          "🤖tier_rt_87393"
+        ]
+      },
+      {
+        "name": "P3 Agent 显示 group.visible=true",
+        "ok": true,
+        "detail": [
+          true,
+          true,
+          true
+        ]
+      },
+      {
+        "name": "P4 Agent 模型有子节点（几何棍人已构建）",
+        "ok": true,
+        "detail": [
+          7,
+          7,
+          7
+        ]
+      },
+      {
+        "name": "P5 系统消息含 (AI)加入了",
+        "ok": true,
+        "detail": [
+          "[13:14:46] 系统: ✨ 已加载 7 个传送门[13:14:46] 系统: 🌟 游览模式 - 您可以自由浏览世界[13:14:58] 系统: 🤖tier_eco_87393 (AI)加入了虚拟世界[13:14:59] 系统: 🤖tier_std_87393 (AI)加入了虚拟世界[13:14:59] 系统: 🤖tier_rt_87393 (AI)加入了虚拟世界"
+        ]
+      },
+      {
+        "name": "[realtime] S2 移动结束 4s 后显示位置 vs 权威终点",
+        "info": true,
+        "detail": "滞后 0.00m（终点 {\"x\":33.68,\"z\":16.560078164786237}）"
+      },
+      {
+        "name": "S2 静止 4s 后真人端追上权威位置（<1m）",
+        "ok": true,
+        "detail": "0.00"
+      },
+      {
+        "name": "[realtime] R 真人端跟随滞后",
+        "info": true,
+        "detail": "max=1.37m avg=0.95m（采样 42 次；旧口径 max=2.13m）"
+      },
+      {
+        "name": "[realtime] S 瞬移跳变",
+        "info": true,
+        "detail": "0 次（单次最大 0.00m，阈值 18.0m/s）"
+      },
+      {
+        "name": "[realtime] S_ref 参考口径",
+        "info": true,
+        "detail": ">8m/s 步进 32 次（含合法高速移动，仅参考）"
+      },
+      {
+        "name": "R 真人端跟随滞后 <3m（平滑器追得上 12m/s）",
+        "ok": true,
+        "detail": "1.37"
+      },
+      {
+        "name": "S 无瞬移跳变（> 18.0m/s 的采样步进 = 吸附/传送）",
+        "ok": true,
+        "detail": "0 次 / 最大 0.00m"
+      },
+      {
+        "name": "T 真人端 Agent 显示 y",
+        "info": true,
+        "detail": "1.5（服务器 y=0；棍人补偿 +1.5 / GLB +0）"
+      },
+      {
+        "name": "T 显示 y 在合理区间（0~3，未潜入地下）",
+        "ok": true,
+        "detail": 1.5
+      },
+      {
+        "name": "U1 Agent say 出现在真人端聊天区（#chatBox）",
+        "ok": true,
+        "detail": {
+          "len": "189→234",
+          "hasText": true
+        }
+      },
+      {
+        "name": "U2 Agent say 显示为头顶气泡（.nb-bubble）",
+        "ok": true,
+        "detail": [
+          "tier_eco_87393:观感测试-1789794917090"
+        ]
+      },
+      {
+        "name": "U Agent say 出现在真人端聊天 DOM",
+        "ok": true,
+        "detail": {
+          "len": 234,
+          "hasText": true,
+          "bubbleCount": 1,
+          "bubbleTexts": [
+            "tier_eco_87393:观感测试-1789794917090"
+          ]
+        }
+      },
+      {
+        "name": "V 真人端性能",
+        "info": true,
+        "detail": {
+          "fps": 60,
+          "gl": "ANGLE (NVIDIA, NVIDIA GeForce GTX 960 (0x00001401) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+          "calls": 633,
+          "tris": 228954,
+          "programs": 53
+        }
+      },
+      {
+        "name": "V 真人端 FPS > 20（3 Agent 在场）",
+        "ok": true,
+        "detail": "60 fps @ ANGLE (NVIDIA, NVIDIA GeForce GTX 960 (0x00001401) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+      },
+      {
+        "name": "V console error = 0",
+        "ok": true,
+        "detail": []
+      },
+      {
+        "name": "P6 Agent 全部下线后真人端 avatar 被移除",
+        "ok": true,
+        "detail": 0
+      }
+    ]
+  },
+  "data": {
+    "player": {
+      "ok": true,
+      "pos": {
+        "x": -26.32,
+        "y": 11.14,
+        "z": 12.560078164786237
+      },
+      "players": 1,
+      "smoother": {
+        "installed": true,
+        "tracking": 0,
+        "maxSpeed": 14.4,
+        "configSpeed": 12,
+        "observedSpeed": 0,
+        "snaps": 0,
+        "maxObservedLag": 0,
+        "lastSnap": null
+      },
+      "gl": "ANGLE (NVIDIA, NVIDIA GeForce GTX 960 (0x00001401) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+    },
+    "seenInBrowser": [
+      {
+        "cid": "guest_1789794886051_mfyrxl",
+        "name": "游客",
+        "isAgent": false,
+        "visible": true,
+        "children": 7,
+        "pos": {
+          "x": -26.32,
+          "y": 11.14,
+          "z": 12.560078164786237
+        },
+        "webgl": true
+      },
+      {
+        "cid": "02303f29-02be-495d-b99a-d59d37dcbcc9",
+        "name": "🤖tier_eco_87393",
+        "isAgent": true,
+        "visible": true,
+        "children": 7,
+        "pos": {
+          "x": -21.96156815516799,
+          "y": 1.5,
+          "z": 12.358378702965512
+        },
+        "webgl": true
+      },
+      {
+        "cid": "4160170f-c6ed-43c4-8f8b-7a78e71b396a",
+        "name": "🤖tier_std_87393",
+        "isAgent": true,
+        "visible": true,
+        "children": 7,
+        "pos": {
+          "x": -29.933304877908178,
+          "y": 1.5,
+          "z": 12.399889478789705
+        },
+        "webgl": true
+      },
+      {
+        "cid": "c34e5395-6971-4a44-858c-dcdfd5a5b59e",
+        "name": "🤖tier_rt_87393",
+        "isAgent": true,
+        "visible": true,
+        "children": 7,
+        "pos": {
+          "x": -26.32,
+          "y": 1.5,
+          "z": 16.560078164786237
+        },
+        "webgl": true
+      }
+    ],
+    "chatDomSnippet": "[13:14:46] 系统: ✨ 已加载 7 个传送门[13:14:46] 系统: 🌟 游览模式 - 您可以自由浏览世界[13:14:58] 系统: 🤖tier_eco_87393 (AI)加入了虚拟世界[13:14:59] 系统: 🤖tier_std_87393 (AI)加入了虚拟世界[13:14:59] 系统: 🤖tier_rt_87393 (AI)加入了虚拟世界",
+    "settleLagM": 0,
+    "motion": {
+      "tier": "realtime",
+      "samples": 42,
+      "maxLagM": 1.37,
+      "avgLagM": 0.95,
+      "jumps": 0,
+      "maxJumpM": 0,
+      "jumpRateThreshold": 18,
+      "refJumpsOver8ms": 32,
+      "first": {
+        "x": -26.32,
+        "y": 1.5,
+        "z": 16.560078164786237
+      },
+      "usedPrePos": true,
+      "maxLagOldModelM": 2.13,
+      "last": {
+        "t": 6481,
+        "x": 33.679999999999986,
+        "y": 1.5,
+        "z": 16.560078164786237
+      },
+      "lagSeries": [
+        1.2,
+        1.37,
+        1.37,
+        1.2,
+        1.3,
+        1.37,
+        1.14,
+        0,
+        0
+      ]
+    },
+    "displayY": 1.5,
+    "sayDom": {
+      "len": 234,
+      "hasText": true,
+      "bubbleCount": 1,
+      "bubbleTexts": [
+        "tier_eco_87393:观感测试-1789794917090"
+      ]
+    },
+    "fps": 60,
+    "rendererInfo": {
+      "calls": 633,
+      "tris": 228954,
+      "programs": 53
+    }
+  },
+  "issues": []
+}

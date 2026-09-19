@@ -271,7 +271,7 @@ class WSClient {
   }
 
   static handlePositionUpdate(payload) {
-    const { characterId, position, animMode, rotation } = payload;
+    const { characterId, position, animMode, rotation, baseY } = payload;
 
     if (characterId !== GAME_STATE.characterId) {
       // Agent 地形贴地 + 模型原点补偿：服务器端 Agent 贴 y=0 平面移动（无地形数据）。
@@ -280,23 +280,37 @@ class WSClient {
       const pd = gameWorld.players && gameWorld.players.get(characterId);
       if (pd && pd.group.userData.isAgent) {
         const isGlb = !!(pd.group.userData.isGlbLoaded || pd.group.userData.glbModel);
-        this.snapAgentPosition(position, isGlb ? 0 : 1.5);
+        this.snapAgentPosition(position, isGlb ? 0 : 1.5, baseY);
       }
       gameWorld.updatePlayerPosition(characterId, position, false, animMode, rotation);
     }
   }
 
-  // Agent 专用：y = 地表高度 + yOffset（棍人 1.5 / GLB 0；地形查询失败用服务器 y 兜底）
-  static snapAgentPosition(position, yOffset = 1.5) {
+  /**
+   * Agent 专用贴地：y = 地形高度 + yOffset + 服务器垂直偏移
+   *
+   * 缺陷 T2 修复（2026-09-19）：原实现 `y = getGroundHeight(probe) + yOffset` 会把服务器算出的
+   * **垂直位移整个抹平** —— Agent jump 时服务器权威 y 从 1.42 抬到 2.04（观察者收到 6 条带 y
+   * 的广播），真人端显示 y 却恒为 1.5（Δ0），jump 对真人完全不可见。
+   * 现在保留"相对地面基准"的那一段：offset = position.y − baseY（baseY 由服务端随
+   * POSITION_UPDATE 下发，= 该任务的服务端地面高度）。baseY 缺失（旧服务端 / 首次快照）
+   * 时退化为 base=position.y → offset=0，行为与修复前一致（向后兼容）。
+   * @returns {number} 本次应用在贴地高度之上的垂直偏移（诊断/验收用）
+   */
+  static snapAgentPosition(position, yOffset = 1.5, baseY) {
+    const serverY = Number.isFinite(position.y) ? position.y : 0;
+    const base = Number.isFinite(baseY) ? baseY : serverY;
+    const lift = serverY - base;
     try {
       if (typeof gameWorld.getGroundHeight === 'function') {
-        const probe = { x: position.x, y: (position.y || 0) + 30, z: position.z };
+        const probe = { x: position.x, y: serverY + 30, z: position.z };
         const gy = gameWorld.getGroundHeight(probe);
-        position.y = (Number.isFinite(gy) ? gy : (position.y || 0)) + yOffset;
-        return;
+        position.y = (Number.isFinite(gy) ? gy : base) + yOffset + lift;
+        return lift;
       }
     } catch (e) { /* 地形查询失败走兜底 */ }
-    position.y = (position.y || 0) + yOffset;
+    position.y = serverY + yOffset;
+    return lift;
   }
 
   static handleSkillCast(payload) {

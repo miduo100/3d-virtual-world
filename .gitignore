@@ -91,3 +91,6 @@ public/js/skirtDiag.js
 
 # Agent 联测运行时产物（events.jsonl / state.json / follow.log / inbox / done），保留到联测结束再清理
 examples/agent-client/live/
+
+# 联测临时凭证（明文 API Key + admin JWT，禁止入库；脚本 _tmp_tier_setup.js 会重新生成）
+scripts/_tmp_tier_agents.json

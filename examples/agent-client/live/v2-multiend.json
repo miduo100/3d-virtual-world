@@ -1,0 +1,357 @@
+{
+  "when": "2026-09-19T05:35:32.162Z",
+  "run": 72,
+  "groups": {
+    "M1": {
+      "entities": 8,
+      "unique": 8,
+      "agents": 3
+    },
+    "M2": {
+      "targets": [
+        "std",
+        "rt",
+        "guest"
+      ],
+      "results": [
+        {
+          "ok": 13,
+          "limited": 1,
+          "other": 0,
+          "时长秒": 15
+        },
+        {
+          "ok": 14,
+          "limited": 0,
+          "other": 0,
+          "时长秒": 15
+        },
+        {
+          "ok": 7,
+          "limited": 0,
+          "other": 0,
+          "时长秒": 15
+        }
+      ]
+    },
+    "M3": {
+      "bytesPerSec": 3595,
+      "counts": {
+        "ENTITY_UPDATED": 370,
+        "ENTITY_ADDED": 2,
+        "ENTITY_REMOVED": 2
+      },
+      "guestBytes": 0,
+      "cpuCores": 0.01
+    },
+    "M4": {
+      "text": "契约探针-s22uo"
+    },
+    "M5": {
+      "last": {
+        "t": 9,
+        "target": {
+          "x": 4.452492373079891,
+          "y": 0,
+          "z": 12.285860697694243
+        },
+        "pos": {
+          "std": {
+            "x": 3.408578351292369,
+            "y": 0,
+            "z": 13.174496116720142
+          },
+          "rt": {
+            "x": 4.908578351292369,
+            "y": 0,
+            "z": 14.674496116720142
+          },
+          "guest": {
+            "x": 6.408578351292369,
+            "y": 0,
+            "z": 13.174496116720142
+          }
+        },
+        "std": 1.3709228252647683,
+        "rt": 2.431788145490282,
+        "guest": 2.148475101579444
+      }
+    },
+    "M7": {
+      "players": 9,
+      "fps": 60,
+      "revision": "185"
+    }
+  },
+  "fatal": null,
+  "result": {
+    "pass": 25,
+    "fail": 0,
+    "total": 25
+  },
+  "rows": [
+    {
+      "name": "M0 管理员登录成功",
+      "ok": true
+    },
+    {
+      "name": "M0b 两个 Key Agent（standard / realtime）WS 在线",
+      "ok": true,
+      "detail": [
+        "v2_multi_std_72:standard",
+        "v2_multi_rt_72:realtime"
+      ]
+    },
+    {
+      "name": "M0c 第 3 个 Agent（游客档）在线",
+      "ok": true,
+      "detail": "游客AI-58e2c327"
+    },
+    {
+      "name": "M0d 5 个模拟真人上线（4Hz 位置更新）",
+      "ok": true,
+      "detail": 5
+    },
+    {
+      "name": "M1 多端在场：observe 返回实体（含 5 模拟真人 + 3 Agent）",
+      "ok": true,
+      "detail": {
+        "entities": 8,
+        "期望至少": 8
+      }
+    },
+    {
+      "name": "M1b entities 按 id 唯一（无重复实体）",
+      "ok": true,
+      "detail": {
+        "total": 8,
+        "unique": 8
+      }
+    },
+    {
+      "name": "M1c 每条实体字段完整（id/type/name/position/distance）",
+      "ok": true,
+      "detail": {
+        "缺字段": 0
+      }
+    },
+    {
+      "name": "M1d 三个 Agent 均在场且 type=agent",
+      "ok": true,
+      "detail": {
+        "agents": [
+          "v2_multi_std_72",
+          "v2_multi_rt_72",
+          "游客AI-58e2c327"
+        ]
+      }
+    },
+    {
+      "name": "M2 多 Agent 并发 observe：std(standard) 全部被服务（无饥饿）",
+      "ok": true,
+      "detail": {
+        "agent": "v2_multi_std_72",
+        "ok": 13,
+        "limited": 1,
+        "other": 0,
+        "时长秒": 15,
+        "期望成功至少": 11
+      }
+    },
+    {
+      "name": "M2 多 Agent 并发 observe：rt(realtime) 全部被服务（无饥饿）",
+      "ok": true,
+      "detail": {
+        "agent": "v2_multi_rt_72",
+        "ok": 14,
+        "limited": 0,
+        "other": 0,
+        "时长秒": 15,
+        "期望成功至少": 11
+      }
+    },
+    {
+      "name": "M2 多 Agent 并发 observe：guest(eco) 全部被服务（无饥饿）",
+      "ok": true,
+      "detail": {
+        "agent": "游客AI-58e2c327",
+        "ok": 7,
+        "limited": 0,
+        "other": 0,
+        "时长秒": 15,
+        "期望成功至少": 5
+      }
+    },
+    {
+      "name": "M2b 未超频请求在多 Agent 并发下不被误拒（每 Agent 429 ≤ 1）",
+      "ok": true,
+      "detail": [
+        "std:13成功/1被限",
+        "rt:14成功/0被限",
+        "guest:7成功/0被限"
+      ]
+    },
+    {
+      "name": "M2c 一方限频不影响另一方（每个 Agent 都有成功响应）",
+      "ok": true,
+      "detail": [
+        13,
+        14,
+        7
+      ]
+    },
+    {
+      "name": "M3 realtime 档 Agent 实测推送量",
+      "info": true,
+      "detail": {
+        "秒": 20,
+        "消息数": 374,
+        "字节每秒": 3595,
+        "类型分布": {
+          "ENTITY_UPDATED": 370,
+          "ENTITY_ADDED": 2,
+          "ENTITY_REMOVED": 2
+        }
+      }
+    },
+    {
+      "name": "M3b realtime 档收到位置流（ENTITY_UPDATED / MOVEMENT_BATCH）",
+      "ok": true,
+      "detail": {
+        "ENTITY_UPDATED": 370,
+        "ENTITY_ADDED": 2,
+        "ENTITY_REMOVED": 2
+      }
+    },
+    {
+      "name": "M3b2 realtime 档位置流实测帧率",
+      "info": true,
+      "detail": {
+        "实体位置消息每秒": 18.5,
+        "在线移动实体": 5,
+        "结论": "推送循环为 1s tick，故 realtime ≈ 1Hz/实体（非 10Hz）"
+      }
+    },
+    {
+      "name": "M3c 游客连接在同一 20s 窗口内 0 推送（红线 14 复验）",
+      "ok": true,
+      "detail": {
+        "游客收到消息数": 0,
+        "字节": 0
+      }
+    },
+    {
+      "name": "M3d 服务器 CPU（本机口径，多端在线期间）",
+      "info": true,
+      "detail": {
+        "核秒": 0.13,
+        "墙钟秒": 20,
+        "占单核百分比": 1
+      }
+    },
+    {
+      "name": "M3e 服务器 CPU 占用有上界（< 2 核，2核4G 基线可承载）",
+      "ok": true,
+      "detail": 0.01
+    },
+    {
+      "name": "M4 Agent 之间互聊：Key Agent 收到游客 Agent 的 CHAT（30m 附近）",
+      "ok": true,
+      "detail": "received"
+    },
+    {
+      "name": "M4b 契约：CHAT.characterId ≡ entities[].id（可直接按 id 定位发言者）",
+      "ok": true,
+      "detail": {
+        "chatCharacterId": "agent:guest:97567306-2953-4dce-85d7-19e6c35c9bdb",
+        "entityId": "agent:guest:97567306-2953-4dce-85d7-19e6c35c9bdb",
+        "entityName": "游客AI-58e2c327"
+      }
+    },
+    {
+      "name": "M4c 真人侧（模拟真人 WS）同样收到该 CHAT（30m 投递一致）",
+      "ok": true,
+      "detail": "received"
+    },
+    {
+      "name": "M5 多 Agent 同时 follow 同一真人：std 收敛到目标附近",
+      "ok": true,
+      "detail": {
+        "首值": 2.4,
+        "末值": 1.4,
+        "采样": 10
+      }
+    },
+    {
+      "name": "M5 多 Agent 同时 follow 同一真人：rt 收敛到目标附近",
+      "ok": true,
+      "detail": {
+        "首值": 2.1,
+        "末值": 2.4,
+        "采样": 10
+      }
+    },
+    {
+      "name": "M5 多 Agent 同时 follow 同一真人：guest 收敛到目标附近",
+      "ok": true,
+      "detail": {
+        "首值": 2.6,
+        "末值": 2.1,
+        "采样": 10
+      }
+    },
+    {
+      "name": "M5b 跟随距离序列（相对目标）",
+      "info": true,
+      "detail": "2.4/2.1/2.6 → 1.5/1.5/1.5 → 1.5/1.5/1.5 → 2.5/1.9/0.5 → 1.5/1.5/1.5 → 1.5/1.5/1.5 → 1.5/1.5/1.5 → 1.5/1.5/1.5 → 1.5/1.5/1.5 → 1.4/2.4/2.1"
+    },
+    {
+      "name": "M5c 多 Agent 同时跟随同一目标时的彼此间距（无 Agent 间避让/碰撞）",
+      "info": true,
+      "detail": {
+        "最小间距m": 2.12,
+        "说明": "间距≈0 表示多个 Agent 位置重合（真人观感为叠在一起）"
+      }
+    },
+    {
+      "name": "M6 多端聊天写入 world_chat_log（行数增长）",
+      "ok": true,
+      "detail": {
+        "before": 226,
+        "after": 227,
+        "增量": 1
+      }
+    },
+    {
+      "name": "M7 真人端（真浏览器）多端在线时 0 console/page error",
+      "ok": true,
+      "detail": {
+        "errors": [],
+        "notFound": [],
+        "原始错误": [
+          {
+            "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+            "url": "http://localhost:3002/favicon.ico"
+          }
+        ]
+      }
+    },
+    {
+      "name": "M7b 真人端看到世界里的其他角色与 AI（players.size ≥ 6）",
+      "ok": true,
+      "detail": {
+        "players": 9,
+        "期望": "≥ 5 模拟真人 + 3 Agent"
+      }
+    },
+    {
+      "name": "M7c 真人端渲染帧率（headless chrome，真实 GPU；证明多端在线时渲染循环正常）",
+      "info": true,
+      "detail": {
+        "fps": 60,
+        "revision": "185"
+      }
+    }
+  ],
+  "durationMs": 76834
+}

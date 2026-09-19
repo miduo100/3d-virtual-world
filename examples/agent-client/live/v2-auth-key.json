@@ -1,0 +1,290 @@
+{
+  "when": "2026-09-19T05:33:22.826Z",
+  "run": 32,
+  "agentName": "v2_key_agent_32",
+  "groups": {
+    "K1": {
+      "success": true,
+      "agent": {
+        "id": "6ff4c1c2-2cbc-4288-b6e1-2e41dbcd3bde",
+        "name": "v2_key_agent_32",
+        "status": "active",
+        "pushTier": "realtime",
+        "createdAt": "2026-09-19T05:33:23.006Z"
+      },
+      "apiKey": "agk_live_f402911d6c8f5f5b6562a32b66cac7778bf66492eb794267776dfc38594fa9f4",
+      "apiKeyPrefix": "agk_live_f402911"
+    }
+  },
+  "fatal": null,
+  "result": {
+    "pass": 38,
+    "fail": 0,
+    "total": 38
+  },
+  "rows": [
+    {
+      "name": "K0 管理员登录成功",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "K1 管理员创建测试 Agent（拿明文 Key，档位 realtime）",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "K1b Key 形如 agk_live_<64hex>",
+      "ok": true,
+      "detail": "agk_live_f402911d6c8..."
+    },
+    {
+      "name": "K1c agent.id 为 UUID（非 agent: 合成 ID）",
+      "ok": true,
+      "detail": "6ff4c1c2-2cbc-4288-b6e1-2e41dbcd3bde"
+    },
+    {
+      "name": "K2 Key 换票 200",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "K2b expiresIn=900（15min）",
+      "ok": true,
+      "detail": 900
+    },
+    {
+      "name": "K2c agent.id 与创建时一致",
+      "ok": true,
+      "detail": "6ff4c1c2-2cbc-4288-b6e1-2e41dbcd3bde"
+    },
+    {
+      "name": "K2d scope 无 teleport（红线 2）",
+      "ok": true,
+      "detail": [
+        "observe",
+        "move",
+        "rotate",
+        "jump",
+        "say",
+        "interact"
+      ]
+    },
+    {
+      "name": "K2e GET /me 200 且含 avatar/permissions",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "K2f /me 无 token → 401",
+      "ok": true,
+      "detail": 401
+    },
+    {
+      "name": "K2g 格式合法但不存在的 Key → 401 AGENT_KEY_INVALID",
+      "ok": true,
+      "detail": {
+        "status": 401,
+        "code": "AGENT_KEY_INVALID"
+      }
+    },
+    {
+      "name": "K2h 格式非法 → 401 AGENT_KEY_INVALID",
+      "ok": true,
+      "detail": {
+        "status": 401,
+        "code": "AGENT_KEY_INVALID"
+      }
+    },
+    {
+      "name": "K3-obs 真人观察者已入场（PLAYER_JOIN 已发送）",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "K3 Key Agent WS 连接成功（Authorization 头）",
+      "ok": true,
+      "detail": "upgraded"
+    },
+    {
+      "name": "K3b READY.tier=key-push",
+      "ok": true,
+      "detail": "key-push"
+    },
+    {
+      "name": "K3c READY.tierInfo.pushAllowed=true（Key = 推流特权）",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "name": "K3d 自身 push_tier（realtime）优先于全局默认档",
+      "ok": true,
+      "detail": "realtime"
+    },
+    {
+      "name": "K3e SUBSCRIBE 允许（推流未被禁）",
+      "ok": true,
+      "detail": {
+        "topics": [
+          "chat",
+          "presence",
+          "movement"
+        ],
+        "radius": 30
+      }
+    },
+    {
+      "name": "K3f Key 档 observe radius=200 不被钳（红线 15 只约束游客）",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "radius": 200
+      }
+    },
+    {
+      "name": "K3g Key 档 1Hz 限频生效 → 429 AGENT_OBSERVE_RATE_LIMITED",
+      "ok": true,
+      "detail": {
+        "status": 429,
+        "code": "AGENT_OBSERVE_RATE_LIMITED",
+        "retryAfter": 1
+      }
+    },
+    {
+      "name": "K3h 1 秒后恢复 200（窗口滚动）",
+      "ok": true,
+      "detail": 200
+    },
+    {
+      "name": "K4 同 Agent 第 2 条连接成功建立（顶替而非拒绝）",
+      "ok": true,
+      "detail": "upgraded"
+    },
+    {
+      "name": "K4b 旧连接被关闭且 close code=4004",
+      "ok": true,
+      "detail": {
+        "code": 4004,
+        "reason": "REPLACED_BY_NEW_CONNECTION"
+      }
+    },
+    {
+      "name": "K4c 真人侧收到 PLAYER_JOINED 2 次（两连接各一次）",
+      "ok": true,
+      "detail": {
+        "joined": 2
+      }
+    },
+    {
+      "name": "K4d 被顶掉的连接**静默清理**：真人侧 0 次 PLAYER_LEFT（avatar 不闪断）",
+      "ok": true,
+      "detail": {
+        "left": 0
+      }
+    },
+    {
+      "name": "K4e observe 中该 id 恰好 1 条（同角色多连接已去重）",
+      "ok": true,
+      "detail": {
+        "命中": 1
+      }
+    },
+    {
+      "name": "K5 Key 档无游客级动作限频：连发 2 条 say 均 ACTION_COMPLETED（间隔 0ms）",
+      "ok": true,
+      "detail": {
+        "completed": 2,
+        "detail": [
+          "ACTION_COMPLETED",
+          "ACTION_COMPLETED"
+        ]
+      }
+    },
+    {
+      "name": "K6 POST /session/revoke 200",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "revoked": true
+        }
+      }
+    },
+    {
+      "name": "K6b 吊销后同 token 调 /me → 403 SESSION_REVOKED",
+      "ok": true,
+      "detail": {
+        "status": 403,
+        "code": "SESSION_REVOKED"
+      }
+    },
+    {
+      "name": "K6c 吊销后 observe 亦 403（第二道门 jti 权威）",
+      "ok": true,
+      "detail": 403
+    },
+    {
+      "name": "K7 独立实例（3003，空闲阈值 3s）启动就绪",
+      "ok": true
+    },
+    {
+      "name": "K7b 3003 实例 agentEnabled=true（配置共用 DB）",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "name": "K7c 3003 实例签游客票成功",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "K7d 游客\"只 PING\"被空闲超时踢出（阀门保留）",
+      "ok": true,
+      "detail": {
+        "code": 1001,
+        "reason": "idle timeout",
+        "观测秒数": "≤45"
+      }
+    },
+    {
+      "name": "K7e Key 档\"只 PING\"存活超过 45s（C2 修复：PING 计入活跃）",
+      "ok": true,
+      "detail": {
+        "closeCode": null,
+        "阈值": "3s / 心跳 30s"
+      }
+    },
+    {
+      "name": "K7f Key 档\"只 observe 不动作\"存活超过 42s（C2 修复：HTTP observe 计入活跃）",
+      "ok": true,
+      "detail": {
+        "closeCode": null,
+        "成功observe次数": 38
+      }
+    },
+    {
+      "name": "K8 删除测试 Agent 200（Key/会话级联清理）",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "deleted": "v2_key_agent_32",
+          "kicked": 0
+        }
+      }
+    },
+    {
+      "name": "K8b 删除后列表中不再出现该 Agent",
+      "ok": true
+    }
+  ],
+  "durationMs": 129118
+}

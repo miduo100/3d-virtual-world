@@ -6,8 +6,10 @@
  *   - handleUpgrade：鉴权（JWT 验签 + jti DB 权威 + agent active）→ wss.handleUpgrade
  *   - onConnection：max_agents 检查 → presenceBridge.onConnect → 发 READY + WORLD_SNAPSHOT
  *   - onMessage：SUBSCRIBE/UNSUBSCRIBE/PING/ACTION（P4 占位）
- *   - 三档推送：eco（无位置流，CHAT 实时）/ standard（ENTITY_ADDED/REMOVED + 1s 聚合位置流）/ realtime（逐条）
- *   - 令牌桶限频：位置>实体>聊天，聊天永不丢（红线11）
+ *   - 三档推送：eco（无位置流，CHAT 实时）/ standard（1s 聚合位置流）/ realtime（事件驱动 10Hz）
+ *     门控（2026-09-19 T3/T4/T8）：位置流需订阅 movement、上下线需订阅 presence，两者都未订阅则不推；
+ *     半径（subscription.radius，默认 30，1~200）对位置流与 ADDED 都生效；实体首见先发 ADDED 再走位置流。
+ *   - 令牌桶限频：实体/聊天（位置流改为结构上限：standard 1 条/tick、realtime 每实体 100ms 1 条），聊天永不丢（红线11）
  *   - 背压监控：bufferedAmount >1MB 警告、>4MB 断开（红线11）
  *   - 30s 心跳：两周期无 pong terminate（沿用人类侧机制）
  *
@@ -40,9 +42,21 @@ const BACKPRESSURE_KILL = Number(process.env.AGENT_BACKPRESSURE_KILL) || (4 * 10
 // 联测修复 C 后，活着信号 = WS ACTION/SUBSCRIBE/UNSUBSCRIBE + Key 档 PING + HTTP observe
 const _idleMin = process.env.AGENT_IDLE_TIMEOUT_MINUTES !== undefined ? Number(process.env.AGENT_IDLE_TIMEOUT_MINUTES) : 5;
 const AGENT_IDLE_TIMEOUT_MS = (_idleMin > 0 ? _idleMin : 0) * 60 * 1000;
-const TOKEN_BUCKET_CAPACITY = 20;
-const TOKEN_REFILL_PER_SEC = 10;
+// 令牌桶（红线 11"低优先级先丢"）。2026-09-19 三档联测缺陷 T6 调整：
+// 位置流改为**结构上限**约束（standard 每 tick 每实体最多 1 条；realtime 每实体每 100ms 最多 1 条）
+// 且不再消耗令牌桶 —— 原实现下 25 实体同时移动会把桶打空（容量 20 / 补充 10 每秒），
+// 桶空后整批实体被丢弃且 snap 已更新 → 该帧更新永久丢失、按遍历顺序饥饿
+// （实测 realtime 仅覆盖 20/25 实体，5 个实体一条更新都收不到）。
+// 现在桶只约束"实体上下线"类消息，容量/补充率与可实现速率匹配（25 实体同时入场也能发完）。
+const TOKEN_BUCKET_CAPACITY = 60;
+const TOKEN_REFILL_PER_SEC = 60;
 const STANDARD_BATCH_INTERVAL_MS = 1000;
+// realtime 档位置流循环间隔 = 100ms（10Hz），每轮每实体最多 1 条。
+// 说明：原方案打算"挂在 POSITION_UPDATE 广播上事件驱动"，但 wsServer.handlePositionUpdate 用的是
+// **模块内部裸调用** broadcastToAll（只有 CHAT 分支改成了 module.exports 调用，见 wsServer.js:214-220），
+// monkey-patch 导出属性收不到 → 实测 realtime 档 0 条。为不触碰黑名单文件 wsServer.js，
+// 改为在 1 万级实体上也廉价的"按需采样"：本轮无 realtime 订阅者时直接 return，成本≈0。
+const REALTIME_INTERVAL_MS = 100;
 const CHAT_NEARBY_RANGE = 30;
 
 // ==================== 鉴权 ====================
@@ -124,7 +138,18 @@ wss.on('connection', async (ws, request, authResult) => {
   //   → 只能重启进程清理（v2 联测实测 3/3 复现，含"连接 800ms 后关闭"更宽的竞态窗口）
   // 现在：先注册（earlyClosed 记录"早到的 close"），await 之后再用 readyState 兜底（修复②）。
   let earlyClosed = false;
-  ws.on('message', (data) => handleMessage(connectionId, ws, data));
+  // v2-1 修复的配套（2026-09-19）：监听器提前到 await 之前后，客户端在 `open` 回调里立刻发出的
+  // 消息（典型：SUBSCRIBE）可能在 state 建立前到达，而 handleMessage 对"无 state"是静默 return
+  // → 订阅被吃掉、客户端永远收不到位置流（accept_agent_p3 的 D1 就是这样红掉的）。
+  // 这里把 state 就绪前到达的原始消息缓存下来，state 建好后按序补发（有上限，防恶意洪泛）。
+  const pendingMessages = [];
+  ws.on('message', (data) => {
+    if (!activeAgents.get(connectionId)) {
+      if (pendingMessages.length < 32) pendingMessages.push(data);
+      return;
+    }
+    handleMessage(connectionId, ws, data);
+  });
   ws.on('close', () => { earlyClosed = true; handleClose(connectionId); });
   ws.on('error', (err) => { console.error(`[AgentWs] ${agent.name} ws error:`, err.message); });
   // 注意：此处不能引用后面才初始化的 state（const 的 TDZ 会直接抛 ReferenceError），按 connectionId 查表
@@ -170,10 +195,11 @@ wss.on('connection', async (ws, request, authResult) => {
   const ownTier = (!isGuest && agent && agent.push_tier && agent.push_tier !== 'inherit') ? agent.push_tier : null;
   const state = {
     ws, agent, session, jwt, connectionId, tier, ip,
-    // 位置流不再单独配置：完全由 pushTier 决定（eco 无 / standard 1s 聚合 / realtime 逐条）
+    // 位置流不再单独配置：完全由 pushTier 决定（eco 无 / standard 1s 聚合 / realtime 10Hz 事件驱动）
     pushTier: isGuest ? 'eco' : (ownTier || config.pushDefault),
     voiceRelay: isGuest ? false : config.voiceRelay,
     subscription: { topics: new Set(), radius: 30 },
+    spawn,                                             // 半径判定的兜底自身位置（首帧尚未 publish 时用）
     lastPong: Date.now(),
     lastActivityAt: Date.now(),
     tokenBucket: { tokens: TOKEN_BUCKET_CAPACITY, lastRefill: Date.now() },
@@ -198,6 +224,14 @@ wss.on('connection', async (ws, request, authResult) => {
       tierInfo: tierService.describeTier(state.tier)
     }
   });
+
+  // pre-ready 消息补发（见 pendingMessages 注释）：放在 READY 之后，保证 READY 仍是客户端的首条消息
+  // （协议约定：多个既有验收脚本都是"读到第一条 = READY"）。典型收益：在 open 回调里立刻
+  // SUBSCRIBE 的客户端（accept_agent_p3 的 D1）不再丢订阅。
+  if (pendingMessages.length > 0) {
+    const flush = pendingMessages.splice(0, pendingMessages.length);
+    for (const d of flush) handleMessage(connectionId, ws, d);
+  }
 
   const players = Array.from(wsServer.getPlayerPositions().values());
   safeSend(state, { type: 'WORLD_SNAPSHOT', payload: {
@@ -357,54 +391,143 @@ function safeSendRaw(ws, message) {
 
 const entitySnapshot = new Map();  // connectionId -> Map(characterId -> {pos,type,name})
 
+// ==================== 推送语义（2026-09-19 三档联测缺陷 T3/T4/T8 定稿）====================
+// topics 语义（写入文档 §5.2/§5.3）：
+//   movement → 位置流（standard: ENTITY_MOVEMENT_BATCH / realtime: ENTITY_UPDATED）
+//   presence → 实体上下线（ENTITY_ADDED / ENTITY_REMOVED）
+//   两者都未订阅 → **完全不推任何东西**（修复前只要档位不是 eco 就推，"不订阅"无法关掉推流成本）
+// 半径：`subscription.radius`（默认 30，SUBSCRIBE 夹取 1~200）对位置流与 ADDED 都生效，
+//   距离口径 = 水平距离（x/z；y 只受跳跃影响，不参与，避免上下浮动导致实体忽进忽出）。
+// ADDED 时机：实体首次进入半径 → 先发 ENTITY_ADDED，**本 tick 不再放进位置流**，下一 tick 起走位置流
+//   —— 让客户端可以稳定把 ADDED 当作"实体出现"的信号（修复前新实体总是先进 batch 并写 snap，
+//   ADDED 分支永不命中）。
 function startPushLoop() {
   setInterval(() => {
     const playerPositions = wsServer.getPlayerPositions();
     for (const [connId, state] of activeAgents.entries()) {
       if (state.closed) continue;
-      if (state.pushTier === 'eco') continue;  // eco 无位置流
+      if (state.pushTier === 'eco') continue;  // eco 无位置流（红线不改）
+      const wantMovement = state.subscription.topics.has('movement');
+      const wantPresence = state.subscription.topics.has('presence');
+      if (!wantMovement && !wantPresence) continue;   // T3：未订阅 → 不推
+
       const snap = entitySnapshot.get(connId) || new Map();
-      const batch = [];
+      // 本 tick 的"半径内实体"（排除自己；联测修复 B 的口径在此统一）
+      const visible = [];
       playerPositions.forEach((p, pConnId) => {
         if (pConnId === connId) return;
-        const pos = p.position;
-        if (!pos) return;
-        const last = snap.get(p.characterId);
-        if (!last || last.pos.x !== pos.x || last.pos.z !== pos.z) {
-          batch.push({ id: p.characterId, type: p.entityType === 'agent' ? 'agent' : 'human', name: p.characterName, position: pos, animMode: p.animMode || null });
-          snap.set(p.characterId, { pos, type: p.entityType, name: p.characterName });
-        }
+        if (!p.position) return;
+        if (!withinRadius(state, p.position)) return;   // T4：半径过滤
+        visible.push(p);
       });
+
+      const batch = [];
+      // presence：新实体 ADDED（本 tick 只发 ADDED）+ 离场 REMOVED
+      for (const p of visible) {
+        if (snap.has(p.characterId)) continue;
+        if (wantPresence) {
+          safeSend(state, { type: 'ENTITY_ADDED', payload: {
+            id: p.characterId, type: entityKind(p), name: p.characterName, position: p.position, animMode: p.animMode || null
+          } }, 'entity');
+        }
+        snap.set(p.characterId, { pos: p.position, type: entityKind(p), name: p.characterName });
+      }
+      if (wantPresence) {
+        const liveIds = new Set(visible.map(p => p.characterId));
+        for (const id of [...snap.keys()]) {
+          if (!liveIds.has(id)) { safeSend(state, { type: 'ENTITY_REMOVED', payload: { id } }, 'entity'); snap.delete(id); }
+        }
+      }
+      // movement：位置流（standard 走本 tick 的 batch；realtime 走 startRealtimeLoop 的 10Hz 循环）
+      // 注意：realtime 连接**不能**在本 tick 里更新 snap —— 否则 tick 每秒把 snap 刷成最新位置却不发送，
+      // 10Hz 循环随后会认为"位置没变化"而跳过，实测把频率从 5Hz 压到 4.3Hz（源 5Hz 时）。
+      if (wantMovement && state.pushTier !== 'realtime') {
+        for (const p of visible) {
+          const last = snap.get(p.characterId);
+          if (!last) {
+            // 未订阅 presence 的客户端拿不到 ADDED，直接以位置流下发并记账（避免实体静默丢失）
+            batch.push(moveEntry(p));
+            snap.set(p.characterId, { pos: p.position, type: entityKind(p), name: p.characterName });
+            continue;
+          }
+          if (last.pos.x !== p.position.x || last.pos.z !== p.position.z) {
+            batch.push(moveEntry(p));
+            snap.set(p.characterId, { pos: p.position, type: entityKind(p), name: p.characterName });
+          }
+        }
+      }
       entitySnapshot.set(connId, snap);
 
-      // 联测修复 B：构造"当前实体 id 集合"必须排除自己。
-      // 上面的扫描用 `pConnId === connId` 跳过了自身（self 从不进 snap），但这里原来用
-      // 全部 playerPositions 取值 → 自己的 characterId 被当成"snap 里没见过的新实体"，
-      // 于是每 STANDARD_BATCH_INTERVAL_MS 给自己发一条 ENTITY_ADDED，永久重复
-      // （实测 Key 档 workbuddy 每秒收到一条关于自己的 ADDED）。eco 档整段跳过，故游客无此问题。
-      const currentIds = new Set(
-        [...playerPositions.entries()].filter(([pConnId]) => pConnId !== connId).map(([, p]) => p.characterId)
-      );
-      const snapIds = new Set([...snap.keys()]);
-      for (const id of currentIds) {
-        if (!snapIds.has(id)) {
-          const p = [...playerPositions.values()].find(x => x.characterId === id);
-          if (p) safeSend(state, { type: 'ENTITY_ADDED', payload: { id, type: p.entityType === 'agent' ? 'agent' : 'human', name: p.characterName, position: p.position } }, 'entity');
-        }
-      }
-      for (const id of snapIds) {
-        if (!currentIds.has(id)) { safeSend(state, { type: 'ENTITY_REMOVED', payload: { id } }, 'entity'); snap.delete(id); }
-      }
-
-      if (batch.length > 0) {
-        if (state.pushTier === 'realtime') {
-          batch.forEach(m => safeSend(state, { type: 'ENTITY_UPDATED', payload: m }, 'position'));
-        } else {
-          safeSend(state, { type: 'ENTITY_MOVEMENT_BATCH', payload: { moves: batch } }, 'position');
-        }
+      // standard：1 条消息/tick（结构上限；不再消耗令牌桶，见 T6）
+      if (batch.length > 0 && state.pushTier !== 'realtime') {
+        safeSend(state, { type: 'ENTITY_MOVEMENT_BATCH', payload: { moves: batch } });
       }
     }
   }, STANDARD_BATCH_INTERVAL_MS).unref();
+}
+
+function entityKind(p) { return p.entityType === 'agent' ? 'agent' : 'human'; }
+
+function moveEntry(p) {
+  return { id: p.characterId, type: entityKind(p), name: p.characterName, position: p.position, animMode: p.animMode || null };
+}
+
+/** Agent 自身实时位置（半径判定基准）；首帧尚未 publish 时回落 READY.spawn */
+function agentSelfPos(state) {
+  const entry = wsServer.getPlayerPositions().get(state.connectionId);
+  if (entry && entry.position) return entry.position;
+  return state.spawn || { x: 0, y: 0, z: 0 };
+}
+
+function withinRadius(state, pos) {
+  if (!pos) return false;
+  return calcDist(agentSelfPos(state), pos) <= state.subscription.radius;
+}
+
+/**
+ * realtime 档位置流循环（T5：真 10Hz）
+ *
+ * 旧实现把位置流放在 1s tick 里"逐条拆包"发（实测 ≈1Hz/实体，与 standard 信息量等价）。
+ * 现在用独立的 100ms 循环按需采样 playerPositions（服务端权威位置：Agent 由 movement 10Hz 推进、
+ * 人类由前端每帧上报），每实体每轮最多 1 条、只发水平位移有变化的实体 → realtime 名副其实。
+ * 三重门控与 standard 同口径：档位 = realtime、订阅了 movement、实体在订阅半径内。
+ * 成本：无 realtime 订阅者时首轮即 return（≈0）；有订阅者时 = 10Hz × 半径内实体数 × 每个 realtime Agent。
+ */
+function startRealtimeLoop() {
+  setInterval(() => {
+    let active = false;
+    for (const [, s] of activeAgents.entries()) {
+      if (!s.closed && s.pushTier === 'realtime' && s.subscription.topics.has('movement')) { active = true; break; }
+    }
+    if (!active) return;
+
+    const playerPositions = wsServer.getPlayerPositions();
+    for (const [connId, state] of activeAgents.entries()) {
+      if (state.closed || state.pushTier !== 'realtime') continue;
+      if (!state.subscription.topics.has('movement')) continue;      // T3
+      const wantPresence = state.subscription.topics.has('presence');
+      const snap = entitySnapshot.get(connId) || new Map();
+      let changed = false;
+
+      playerPositions.forEach((p, pConnId) => {
+        if (pConnId === connId) return;                              // 自己不发（与 standard 口径一致）
+        if (!p.position) return;
+        if (!withinRadius(state, p.position)) return;                 // T4
+        const last = snap.get(p.characterId);
+        // 只推水平位移（与 standard 一致；T7 已决策：不因 y/animMode/rotation 变化而推）
+        if (last && last.pos.x === p.position.x && last.pos.z === p.position.z) return;
+        const entry = moveEntry(p);
+        if (!last && wantPresence) {                                  // T8：先 ADDED 再 UPDATED
+          safeSend(state, { type: 'ENTITY_ADDED', payload: entry }, 'entity');
+        }
+        snap.set(p.characterId, { pos: p.position, type: entityKind(p), name: p.characterName });
+        changed = true;
+        safeSend(state, { type: 'ENTITY_UPDATED', payload: entry });   // 位置流不消耗令牌桶（T6）
+      });
+
+      if (changed) entitySnapshot.set(connId, snap);
+    }
+  }, REALTIME_INTERVAL_MS).unref();
 }
 
 function startHeartbeat() {
@@ -479,10 +602,11 @@ function start() {
   if (started) return;
   started = true;
   connectionRegistry.init({ states: activeAgents, cancelAction: agentActionService.cleanup, audit });
-  startPushLoop();
+  startPushLoop();          // standard 1s 聚合 + 实体上下线
+  startRealtimeLoop();      // T5：realtime 10Hz 位置流
   startHeartbeat();
   installChatPatch();
-  console.log('[AgentWs] Agent WebSocket 服务已启动（推送/心跳/CHAT 旁路）');
+  console.log('[AgentWs] Agent WebSocket 服务已启动（standard 1Hz 聚合 / realtime 10Hz / 心跳 / CHAT 旁路）');
 }
 
 // ==================== 工具 ====================

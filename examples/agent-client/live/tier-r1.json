@@ -1,0 +1,532 @@
+{
+  "generatedAt": "2026-09-19T05:06:48.819Z",
+  "summary": {
+    "pass": 48,
+    "fail": 0,
+    "total": 48,
+    "rows": [
+      {
+        "name": "基线配置",
+        "info": true,
+        "detail": "{\"agentEnabled\":true,\"pushDefault\":\"eco\",\"voiceRelay\":false,\"maxAgents\":50,\"maxConnectionsPerAgent\":1,\"maxSpeed\":12,\"observeRateKey\":1,\"chatLogEnabled\":true,\"chatLogRetentionDays\":7,\"chatLogRemoteEnabled\":false,\"chatLogRemoteProvider\":\"none\",\"chatLogUploadHour\":3,\"chatLogS3Endpoint\":\"http://127.0.0.1:9999\",\"chatLogS3Bucket\":\"test-bucket\",\"chatLogS3Prefix\":\"chat-archive\",\"chatLogS3AccessKey\":\"fakeAK\",\"chatLogS3SecretKey\":\"fakeSK\"}"
+      },
+      {
+        "name": "[eco] /session 换票成功",
+        "ok": true,
+        "detail": "ok"
+      },
+      {
+        "name": "[eco] Agent WS 连接成功",
+        "ok": true,
+        "detail": "upgraded"
+      },
+      {
+        "name": "[eco] READY.pushTier=eco",
+        "ok": true,
+        "detail": "eco"
+      },
+      {
+        "name": "[eco] 真人侧收到 Agent 入场 PLAYER_JOINED",
+        "ok": true,
+        "detail": [
+          "真人-近-eco",
+          "真人-远-eco",
+          "tier_eco_87393"
+        ]
+      },
+      {
+        "name": "[eco] A 未订阅 6s 收到",
+        "info": true,
+        "detail": {
+          "类型": {},
+          "实体数": 0,
+          "字节": 0
+        }
+      },
+      {
+        "name": "[eco] A eco 档未订阅无任何推送（红线：eco 无位置流）",
+        "ok": true,
+        "detail": {}
+      },
+      {
+        "name": "[eco] SUBSCRIBE 回执 radius=30",
+        "ok": true,
+        "detail": {
+          "topics": [
+            "chat",
+            "movement",
+            "presence"
+          ],
+          "radius": 30
+        }
+      },
+      {
+        "name": "[eco] C 150m 外真人移动 6s：命中该实体消息数",
+        "info": true,
+        "detail": 0
+      },
+      {
+        "name": "[eco] C 订阅半径 30m 时不应收到 150m 外实体位置流",
+        "ok": true,
+        "detail": "ok"
+      },
+      {
+        "name": "[eco] D 30m 内真人 CHAT 可达 Agent",
+        "ok": true,
+        "detail": 1
+      },
+      {
+        "name": "[eco] D 150m 外真人 CHAT 不可达（30m 投递口径）",
+        "ok": true,
+        "detail": "ok"
+      },
+      {
+        "name": "[eco] E walk_to 被接受",
+        "ok": true,
+        "detail": {
+          "requestId": "26ccc99b-fc36-47bb-b233-1e51a136fd96",
+          "result": {
+            "estimatedMs": 1667
+          }
+        }
+      },
+      {
+        "name": "[eco] E walk_to 到达回执 reason=arrived",
+        "ok": true,
+        "detail": {
+          "requestId": "26ccc99b-fc36-47bb-b233-1e51a136fd96",
+          "reason": "arrived",
+          "position": {
+            "x": 20,
+            "y": 0,
+            "z": 0,
+            "yaw": 0
+          }
+        }
+      },
+      {
+        "name": "[eco] E 到达位置误差 <0.6m",
+        "ok": true,
+        "detail": "0.000"
+      },
+      {
+        "name": "[eco] E 真人侧 POSITION_UPDATE",
+        "info": true,
+        "detail": "18 条 / 2052ms = 8.77 Hz"
+      },
+      {
+        "name": "[eco] E 真人侧位置广播频率 5~12Hz（服务端 10Hz 推进）",
+        "ok": true,
+        "detail": "8.77"
+      },
+      {
+        "name": "[eco] E say 投递到 30m 内真人（senderId≡agent.id）",
+        "ok": true,
+        "detail": 1
+      },
+      {
+        "name": "[eco] F observe radius=200 不被钳",
+        "ok": true,
+        "detail": {
+          "status": 200,
+          "radius": 200
+        }
+      },
+      {
+        "name": "[eco] F observe.self 为实时位置（≈20,0）",
+        "ok": true,
+        "detail": {
+          "x": 20,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "name": "[standard] /session 换票成功",
+        "ok": true,
+        "detail": "ok"
+      },
+      {
+        "name": "[standard] Agent WS 连接成功",
+        "ok": true,
+        "detail": "upgraded"
+      },
+      {
+        "name": "[standard] READY.pushTier=standard",
+        "ok": true,
+        "detail": "standard"
+      },
+      {
+        "name": "[standard] 真人侧收到 Agent 入场 PLAYER_JOINED",
+        "ok": true,
+        "detail": [
+          "真人-近-standard",
+          "真人-远-standard",
+          "tier_std_87393"
+        ]
+      },
+      {
+        "name": "[standard] A 未订阅 6s 收到",
+        "info": true,
+        "detail": {
+          "类型": {},
+          "实体数": 0,
+          "字节": 0
+        }
+      },
+      {
+        "name": "[standard] A eco 档未订阅无任何推送（红线：eco 无位置流）",
+        "ok": true,
+        "detail": "(非 eco，跳过断言)"
+      },
+      {
+        "name": "[standard] SUBSCRIBE 回执 radius=30",
+        "ok": true,
+        "detail": {
+          "topics": [
+            "chat",
+            "movement",
+            "presence"
+          ],
+          "radius": 30
+        }
+      },
+      {
+        "name": "[standard] C 150m 外真人移动 6s：命中该实体消息数",
+        "info": true,
+        "detail": 0
+      },
+      {
+        "name": "[standard] C 订阅半径 30m 时不应收到 150m 外实体位置流",
+        "ok": true,
+        "detail": "ok"
+      },
+      {
+        "name": "[standard] D 30m 内真人 CHAT 可达 Agent",
+        "ok": true,
+        "detail": 1
+      },
+      {
+        "name": "[standard] D 150m 外真人 CHAT 不可达（30m 投递口径）",
+        "ok": true,
+        "detail": "ok"
+      },
+      {
+        "name": "[standard] E walk_to 被接受",
+        "ok": true,
+        "detail": {
+          "requestId": "ac4c85cc-be26-4282-bc44-d40931d8d819",
+          "result": {
+            "estimatedMs": 1667
+          }
+        }
+      },
+      {
+        "name": "[standard] E walk_to 到达回执 reason=arrived",
+        "ok": true,
+        "detail": {
+          "requestId": "ac4c85cc-be26-4282-bc44-d40931d8d819",
+          "reason": "arrived",
+          "position": {
+            "x": 20,
+            "y": 0,
+            "z": 0,
+            "yaw": 0
+          }
+        }
+      },
+      {
+        "name": "[standard] E 到达位置误差 <0.6m",
+        "ok": true,
+        "detail": "0.000"
+      },
+      {
+        "name": "[standard] E 真人侧 POSITION_UPDATE",
+        "info": true,
+        "detail": "18 条 / 2028ms = 8.88 Hz"
+      },
+      {
+        "name": "[standard] E 真人侧位置广播频率 5~12Hz（服务端 10Hz 推进）",
+        "ok": true,
+        "detail": "8.88"
+      },
+      {
+        "name": "[standard] E say 投递到 30m 内真人（senderId≡agent.id）",
+        "ok": true,
+        "detail": 1
+      },
+      {
+        "name": "[standard] F observe radius=200 不被钳",
+        "ok": true,
+        "detail": {
+          "status": 200,
+          "radius": 200
+        }
+      },
+      {
+        "name": "[standard] F observe.self 为实时位置（≈20,0）",
+        "ok": true,
+        "detail": {
+          "x": 20,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "name": "[realtime] /session 换票成功",
+        "ok": true,
+        "detail": "ok"
+      },
+      {
+        "name": "[realtime] Agent WS 连接成功",
+        "ok": true,
+        "detail": "upgraded"
+      },
+      {
+        "name": "[realtime] READY.pushTier=realtime",
+        "ok": true,
+        "detail": "realtime"
+      },
+      {
+        "name": "[realtime] 真人侧收到 Agent 入场 PLAYER_JOINED",
+        "ok": true,
+        "detail": [
+          "真人-近-realtime",
+          "真人-远-realtime",
+          "tier_rt_87393"
+        ]
+      },
+      {
+        "name": "[realtime] A 未订阅 6s 收到",
+        "info": true,
+        "detail": {
+          "类型": {},
+          "实体数": 0,
+          "字节": 0
+        }
+      },
+      {
+        "name": "[realtime] A eco 档未订阅无任何推送（红线：eco 无位置流）",
+        "ok": true,
+        "detail": "(非 eco，跳过断言)"
+      },
+      {
+        "name": "[realtime] SUBSCRIBE 回执 radius=30",
+        "ok": true,
+        "detail": {
+          "topics": [
+            "chat",
+            "movement",
+            "presence"
+          ],
+          "radius": 30
+        }
+      },
+      {
+        "name": "[realtime] C 150m 外真人移动 6s：命中该实体消息数",
+        "info": true,
+        "detail": 0
+      },
+      {
+        "name": "[realtime] C 订阅半径 30m 时不应收到 150m 外实体位置流",
+        "ok": true,
+        "detail": "ok"
+      },
+      {
+        "name": "[realtime] D 30m 内真人 CHAT 可达 Agent",
+        "ok": true,
+        "detail": 1
+      },
+      {
+        "name": "[realtime] D 150m 外真人 CHAT 不可达（30m 投递口径）",
+        "ok": true,
+        "detail": "ok"
+      },
+      {
+        "name": "[realtime] E walk_to 被接受",
+        "ok": true,
+        "detail": {
+          "requestId": "bb397432-5772-4a7a-a837-efc6c24db41b",
+          "result": {
+            "estimatedMs": 1667
+          }
+        }
+      },
+      {
+        "name": "[realtime] E walk_to 到达回执 reason=arrived",
+        "ok": true,
+        "detail": {
+          "requestId": "bb397432-5772-4a7a-a837-efc6c24db41b",
+          "reason": "arrived",
+          "position": {
+            "x": 20,
+            "y": 0,
+            "z": 0,
+            "yaw": 0
+          }
+        }
+      },
+      {
+        "name": "[realtime] E 到达位置误差 <0.6m",
+        "ok": true,
+        "detail": "0.000"
+      },
+      {
+        "name": "[realtime] E 真人侧 POSITION_UPDATE",
+        "info": true,
+        "detail": "18 条 / 2049ms = 8.78 Hz"
+      },
+      {
+        "name": "[realtime] E 真人侧位置广播频率 5~12Hz（服务端 10Hz 推进）",
+        "ok": true,
+        "detail": "8.78"
+      },
+      {
+        "name": "[realtime] E say 投递到 30m 内真人（senderId≡agent.id）",
+        "ok": true,
+        "detail": 1
+      },
+      {
+        "name": "[realtime] F observe radius=200 不被钳",
+        "ok": true,
+        "detail": {
+          "status": 200,
+          "radius": 200
+        }
+      },
+      {
+        "name": "[realtime] F observe.self 为实时位置（≈20,0）",
+        "ok": true,
+        "detail": {
+          "x": 20,
+          "y": 0,
+          "z": 0
+        }
+      }
+    ]
+  },
+  "data": {
+    "eco": {
+      "pushTierDeclared": "eco",
+      "unsubscribed": {
+        "byType": {},
+        "ids": [],
+        "bytes": 0,
+        "count": 0
+      },
+      "farPushed": {
+        "count": 0,
+        "byType": {}
+      },
+      "chat": [
+        {
+          "sender": "真人-近-eco",
+          "message": "近距-eco-17897"
+        }
+      ],
+      "positionPush": {
+        "count": 18,
+        "ms": 2052,
+        "hz": 8.77
+      },
+      "say": [
+        {
+          "sender": "tier_eco_87393",
+          "characterId": "02303f29-02be-495d-b99a-d59d37dcbcc9"
+        }
+      ],
+      "observe": {
+        "radius": 200,
+        "self": {
+          "x": 20,
+          "y": 0,
+          "z": 0
+        },
+        "entities": 3
+      }
+    },
+    "standard": {
+      "pushTierDeclared": "standard",
+      "unsubscribed": {
+        "byType": {},
+        "ids": [],
+        "bytes": 0,
+        "count": 0
+      },
+      "farPushed": {
+        "count": 0,
+        "byType": {
+          "ENTITY_ADDED": 1
+        }
+      },
+      "chat": [
+        {
+          "sender": "真人-近-standard",
+          "message": "近距-standard-"
+        }
+      ],
+      "positionPush": {
+        "count": 18,
+        "ms": 2028,
+        "hz": 8.88
+      },
+      "say": [
+        {
+          "sender": "tier_std_87393",
+          "characterId": "4160170f-c6ed-43c4-8f8b-7a78e71b396a"
+        }
+      ],
+      "observe": {
+        "radius": 200,
+        "self": {
+          "x": 20,
+          "y": 0,
+          "z": 0
+        },
+        "entities": 3
+      }
+    },
+    "realtime": {
+      "pushTierDeclared": "realtime",
+      "unsubscribed": {
+        "byType": {},
+        "ids": [],
+        "bytes": 0,
+        "count": 0
+      },
+      "farPushed": {
+        "count": 0,
+        "byType": {
+          "ENTITY_ADDED": 1
+        }
+      },
+      "chat": [
+        {
+          "sender": "真人-近-realtime",
+          "message": "近距-realtime-"
+        }
+      ],
+      "positionPush": {
+        "count": 18,
+        "ms": 2049,
+        "hz": 8.78
+      },
+      "say": [
+        {
+          "sender": "tier_rt_87393",
+          "characterId": "c34e5395-6971-4a44-858c-dcdfd5a5b59e"
+        }
+      ],
+      "observe": {
+        "radius": 200,
+        "self": {
+          "x": 20,
+          "y": 0,
+          "z": 0
+        },
+        "entities": 3
+      }
+    }
+  },
+  "issues": []
+}

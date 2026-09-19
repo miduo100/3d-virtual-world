@@ -1,0 +1,161 @@
+{
+  "title": "三档 AI（eco / standard / realtime）虚拟世界表现联测汇总",
+  "generatedAt": "2026-09-19",
+  "mode": "只测不改（用户指令）",
+  "environment": {
+    "server": "http://localhost:3002（运行中）",
+    "agent_enabled": true,
+    "agent_push_default": "eco",
+    "agent_observe_rate_key": 1,
+    "agent_max_connections_per_agent": 1,
+    "agent_max_speed": 12,
+    "agent_voice_relay": false,
+    "testAgents": "tier_eco_87393 / tier_std_87393 / tier_rt_87393（见 scripts/_tmp_tier_agents.json）",
+    "note": "测试期间总开关保持 true；结束检测后应恢复 false（红线 6）"
+  },
+  "rounds": {
+    "r1_isolated": { "script": "scripts/accept_agent_tier_r1.js", "result": "46/48 PASS", "report": "tier-r1.json", "focus": "单档隔离：推送形态、SUBSCRIBE 门控、半径门控、动作回执" },
+    "r2a_mixed": { "script": "scripts/accept_agent_tier_r2a.js", "result": "10/11 PASS", "report": "tier-r2a.json", "focus": "三档同场 + 6 真人：频率/带宽/互见/互聊/感知盲区/令牌桶" },
+    "r3_browser": { "script": "scripts/accept_agent_tier_r3_playwright.js", "result": "15/17 PASS（真 GPU GTX960/60fps）", "report": "tier-r3.json", "focus": "真人端可见性/🤖/聊天气泡/移动平滑/FPS" },
+    "r4a_follow": { "script": "scripts/accept_agent_tier_r4a.js", "result": "12/13 PASS", "report": "tier-r4a.json", "focus": "三档同时 follow 同一真人：收敛/重合" },
+    "r4b_ops": { "script": "scripts/accept_agent_tier_r4b.js", "result": "19/20 PASS", "report": "tier-r4b.json", "focus": "断线重连续位/90s 长会话/observe 公平性/游客档对照" },
+    "r5_client": { "script": "scripts/accept_agent_tier_r5_client.js", "result": "限频边界 + 动画 + 跳跃", "report": "tier-r5.json", "focus": "observe 限频安全间隔、行走动画、跳跃可见性" }
+  },
+  "userDecisions": [
+    {
+      "date": "2026-09-19",
+      "issue": "T7",
+      "decision": "不需要 AI 感知真人的跳跃与转向 → 不处理，按现状接受（位置流继续保持只比较 x/z）"
+    }
+  ],
+  "openIssues": ["T1", "T2", "T3", "T4", "T5", "T6", "T8", "T9", "T10"],
+  "issues": [
+    {
+      "id": "T1", "level": "P1", "tier": "client",
+      "title": "真人端看到的 Agent 移动严重滞后并周期性瞬移（平滑器 5.4m/s < 服务端 12m/s）",
+      "evidence": "真 GPU(GTX960, 60fps) 实测：Agent 直线走 60m，真人端显示位置与权威位置的滞后 max=21.01m、avg=10.16m，并检测到 1 次 20.70m 瞬移（SNAP_DISTANCE）；静止 4s 后追上（0.00m）",
+      "code": "public/js/agentPositionSmoother.js:20 MAX_SPEED=5.4 硬编码、:21 SNAP_DISTANCE=20；服务端 agentMovementService 用 agent_max_speed=12（system_config 可配 1~20）",
+      "impact": "AI 追人/走远时真人看到\"慢慢飘 + 突然跳 20m\"；真人自己 9~12m/s 跑动时更明显"
+    },
+    {
+      "id": "T2", "level": "P2", "tier": "client",
+      "title": "真人端完全看不到 Agent 跳跃（前端贴地逻辑覆盖服务器 y）",
+      "evidence": "服务器权威 y 1.42→2.04（观察者收到 6 条带 y 的广播），真人端显示 y 恒为 1.5（Δ0）",
+      "code": "public/js/websocket.js snapAgentPosition(): position.y = getGroundHeight(probe) + yOffset，只在\"地形查询失败\"时才回退服务器 y",
+      "impact": "七动作之一 jump 对真人不可见；同理服务器任何垂直位移（未来地形/飞行）都会被抹平"
+    },
+    {
+      "id": "T3", "level": "P2", "tier": "standard/realtime",
+      "title": "位置流不受 SUBSCRIBE 门控（未订阅也推送）",
+      "evidence": "标准档/实时档连上后不发 SUBSCRIBE，6 秒内仍收到 ENTITY_MOVEMENT_BATCH×6 / ENTITY_UPDATED×12",
+      "code": "src/websocket/agentWsServer.js startPushLoop() 只判断 state.pushTier，未检查 state.subscription.topics（对比 forwardChatToAgents 有 topics.has('chat') 门控）",
+      "impact": "客户端无法用\"不订阅\"表达\"我不要位置流\"；推流成本无法被客户端关掉"
+    },
+    {
+      "id": "T4", "level": "P2", "tier": "standard/realtime",
+      "title": "订阅 radius 不参与位置流过滤（30m 半径仍推 150m 外实体）",
+      "evidence": "SUBSCRIBE radius=30，150m 外真人移动 6s：标准档命中 5 条、实时档命中 5 条（轮2a 三档同场 2/2 命中）",
+      "code": "startPushLoop() 全程未读取 state.subscription.radius（该值只在 SUBSCRIBED 回执里显示）",
+      "impact": "远距离实体白白占用带宽与 token 桶；radius 语义成空文"
+    },
+    {
+      "id": "T5", "level": "P2", "tier": "realtime",
+      "title": "realtime 档实际为 1Hz tick，与 standard 信息量等价（并非 10Hz）",
+      "evidence": "5 实体移动 15s：realtime 65 条 ENTITY_UPDATED（4.3 条/s × 5 实体 ≈1 tick/s）、standard 14 条 batch；字节 10830 vs 9311（相当）",
+      "code": "startPushLoop() 为 setInterval(1000ms)，realtime 只是把同一批逐条 safeSend（未按 10Hz 采样）",
+      "impact": "管理员/客户端以为 realtime=10Hz，实际延迟与 standard 相同，只多花消息条数"
+    },
+    {
+      "id": "T6", "level": "P2", "tier": "realtime",
+      "title": "令牌桶导致实体位置更新饥饿（人多时部分实体对 AI 完全不可见）",
+      "evidence": "25 个实体同时移动 10s：realtime 仅覆盖 20/25 实体（5 个实体一条更新都没收到），单实体 2~9 条（平均 5.5）；同场景 standard 覆盖 25/25",
+      "code": "agentWsServer.js acquireToken()：position 桶容量 20 / 补充 10 每秒；丢弃后 snap 已被更新 → 该帧更新永久丢失，且按 playerPositions 遍历顺序饥饿",
+      "impact": "人多时实时档反而比标准档更差（漏实体）；标准档在小规模下更可靠"
+    },
+    {
+      "id": "T7", "level": "P2（已决策：不处理）", "tier": "standard/realtime",
+      "title": "AI 感知不到真人的跳跃与朝向变化（只比较 x/z）",
+      "evidence": "真人原地跳跃（y 0↔1.5、animMode jump/idle）+ 原地转向 6s，一档三档均 0 条推送",
+      "code": "startPushLoop() 变化判定 `last.pos.x !== pos.x || last.pos.z !== pos.z`，未比较 y / animMode / rotation",
+      "impact": "AI 看不到\"人在跳\"\"人在转身/做动作\"；标准与实时档都受影响（CHAT 与 observe 不受影响）",
+      "decision": {
+        "date": "2026-09-19",
+        "by": "用户",
+        "result": "现在不需要感知真人的跳跃与转向 → 此条不做处理（按现状接受，不作为缺陷）",
+        "note": "位置流仍只推水平位移（x/z），y / animMode / rotation 变化不产生推送"
+      }
+    },
+    {
+      "id": "T8", "level": "P3", "tier": "standard/realtime",
+      "title": "ENTITY_ADDED 实际不触发（新实体首次只以位置流到达）",
+      "evidence": "真人晚于 Agent 上线，3.5s 内 ENTITY_ADDED=0（两档），但位置流已含该实体",
+      "code": "startPushLoop() 中 ADDED 仅在\"实体在 playerPositions 但不在 snap\"时触发，而新实体总是先进入 batch 并写入 snap",
+      "impact": "客户端不能把 ADDED 当作\"实体出现\"的唯一信号（协议语义待统一，文档已列待办）"
+    },
+    {
+      "id": "T9", "level": "P3", "tier": "all",
+      "title": "多 Agent 同时 follow 同一目标时完全重合（无避让，v2-5 复现）",
+      "evidence": "三档同时 follow 同一真人：各自收敛正常（末段 1.58~2.4m），但 Agent 之间最小距离 0.00m（完全叠在一起）",
+      "code": "agentFollowService / agentMovementService 推进无 Agent 间避让（stopDistance 内停在同一点）",
+      "impact": "真人看到多个 🤖 叠在一个位置"
+    },
+    {
+      "id": "T10", "level": "提示", "tier": "any",
+      "title": "observe 限频窗口无抖动余量（固定 1.0s 轮询会被 429）",
+      "evidence": "1000ms 固定间隔：1/10 次 429；1100ms：0/10；1250ms：0/10；1500ms：0/10",
+      "code": "src/routes/agent/observe.js rateLimitObserve()：滑动窗口 filter(now-ts<1000) 且 limit=1，无容差",
+      "impact": "AI 客户端需按 ≥1.1~1.25s 间隔轮询；按 1.0s 会偶发 429（无数据返回）"
+    }
+  ],
+  "verifiedOk": [
+    "三档 READY.pushTier 与自身档位一致；自身档位优先于全局默认档；后台热改档即时生效",
+    "eco 档零位置流（6s/15s 均 0 条），CHAT 仍可达（设计如此）",
+    "CHAT 30m 投递正确：近距真人→Agent、Agent→近距真人、Agent↔Agent 互聊均可；150m 外不投递",
+    "Agent 互见：observe.entities 含另外两个 Agent（type=agent）",
+    "follow 三档均收敛（末段 1.58~2.4m ≈ stopDistance=2），目标停止后停在 3m 内",
+    "walk_to 到达回执 reason=arrived + 位置误差 0.00m；被新指令打断 reason=superseded",
+    "真人端 Agent 位置广播实测 8.8Hz（服务端 10Hz 推进，正常损耗）",
+    "断线重连：档位保持 realtime，READY.spawn 继承断开前位置（1.2m 误差，缺陷 J 未回归）",
+    "90 秒长会话稳定：三档连接均未断、推送持续",
+    "第 1 档游客（guest-pull）红线全守：pushTier 强制 eco、SUBSCRIBE → GUEST_PUSH_FORBIDDEN、observe radius 钳 30、8s 内零主动推送",
+    "真人端观感：3 个 Agent 全部出现（players 4）、名字带 🤖、系统消息 (AI)加入了、模型 7 个子节点可见、下线后 avatar 正确移除",
+    "真人端 Agent say 同时出现在聊天区 #chatBox 与头顶气泡 .nb-bubble",
+    "真人端 Agent 行走动画正常（静止旋转变化量 0 vs 移动 1.82），贴地显示 y=1.5 合理",
+    "真人端 FPS 60（真 GPU，3 Agent 在场）、console error 0"
+  ],
+  "artifacts": {
+    "scripts": [
+      "scripts/_tmp_tier_setup.js（环境准备，含管理员登录与建 Agent）",
+      "scripts/accept_agent_tier_r1.js",
+      "scripts/accept_agent_tier_r2a.js",
+      "scripts/accept_agent_tier_r3_playwright.js",
+      "scripts/accept_agent_tier_r4a.js",
+      "scripts/accept_agent_tier_r4b.js",
+      "scripts/accept_agent_tier_r5_client.js",
+      "scripts/agent_tier_demo.js（驻场演示，供用户自己进世界观察）"
+    ],
+    "reports": [
+      "examples/agent-client/live/tier-r1.json",
+      "examples/agent-client/live/tier-r2a.json",
+      "examples/agent-client/live/tier-r3.json",
+      "examples/agent-client/live/tier-r4a.json",
+      "examples/agent-client/live/tier-r4b.json",
+      "examples/agent-client/live/tier-r5.json"
+    ],
+    "screenshots": [
+      "Screenshot/_tmp_tier_r3_agents_idle.png",
+      "Screenshot/_tmp_tier_r3_moving.png"
+    ]
+  },
+  "howToWatchYourself": {
+    "step1": "node scripts/_tmp_tier_setup.js（若测试 Agent 已存在可跳过）",
+    "step2": "node scripts/agent_tier_demo.js（三个 Agent 驻场：每 8s 跟随最近的真人，每 20s 轮流说话）",
+    "step3": "浏览器打开 http://localhost:3002 进世界观察；Stop：Ctrl+C"
+  },
+  "notCovered": [
+    "Agent 间语音中继（agent_voice_relay 当前 false）",
+    ">30 分钟连续会话的推流稳定性（本轮只做 90s）",
+    "100 Agent 级压测（本轮 3 Agent + 31 真人连接）",
+    "真机手机端浏览器观感"
+  ]
+}

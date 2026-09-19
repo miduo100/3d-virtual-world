@@ -1,0 +1,206 @@
+{
+  "generatedAt": "2026-09-19T05:19:17.221Z",
+  "summary": {
+    "pass": 7,
+    "fail": 0,
+    "total": 7,
+    "rows": [
+      {
+        "name": "AA 换票成功",
+        "ok": true,
+        "detail": "ok"
+      },
+      {
+        "name": "AA 间隔 1000ms",
+        "info": true,
+        "detail": "10/10 成功，429=0"
+      },
+      {
+        "name": "AA 间隔 1100ms",
+        "info": true,
+        "detail": "10/10 成功，429=0"
+      },
+      {
+        "name": "AA 间隔 1250ms",
+        "info": true,
+        "detail": "10/10 成功，429=0"
+      },
+      {
+        "name": "AA 间隔 1500ms",
+        "info": true,
+        "detail": "10/10 成功，429=0"
+      },
+      {
+        "name": "AA 间隔 1250ms 无 429（安全轮询间隔）",
+        "ok": true,
+        "detail": {
+          "ok": 10,
+          "e429": 0,
+          "ratio429": 0
+        }
+      },
+      {
+        "name": "AA 间隔 1500ms 无 429",
+        "ok": true,
+        "detail": {
+          "ok": 10,
+          "e429": 0,
+          "ratio429": 0
+        }
+      },
+      {
+        "name": "BB 真人端 Agent 骨骼/节点旋转变化量",
+        "info": true,
+        "detail": {
+          "静止": {
+            "nodes": 20,
+            "sum": 0
+          },
+          "移动": {
+            "nodes": 20,
+            "sum": 0.4099
+          }
+        }
+      },
+      {
+        "name": "BB Agent 静止时不乱动（变化量 < 移动中）",
+        "ok": true,
+        "detail": {
+          "idle": 0,
+          "walk": 0.4099
+        }
+      },
+      {
+        "name": "CC 真人端显示 y 峰值",
+        "info": true,
+        "detail": "2.5120000000000005（Δ1.012m，采样 20）"
+      },
+      {
+        "name": "CC 服务器权威 y 峰值（观察者收到的广播）",
+        "info": true,
+        "detail": "1.02（样本 10）"
+      },
+      {
+        "name": "CC 服务器确实产生垂直位移（权威 y > 0.2m）",
+        "ok": true,
+        "detail": {
+          "serverYMax": 1.02,
+          "series": [
+            0.4,
+            0.702,
+            0.906,
+            1.012,
+            1.02,
+            0.93,
+            0.742,
+            0.456,
+            0.072,
+            0
+          ]
+        }
+      },
+      {
+        "name": "CC 跳跃在真人端可见（显示 y 上升 >0.2m）",
+        "ok": true,
+        "detail": {
+          "yBefore": 1.5,
+          "clientYMax": 2.5120000000000005,
+          "clientDelta": 1.012,
+          "serverYMax": 1.02,
+          "serverYSamples": 10,
+          "serverYSeries": [
+            0.4,
+            0.702,
+            0.906,
+            1.012,
+            1.02,
+            0.93,
+            0.742,
+            0.456,
+            0.072,
+            0
+          ],
+          "ack": {
+            "requestId": "ffe48f72-33d4-49fd-be1e-9810d0e8cba0",
+            "reason": "arrived",
+            "position": {
+              "x": -21.304082348225258,
+              "y": 0,
+              "z": 17.546967695303856,
+              "yaw": 0
+            }
+          }
+        }
+      },
+      {
+        "name": "CC console error = 0",
+        "ok": true,
+        "detail": []
+      }
+    ]
+  },
+  "data": {
+    "rateLimit": {
+      "1000": {
+        "ok": 10,
+        "e429": 0,
+        "ratio429": 0
+      },
+      "1100": {
+        "ok": 10,
+        "e429": 0,
+        "ratio429": 0
+      },
+      "1250": {
+        "ok": 10,
+        "e429": 0,
+        "ratio429": 0
+      },
+      "1500": {
+        "ok": 10,
+        "e429": 0,
+        "ratio429": 0
+      }
+    },
+    "anim": {
+      "idle": {
+        "nodes": 20,
+        "sum": 0
+      },
+      "walking": {
+        "nodes": 20,
+        "sum": 0.4099
+      }
+    },
+    "jump": {
+      "yBefore": 1.5,
+      "clientYMax": 2.5120000000000005,
+      "clientDelta": 1.012,
+      "serverYMax": 1.02,
+      "serverYSamples": 10,
+      "serverYSeries": [
+        0.4,
+        0.702,
+        0.906,
+        1.012,
+        1.02,
+        0.93,
+        0.742,
+        0.456,
+        0.072,
+        0
+      ],
+      "ack": {
+        "requestId": "ffe48f72-33d4-49fd-be1e-9810d0e8cba0",
+        "reason": "arrived",
+        "position": {
+          "x": -21.304082348225258,
+          "y": 0,
+          "z": 17.546967695303856,
+          "yaw": 0
+        }
+      }
+    }
+  },
+  "issues": []
+}

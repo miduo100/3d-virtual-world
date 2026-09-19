@@ -142,13 +142,14 @@ function findByCharacterId(characterId) {
 /**
  * 更新 Agent 位置（POSITION_UPDATE 推进时调用，复用人类侧广播）
  */
-function updatePosition(connectionId, position, animMode, rotation) {
+function updatePosition(connectionId, position, animMode, rotation, baseY) {
   const playerPositions = wsServer.getPlayerPositions();
   const p = playerPositions.get(connectionId);
   if (!p) return;
   p.position = position;
   if (animMode !== undefined) p.animMode = animMode;
   if (rotation !== undefined) p.rotation = rotation;
+  if (Number.isFinite(baseY)) p.baseY = baseY;   // T2：地面基准（跳跃偏移 = position.y - baseY）
   p.lastUpdate = new Date();
 
   // 前端协议：rotation 必须是数字（world.js 直接 group.rotation.y = rotation）。
@@ -166,7 +167,10 @@ function updatePosition(connectionId, position, animMode, rotation) {
       characterId: p.characterId,
       position,
       animMode: animMode || null,
-      rotation: rotOut
+      rotation: rotOut,
+      // T2：地面基准。客户端用 (position.y - baseY) 恢复"服务器算出的垂直偏移"（跳跃/未来飞行），
+      // 同时继续用本地地形高度做贴地修正；字段缺失时客户端按旧行为处理（向后兼容）。
+      baseY: Number.isFinite(p.baseY) ? p.baseY : null
     }
   });
 }

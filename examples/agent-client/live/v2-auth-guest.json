@@ -1,0 +1,1583 @@
+{
+  "when": "2026-09-19T05:32:38.872Z",
+  "run": 78,
+  "ips": {
+    "owner": "203.0.113.78",
+    "auth": "203.0.113.108",
+    "main": "203.0.113.118",
+    "c18": "203.0.113.198",
+    "owner2": "203.0.113.178",
+    "rate": "198.51.100.78",
+    "fresh": "203.0.113.128",
+    "fresh2": "203.0.113.228",
+    "xObserver": "203.0.113.148",
+    "xAttempts": [
+      "203.0.113.138",
+      "203.0.113.139",
+      "203.0.113.140"
+    ]
+  },
+  "groups": {
+    "A": {
+      "wk": {
+        "success": true,
+        "protocolVersion": "v1",
+        "agentEnabled": true,
+        "world": {
+          "id": "world_1770800924268_ptbh0p39m",
+          "name": "米多100的3002",
+          "url": "http://localhost:3002"
+        },
+        "endpoints": {
+          "apiBase": "http://localhost:3002/api/agent/v1",
+          "websocket": "ws://localhost:3002/ws/agent",
+          "capabilities": "http://localhost:3002/api/agent/v1/capabilities",
+          "openapi": "http://localhost:3002/api/agent/v1/openapi.json",
+          "federationInfo": "http://localhost:3002/api/agent/federation/info",
+          "federationTeleportAccept": "http://localhost:3002/api/agent/federation/teleport/accept"
+        },
+        "auth": {
+          "apiKeyHeader": "Authorization: Bearer agk_live_...",
+          "agentJwtHeader": "Authorization: Bearer <jwt>",
+          "sessionEndpoint": "/api/agent/v1/session",
+          "sessionTtlSeconds": 900,
+          "guestSessionEndpoint": "/api/agent/v1/guest/session",
+          "guestSessionTtlSeconds": 1800
+        },
+        "tiers": {
+          "default": "guest-pull",
+          "options": [
+            "guest-pull",
+            "key-push"
+          ],
+          "guest-pull": {
+            "tier": "guest-pull",
+            "mode": "pull",
+            "pushAllowed": false,
+            "observeMaxRadius": 30,
+            "maxConnectionsPerIp": 1,
+            "actionRates": {
+              "observe": [
+                1,
+                2000
+              ],
+              "say": [
+                1,
+                5000
+              ],
+              "move": [
+                1,
+                2000
+              ],
+              "walk_to": [
+                1,
+                2000
+              ],
+              "follow": [
+                1,
+                2000
+              ],
+              "rotate": [
+                1,
+                2000
+              ],
+              "jump": [
+                1,
+                2000
+              ],
+              "interact": [
+                1,
+                2000
+              ]
+            },
+            "upgradeHint": "需要实时推流 / 更大观察半径 / 跨世界联邦，请联系管理员申请 API Key 转正"
+          },
+          "key-push": {
+            "tier": "key-push",
+            "mode": "push",
+            "pushAllowed": true,
+            "observeMaxRadius": 200,
+            "maxConnectionsPerIp": null,
+            "actionRates": null,
+            "upgradeHint": null
+          }
+        },
+        "scopes": {
+          "allowed": [
+            "observe",
+            "move",
+            "rotate",
+            "jump",
+            "say",
+            "interact"
+          ],
+          "forbidden": [
+            "teleport",
+            "set_position",
+            "inventory",
+            "profile",
+            "shop"
+          ]
+        },
+        "actions": [
+          "move",
+          "walk_to",
+          "follow",
+          "rotate",
+          "jump",
+          "say",
+          "interact"
+        ],
+        "pushTiers": {
+          "default": "eco",
+          "options": [
+            "eco",
+            "standard",
+            "realtime"
+          ]
+        },
+        "limits": {
+          "observeRadiusMax": 200,
+          "observeRadiusMaxGuest": 30,
+          "observeRateLimitPerSecond": 1,
+          "guestObserveIntervalSeconds": 2,
+          "sayMaxLength": 200,
+          "interactMaxDistance": 5,
+          "movementSpeed": 12,
+          "worldBoundary": 1000,
+          "followStopDistanceDefault": 2,
+          "followMaxDurationMs": 600000,
+          "maxAgents": 50,
+          "maxConnectionsPerAgent": 1
+        },
+        "entityIdentity": {
+          "uniqueIdField": "id",
+          "aliases": [
+            "characterId"
+          ],
+          "nameIsDisplayOnly": true,
+          "chatSenderIdEqualsEntityId": true,
+          "chatIdFields": [
+            "characterId",
+            "senderId"
+          ],
+          "chatSenderNameField": "sender",
+          "duplicateConnectionsDeduped": true,
+          "dedupeRule": "同一 characterId 有多条连接时，entities 只返回一条（优先带 animMode/最新位置）",
+          "note": "entities[].id === characterId 是唯一标识；name 仅供显示（同名是常态）。标准用法：收到 CHAT 先取 characterId/senderId，再在 entities 里按 id 定位说话者。"
+        }
+      },
+      "cap": {
+        "success": true,
+        "protocolVersion": "v1",
+        "agentEnabled": true,
+        "endpoints": {
+          "session": "http://localhost:3002/api/agent/v1/session",
+          "me": "http://localhost:3002/api/agent/v1/me",
+          "revoke": "http://localhost:3002/api/agent/v1/session/revoke",
+          "observe": "http://localhost:3002/api/agent/v1/observe",
+          "action": "http://localhost:3002/api/agent/v1/action",
+          "chatHistory": "http://localhost:3002/api/agent/v1/chat/history",
+          "capabilities": "http://localhost:3002/api/agent/v1/capabilities",
+          "openapi": "http://localhost:3002/api/agent/v1/openapi.json",
+          "federationWorlds": "http://localhost:3002/api/agent/v1/federation/worlds",
+          "federationStatus": "http://localhost:3002/api/agent/v1/federation/status",
+          "federationTeleportPrepare": "http://localhost:3002/api/agent/v1/federation/teleport/prepare",
+          "federationInfo": "http://localhost:3002/api/agent/federation/info",
+          "federationAccept": "http://localhost:3002/api/agent/federation/teleport/accept",
+          "websocket": "ws://localhost:3002/ws/agent",
+          "wellKnown": "http://localhost:3002/.well-known/virtual-world-agent.json",
+          "guestSession": "http://localhost:3002/api/agent/v1/guest/session"
+        },
+        "tiers": {
+          "default": "guest-pull",
+          "options": [
+            "guest-pull",
+            "key-push"
+          ],
+          "guest-pull": {
+            "tier": "guest-pull",
+            "mode": "pull",
+            "pushAllowed": false,
+            "observeMaxRadius": 30,
+            "maxConnectionsPerIp": 1,
+            "actionRates": {
+              "observe": [
+                1,
+                2000
+              ],
+              "say": [
+                1,
+                5000
+              ],
+              "move": [
+                1,
+                2000
+              ],
+              "walk_to": [
+                1,
+                2000
+              ],
+              "follow": [
+                1,
+                2000
+              ],
+              "rotate": [
+                1,
+                2000
+              ],
+              "jump": [
+                1,
+                2000
+              ],
+              "interact": [
+                1,
+                2000
+              ]
+            },
+            "upgradeHint": "需要实时推流 / 更大观察半径 / 跨世界联邦，请联系管理员申请 API Key 转正"
+          },
+          "key-push": {
+            "tier": "key-push",
+            "mode": "push",
+            "pushAllowed": true,
+            "observeMaxRadius": 200,
+            "maxConnectionsPerIp": null,
+            "actionRates": null,
+            "upgradeHint": null
+          }
+        },
+        "scopes": {
+          "allowed": [
+            "observe",
+            "move",
+            "rotate",
+            "jump",
+            "say",
+            "interact"
+          ],
+          "forbidden": [
+            "teleport",
+            "set_position",
+            "inventory",
+            "profile",
+            "shop"
+          ]
+        },
+        "actions": [
+          "move",
+          "walk_to",
+          "follow",
+          "rotate",
+          "jump",
+          "say",
+          "interact"
+        ],
+        "pushTiers": {
+          "default": "eco",
+          "options": [
+            "eco",
+            "standard",
+            "realtime"
+          ]
+        },
+        "limits": {
+          "observeRadiusMax": 200,
+          "observeRadiusMaxGuest": 30,
+          "observeRateLimitPerSecond": 1,
+          "guestObserveIntervalSeconds": 2,
+          "sayMaxLength": 200,
+          "interactMaxDistance": 5,
+          "movementSpeed": 12,
+          "worldBoundary": 1000,
+          "followStopDistanceDefault": 2,
+          "followMaxDurationMs": 600000,
+          "maxAgents": 50,
+          "maxConnectionsPerAgent": 1
+        },
+        "entityIdentity": {
+          "uniqueIdField": "id",
+          "aliases": [
+            "characterId"
+          ],
+          "nameIsDisplayOnly": true,
+          "chatSenderIdEqualsEntityId": true,
+          "chatIdFields": [
+            "characterId",
+            "senderId"
+          ],
+          "chatSenderNameField": "sender",
+          "duplicateConnectionsDeduped": true,
+          "dedupeRule": "同一 characterId 有多条连接时，entities 只返回一条（优先带 animMode/最新位置）",
+          "note": "entities[].id === characterId 是唯一标识；name 仅供显示（同名是常态）。标准用法：收到 CHAT 先取 characterId/senderId，再在 entities 里按 id 定位说话者。"
+        },
+        "session": {
+          "ttlSeconds": 900,
+          "tokenType": "Bearer"
+        },
+        "websocket": {
+          "path": "/ws/agent",
+          "authMode": "Bearer in HTTP Authorization header at upgrade",
+          "inboundMessages": [
+            "SUBSCRIBE",
+            "UNSUBSCRIBE",
+            "PING",
+            "ACTION"
+          ],
+          "outboundMessages": [
+            "READY",
+            "WORLD_SNAPSHOT",
+            "ENTITY_ADDED",
+            "ENTITY_UPDATED",
+            "ENTITY_REMOVED",
+            "ENTITY_MOVEMENT_BATCH",
+            "CHAT",
+            "VOICE_MESSAGE",
+            "ACTION_ACCEPTED",
+            "ACTION_COMPLETED",
+            "ACTION_REJECTED",
+            "PONG",
+            "ERROR"
+          ]
+        }
+      },
+      "oa": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "Virtual World Agent API",
+          "version": "v1",
+          "description": "HTTP API for AI Agents to enter the virtual world. WebSocket is the primary channel for real-time events/actions; HTTP endpoints cover session, observation, and federation teleport handoff.",
+          "contact": {
+            "name": "Virtual World",
+            "url": "http://localhost:3002"
+          }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002/api/agent/v1",
+            "description": "Agent API v1"
+          }
+        ],
+        "components": {
+          "securitySchemes": {
+            "AgentApiKey": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Use API Key (format: `Bearer agk_live_<64-hex>`) only for POST /session."
+            },
+            "AgentJwt": {
+              "type": "http",
+              "scheme": "bearer",
+              "bearerFormat": "JWT",
+              "description": "Agent JWT (15min TTL). Obtained from POST /session."
+            },
+            "HandoffToken": {
+              "type": "http",
+              "scheme": "bearer",
+              "bearerFormat": "JWT",
+              "description": "RS256 handoff token issued by source world via POST /federation/teleport/prepare. Used only at target world POST /api/agent/federation/teleport/accept."
+            }
+          },
+          "schemas": {
+            "Error": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "type": "boolean",
+                  "example": false
+                },
+                "error": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "error",
+                "code"
+              ]
+            }
+          }
+        },
+        "tags": [
+          {
+            "name": "session",
+            "description": "API Key → Agent JWT"
+          },
+          {
+            "name": "guest",
+            "description": "P8: public temporary ticket (pull mode, no API Key)"
+          },
+          {
+            "name": "observe",
+            "description": "Spatial radar"
+          },
+          {
+            "name": "chat",
+            "description": "Chat history"
+          },
+          {
+            "name": "action",
+            "description": "HTTP action fallback (use WS for primary)"
+          },
+          {
+            "name": "federation",
+            "description": "Cross-world teleport"
+          },
+          {
+            "name": "meta",
+            "description": "Capabilities / OpenAPI / well-known"
+          }
+        ],
+        "paths": {
+          "/guest/session": {
+            "post": {
+              "tags": [
+                "guest"
+              ],
+              "summary": "Issue a public temporary Agent ticket (no API Key required)",
+              "description": "P8 pull mode: request-response only. No push stream (SUBSCRIBE rejected), observe radius clamped to 30m, actions rate-limited. Rate-limited: 10/hour per IP.",
+              "requestBody": {
+                "required": false,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {}
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "Guest ticket issued",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean"
+                          },
+                          "token": {
+                            "type": "string"
+                          },
+                          "tokenType": {
+                            "type": "string",
+                            "example": "Bearer"
+                          },
+                          "tier": {
+                            "type": "string",
+                            "example": "guest-pull"
+                          },
+                          "mode": {
+                            "type": "string",
+                            "example": "pull"
+                          },
+                          "expiresIn": {
+                            "type": "integer",
+                            "example": 1800
+                          },
+                          "expiresAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "agent": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "scopes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "429": {
+                  "description": "Ticket rate limited",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Error"
+                      }
+                    }
+                  }
+                },
+                "503": {
+                  "description": "Agent access disabled or secret missing",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Error"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/session": {
+            "post": {
+              "tags": [
+                "session"
+              ],
+              "summary": "Exchange API Key for short-lived Agent JWT",
+              "description": "Rate-limited: 10/min per IP. Refused when agent_enabled=false.",
+              "security": [
+                {
+                  "AgentApiKey": []
+                }
+              ],
+              "requestBody": {
+                "required": false,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {}
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "JWT issued",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean"
+                          },
+                          "token": {
+                            "type": "string"
+                          },
+                          "tokenType": {
+                            "type": "string",
+                            "example": "Bearer"
+                          },
+                          "expiresIn": {
+                            "type": "integer",
+                            "example": 900
+                          },
+                          "expiresAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "agent": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "scopes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "401": {
+                  "description": "Invalid API Key",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Error"
+                      }
+                    }
+                  }
+                },
+                "429": {
+                  "description": "Rate limited",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Error"
+                      }
+                    }
+                  }
+                },
+                "503": {
+                  "description": "Agent disabled globally (agent_enabled=false)",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Error"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/me": {
+            "get": {
+              "tags": [
+                "session"
+              ],
+              "summary": "Current Agent info + avatar + scope",
+              "security": [
+                {
+                  "AgentJwt": []
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "OK"
+                },
+                "401": {
+                  "description": "Token missing/invalid",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Error"
+                      }
+                    }
+                  }
+                },
+                "403": {
+                  "description": "Session expired/revoked or agent disabled",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Error"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/session/revoke": {
+            "post": {
+              "tags": [
+                "session"
+              ],
+              "summary": "Revoke the current Agent session",
+              "security": [
+                {
+                  "AgentJwt": []
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Revoked"
+                },
+                "403": {
+                  "description": "Invalid session"
+                }
+              }
+            }
+          },
+          "/observe": {
+            "get": {
+              "tags": [
+                "observe"
+              ],
+              "summary": "Spatial radar: nearby entities / objects / portals",
+              "description": "self.position is the **live** position of the calling Agent (falls back to the session position when it has no live WS connection); every distance is measured from it. Rate-limited: `agent_observe_rate_key` (default 1/s) for Key tier, 1 per 2s for guest tier. Radius hard cap: 200m for Key, 30m for guest. Entity identity: `entities[].id` (=== characterId) is the ONLY identifier, `name` is display-only (duplicates by name are normal); `chat.characterId` / `chat/history.senderId` share the same namespace — see `x-entity-identity`.",
+              "security": [
+                {
+                  "AgentJwt": []
+                }
+              ],
+              "parameters": [
+                {
+                  "name": "radius",
+                  "in": "query",
+                  "schema": {
+                    "type": "number",
+                    "maximum": 200
+                  },
+                  "description": "Search radius in meters (≤200)"
+                },
+                {
+                  "name": "limit",
+                  "in": "query",
+                  "schema": {
+                    "type": "integer"
+                  },
+                  "description": "Max items per section"
+                },
+                {
+                  "name": "include",
+                  "in": "query",
+                  "schema": {
+                    "type": "string"
+                  },
+                  "description": "Comma-separated world_objects.type filter (e.g. uploaded_model,geometry_building,media_image). Omit to return all types. NOTE: filters object types, not response sections — sections are always returned."
+                },
+                {
+                  "name": "x",
+                  "in": "query",
+                  "schema": {
+                    "type": "number"
+                  },
+                  "description": "Override observer x (defaults to current position)"
+                },
+                {
+                  "name": "y",
+                  "in": "query",
+                  "schema": {
+                    "type": "number"
+                  }
+                },
+                {
+                  "name": "z",
+                  "in": "query",
+                  "schema": {
+                    "type": "number"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "OK"
+                },
+                "403": {
+                  "description": "SCOPE_DENIED (missing observe scope) or rate-limited",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Error"
+                      }
+                    }
+                  }
+                },
+                "429": {
+                  "description": "Observe rate limit (1Hz)"
+                }
+              }
+            }
+          },
+          "/chat/history": {
+            "get": {
+              "tags": [
+                "chat"
+              ],
+              "summary": "Recent chat messages (for AI reconnect context)",
+              "security": [
+                {
+                  "AgentJwt": []
+                }
+              ],
+              "parameters": [
+                {
+                  "name": "limit",
+                  "in": "query",
+                  "schema": {
+                    "type": "integer",
+                    "default": 20
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          },
+          "/action": {
+            "post": {
+              "tags": [
+                "action"
+              ],
+              "summary": "HTTP fallback entry (limited; primary is WS ACTION)",
+              "description": "Returns 501 WS_REQUIRED for all actions. Use WebSocket /ws/agent ACTION message instead.",
+              "security": [
+                {
+                  "AgentJwt": []
+                }
+              ],
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "action": {
+                          "type": "string",
+                          "enum": [
+                            "say",
+                            "rotate",
+                            "move",
+                            "walk_to",
+                            "follow",
+                            "jump",
+                            "interact"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "501": {
+                  "description": "WS_REQUIRED — use /ws/agent ACTION instead",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Error"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/capabilities": {
+            "get": {
+              "tags": [
+                "meta"
+              ],
+              "summary": "Machine-readable capability list (public, no auth)",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          },
+          "/openapi.json": {
+            "get": {
+              "tags": [
+                "meta"
+              ],
+              "summary": "OpenAPI 3.0 schema (public, no auth)",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          },
+          "/federation/worlds": {
+            "get": {
+              "tags": [
+                "federation"
+              ],
+              "summary": "List trusted target worlds (requires can_teleport=true to actually use)",
+              "security": [
+                {
+                  "AgentJwt": []
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          },
+          "/federation/status": {
+            "get": {
+              "tags": [
+                "federation"
+              ],
+              "summary": "Agent's own teleport permission",
+              "security": [
+                {
+                  "AgentJwt": []
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          },
+          "/federation/teleport/prepare": {
+            "post": {
+              "tags": [
+                "federation"
+              ],
+              "summary": "Initiate cross-world teleport (source world side)",
+              "description": "Requires can_teleport=true. Returns handoffToken + nextStep URL.",
+              "security": [
+                {
+                  "AgentJwt": []
+                }
+              ],
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "targetWorldId": {
+                          "type": "string"
+                        },
+                        "context": {
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "targetWorldId"
+                      ]
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "OK"
+                },
+                "403": {
+                  "description": "AGENT_TELEPORT_NOT_PERMITTED or TARGET_WORLD_NOT_TRUSTED"
+                },
+                "404": {
+                  "description": "Target world not trusted"
+                }
+              }
+            }
+          }
+        },
+        "x-websocket": {
+          "url": "ws://localhost:3002/ws/agent",
+          "authMode": "Bearer in HTTP Authorization header at upgrade time",
+          "inbound": [
+            "SUBSCRIBE",
+            "UNSUBSCRIBE",
+            "PING",
+            "ACTION"
+          ],
+          "outbound": [
+            "READY",
+            "WORLD_SNAPSHOT",
+            "ENTITY_ADDED",
+            "ENTITY_UPDATED",
+            "ENTITY_REMOVED",
+            "ENTITY_MOVEMENT_BATCH",
+            "CHAT",
+            "VOICE_MESSAGE",
+            "ACTION_ACCEPTED",
+            "ACTION_COMPLETED",
+            "ACTION_REJECTED",
+            "PONG",
+            "ERROR"
+          ],
+          "actions": [
+            "move",
+            "walk_to",
+            "follow",
+            "rotate",
+            "jump",
+            "say",
+            "interact"
+          ]
+        },
+        "x-entity-identity": {
+          "uniqueIdField": "id",
+          "aliases": [
+            "characterId"
+          ],
+          "nameIsDisplayOnly": true,
+          "chatSenderIdEqualsEntityId": true,
+          "chatIdFields": [
+            "characterId",
+            "senderId"
+          ],
+          "chatSenderNameField": "sender",
+          "duplicateConnectionsDeduped": true,
+          "dedupeRule": "同一 characterId 有多条连接时，entities 只返回一条（优先带 animMode/最新位置）",
+          "note": "entities[].id === characterId 是唯一标识；name 仅供显示（同名是常态）。标准用法：收到 CHAT 先取 characterId/senderId，再在 entities 里按 id 定位说话者。"
+        },
+        "x-agent-enabled": true
+      }
+    },
+    "B": {
+      "agentId": "agent:guest:c28c061a-538b-4d5e-b114-3fac8bbc9d4c",
+      "name": "游客AI-22e4514a"
+    },
+    "C": {
+      "connected": true
+    },
+    "D": {
+      "radius": 30
+    },
+    "G": {
+      "rows": 30
+    },
+    "F": {
+      "freshTicket": true
+    },
+    "X": {
+      "results": [
+        {
+          "attempt": 1,
+          "ip": "203.0.113.138",
+          "agentId": "agent:guest:bfd344b5-086b-4778-b0e2-c86ef0c81331",
+          "ghost": false,
+          "slotLeak": false
+        },
+        {
+          "attempt": 2,
+          "ip": "203.0.113.139",
+          "agentId": "agent:guest:b9fd989d-f8fc-4df2-8005-c480c695d17b",
+          "ghost": false,
+          "slotLeak": false
+        },
+        {
+          "attempt": 3,
+          "ip": "203.0.113.140",
+          "agentId": "agent:guest:8ac87346-9bc8-43ba-b1ac-d079536ce188",
+          "ghost": false,
+          "slotLeak": false
+        }
+      ],
+      "ghosts": 0,
+      "leaks": 0
+    }
+  },
+  "fatal": null,
+  "result": {
+    "pass": 75,
+    "fail": 0,
+    "total": 75
+  },
+  "rows": [
+    {
+      "name": "A1 well-known 公开 200",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "A2 capabilities 公开 200",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "A3 openapi.json 公开 200",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "A4 well-known.agentEnabled=true（联测期）",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "name": "A5 tiers.default=guest-pull",
+      "ok": true,
+      "detail": "guest-pull"
+    },
+    {
+      "name": "A6 limits.observeRadiusMaxGuest=30（红线 15）",
+      "ok": true,
+      "detail": 30
+    },
+    {
+      "name": "A7 entityIdentity 三处同源同形（F/H 契约）",
+      "ok": true,
+      "detail": {
+        "wk": true,
+        "cap": true,
+        "openapi": true
+      }
+    },
+    {
+      "name": "A8 uniqueIdField=id",
+      "ok": true,
+      "detail": "id"
+    },
+    {
+      "name": "A9 capabilities 与 well-known limits 同源（H 修复）",
+      "ok": true,
+      "detail": {
+        "cap": true,
+        "wk": true
+      }
+    },
+    {
+      "name": "A10 openapi 含 /guest/session（P8）",
+      "ok": true,
+      "detail": "12 paths"
+    },
+    {
+      "name": "A11 capabilities 不泄漏密钥类字段",
+      "ok": true,
+      "detail": "无 apiKey/secret 字样"
+    },
+    {
+      "name": "B1 无鉴权头签票 200",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "B2 tier=guest-pull / mode=pull",
+      "ok": true,
+      "detail": {
+        "tier": "guest-pull",
+        "mode": "pull"
+      }
+    },
+    {
+      "name": "B3 expiresIn=1800（30min）",
+      "ok": true,
+      "detail": 1800
+    },
+    {
+      "name": "B4 agent.id 形如 agent:guest:<uuid>",
+      "ok": true,
+      "detail": "agent:guest:c28c061a-538b-4d5e-b114-3fac8bbc9d4c"
+    },
+    {
+      "name": "B5 agent.name 以 游客AI- 开头",
+      "ok": true,
+      "detail": "游客AI-22e4514a"
+    },
+    {
+      "name": "B6 tierInfo.pushAllowed=false（红线 14）",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "name": "B7 tierInfo.observeMaxRadius=30",
+      "ok": true,
+      "detail": 30
+    },
+    {
+      "name": "B8 scopes 为游客级白名单且无 teleport",
+      "ok": true,
+      "detail": [
+        "observe",
+        "move",
+        "rotate",
+        "jump",
+        "say",
+        "interact"
+      ]
+    },
+    {
+      "name": "B9 响应不包含 API Key 明文",
+      "ok": true,
+      "detail": "无 agk_live_ 字样"
+    },
+    {
+      "name": "B10 ticketRemaining 为数字（限流窗口可见）",
+      "ok": true,
+      "detail": 9
+    },
+    {
+      "name": "C1 无 token 连 /ws/agent → 401",
+      "ok": true,
+      "detail": 401
+    },
+    {
+      "name": "C2 伪造 token → 401",
+      "ok": true,
+      "detail": 401
+    },
+    {
+      "name": "C3 签名错误（格式合法）→ 401",
+      "ok": true,
+      "detail": 401
+    },
+    {
+      "name": "C4 过期 token → 403（TOKEN_EXPIRED）",
+      "ok": true,
+      "detail": 403
+    },
+    {
+      "name": "C5 未过期但 jti 无会话（第二道门）被拒",
+      "ok": true,
+      "detail": {
+        "wsStatus": 401,
+        "auditCode": "SESSION_NOT_FOUND（见 audit.log）"
+      }
+    },
+    {
+      "name": "C5b 观察项：同一\"会话不存在\"在 WS 升级返回 401、HTTP 返回 403（口径不一致）",
+      "info": true,
+      "detail": {
+        "ws": 401,
+        "http": 403
+      }
+    },
+    {
+      "name": "C6 principalType≠agent → 401（不与用户 JWT 混用）",
+      "ok": true,
+      "detail": 401
+    },
+    {
+      "name": "C7 有效游客票（Authorization 头，主路径）可进场",
+      "ok": true,
+      "detail": "upgraded"
+    },
+    {
+      "name": "C7b 游客票走查询参数（?token= 降级路径）可进场",
+      "ok": true,
+      "detail": "upgraded"
+    },
+    {
+      "name": "C8 READY.pushTier=eco（红线 14）",
+      "ok": true,
+      "detail": "eco"
+    },
+    {
+      "name": "C9 READY.tier=guest-pull",
+      "ok": true,
+      "detail": "guest-pull"
+    },
+    {
+      "name": "C10 READY 带 tierInfo.pushAllowed=false",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "name": "C11 READY 后立刻收到 WORLD_SNAPSHOT",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "C12 WORLD_SNAPSHOT.self.id = 本 Agent",
+      "ok": true,
+      "detail": "agent:guest:c28c061a-538b-4d5e-b114-3fac8bbc9d4c"
+    },
+    {
+      "name": "C14 游客 SUBSCRIBE → GUEST_PUSH_FORBIDDEN",
+      "ok": true,
+      "detail": "GUEST_PUSH_FORBIDDEN"
+    },
+    {
+      "name": "C15 PING → PONG",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "C16 同 IP 第 2 条连接 → GUEST_IP_CONCURRENCY + close 1013",
+      "ok": true,
+      "detail": {
+        "code": "GUEST_IP_CONCURRENCY",
+        "closeCode": 1013
+      }
+    },
+    {
+      "name": "C17 不同真实 IP 的游客可同时在线（per-IP 并发隔离）",
+      "ok": true,
+      "detail": "both online"
+    },
+    {
+      "name": "C17b 正常关闭后同 IP 应立即释放名额（可重连）",
+      "ok": true,
+      "detail": {
+        "reopen": true,
+        "名额卡死": false
+      }
+    },
+    {
+      "name": "C18 后台默认档=realtime 时游客 READY.pushTier 仍为 eco（红线 14 强断言）",
+      "ok": true,
+      "detail": {
+        "pushDefault": "realtime(临时)",
+        "pushTier": "eco"
+      }
+    },
+    {
+      "name": "C18b 后台默认档已恢复",
+      "info": true,
+      "detail": "eco"
+    },
+    {
+      "name": "D1 游客 observe?radius=200 → 静默钳到 30（不报错）",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "radius": 30
+      }
+    },
+    {
+      "name": "D2 响应结构完整（world/self/entities/objects/portals/timestamp/sequence）",
+      "ok": true,
+      "detail": {
+        "entities": 1,
+        "objects": 100,
+        "portals": 4
+      }
+    },
+    {
+      "name": "D3 self.id = 本 Agent（同一命名空间）",
+      "ok": true,
+      "detail": "agent:guest:c28c061a-538b-4d5e-b114-3fac8bbc9d4c"
+    },
+    {
+      "name": "D4 tier 字段回显 guest-pull",
+      "ok": true,
+      "detail": "guest-pull"
+    },
+    {
+      "name": "D5 游客 2 秒内第 2 次 observe → 429 GUEST_OBSERVE_RATE_LIMITED",
+      "ok": true,
+      "detail": {
+        "status": 429,
+        "code": "GUEST_OBSERVE_RATE_LIMITED",
+        "retryAfter": 2
+      }
+    },
+    {
+      "name": "D6 429 带 retryAfter（秒）",
+      "ok": true,
+      "detail": 2
+    },
+    {
+      "name": "D7 observe 无 token → 401",
+      "ok": true,
+      "detail": 401
+    },
+    {
+      "name": "D8 小于上限时保留请求值（radius=10 → 10）",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "radius": 10
+      }
+    },
+    {
+      "name": "D9 非法 radius（负值）→ 回落上限 30",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "radius": 30
+      }
+    },
+    {
+      "name": "E1 游客 say → ACTION_COMPLETED",
+      "ok": true,
+      "detail": "ACTION_COMPLETED"
+    },
+    {
+      "name": "E2 5 秒内第 2 条 say → ACTION_REJECTED{rate_limited}",
+      "ok": true,
+      "detail": {
+        "type": "ACTION_REJECTED",
+        "code": "rate_limited"
+      }
+    },
+    {
+      "name": "E3 teleport → ACTION_REJECTED（红线 2）",
+      "ok": true,
+      "detail": {
+        "code": "scope_denied",
+        "reason": "动作 teleport 不在 Agent 权限集中"
+      }
+    },
+    {
+      "name": "E4 set_position → ACTION_REJECTED（红线 10）",
+      "ok": true,
+      "detail": {
+        "code": "scope_denied",
+        "reason": "动作 set_position 不在 Agent 权限集中"
+      }
+    },
+    {
+      "name": "E5 move → ACTION_ACCEPTED",
+      "ok": true,
+      "detail": "ACTION_ACCEPTED"
+    },
+    {
+      "name": "E6 move 被打断补发 ACTION_COMPLETED{superseded}（契约 §5.2，v2-3 修复）",
+      "ok": true,
+      "detail": {
+        "reason": "superseded"
+      }
+    },
+    {
+      "name": "E6b walk_to 被接受",
+      "ok": true,
+      "detail": "ACTION_ACCEPTED"
+    },
+    {
+      "name": "E7 服务端限速推进生效（2.6s 内位移 > 1m）",
+      "ok": true,
+      "detail": {
+        "from": {
+          "x": 23.999999999999993,
+          "y": 0,
+          "z": 0
+        },
+        "to": {
+          "x": 29.648144691979695,
+          "y": 0,
+          "z": 28.240723459898494
+        },
+        "moved": 28.8
+      }
+    },
+    {
+      "name": "E8 interact 目标不存在 → 被拒",
+      "ok": true,
+      "detail": {
+        "code": "target_not_found",
+        "reason": "目标 00000000-0000-4000-8000-000000000000 不在附近"
+      }
+    },
+    {
+      "name": "E9 ACTION 缺 action 字段 → ACTION_REJECTED{missing_action}",
+      "ok": true,
+      "detail": "missing_action"
+    },
+    {
+      "name": "E10 follow 目标不存在 → 被拒（不静默）",
+      "ok": true,
+      "detail": {
+        "code": "target_not_found",
+        "reason": "follow 启动失败"
+      }
+    },
+    {
+      "name": "E11 观察项：连续 move 无显式停止入口（无 stop 动作；movementService.stopMove 零调用）",
+      "info": true,
+      "detail": "停止手段：walk_to 到当前坐标 / 断线 / 被其它移动指令打断"
+    },
+    {
+      "name": "G1 游客 chat/history 200",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "G2 chat/history 无 token → 401",
+      "ok": true,
+      "detail": 401
+    },
+    {
+      "name": "G3 senderId 与 entities[].id 命名空间一致性（在线者命中数）",
+      "info": true,
+      "detail": "1/30 命中（离线发送者不在快照中属正常）"
+    },
+    {
+      "name": "F1 同一 IP 前 10 张票全部 200",
+      "ok": true,
+      "detail": {
+        "issued": 10
+      }
+    },
+    {
+      "name": "F2 第 11 张 → 429 GUEST_TICKET_RATE_LIMITED",
+      "ok": true,
+      "detail": {
+        "status": 429,
+        "code": "GUEST_TICKET_RATE_LIMITED"
+      }
+    },
+    {
+      "name": "F3 429 带 retryAfter（秒，>0）",
+      "ok": true,
+      "detail": 3600
+    },
+    {
+      "name": "F4 另一 IP 不受影响 → 200（限流窗口按真实 IP 隔离）",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "X1 瞬时断开后同 IP 用新票可立刻重连（名额未被永久占用，v2-1 修复）",
+      "ok": true,
+      "detail": {
+        "泄漏次数": 0,
+        "尝试次数": 3,
+        "失败尝试": 0
+      }
+    },
+    {
+      "name": "X2 瞬时断开后不留下幽灵 AI 实体（真人会看到不动的 avatar，v2-1 修复）",
+      "ok": true,
+      "detail": {
+        "幽灵次数": 0,
+        "尝试次数": 3
+      }
+    },
+    {
+      "name": "H1 管理员可关闭 agent_enabled",
+      "ok": true,
+      "detail": 200
+    },
+    {
+      "name": "H2 关闭后 /guest/session → 503 AGENT_DISABLED_GLOBALLY",
+      "ok": true,
+      "detail": {
+        "status": 503,
+        "code": "AGENT_DISABLED_GLOBALLY"
+      }
+    },
+    {
+      "name": "H3 关闭后 /session → 503 AGENT_DISABLED_GLOBALLY",
+      "ok": true,
+      "detail": {
+        "status": 503,
+        "code": "AGENT_DISABLED_GLOBALLY"
+      }
+    },
+    {
+      "name": "H4 关闭后发现端点仍公开 200（永远可发现）",
+      "ok": true,
+      "detail": {
+        "wk": 200,
+        "cap": 200,
+        "openapi": 200
+      }
+    },
+    {
+      "name": "H5 well-known.agentEnabled 反映实时值 false",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "name": "H6 恢复 agent_enabled=true",
+      "ok": true,
+      "detail": 200
+    },
+    {
+      "name": "H7 恢复后签票 200（联测期保持开启）",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "H8 提醒",
+      "info": true,
+      "detail": "联测收尾需按红线 6 恢复 agent_enabled=false"
+    }
+  ],
+  "durationMs": 32151
+}

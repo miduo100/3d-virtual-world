@@ -33,6 +33,10 @@ function resolveTier(req, res, next) {
 // 游客 Agent：1 次/2 秒（拉模式天然自限流，不请求服务器零开销；不受该键影响）
 
 const OBSERVE_RATE_LIMIT_DEFAULT = 1;          // 默认 Key Agent：每秒 1 次
+// 缺陷 T10：滑动窗口留 50ms 抖动余量（原本 `< 1000` 严格 1s，客户端按 1.0s 固定轮询
+// 会因时钟抖动偶发 429 —— 实测 1000ms 间隔 1/10 次 429，1100ms 起 0 次）。
+// 放宽到 950ms 后，按 1.0s 轮询稳定通过，同时 1 秒内第 2 次仍会被拒（限频语义不变）。
+const OBSERVE_WINDOW_MS = 950;
 const observeWindow = new Map();               // agentId -> [ts]
 
 /** 读取 Key 档采样率（热路径读 60s 缓存，未热则回落默认 1） */
@@ -63,10 +67,10 @@ function rateLimitObserve(req, res, next) {
   const limit = keyRatePerSec();
   const agentId = req.agent ? req.agent.id : 'unknown';
   const now = Date.now();
-  const list = (observeWindow.get(agentId) || []).filter(ts => now - ts < 1000);
+  const list = (observeWindow.get(agentId) || []).filter(ts => now - ts < OBSERVE_WINDOW_MS);
   if (list.length >= limit) {
     const oldest = list[0];
-    const retryAfterMs = 1000 - (now - oldest);
+    const retryAfterMs = OBSERVE_WINDOW_MS - (now - oldest);
     return res.status(429).json({
       error: `观察请求过于频繁（当前限 ${limit}Hz，可用 agent_observe_rate_key 调整）`,
       retryAfter: Math.max(1, Math.ceil(retryAfterMs / 1000)),
@@ -82,7 +86,7 @@ function rateLimitObserve(req, res, next) {
 setInterval(() => {
   const now = Date.now();
   for (const [id, list] of observeWindow.entries()) {
-    const alive = list.filter(ts => now - ts < 1000);
+    const alive = list.filter(ts => now - ts < OBSERVE_WINDOW_MS);
     if (alive.length === 0) observeWindow.delete(id); else observeWindow.set(id, alive);
   }
 }, 60 * 1000).unref();

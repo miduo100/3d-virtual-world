@@ -1,0 +1,406 @@
+{
+  "generatedAt": "2026-09-19T05:22:26.838Z",
+  "summary": {
+    "pass": 20,
+    "fail": 0,
+    "total": 20,
+    "rows": [
+      {
+        "name": "[eco] 上线",
+        "ok": true,
+        "detail": "eco"
+      },
+      {
+        "name": "[standard] 上线",
+        "ok": true,
+        "detail": "standard"
+      },
+      {
+        "name": "[realtime] 上线",
+        "ok": true,
+        "detail": "realtime"
+      },
+      {
+        "name": "A1 断开前位置",
+        "info": true,
+        "detail": {
+          "x": 29.953810596162388,
+          "y": 0,
+          "z": 19.969207064108257
+        }
+      },
+      {
+        "name": "A1 重连后档位保持 realtime（自身档位生效）",
+        "ok": true,
+        "detail": {
+          "spawn": {
+            "x": 29.953810596162388,
+            "y": 0,
+            "z": 19.969207064108257
+          },
+          "pushTier": "realtime"
+        }
+      },
+      {
+        "name": "A1 重连 spawn 继承断开前位置（缺陷 J 回归，误差 <2m）",
+        "ok": true,
+        "detail": {
+          "spawn": {
+            "x": 29.953810596162388,
+            "y": 0,
+            "z": 19.969207064108257
+          },
+          "before": {
+            "x": 29.953810596162388,
+            "y": 0,
+            "z": 19.969207064108257
+          },
+          "dist": 0
+        }
+      },
+      {
+        "name": "A3 observe 公平性（15s，1.2s 间隔）",
+        "info": true,
+        "detail": {
+          "eco": {
+            "ok": 12,
+            "e429": 0
+          },
+          "standard": {
+            "ok": 12,
+            "e429": 0
+          },
+          "realtime": {
+            "ok": 12,
+            "e429": 0
+          }
+        }
+      },
+      {
+        "name": "A3 三档 observe 均无饥饿（每档成功 ≥ 8 次）",
+        "ok": true,
+        "detail": {
+          "eco": {
+            "ok": 12,
+            "e429": 0
+          },
+          "standard": {
+            "ok": 12,
+            "e429": 0
+          },
+          "realtime": {
+            "ok": 12,
+            "e429": 0
+          }
+        }
+      },
+      {
+        "name": "A3 未超频时 429 为 0",
+        "ok": true,
+        "detail": {
+          "eco": {
+            "ok": 12,
+            "e429": 0
+          },
+          "standard": {
+            "ok": 12,
+            "e429": 0
+          },
+          "realtime": {
+            "ok": 12,
+            "e429": 0
+          }
+        }
+      },
+      {
+        "name": "[eco] A2 90s 后",
+        "info": true,
+        "detail": {
+          "closed": null,
+          "msgsIn90s": 6,
+          "lastTypes": [
+            "READY",
+            "WORLD_SNAPSHOT",
+            "SUBSCRIBED",
+            "PONG"
+          ]
+        }
+      },
+      {
+        "name": "[eco] A2 长会话连接未断",
+        "ok": true,
+        "detail": {
+          "code": null,
+          "reason": null
+        }
+      },
+      {
+        "name": "[eco] A2 长会话推送持续（90s 内仍有消息）",
+        "ok": true,
+        "detail": 6
+      },
+      {
+        "name": "[standard] A2 90s 后",
+        "info": true,
+        "detail": {
+          "closed": null,
+          "msgsIn90s": 12,
+          "lastTypes": [
+            "READY",
+            "WORLD_SNAPSHOT",
+            "SUBSCRIBED",
+            "ENTITY_ADDED",
+            "ENTITY_MOVEMENT_BATCH",
+            "ENTITY_REMOVED",
+            "PONG"
+          ]
+        }
+      },
+      {
+        "name": "[standard] A2 长会话连接未断",
+        "ok": true,
+        "detail": {
+          "code": null,
+          "reason": null
+        }
+      },
+      {
+        "name": "[standard] A2 长会话推送持续（90s 内仍有消息）",
+        "ok": true,
+        "detail": 12
+      },
+      {
+        "name": "[realtime] A2 90s 后",
+        "info": true,
+        "detail": {
+          "closed": null,
+          "msgsIn90s": 10,
+          "lastTypes": [
+            "READY",
+            "WORLD_SNAPSHOT",
+            "SUBSCRIBED",
+            "PONG",
+            "ENTITY_ADDED",
+            "ENTITY_UPDATED"
+          ]
+        }
+      },
+      {
+        "name": "[realtime] A2 长会话连接未断",
+        "ok": true,
+        "detail": {
+          "code": null,
+          "reason": null
+        }
+      },
+      {
+        "name": "[realtime] A2 长会话推送持续（90s 内仍有消息）",
+        "ok": true,
+        "detail": 10
+      },
+      {
+        "name": "A4 游客签票成功（第 1 档）",
+        "ok": true,
+        "detail": 200
+      },
+      {
+        "name": "A4 游客 WS 连接成功",
+        "ok": true,
+        "detail": "ok"
+      },
+      {
+        "name": "A4 游客 pushTier 被强制 eco（红线 1）",
+        "ok": true,
+        "detail": {
+          "agentId": "agent:guest:fd9ead8a-20f1-4e7f-8951-49a0711b2795",
+          "agentName": "游客AI-2b079edb",
+          "avatar": {},
+          "spawn": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "pushTier": "eco",
+          "tier": "guest-pull",
+          "tierInfo": {
+            "tier": "guest-pull",
+            "mode": "pull",
+            "pushAllowed": false,
+            "observeMaxRadius": 30,
+            "maxConnectionsPerIp": 1,
+            "actionRates": {
+              "observe": [
+                1,
+                2000
+              ],
+              "say": [
+                1,
+                5000
+              ],
+              "move": [
+                1,
+                2000
+              ],
+              "walk_to": [
+                1,
+                2000
+              ],
+              "follow": [
+                1,
+                2000
+              ],
+              "rotate": [
+                1,
+                2000
+              ],
+              "jump": [
+                1,
+                2000
+              ],
+              "interact": [
+                1,
+                2000
+              ]
+            },
+            "upgradeHint": "需要实时推流 / 更大观察半径 / 跨世界联邦，请联系管理员申请 API Key 转正"
+          }
+        }
+      },
+      {
+        "name": "A4 游客 tier=guest-pull / pushAllowed=false",
+        "ok": true,
+        "detail": {
+          "tier": "guest-pull",
+          "mode": "pull",
+          "pushAllowed": false,
+          "observeMaxRadius": 30,
+          "maxConnectionsPerIp": 1,
+          "actionRates": {
+            "observe": [
+              1,
+              2000
+            ],
+            "say": [
+              1,
+              5000
+            ],
+            "move": [
+              1,
+              2000
+            ],
+            "walk_to": [
+              1,
+              2000
+            ],
+            "follow": [
+              1,
+              2000
+            ],
+            "rotate": [
+              1,
+              2000
+            ],
+            "jump": [
+              1,
+              2000
+            ],
+            "interact": [
+              1,
+              2000
+            ]
+          },
+          "upgradeHint": "需要实时推流 / 更大观察半径 / 跨世界联邦，请联系管理员申请 API Key 转正"
+        }
+      },
+      {
+        "name": "A4 游客 SUBSCRIBE 被拒（GUEST_PUSH_FORBIDDEN）",
+        "ok": true,
+        "detail": {
+          "code": "GUEST_PUSH_FORBIDDEN",
+          "message": "游客 Agent（拉模式）不支持订阅推流；请用 observe/action 主动拉取，或申请 API Key 转正解锁推流"
+        }
+      },
+      {
+        "name": "A4 游客 observe 半径被钳为 30（红线 15）",
+        "ok": true,
+        "detail": {
+          "status": 200,
+          "radius": 30
+        }
+      },
+      {
+        "name": "A4 游客 8s 内零主动推送（红线 14）",
+        "ok": true,
+        "detail": []
+      }
+    ]
+  },
+  "data": {
+    "beforeReconnect": {
+      "x": 29.953810596162388,
+      "y": 0,
+      "z": 19.969207064108257
+    },
+    "afterReconnect": {
+      "spawn": {
+        "x": 29.953810596162388,
+        "y": 0,
+        "z": 19.969207064108257
+      },
+      "pushTier": "realtime"
+    },
+    "observeFairness": {
+      "eco": {
+        "ok": 12,
+        "e429": 0
+      },
+      "standard": {
+        "ok": 12,
+        "e429": 0
+      },
+      "realtime": {
+        "ok": 12,
+        "e429": 0
+      }
+    },
+    "soak": {
+      "eco": {
+        "closed": null,
+        "msgsIn90s": 6,
+        "lastTypes": [
+          "READY",
+          "WORLD_SNAPSHOT",
+          "SUBSCRIBED",
+          "PONG"
+        ]
+      },
+      "standard": {
+        "closed": null,
+        "msgsIn90s": 12,
+        "lastTypes": [
+          "READY",
+          "WORLD_SNAPSHOT",
+          "SUBSCRIBED",
+          "ENTITY_ADDED",
+          "ENTITY_MOVEMENT_BATCH",
+          "ENTITY_REMOVED",
+          "PONG"
+        ]
+      },
+      "realtime": {
+        "closed": null,
+        "msgsIn90s": 10,
+        "lastTypes": [
+          "READY",
+          "WORLD_SNAPSHOT",
+          "SUBSCRIBED",
+          "PONG",
+          "ENTITY_ADDED",
+          "ENTITY_UPDATED"
+        ]
+      }
+    },
+    "guestPush": []
+  },
+  "issues": []
+}

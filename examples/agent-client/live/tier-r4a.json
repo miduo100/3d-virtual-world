@@ -1,0 +1,260 @@
+{
+  "generatedAt": "2026-09-19T05:20:06.815Z",
+  "summary": {
+    "pass": 13,
+    "fail": 0,
+    "total": 13,
+    "rows": [
+      {
+        "name": "三档 Agent 就位",
+        "info": true,
+        "detail": "eco@{\"x\":-12,\"z\":0} standard@{\"x\":12,\"z\":0} realtime@{\"x\":0,\"z\":-12}"
+      },
+      {
+        "name": "[eco] follow 指令下发",
+        "ok": true,
+        "detail": true
+      },
+      {
+        "name": "[standard] follow 指令下发",
+        "ok": true,
+        "detail": true
+      },
+      {
+        "name": "[realtime] follow 指令下发",
+        "ok": true,
+        "detail": true
+      },
+      {
+        "name": "[eco] follow 被接受（ACTION_ACCEPTED）",
+        "ok": true,
+        "detail": {
+          "estimatedMs": 1000
+        }
+      },
+      {
+        "name": "[standard] follow 被接受（ACTION_ACCEPTED）",
+        "ok": true,
+        "detail": {
+          "estimatedMs": 1000
+        }
+      },
+      {
+        "name": "[realtime] follow 被接受（ACTION_ACCEPTED）",
+        "ok": true,
+        "detail": {
+          "estimatedMs": 1000
+        }
+      },
+      {
+        "name": "[eco] W follow 统计",
+        "info": true,
+        "detail": {
+          "采样": 16,
+          "平均距离": "2.48",
+          "最远": "12.00",
+          "末段": [
+            "1.62",
+            "1.62",
+            "1.62"
+          ]
+        }
+      },
+      {
+        "name": "[eco] W follow 收敛（末段距离 ≤ 4m）",
+        "ok": true,
+        "detail": [
+          "1.62",
+          "1.62",
+          "1.62"
+        ]
+      },
+      {
+        "name": "[eco] Z 目标停止后停在 stopDistance 附近（≤3m）",
+        "ok": true,
+        "detail": 1.5
+      },
+      {
+        "name": "[standard] W follow 统计",
+        "info": true,
+        "detail": {
+          "采样": 16,
+          "平均距离": "1.28",
+          "最远": "3.13",
+          "末段": [
+            "1.16",
+            "1.16",
+            "1.16"
+          ]
+        }
+      },
+      {
+        "name": "[standard] W follow 收敛（末段距离 ≤ 4m）",
+        "ok": true,
+        "detail": [
+          "1.16",
+          "1.16",
+          "1.16"
+        ]
+      },
+      {
+        "name": "[standard] Z 目标停止后停在 stopDistance 附近（≤3m）",
+        "ok": true,
+        "detail": 1.5
+      },
+      {
+        "name": "[realtime] W follow 统计",
+        "info": true,
+        "detail": {
+          "采样": 16,
+          "平均距离": "1.99",
+          "最远": "3.30",
+          "末段": [
+            "1.97",
+            "1.97",
+            "1.50"
+          ]
+        }
+      },
+      {
+        "name": "[realtime] W follow 收敛（末段距离 ≤ 4m）",
+        "ok": true,
+        "detail": [
+          "1.97",
+          "1.97",
+          "1.50"
+        ]
+      },
+      {
+        "name": "[realtime] Z 目标停止后停在 stopDistance 附近（≤3m）",
+        "ok": true,
+        "detail": 1.5
+      },
+      {
+        "name": "X 三档 Agent 之间的最小距离",
+        "info": true,
+        "detail": "1.15m"
+      },
+      {
+        "name": "X 多 Agent 之间保持间距（>0.5m，不重合）",
+        "ok": true,
+        "detail": "1.15"
+      }
+    ]
+  },
+  "data": {
+    "curves": {
+      "eco": {
+        "samples": 16,
+        "avgDist": 2.48,
+        "maxDist": 12,
+        "tailDists": [
+          1.62,
+          1.62,
+          1.62
+        ],
+        "finalDist": 1.5,
+        "distToOtherAgents": [
+          1.15,
+          2.77
+        ],
+        "distSeries": [
+          12,
+          1.62,
+          1.62,
+          1.62,
+          1.62,
+          1.62
+        ]
+      },
+      "standard": {
+        "samples": 16,
+        "avgDist": 1.28,
+        "maxDist": 3.13,
+        "tailDists": [
+          1.16,
+          1.16,
+          1.16
+        ],
+        "finalDist": 1.5,
+        "distToOtherAgents": [
+          1.15,
+          3
+        ],
+        "distSeries": [
+          3.13,
+          1.16,
+          1.16,
+          1.16,
+          1.16,
+          1.16
+        ]
+      },
+      "realtime": {
+        "samples": 16,
+        "avgDist": 1.99,
+        "maxDist": 3.3,
+        "tailDists": [
+          1.97,
+          1.97,
+          1.5
+        ],
+        "finalDist": 1.5,
+        "distToOtherAgents": [
+          2.77,
+          3
+        ],
+        "distSeries": [
+          3.3,
+          1.97,
+          1.97,
+          1.97,
+          1.97,
+          1.5
+        ]
+      }
+    },
+    "final": {
+      "eco": {
+        "distToTarget": 1.5,
+        "animMode": "idle",
+        "distToOtherAgents": [
+          1.15,
+          2.77
+        ],
+        "self": {
+          "x": 113.39999999999964,
+          "y": 0,
+          "z": 1.5
+        }
+      },
+      "standard": {
+        "distToTarget": 1.5,
+        "animMode": "idle",
+        "distToOtherAgents": [
+          1.15,
+          3
+        ],
+        "self": {
+          "x": 114.46066017177945,
+          "y": 0,
+          "z": 1.0606601717798214
+        }
+      },
+      "realtime": {
+        "distToTarget": 1.5,
+        "animMode": "idle",
+        "distToOtherAgents": [
+          2.77,
+          3
+        ],
+        "self": {
+          "x": 112.33933982821982,
+          "y": 0,
+          "z": -1.0606601717798214
+        }
+      }
+    }
+  },
+  "issues": []
+}
