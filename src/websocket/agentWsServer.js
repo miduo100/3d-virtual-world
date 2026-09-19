@@ -26,6 +26,7 @@ const transientSessionManager = require('../agent/agentTransientSessionManager')
 const tierService = require('../agent/agentTierService');                            // P8：拉/推双模式
 const connectionRegistry = require('../agent/agentConnectionRegistry');              // 缺陷 B：同角色多连接顶替
 const logger = require('../services/logger');                                       // P8：日志三分流
+const clientIp = require('../middleware/clientIp');                                  // 联测 D：反代后取真实客户端 IP
 const wsServer = require('./wsServer');
 
 const wss = new WebSocket.Server({ noServer: true });
@@ -35,7 +36,8 @@ const HEARTBEAT_INTERVAL_MS = 30000;
 const HEARTBEAT_TIMEOUT_MS = 70000;
 const BACKPRESSURE_WARN = Number(process.env.AGENT_BACKPRESSURE_WARN) || (1 * 1024 * 1024);
 const BACKPRESSURE_KILL = Number(process.env.AGENT_BACKPRESSURE_KILL) || (4 * 1024 * 1024);
-// Agent 空闲超时：N 分钟无任何操作（ACTION/SUBSCRIBE/UNSUBSCRIBE）即断开清场（默认 5 分钟，0=禁用）
+// Agent 空闲超时：N 分钟无任何"活着"信号即断开清场（默认 5 分钟，0=禁用）
+// 联测修复 C 后，活着信号 = WS ACTION/SUBSCRIBE/UNSUBSCRIBE + Key 档 PING + HTTP observe
 const _idleMin = process.env.AGENT_IDLE_TIMEOUT_MINUTES !== undefined ? Number(process.env.AGENT_IDLE_TIMEOUT_MINUTES) : 5;
 const AGENT_IDLE_TIMEOUT_MS = (_idleMin > 0 ? _idleMin : 0) * 60 * 1000;
 const TOKEN_BUCKET_CAPACITY = 20;
@@ -90,7 +92,7 @@ function handleUpgrade(request, socket, head) {
       const status = result.code === 'TOKEN_EXPIRED' ? 403 : 401;
       try { socket.write(`HTTP/1.1 ${status} Unauthorized\r\nConnection: close\r\n\r\n`); } catch (e) {}
       socket.destroy();
-      audit('ws_rejected', { code: result.code, ip: request.socket.remoteAddress });
+      audit('ws_rejected', { code: result.code, ip: clientIp.resolveClientIp(request) });
       return;
     }
     wss.handleUpgrade(request, socket, head, (ws) => {
@@ -108,7 +110,9 @@ function handleUpgrade(request, socket, head) {
 wss.on('connection', async (ws, request, authResult) => {
   const { agent, session, payload: jwt, tier } = authResult;
   const connectionId = uuidv4();
-  const ip = request.socket.remoteAddress;
+  // 联测修复 D：反代（Nginx）后 socket.remoteAddress 恒为代理地址，
+  // 会让"游客每 IP 1 连接"退化为"全世界 1 条连接"。见 middleware/clientIp.js
+  const ip = clientIp.resolveClientIp(request);
 
   const config = await agentConfigService.getConfig();
   if (activeAgents.size >= config.maxAgents) {
@@ -170,7 +174,7 @@ wss.on('connection', async (ws, request, authResult) => {
   }});
 
   audit('ws_connected', { agent: agent.name, agentId: agent.id, connectionId, pushTier: state.pushTier });
-  logger.access({ kind: 'ws', event: 'connect', agentId: agent.id, connectionId, tier: state.tier || 'key-push', ip: request.socket.remoteAddress });
+  logger.access({ kind: 'ws', event: 'connect', agentId: agent.id, connectionId, tier: state.tier || 'key-push', ip });
 
   ws.on('message', (data) => handleMessage(connectionId, ws, data));
   ws.on('close', () => handleClose(connectionId));
@@ -190,8 +194,14 @@ function handleMessage(connectionId, ws, data) {
   if (!state) return;
   if (state.replacedBy) return;   // 缺陷 B：被顶掉的连接在关闭握手期间忽略一切消息（防其重新启动移动）
   const { type, payload } = msg;
-  // 操作刷新空闲时钟（PING/PONG 是保活不算操作）
-  if (type === 'ACTION' || type === 'SUBSCRIBE' || type === 'UNSUBSCRIBE') state.lastActivityAt = Date.now();
+  // 活跃度刷新（联测修复 C）
+  //   ACTION/SUBSCRIBE/UNSUBSCRIBE：任何档位都算（原有口径）
+  //   PING：仅 Key 档算——游客临时票 30 分钟不可续期，若空转 PING 也能续命，
+  //         一张已过期票的连接就能长期占住"每 IP 1 连接"名额（防滥用阀门）
+  //   HTTP observe 由路由侧调 touchActivityByAgent() 刷新：拉模式客户端唯一且最频繁的存活信号，
+  //   不刷新的话纯拉模式客户端必然在 5 分钟后被空闲超时踢掉（实测 Key 档 workbuddy 就是这样掉的）
+  if (type === 'ACTION' || type === 'SUBSCRIBE' || type === 'UNSUBSCRIBE'
+      || (type === 'PING' && !tierService.isGuest(state.tier))) state.lastActivityAt = Date.now();
   switch (type) {
     case 'SUBSCRIBE': {
       // P8 红线 1：游客 Agent 永不获得推流 —— SUBSCRIBE 直接拒绝（订阅集合恒为空）
@@ -337,7 +347,14 @@ function startPushLoop() {
       });
       entitySnapshot.set(connId, snap);
 
-      const currentIds = new Set([...playerPositions.values()].map(p => p.characterId));
+      // 联测修复 B：构造"当前实体 id 集合"必须排除自己。
+      // 上面的扫描用 `pConnId === connId` 跳过了自身（self 从不进 snap），但这里原来用
+      // 全部 playerPositions 取值 → 自己的 characterId 被当成"snap 里没见过的新实体"，
+      // 于是每 STANDARD_BATCH_INTERVAL_MS 给自己发一条 ENTITY_ADDED，永久重复
+      // （实测 Key 档 workbuddy 每秒收到一条关于自己的 ADDED）。eco 档整段跳过，故游客无此问题。
+      const currentIds = new Set(
+        [...playerPositions.entries()].filter(([pConnId]) => pConnId !== connId).map(([, p]) => p.characterId)
+      );
       const snapIds = new Set([...snap.keys()]);
       for (const id of currentIds) {
         if (!snapIds.has(id)) {
@@ -457,6 +474,25 @@ function audit(event, data) {
 
 function getActiveCount() { return activeAgents.size; }
 
+/**
+ * 刷新某 Agent 全部在线连接的活跃时钟（联测修复 C）
+ * 由 HTTP observe 路由调用：observe 是拉模式客户端唯一且最频繁的"我还活着"信号，
+ * 而原口径下 HTTP 请求不刷新空闲时钟 → 纯拉模式（不动作、不订阅）的客户端
+ * 必然在 AGENT_IDLE_TIMEOUT_MINUTES 后被踢（实测 Key 档 workbuddy 上线 15 分钟全程在拉，
+ * 因只发过一条 SUBSCRIBE 而在 5 分钟空闲上限被 ws_idle_timeout 断开）。
+ * 返回刷新的连接数（0 表示该 Agent 没有在线连接）。
+ */
+function touchActivityByAgent(agentId) {
+  let touched = 0;
+  for (const [, state] of activeAgents.entries()) {
+    if (!state.closed && state.agent && state.agent.id === agentId) {
+      state.lastActivityAt = Date.now();
+      touched++;
+    }
+  }
+  return touched;
+}
+
 // ==================== 后台管理入口（删除/改档，P8 后续）====================
 
 /**
@@ -495,5 +531,6 @@ function applyAgentTier(agentId, pushTier) {
 module.exports = {
   handleUpgrade, start, getActiveCount,
   kickAgent, applyAgentTier,
+  touchActivityByAgent,          // 联测 C：HTTP observe 刷新活跃时钟
   AGENT_WS_PATH: '/ws/agent'
 };

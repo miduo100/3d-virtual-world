@@ -112,6 +112,12 @@ router.get('/observe', authenticateAgentToken, resolveTier, rateLimitObserve, as
     };
 
     const result = await observationService.observe(req.agent, req.agentSession, opts);
+
+    // 联测修复 C：observe 是拉模式客户端唯一且最频繁的"我还活着"信号，
+    // 原口径下 HTTP 请求不刷新空闲时钟 → 纯拉模式客户端必在 5 分钟后被踢。
+    // 懒加载避免 agentWsServer ⇄ 路由的循环依赖；WS 未启动时静默忽略。
+    try { require('../../websocket/agentWsServer').touchActivityByAgent(req.agent.id); } catch (e) { /* ignore */ }
+
     res.json({ success: true, tier: req.tier, ...result });
   } catch (error) {
     console.error('[Agent] /observe 失败:', error);

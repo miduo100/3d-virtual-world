@@ -28,6 +28,12 @@ if (!process.env.ADMIN_JWT_SECRET) {
 
 const app = express();
 
+// ==================== 反向代理下的真实客户端 IP（联测修复 D）====================
+// 经 Nginx 反代时 req.ip 恒为代理地址，会让 per-IP 限流（游客签票 10 张/小时、
+// 游客每 IP 1 连接）把全世界算成同一个 IP。默认按"单层反代"处理；
+// 若服务直接暴露公网，请设 TRUST_PROXY=false。详见 middleware/clientIp.js
+require('./middleware/clientIp').applyTrustProxy(app);
+
 // ==================== 日志三分流（P8 基建：access / ops / audit）====================
 // 必须在所有路由之前挂载，才能记录到全部 HTTP 请求；/health 等噪音路径已过滤
 const logger = require('./services/logger');

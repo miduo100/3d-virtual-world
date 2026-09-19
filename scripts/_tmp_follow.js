@@ -50,14 +50,41 @@ function issueFollow(why) {
   log(`→ 下发 follow（${why}）targetId=${TARGET_ID} stopDistance=${STOP_DISTANCE} maxDurationMs=${MAX_FOLLOW_MS}`);
 }
 
-(async function main() {
-  if (!KEY || !TARGET_ID) { log('缺少 AGENT_API_KEY / FOLLOW_TARGET_ID'); process.exit(1); }
-  const s = await (await fetch(HOST + '/api/agent/v1/session', {
-    method: 'POST', headers: { Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json' }, body: '{}'
-  })).json();
-  if (!s || !s.token) { log('session 失败: ' + JSON.stringify(s)); process.exit(1); }
+/**
+ * 取会话：有 AGENT_API_KEY → Key 档（推模式）；无 Key → 游客拉模式
+ * （2026-09-19 增强：游客模式下 ticket 30 分钟到期后自动续票，keeper 可长时间驻场）
+ */
+async function createSession() {
+  if (KEY) {
+    const s = await (await fetch(HOST + '/api/agent/v1/session', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json' }, body: '{}'
+    })).json();
+    if (!s || !s.token) { log('Key session 失败: ' + JSON.stringify(s)); return null; }
+    return { token: s.token, mode: 'key-push', agentId: s.agent && s.agent.id };
+  }
+  const r = await fetch(HOST + '/api/agent/v1/guest/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  const j = await r.json().catch(() => null);
+  if (r.status !== 200 || !j || !j.token) {
+    log(`游客签票失败 status=${r.status} ` + JSON.stringify(j) +
+        (r.status === 429 ? '（每 IP 10 张/小时限流；重启服务器可清空内存计数器）' : ''));
+    return null;
+  }
+  return { token: j.token, mode: 'guest-pull', agentId: j.agent && j.agent.id, tier: j.tier };
+}
+
+async function ensureSession(force) {
+  if (token && !force) return true;
+  const s = await createSession();
+  if (!s) return false;
   token = s.token;
-  log(`follow v4（服务端 follow + keeper）启动 | 时长=${DURATION}ms`);
+  log(`会话就绪 | mode=${s.mode} agentId=${s.agentId}` + (s.tier ? ` tier=${s.tier}` : ''));
+  return true;
+}
+
+(async function main() {
+  if (!TARGET_ID) { log('缺少 FOLLOW_TARGET_ID（目标真人实体 id，不是名字）'); process.exit(1); }
+  if (!await ensureSession(false)) { log('无法建立会话，退出'); process.exit(1); }
+  log(`follow v4（服务端 follow + keeper）启动 | 时长=${DURATION}ms | 模式=${KEY ? 'Key 推模式' : '游客拉模式'}`);
   await sleep(1500);
   issueFollow('启动');
 
@@ -68,7 +95,13 @@ function issueFollow(why) {
     await sleep(2000);
     try {
       const r = await fetch(`${HOST}/api/agent/v1/observe?radius=300`, { headers: { Authorization: 'Bearer ' + token } });
-      if (r.status !== 200) continue;
+      if (r.status === 401 || r.status === 403) {
+        log('会话失效（游客票 30 分钟到期 / 被吊销），自动重新签票…');
+        if (!await ensureSession(true)) { log('重新签票失败，退出'); break; }
+        continue;
+      }
+      if (r.status === 429) { log('observe 被限流（游客 1 次/2s，Key 档见 agent_observe_rate_key）'); await sleep(1500); continue; }
+      if (r.status !== 200) { log('observe 非 200: ' + r.status); continue; }
       const o = await r.json();
       const self = o.self && o.self.position;
       const tgt = (o.entities || []).find((e) => String(e.id) === TARGET_ID);

@@ -168,20 +168,13 @@ async function main() {
       await sleep(3000);
     }
     if (conn && conn.ok && conn.open) {
-      const humanWs = new WebSocket(BASE_WS + '/');
-      await new Promise(r => {
-        humanWs.on('open', () => {
-          humanWs.send(JSON.stringify({ type: 'PLAYER_JOIN', payload: { characterId: 'human-move', characterName: '移动人', position: { x: 0, y: 0, z: 0 }, isGuest: true } }));
-          setTimeout(() => {
-            humanWs.send(JSON.stringify({ type: 'POSITION_UPDATE', payload: { characterId: 'human-move', position: { x: 5, y: 0, z: 5 }, animMode: 'walk' } }));
-          }, 200);
-        });
-        setTimeout(r, 500);
-      });
-      // 等 ENTITY_MOVEMENT_BATCH（standard 1s 聚合）
+      // 【联测修复 B 配套】先挂监听、再让人移动。
+      // 推送按 1s 聚合，若"人移动"与"挂监听"之间恰好赶上一次 tick，唯一那条 BATCH 就丢了。
+      // D1 过去之所以过，是因为当时服务端有"每秒给自己重复发一条 ENTITY_ADDED"的缺陷
+      // （联测修复 B 已修），监听器总能立刻收到一条消息——并没有真正验证位置流。
       let gotBatch = false;
-      await new Promise((resolve) => {
-        const timer = setTimeout(() => resolve(false), 5000);
+      const batchWait = new Promise((resolve) => {
+        const timer = setTimeout(() => resolve(false), 8000);
         conn.ws.on('message', (data) => {
           let msg; try { msg = JSON.parse(data.toString()); } catch (e) { return; }
           if (msg.type === 'ENTITY_MOVEMENT_BATCH' || msg.type === 'ENTITY_UPDATED' || msg.type === 'ENTITY_ADDED') {
@@ -189,6 +182,24 @@ async function main() {
           }
         });
       });
+
+      const humanWs = new WebSocket(BASE_WS + '/');
+      await new Promise(r => {
+        humanWs.on('open', () => {
+          humanWs.send(JSON.stringify({ type: 'PLAYER_JOIN', payload: { characterId: 'human-move', characterName: '移动人', position: { x: 0, y: 0, z: 0 }, isGuest: true } }));
+          // 连续移动 3 次、间隔 1.2s（> 1s 聚合窗口），保证至少一次移动落在监听期内
+          let i = 0;
+          const mover = setInterval(() => {
+            i++;
+            try {
+              humanWs.send(JSON.stringify({ type: 'POSITION_UPDATE', payload: { characterId: 'human-move', position: { x: 5 * i, y: 0, z: 5 * i }, animMode: 'walk' } }));
+            } catch (e) { /* ignore */ }
+            if (i >= 3) clearInterval(mover);
+          }, 1200);
+        });
+        setTimeout(r, 300);
+      });
+      await batchWait;
       record('D1', 'standard 档收到位置/实体推送（ENTITY_MOVEMENT_BATCH/UPDATED/ADDED）', gotBatch, `got=${gotBatch}`);
 
       // 切 eco 档，等 60s 缓存过期

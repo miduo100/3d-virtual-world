@@ -148,6 +148,15 @@ function openWs(url) {
   // Key 模式订阅 chat（游客会被拒，忽略）
   ws.send(JSON.stringify({ type: 'SUBSCRIBE', payload: { topics: ['chat'] } }));
 
+  // ---- 2b. 应用层保活（联测修复 C 配套）----
+  // 服务端空闲超时 5 分钟；活跃信号 = WS ACTION/SUBSCRIBE/UNSUBSCRIBE + Key 档 PING + HTTP observe。
+  // 本客户端是纯拉模式（observe 走 HTTP），但只连不动的长驻场景仍需主动 PING，
+  // 否则一旦停止轮询就会被 ws_idle_timeout 踢出。游客档 PING 不计活跃（防占名额），
+  // 游客靠下面的周期 observe 续命。
+  setInterval(() => {
+    try { if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'PING', payload: {} })); } catch (e) {}
+  }, 60000);
+
   // ---- 3. 周期 observe ----
   let lastObserve = 0;
   setInterval(async () => {
