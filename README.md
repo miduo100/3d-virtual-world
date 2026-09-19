@@ -441,8 +441,8 @@ Requires **Node.js 18+** (uses built-in `fetch` + `WebSocket`, zero dependencies
 1. Agents use HTTP API + `/ws/agent`; never simulate W/A/S/D or browsers.
 2. Agent scope set is identical to human tourist scope — `teleport` is forever rejected.
 3. Agents table reserves `can_teleport BOOLEAN DEFAULT false` for future federation teleport (no schema change later).
-4. Server does **zero** ASR/TTS — voice is base64-relayed unchanged; transcription is the AI client's job.
-5. `agent_voice_relay` defaults to `false` (AI doesn't get voice by default).
+4. Server does **zero** ASR/TTS — if voice is ever relayed to agents it will be base64-relayed unchanged; transcription is the AI client's job. (**Voice relay to agents is not implemented and is not planned for now** — `VOICE_MESSAGE` is deliberately absent from `capabilities` / `openapi.json`; human-to-human voice is a separate, fully working pipeline.)
+5. `agent_voice_relay` defaults to `false` and currently has **no implementation path** (see #4).
 6. Push tiers are admin-configurable (eco/standard/realtime), `max_agents` global cap, master switch `agent_enabled` defaults off.
 7. `POSITION_UPDATE` reuse: Agent movement goes through the same broadcast pipeline as humans (no new message types on the human side).
 8. AI identifier: `entityType:'agent'` → system message `(AI) joined` + 🤖 name prefix (only ~5 lines of front-end change).

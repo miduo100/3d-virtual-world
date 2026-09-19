@@ -126,10 +126,13 @@ router.get('/capabilities', async (req, res) => {
         path: '/ws/agent',
         authMode: 'Bearer in HTTP Authorization header at upgrade',
         inboundMessages: ['SUBSCRIBE', 'UNSUBSCRIBE', 'PING', 'ACTION'],
+        // 2026-09-19：移除 'VOICE_MESSAGE' —— Agent 语音中继为"未实现且已决策不做"
+        // （用户："AI 目前不用语音，后期用再开发"）。发现端点不宣称不存在的能力，
+        // 否则外部客户端会一直等一个永不到来的消息。真做时再连同 capabilities/openapi 一起加回。
         outboundMessages: [
           'READY', 'WORLD_SNAPSHOT',
           'ENTITY_ADDED', 'ENTITY_UPDATED', 'ENTITY_REMOVED',
-          'ENTITY_MOVEMENT_BATCH', 'CHAT', 'VOICE_MESSAGE',
+          'ENTITY_MOVEMENT_BATCH', 'CHAT',
           'ACTION_ACCEPTED', 'ACTION_COMPLETED', 'ACTION_REJECTED',
           'PONG', 'ERROR'
         ]
@@ -432,7 +435,8 @@ function buildOpenApiSpec(baseUrl, wsUrl, agentEnabled) {
       url: wsUrl,
       authMode: 'Bearer in HTTP Authorization header at upgrade time',
       inbound: ['SUBSCRIBE', 'UNSUBSCRIBE', 'PING', 'ACTION'],
-      outbound: ['READY', 'WORLD_SNAPSHOT', 'ENTITY_ADDED', 'ENTITY_UPDATED', 'ENTITY_REMOVED', 'ENTITY_MOVEMENT_BATCH', 'CHAT', 'VOICE_MESSAGE', 'ACTION_ACCEPTED', 'ACTION_COMPLETED', 'ACTION_REJECTED', 'PONG', 'ERROR'],
+      // VOICE_MESSAGE 已于 2026-09-19 移除（Agent 语音中继未实现且不计划做，见 /capabilities 注释同一处说明）
+      outbound: ['READY', 'WORLD_SNAPSHOT', 'ENTITY_ADDED', 'ENTITY_UPDATED', 'ENTITY_REMOVED', 'ENTITY_MOVEMENT_BATCH', 'CHAT', 'ACTION_ACCEPTED', 'ACTION_COMPLETED', 'ACTION_REJECTED', 'PONG', 'ERROR'],
       actions: ['move', 'walk_to', 'follow', 'rotate', 'jump', 'say', 'interact']
     },
     'x-entity-identity': ENTITY_IDENTITY,

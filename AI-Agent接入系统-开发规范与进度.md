@@ -177,7 +177,7 @@ Agent JWT payload：`{ sub: agentId, principalType: 'agent', worldId, scopes: [.
 连接即鉴权（HTTP upgrade 时读 Authorization header，拒绝无 token/过期 token）。
 
 ```
-C→S:  SUBSCRIBE { topics: ["chat","presence","movement","voice"], radius }
+C→S:  SUBSCRIBE { topics: ["chat","presence","movement"], radius }   ★ voice 主题未实现（见下）
       UNSUBSCRIBE { topics }
       ACTION { requestId, action, ...参数 }
       PING
@@ -186,7 +186,7 @@ S→C:  READY { agentId, avatar, spawn }
       ENTITY_ADDED / ENTITY_UPDATED / ENTITY_REMOVED   (standard+)
       ENTITY_MOVEMENT_BATCH { moves:[...] }            (standard 档 1s 聚合)
       CHAT { sender, characterId, message, timestamp }  (所有档，30m)
-      VOICE_MESSAGE { characterId, characterName, audio(base64), durationMs }  (⚠️ 未实现/不做，见下)
+      VOICE_MESSAGE ── ❌ 不实现（2026-09-19 用户决策），已从 capabilities/openapi 的 outbound 列表移除
       ACTION_ACCEPTED / ACTION_COMPLETED / ACTION_REJECTED { requestId, reason }
       SPEECH ── 即 CHAT 的别名口径，不单独实现
       ERROR / PONG
@@ -210,7 +210,7 @@ ACTION 七动作（P4 + 2026-09-19 新增 `follow`）：`move(target)` 连续位
 |---|---|---|
 | `agent_enabled` | bool / false | 总开关（**默认关，上线时手动开**） |
 | `agent_push_default` | eco \| standard \| realtime / eco | 新 Agent 默认档（**位置流一并由此决定，无独立开关**） |
-| `agent_voice_relay` | bool / **false** | 语音是否中继给 Agent。**⚠️ 未实现且已决策不做**（2026-09-19 用户：AI 目前不用语音，后期用再开发）：`agentWsServer` 只有读取该配置的一行、**没有任何中继逻辑**，`topics.has('voice')` 也无处理。同时 `meta.js` 的 capabilities / openapi `outboundMessages` **仍列着 `VOICE_MESSAGE`**（历史遗留的文档-实现缺口，待决定是否从发现端点移除；人类侧语音协议 `voiceRelay.js` 完全独立且已实现，不受此影响） |
+| `agent_voice_relay` | bool / **false** | 语音是否中继给 Agent。**⚠️ 未实现且已决策不做**（2026-09-19 用户：AI 目前不用语音，后期用再开发）：`agentWsServer` 只有读取该配置的一行、**没有任何中继逻辑**，`topics.has('voice')` 也无处理。发现端点侧的遗留缺口**已清理**：`meta.js` 的 capabilities 与 openapi `outbound` 两处均已移除 `VOICE_MESSAGE`，README 红线 4/5 同步改写（人类侧语音协议 `voiceRelay.js` 完全独立且已实现，不受此影响） |
 | `max_agents` | int / 50 | 全局并发上限 |
 | `agent_max_connections_per_agent` | int / **1** | 单 Agent 并发 WS 连接上限（1~10）；超出时新连接顶掉最旧连接（close 4004 `REPLACED_BY_NEW_CONNECTION`），被顶掉的连接**静默清理**（不广播 PLAYER_LEFT，避免真人端 avatar 闪断）——缺陷 B |
 | `agent_max_speed` | number / **9** | Agent 移动速度上限 m/s（1~20）。默认 9 = 真人速度（`player.js` 0.15/帧 @60fps ≈ 9 m/s）；原固定 5 m/s 会被正常走路/奔跑的真人越拉越远（用户实测中位 6.0、峰值 11+ m/s）——缺陷 C 配套 |
@@ -381,7 +381,7 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 - [x] `agentMovementService.js`：5m/s 限速、边界 ±1000、平面地面 y、10Hz 推进、animMode 派生（idle/walk/jump）
 - [x] `agentActionService.js` 六动作 + scope/距离/参数校验 + requestId 回执（ACCEPTED/COMPLETED/REJECTED）；walk_to 视为 move 的子动作（共享 move scope）
 - [x] 移动复用现有 POSITION_UPDATE 广播（经 presenceBridge.updatePosition → broadcastToAll）
-- [x] say 走 CHAT 管线（30m，broadcastToNearby）；语音零加工中继（agent_voice_relay 开关，P3 已接 CHAT 旁路）
+- [x] say 走 CHAT 管线（30m，broadcastToNearby）；（~~语音零加工中继（agent_voice_relay 开关，P3 已接 CHAT 旁路）~~ → **2026-09-19 用户决策：Agent 语音不做**，仅保留配置键占位，无中继实现）
 - [x] `add_world_chat_log.sql` + CHAT 异步写入（wsServer.js CHAT 分支 1 行 Promise.resolve().then）+ GET /chat/history
 - [x] `chatArchiveService.js`：每日导出→gzip→S3 兼容归档→保留期清理（后台可配；**未上传成功不删本地**，失败重试上限 7 次，指数退避 1/2/4/8/16/32/64s）
 - [x] admin 卡片：记录开关 / 保留天数 / 归档目的地（none|s3|baidu预留）/ S3 连接参数（密钥经 configService 加密）/ 上传时刻
@@ -702,7 +702,7 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 
 **后续决策记录与待办（2026-09-19，供下一会话接力）**：
 
-- **Agent 语音中继 = 不做**（用户明确："AI 目前不用语音，后期用再开发"）。已同步红线 5 与 §5.3。**遗留缺口**：`meta.js` 的 capabilities / openapi `outboundMessages` 仍列 `VOICE_MESSAGE`（代码从未实现）—— 待用户决定是否从发现端点移除（1 行改动；人类侧 `voiceRelay.js` 不受影响）。
+- **Agent 语音中继 = 不做**（用户明确："AI 目前不用语音，后期用再开发"）。已同步红线 5 与 §5.3；**遗留缺口已清理**：`meta.js` 的 capabilities `outboundMessages` 与 openapi `x-websocket.outbound` 两处已移除 `VOICE_MESSAGE`，`README.md` 架构红线 4/5 同步改写为"未实现且当前不计划"（人类侧 `voiceRelay.js` 不受影响）。
 - **仍未动的 3 个观察项（改前须用户拍板，红线 11）及影响评估**：
   1. **v2-4 新增 `stop` 动作**（推荐优先做，成本 1~2 小时）：`move` 是持续位移，当前**没有干净停法**（只能 observe 拿坐标后 `walk_to` 到自己，或发另一条移动指令打断），LLM Agent"停下看看"会写出绕远路指令（第一轮"原地徘徊"的残留成因之一）；`movementService.stopMove()` 仍是零调用死代码。**需先定回执语义**：新增 `reason='stopped'`（推荐，旧客户端忽略未知 reason）或复用 `superseded`。改动点：`agentActionService` + `meta.js` 两处 actions 数组 + 游客 `TIER_ACTION_RATES` + 文档 + 示例客户端。
   2. **v2-2 统一 `SESSION_NOT_FOUND` 口径**（P3，15 分钟）：HTTP=403（`session.js:88`）而 WS=401（`agentWsServer.js:92` 只把 `TOKEN_EXPIRED` 映 403）。只影响 SDK 作者的错误分支，实际恢复动作（换票重连）恰好正确 → 属一致性/可诊断性，非功能缺陷。
@@ -763,7 +763,7 @@ API Key 只存 hash，`key_prefix`（前 8 位）供后台识别。`.env` 新增
 3. **单文件 ≤500 行**（理想），≤1000（绝对）；新功能一律新文件。
 4. **前端拦截 ≠ 服务端权威**：游客传送限制在前端，Agent 必须服务端 scope 拦截（独立客户端不跑我们的前端）。
 5. **POSITION_UPDATE 是 broadcastToAll 全量广播**：Agent 移动必须节流，否则带宽/CPU 线性上涨。
-6. **语音 base64 一条 50~240KB**：是文字的 1000 倍，`agent_voice_relay` 默认关是承载能力的第一杠杆；聊天记录同样**永不存语音音频本体**。
+6. **语音 base64 一条 50~240KB**：是文字的 1000 倍；**人类侧**语音中继已实现（`voiceRelay.js`，同时说话人数上限是承载能力的第一杠杆），**Agent 侧语音未实现且已决策不做**（见 §5.3 `agent_voice_relay`），聊天记录同样**永不存语音音频本体**。
 7. **慢消费者背压**：AI 进程卡死不读 socket → bufferedAmount 膨胀拖死服务器内存，必须监控断开。
 8. **服务器无地面/碰撞数据**：移动服务只做平面地面+边界，别承诺地形贴合。
 9. **Nginx**：README 示例 `location /` 缺 Upgrade 头；`/ws/agent` 恰好命中 `location /ws` 有头分支，可直接工作。
