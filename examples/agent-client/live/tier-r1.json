@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-19T05:06:48.819Z",
+  "generatedAt": "2026-09-20T02:25:03.326Z",
   "summary": {
     "pass": 48,
     "fail": 0,
@@ -84,7 +84,7 @@
         "name": "[eco] E walk_to 被接受",
         "ok": true,
         "detail": {
-          "requestId": "26ccc99b-fc36-47bb-b233-1e51a136fd96",
+          "requestId": "83a4c90d-efb0-4ebb-bf7f-7f3c1339b4fa",
           "result": {
             "estimatedMs": 1667
           }
@@ -94,7 +94,7 @@
         "name": "[eco] E walk_to 到达回执 reason=arrived",
         "ok": true,
         "detail": {
-          "requestId": "26ccc99b-fc36-47bb-b233-1e51a136fd96",
+          "requestId": "83a4c90d-efb0-4ebb-bf7f-7f3c1339b4fa",
           "reason": "arrived",
           "position": {
             "x": 20,
@@ -112,12 +112,12 @@
       {
         "name": "[eco] E 真人侧 POSITION_UPDATE",
         "info": true,
-        "detail": "18 条 / 2052ms = 8.77 Hz"
+        "detail": "18 条 / 2006ms = 8.97 Hz"
       },
       {
         "name": "[eco] E 真人侧位置广播频率 5~12Hz（服务端 10Hz 推进）",
         "ok": true,
-        "detail": "8.77"
+        "detail": "8.97"
       },
       {
         "name": "[eco] E say 投递到 30m 内真人（senderId≡agent.id）",
@@ -215,7 +215,7 @@
         "name": "[standard] E walk_to 被接受",
         "ok": true,
         "detail": {
-          "requestId": "ac4c85cc-be26-4282-bc44-d40931d8d819",
+          "requestId": "c79e5915-dd59-46c1-bf6b-3c1b42d44ae7",
           "result": {
             "estimatedMs": 1667
           }
@@ -225,7 +225,7 @@
         "name": "[standard] E walk_to 到达回执 reason=arrived",
         "ok": true,
         "detail": {
-          "requestId": "ac4c85cc-be26-4282-bc44-d40931d8d819",
+          "requestId": "c79e5915-dd59-46c1-bf6b-3c1b42d44ae7",
           "reason": "arrived",
           "position": {
             "x": 20,
@@ -243,12 +243,12 @@
       {
         "name": "[standard] E 真人侧 POSITION_UPDATE",
         "info": true,
-        "detail": "18 条 / 2028ms = 8.88 Hz"
+        "detail": "18 条 / 2015ms = 8.93 Hz"
       },
       {
         "name": "[standard] E 真人侧位置广播频率 5~12Hz（服务端 10Hz 推进）",
         "ok": true,
-        "detail": "8.88"
+        "detail": "8.93"
       },
       {
         "name": "[standard] E say 投递到 30m 内真人（senderId≡agent.id）",
@@ -346,7 +346,7 @@
         "name": "[realtime] E walk_to 被接受",
         "ok": true,
         "detail": {
-          "requestId": "bb397432-5772-4a7a-a837-efc6c24db41b",
+          "requestId": "336c20d0-8869-4c1d-9338-f8ad26ab9735",
           "result": {
             "estimatedMs": 1667
           }
@@ -356,7 +356,7 @@
         "name": "[realtime] E walk_to 到达回执 reason=arrived",
         "ok": true,
         "detail": {
-          "requestId": "bb397432-5772-4a7a-a837-efc6c24db41b",
+          "requestId": "336c20d0-8869-4c1d-9338-f8ad26ab9735",
           "reason": "arrived",
           "position": {
             "x": 20,
@@ -374,12 +374,12 @@
       {
         "name": "[realtime] E 真人侧 POSITION_UPDATE",
         "info": true,
-        "detail": "18 条 / 2049ms = 8.78 Hz"
+        "detail": "18 条 / 2032ms = 8.86 Hz"
       },
       {
         "name": "[realtime] E 真人侧位置广播频率 5~12Hz（服务端 10Hz 推进）",
         "ok": true,
-        "detail": "8.78"
+        "detail": "8.86"
       },
       {
         "name": "[realtime] E say 投递到 30m 内真人（senderId≡agent.id）",
@@ -421,13 +421,13 @@
       "chat": [
         {
           "sender": "真人-近-eco",
-          "message": "近距-eco-17897"
+          "message": "近距-eco-17898"
         }
       ],
       "positionPush": {
         "count": 18,
-        "ms": 2052,
-        "hz": 8.77
+        "ms": 2006,
+        "hz": 8.97
       },
       "say": [
         {
@@ -467,8 +467,8 @@
       ],
       "positionPush": {
         "count": 18,
-        "ms": 2028,
-        "hz": 8.88
+        "ms": 2015,
+        "hz": 8.93
       },
       "say": [
         {
@@ -496,9 +496,7 @@
       },
       "farPushed": {
         "count": 0,
-        "byType": {
-          "ENTITY_ADDED": 1
-        }
+        "byType": {}
       },
       "chat": [
         {
@@ -508,8 +506,8 @@
       ],
       "positionPush": {
         "count": 18,
-        "ms": 2049,
-        "hz": 8.78
+        "ms": 2032,
+        "hz": 8.86
       },
       "say": [
         {

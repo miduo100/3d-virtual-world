@@ -1,0 +1,333 @@
+{
+  "ts": "2026-09-20T01:32:33.026Z",
+  "pass": 23,
+  "fail": 0,
+  "total": 23,
+  "rows": [
+    {
+      "name": "P1a well-known → 200",
+      "ok": true,
+      "detail": 200
+    },
+    {
+      "name": "P1b capabilities → 200",
+      "ok": true,
+      "detail": 200
+    },
+    {
+      "name": "P1c openapi.json → 200",
+      "ok": true,
+      "detail": 200
+    },
+    {
+      "name": "P1d well-known 必备字段齐全",
+      "ok": true,
+      "detail": "12 项齐全"
+    },
+    {
+      "name": "P2a auth 段字段齐全",
+      "ok": true,
+      "detail": "{\"sessionTtlSeconds\":900,\"guestSessionTtlSeconds\":1800}"
+    },
+    {
+      "name": "P2b TTL 均为正数且游客票 > 会话票",
+      "ok": true,
+      "detail": {
+        "session": 900,
+        "guest": 1800
+      }
+    },
+    {
+      "name": "P3 auth.sessionTtlSeconds 与实际签发 JWT TTL 一致",
+      "ok": true,
+      "detail": {
+        "actualTtl": 900,
+        "documented": 900
+      }
+    },
+    {
+      "name": "P4 capabilities 共享段与 well-known 逐字一致（缺陷 F/H 守护）",
+      "ok": true,
+      "detail": "tiers,scopes,actions,pushTiers,limits,entityIdentity"
+    },
+    {
+      "name": "P5a protocolVersion 两处一致",
+      "ok": true,
+      "detail": {
+        "wk": "v1",
+        "cap": "v1"
+      }
+    },
+    {
+      "name": "P5b capabilities 含 session 段（记录：well-known 无此字段）",
+      "ok": true,
+      "detail": [
+        "ttlSeconds",
+        "tokenType"
+      ]
+    },
+    {
+      "name": "P6 actions 集合 = 八动作",
+      "ok": true,
+      "detail": {
+        "got": [
+          "move",
+          "walk_to",
+          "follow",
+          "rotate",
+          "jump",
+          "say",
+          "interact",
+          "stop"
+        ],
+        "expect": [
+          "move",
+          "walk_to",
+          "follow",
+          "rotate",
+          "jump",
+          "say",
+          "interact",
+          "stop"
+        ]
+      }
+    },
+    {
+      "name": "P7a well-known.actions === openapi x-websocket.actions",
+      "ok": true,
+      "detail": {
+        "wk": [
+          "move",
+          "walk_to",
+          "follow",
+          "rotate",
+          "jump",
+          "say",
+          "interact",
+          "stop"
+        ],
+        "oa": [
+          "move",
+          "walk_to",
+          "follow",
+          "rotate",
+          "jump",
+          "say",
+          "interact",
+          "stop"
+        ]
+      }
+    },
+    {
+      "name": "P7b openapi x-websocket.actions === /action requestBody enum（第三处）",
+      "ok": true,
+      "detail": {
+        "oa": [
+          "move",
+          "walk_to",
+          "follow",
+          "rotate",
+          "jump",
+          "say",
+          "interact",
+          "stop"
+        ],
+        "enum": [
+          "say",
+          "rotate",
+          "move",
+          "walk_to",
+          "follow",
+          "jump",
+          "interact",
+          "stop"
+        ]
+      }
+    },
+    {
+      "name": "P8a capabilities.outboundMessages === openapi x-websocket.outbound",
+      "ok": true,
+      "detail": {
+        "cap": [
+          "READY",
+          "WORLD_SNAPSHOT",
+          "ENTITY_ADDED",
+          "ENTITY_UPDATED",
+          "ENTITY_REMOVED",
+          "ENTITY_MOVEMENT_BATCH",
+          "CHAT",
+          "ACTION_ACCEPTED",
+          "ACTION_COMPLETED",
+          "ACTION_REJECTED",
+          "PONG",
+          "ERROR"
+        ],
+        "oa": [
+          "READY",
+          "WORLD_SNAPSHOT",
+          "ENTITY_ADDED",
+          "ENTITY_UPDATED",
+          "ENTITY_REMOVED",
+          "ENTITY_MOVEMENT_BATCH",
+          "CHAT",
+          "ACTION_ACCEPTED",
+          "ACTION_COMPLETED",
+          "ACTION_REJECTED",
+          "PONG",
+          "ERROR"
+        ]
+      }
+    },
+    {
+      "name": "P8b outbound 不含 VOICE_MESSAGE / SPEECH（红线 5：Agent 语音不做）",
+      "ok": true,
+      "detail": "12 类"
+    },
+    {
+      "name": "P9a guest-pull.actionRates 覆盖全部八动作",
+      "ok": true,
+      "detail": "9 键"
+    },
+    {
+      "name": "P9b actionRates.stop === [1,2000]（v2-4 显式加表项）",
+      "ok": true,
+      "detail": [
+        1,
+        2000
+      ]
+    },
+    {
+      "name": "P10 openapi.paths 与白名单逐项一致（未实现端点不得出现）",
+      "ok": true,
+      "detail": {
+        "多余": [],
+        "缺失": [],
+        "实测": 12,
+        "白名单": 12
+      }
+    },
+    {
+      "name": "P11a limits.movementSpeed === admin config maxSpeed",
+      "ok": true,
+      "detail": {
+        "limits": 12,
+        "admin": 12
+      }
+    },
+    {
+      "name": "P11b limits.maxAgents === admin config maxAgents",
+      "ok": true,
+      "detail": {
+        "limits": 50,
+        "admin": 50
+      }
+    },
+    {
+      "name": "P11c limits.maxConnectionsPerAgent === admin config maxConnectionsPerAgent",
+      "ok": true,
+      "detail": {
+        "limits": 1,
+        "admin": 1
+      }
+    },
+    {
+      "name": "P12 agent_enabled=false 时三个发现端点仍 200（连\"开关是否开\"都要先能查到）",
+      "ok": true,
+      "detail": {
+        "wellknown": 200,
+        "capabilities": 200,
+        "openapi": 200
+      }
+    },
+    {
+      "name": "P13 收尾恢复运行前配置（agentEnabled=true）",
+      "ok": true,
+      "detail": true
+    }
+  ],
+  "snapshot": {
+    "protocolVersion": "v1",
+    "actions": [
+      "move",
+      "walk_to",
+      "follow",
+      "rotate",
+      "jump",
+      "say",
+      "interact",
+      "stop"
+    ],
+    "sessionTtlSeconds": 900,
+    "guestSessionTtlSeconds": 1800,
+    "limits": {
+      "observeRadiusMax": 200,
+      "observeRadiusMaxGuest": 30,
+      "observeRateLimitPerSecond": 1,
+      "guestObserveIntervalSeconds": 2,
+      "sayMaxLength": 200,
+      "interactMaxDistance": 5,
+      "movementSpeed": 12,
+      "worldBoundary": 1000,
+      "followStopDistanceDefault": 2,
+      "followMaxDurationMs": 600000,
+      "maxAgents": 50,
+      "maxConnectionsPerAgent": 1
+    },
+    "outbound": [
+      "READY",
+      "WORLD_SNAPSHOT",
+      "ENTITY_ADDED",
+      "ENTITY_UPDATED",
+      "ENTITY_REMOVED",
+      "ENTITY_MOVEMENT_BATCH",
+      "CHAT",
+      "ACTION_ACCEPTED",
+      "ACTION_COMPLETED",
+      "ACTION_REJECTED",
+      "PONG",
+      "ERROR"
+    ],
+    "openapiPaths": [
+      "/guest/session",
+      "/session",
+      "/me",
+      "/session/revoke",
+      "/observe",
+      "/chat/history",
+      "/action",
+      "/capabilities",
+      "/openapi.json",
+      "/federation/worlds",
+      "/federation/status",
+      "/federation/teleport/prepare"
+    ],
+    "wellknownKeys": [
+      "success",
+      "protocolVersion",
+      "agentEnabled",
+      "world",
+      "endpoints",
+      "auth",
+      "tiers",
+      "scopes",
+      "actions",
+      "pushTiers",
+      "limits",
+      "entityIdentity"
+    ],
+    "capabilitiesKeys": [
+      "success",
+      "protocolVersion",
+      "agentEnabled",
+      "endpoints",
+      "tiers",
+      "scopes",
+      "actions",
+      "pushTiers",
+      "limits",
+      "entityIdentity",
+      "session",
+      "websocket"
+    ]
+  }
+}

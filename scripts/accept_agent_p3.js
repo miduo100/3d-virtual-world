@@ -60,6 +60,15 @@ async function main() {
   const wsServer = require('../src/websocket/wsServer');
 
   await agentConfigService.ensureDefaultConfig();
+  // v6 批次 D：记住**运行前**的配置，收尾恢复原值。
+  // 原实现硬编码恢复 false/eco/50 → 连跑回归（p3 → v2_auth_guest → p8 → v2_auth_key）
+  // 时后续脚本全部撞 503 AGENT_DISABLED_GLOBALLY，必须手动重开闸（文档 §9 坑 35）。
+  const origCfg = await agentConfigService.getConfig(true);
+  const origSnapshot = {
+    agentEnabled: !!origCfg.agentEnabled,
+    pushDefault: origCfg.pushDefault,
+    maxAgents: origCfg.maxAgents
+  };
   await agentConfigService.setConfigValue('agent_enabled', 'true');
   await agentConfigService.setConfigValue('max_agents', '50');
   await agentConfigService.setConfigValue('agent_push_default', 'standard');
@@ -303,10 +312,11 @@ async function main() {
   }
 
   // ---------- 收尾 ----------
-  await agentConfigService.setConfigValue('agent_enabled', 'false');
-  await agentConfigService.setConfigValue('agent_push_default', 'eco');
-  await agentConfigService.setConfigValue('max_agents', '50');
-  console.log('\n[cleanup] agent_enabled=false, pushDefault=eco, max_agents=50（红线恢复）');
+  await agentConfigService.setConfigValue('agent_enabled', origSnapshot.agentEnabled ? 'true' : 'false');
+  await agentConfigService.setConfigValue('agent_push_default', origSnapshot.pushDefault);
+  await agentConfigService.setConfigValue('max_agents', String(origSnapshot.maxAgents));
+  console.log(`\n[cleanup] 已恢复运行前配置：agent_enabled=${origSnapshot.agentEnabled}, `
+    + `push_default=${origSnapshot.pushDefault}, max_agents=${origSnapshot.maxAgents}`);
   await finish();
 }
 

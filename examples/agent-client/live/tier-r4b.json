@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-19T05:22:26.838Z",
+  "generatedAt": "2026-09-20T02:29:30.792Z",
   "summary": {
     "pass": 20,
     "fail": 0,
@@ -24,9 +24,9 @@
         "name": "A1 断开前位置",
         "info": true,
         "detail": {
-          "x": 29.953810596162388,
+          "x": 51.83618094889204,
           "y": 0,
-          "z": 19.969207064108257
+          "z": 14.648732613802334
         }
       },
       {
@@ -34,9 +34,9 @@
         "ok": true,
         "detail": {
           "spawn": {
-            "x": 29.953810596162388,
+            "x": 50.67066896926791,
             "y": 0,
-            "z": 19.969207064108257
+            "z": 14.934357937176555
           },
           "pushTier": "realtime"
         }
@@ -46,16 +46,16 @@
         "ok": true,
         "detail": {
           "spawn": {
-            "x": 29.953810596162388,
+            "x": 50.67066896926791,
             "y": 0,
-            "z": 19.969207064108257
+            "z": 14.934357937176555
           },
           "before": {
-            "x": 29.953810596162388,
+            "x": 51.83618094889204,
             "y": 0,
-            "z": 19.969207064108257
+            "z": 14.648732613802334
           },
-          "dist": 0
+          "dist": 1.2
         }
       },
       {
@@ -63,15 +63,15 @@
         "info": true,
         "detail": {
           "eco": {
-            "ok": 12,
+            "ok": 13,
             "e429": 0
           },
           "standard": {
-            "ok": 12,
+            "ok": 13,
             "e429": 0
           },
           "realtime": {
-            "ok": 12,
+            "ok": 13,
             "e429": 0
           }
         }
@@ -81,15 +81,15 @@
         "ok": true,
         "detail": {
           "eco": {
-            "ok": 12,
+            "ok": 13,
             "e429": 0
           },
           "standard": {
-            "ok": 12,
+            "ok": 13,
             "e429": 0
           },
           "realtime": {
-            "ok": 12,
+            "ok": 13,
             "e429": 0
           }
         }
@@ -99,15 +99,15 @@
         "ok": true,
         "detail": {
           "eco": {
-            "ok": 12,
+            "ok": 13,
             "e429": 0
           },
           "standard": {
-            "ok": 12,
+            "ok": 13,
             "e429": 0
           },
           "realtime": {
-            "ok": 12,
+            "ok": 13,
             "e429": 0
           }
         }
@@ -144,7 +144,7 @@
         "info": true,
         "detail": {
           "closed": null,
-          "msgsIn90s": 12,
+          "msgsIn90s": 6,
           "lastTypes": [
             "READY",
             "WORLD_SNAPSHOT",
@@ -167,21 +167,19 @@
       {
         "name": "[standard] A2 长会话推送持续（90s 内仍有消息）",
         "ok": true,
-        "detail": 12
+        "detail": 6
       },
       {
         "name": "[realtime] A2 90s 后",
         "info": true,
         "detail": {
           "closed": null,
-          "msgsIn90s": 10,
+          "msgsIn90s": 6,
           "lastTypes": [
             "READY",
             "WORLD_SNAPSHOT",
             "SUBSCRIBED",
-            "PONG",
-            "ENTITY_ADDED",
-            "ENTITY_UPDATED"
+            "PONG"
           ]
         }
       },
@@ -196,7 +194,7 @@
       {
         "name": "[realtime] A2 长会话推送持续（90s 内仍有消息）",
         "ok": true,
-        "detail": 10
+        "detail": 6
       },
       {
         "name": "A4 游客签票成功（第 1 档）",
@@ -212,8 +210,8 @@
         "name": "A4 游客 pushTier 被强制 eco（红线 1）",
         "ok": true,
         "detail": {
-          "agentId": "agent:guest:fd9ead8a-20f1-4e7f-8951-49a0711b2795",
-          "agentName": "游客AI-2b079edb",
+          "agentId": "agent:guest:b2085b4f-cfe8-4d31-ac8b-c09ac7428256",
+          "agentName": "游客AI-bca2d493",
           "avatar": {},
           "spawn": {
             "x": 0,
@@ -258,6 +256,10 @@
                 2000
               ],
               "interact": [
+                1,
+                2000
+              ],
+              "stop": [
                 1,
                 2000
               ]
@@ -307,6 +309,10 @@
             "interact": [
               1,
               2000
+            ],
+            "stop": [
+              1,
+              2000
             ]
           },
           "upgradeHint": "需要实时推流 / 更大观察半径 / 跨世界联邦，请联系管理员申请 API Key 转正"
@@ -337,29 +343,29 @@
   },
   "data": {
     "beforeReconnect": {
-      "x": 29.953810596162388,
+      "x": 51.83618094889204,
       "y": 0,
-      "z": 19.969207064108257
+      "z": 14.648732613802334
     },
     "afterReconnect": {
       "spawn": {
-        "x": 29.953810596162388,
+        "x": 50.67066896926791,
         "y": 0,
-        "z": 19.969207064108257
+        "z": 14.934357937176555
       },
       "pushTier": "realtime"
     },
     "observeFairness": {
       "eco": {
-        "ok": 12,
+        "ok": 13,
         "e429": 0
       },
       "standard": {
-        "ok": 12,
+        "ok": 13,
         "e429": 0
       },
       "realtime": {
-        "ok": 12,
+        "ok": 13,
         "e429": 0
       }
     },
@@ -376,7 +382,7 @@
       },
       "standard": {
         "closed": null,
-        "msgsIn90s": 12,
+        "msgsIn90s": 6,
         "lastTypes": [
           "READY",
           "WORLD_SNAPSHOT",
@@ -389,14 +395,12 @@
       },
       "realtime": {
         "closed": null,
-        "msgsIn90s": 10,
+        "msgsIn90s": 6,
         "lastTypes": [
           "READY",
           "WORLD_SNAPSHOT",
           "SUBSCRIBED",
-          "PONG",
-          "ENTITY_ADDED",
-          "ENTITY_UPDATED"
+          "PONG"
         ]
       }
     },

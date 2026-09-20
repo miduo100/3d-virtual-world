@@ -1,0 +1,238 @@
+{
+  "ts": "2026-09-20T01:33:13.320Z",
+  "message": "p4-say-67990062",
+  "pass": 26,
+  "fail": 0,
+  "total": 26,
+  "rows": [
+    {
+      "name": "P0 读取运行前配置（收尾按原值恢复）",
+      "ok": true,
+      "detail": {
+        "agentEnabled": true,
+        "pushDefault": "eco",
+        "maxAgents": 50
+      }
+    },
+    {
+      "name": "S1 换票成功",
+      "ok": true,
+      "detail": 200
+    },
+    {
+      "name": "S3 Agent WS 连接成功",
+      "ok": true,
+      "detail": "connected"
+    },
+    {
+      "name": "S2 WS 连接后 observe 的 self 坐标 = READY.spawn（实时位置口径，缺陷 A/J 守护）",
+      "ok": true,
+      "detail": {
+        "self": {
+          "x": 201.9999999999995,
+          "y": 0,
+          "z": 3
+        },
+        "spawn": {
+          "x": 201.9999999999995,
+          "y": 0,
+          "z": 3
+        }
+      }
+    },
+    {
+      "name": "S4 真人观察者 WS 连接成功（与 Agent 同点 → 30m 内）",
+      "ok": true,
+      "detail": "connected"
+    },
+    {
+      "name": "S5 say → ACTION_COMPLETED",
+      "ok": true,
+      "detail": {
+        "requestId": "p4-say-1",
+        "result": {
+          "delivered": true
+        }
+      }
+    },
+    {
+      "name": "S6 30m 内真人收到 CHAT（含发送文本）",
+      "ok": true,
+      "detail": {
+        "sender": "tier_eco_87393",
+        "characterId": "02303f29-02be-495d-b99a-d59d37dcbcc9"
+      }
+    },
+    {
+      "name": "S7 CHAT 携带 position 字段（Agent 距离过滤用，P4 新增）",
+      "ok": true,
+      "detail": {
+        "x": 201.9999999999995,
+        "y": 0,
+        "z": 3
+      }
+    },
+    {
+      "name": "S8 world_chat_log 落库 1 行（服务端权威写入）",
+      "ok": true,
+      "detail": 1
+    },
+    {
+      "name": "S9 GET /chat/history 可读回该消息（AI 重连恢复上下文）",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "count": 50
+      }
+    },
+    {
+      "name": "S10 history 行含 senderType/senderName/message/createdAt 字段",
+      "ok": true,
+      "detail": {
+        "id": "256",
+        "senderType": "agent",
+        "senderId": "02303f29-02be-495d-b99a-d59d37dcbcc9",
+        "senderName": "tier_eco_87393",
+        "message": "p4-say-67990062",
+        "position": {
+          "x": 201.9999999999995,
+          "y": 0,
+          "z": 3
+        },
+        "createdAt": "2026-09-20T01:33:12.674Z"
+      }
+    },
+    {
+      "name": "X1 teleport → ACTION_REJECTED scope_denied（红线 2）",
+      "ok": true,
+      "detail": {
+        "requestId": "p4-tp",
+        "reason": "动作 teleport 不在 Agent 权限集中",
+        "code": "scope_denied"
+      }
+    },
+    {
+      "name": "X2 set_position → ACTION_REJECTED（红线 10：不允许裸位置接口）",
+      "ok": true,
+      "detail": {
+        "requestId": "p4-sp",
+        "reason": "动作 set_position 不在 Agent 权限集中",
+        "code": "scope_denied"
+      }
+    },
+    {
+      "name": "AD1 GET /admin/agents → 200 且返回数组",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "count": 20
+      }
+    },
+    {
+      "name": "AD2 POST /admin/agents 创建 → 200 且返回明文 apiKey（仅此一次）",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "id": "d9fdc9fe-6984-4483-95d5-9047637c7500",
+        "keyPrefix": "agk_live_dbe721a"
+      }
+    },
+    {
+      "name": "AD3 POST /admin/agents/:id/tier 改档 → 200",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "pushTier": "standard",
+          "effectivePushTier": "standard",
+          "applied": 0
+        }
+      }
+    },
+    {
+      "name": "AD4 POST :id/disable → 200 且列表 status=disabled",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "row": "disabled"
+      }
+    },
+    {
+      "name": "AD5 POST :id/enable → 200 且列表 status=active",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "row": "active"
+      }
+    },
+    {
+      "name": "AD6 POST :id/regenerate-key → 200 且返回新明文 Key",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "prefix": "agk_live_9c8dbb8"
+      }
+    },
+    {
+      "name": "AD7 DELETE :id → 200 且列表不再含该 Agent",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "AD8 无凭据访问 /admin/agents → 401/403（鉴权门）",
+      "ok": true,
+      "detail": 401
+    },
+    {
+      "name": "O1 observe objects[].description 字段存在（AI 物体描述列）",
+      "ok": true,
+      "detail": {
+        "objects": 7,
+        "first": {
+          "id": "49",
+          "type": "geometry_nature",
+          "name": "village_场景_1770866496982_tree_10",
+          "description": null,
+          "position": {
+            "x": 119.73808817981211,
+            "y": 0,
+            "z": 8.589329325070384
+          },
+          "distance": 82.45
+        }
+      }
+    },
+    {
+      "name": "O2 observe 含 self/entities/world 三段结构",
+      "ok": true,
+      "detail": {
+        "self": true,
+        "entities": 2,
+        "world": true
+      }
+    },
+    {
+      "name": "O3 entities 元素含 id/position/distance",
+      "ok": true,
+      "detail": 2
+    },
+    {
+      "name": "O4 observe 不泄露私有字段（无 email/userId/role/scopes）",
+      "ok": true,
+      "detail": "7 objects 检查"
+    },
+    {
+      "name": "P9 收尾恢复运行前配置（agentEnabled=true）",
+      "ok": true,
+      "detail": true
+    }
+  ],
+  "origConfig": {
+    "agentEnabled": true,
+    "pushDefault": "eco",
+    "maxAgents": 50
+  }
+}

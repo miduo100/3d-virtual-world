@@ -15,6 +15,10 @@
  *   discover → session（Key 或游客票）→ WS?token= → READY/WORLD_SNAPSHOT
  *   → SUBSCRIBE（仅 Key）→ observe → say → walk_to → move + stop（v2-4 新增动作）
  *   → teleport（红线：必被 REJECTED）
+ *
+ * 注意：本 demo 是**短命客户端**（跑完即退），故不做会话续期。
+ * Agent JWT TTL = 900s，WS 只在建连时校验、HTTP 端点每次调用都校验 →
+ * 长驻客户端必须自己续期，参考实现见 ai-live.mjs 的 2c 段（Key 档定时 POST /session 换新 token，WS 不重连）。
  */
 
 const HOST = (process.env.AGENT_HOST || 'http://localhost:3002').replace(/\/+$/, '');

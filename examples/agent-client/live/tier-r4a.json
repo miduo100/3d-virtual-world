@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-19T05:20:06.815Z",
+  "generatedAt": "2026-09-20T02:27:21.274Z",
   "summary": {
     "pass": 13,
     "fail": 0,
@@ -29,29 +29,29 @@
         "name": "[eco] follow 被接受（ACTION_ACCEPTED）",
         "ok": true,
         "detail": {
-          "estimatedMs": 1000
+          "estimatedMs": 1354
         }
       },
       {
         "name": "[standard] follow 被接受（ACTION_ACCEPTED）",
         "ok": true,
         "detail": {
-          "estimatedMs": 1000
+          "estimatedMs": 3679
         }
       },
       {
         "name": "[realtime] follow 被接受（ACTION_ACCEPTED）",
         "ok": true,
         "detail": {
-          "estimatedMs": 1000
+          "estimatedMs": 3680
         }
       },
       {
         "name": "[eco] W follow 统计",
         "info": true,
         "detail": {
-          "采样": 16,
-          "平均距离": "2.48",
+          "采样": 17,
+          "平均距离": "2.46",
           "最远": "12.00",
           "末段": [
             "1.62",
@@ -78,13 +78,13 @@
         "name": "[standard] W follow 统计",
         "info": true,
         "detail": {
-          "采样": 16,
-          "平均距离": "1.28",
-          "最远": "3.13",
+          "采样": 17,
+          "平均距离": "1.58",
+          "最远": "6.63",
           "末段": [
             "1.16",
             "1.16",
-            "1.16"
+            "1.50"
           ]
         }
       },
@@ -94,7 +94,7 @@
         "detail": [
           "1.16",
           "1.16",
-          "1.16"
+          "1.50"
         ]
       },
       {
@@ -106,13 +106,13 @@
         "name": "[realtime] W follow 统计",
         "info": true,
         "detail": {
-          "采样": 16,
-          "平均距离": "1.99",
-          "最远": "3.30",
+          "采样": 17,
+          "平均距离": "2.00",
+          "最远": "4.84",
           "末段": [
+            "1.50",
             "1.97",
-            "1.97",
-            "1.50"
+            "1.97"
           ]
         }
       },
@@ -120,9 +120,9 @@
         "name": "[realtime] W follow 收敛（末段距离 ≤ 4m）",
         "ok": true,
         "detail": [
+          "1.50",
           "1.97",
-          "1.97",
-          "1.50"
+          "1.97"
         ]
       },
       {
@@ -145,8 +145,8 @@
   "data": {
     "curves": {
       "eco": {
-        "samples": 16,
-        "avgDist": 2.48,
+        "samples": 17,
+        "avgDist": 2.46,
         "maxDist": 12,
         "tailDists": [
           1.62,
@@ -168,13 +168,13 @@
         ]
       },
       "standard": {
-        "samples": 16,
-        "avgDist": 1.28,
-        "maxDist": 3.13,
+        "samples": 17,
+        "avgDist": 1.58,
+        "maxDist": 6.63,
         "tailDists": [
           1.16,
           1.16,
-          1.16
+          1.5
         ],
         "finalDist": 1.5,
         "distToOtherAgents": [
@@ -182,22 +182,22 @@
           3
         ],
         "distSeries": [
-          3.13,
+          6.63,
           1.16,
           1.16,
-          1.16,
+          1.5,
           1.16,
           1.16
         ]
       },
       "realtime": {
-        "samples": 16,
-        "avgDist": 1.99,
-        "maxDist": 3.3,
+        "samples": 17,
+        "avgDist": 2,
+        "maxDist": 4.84,
         "tailDists": [
+          1.5,
           1.97,
-          1.97,
-          1.5
+          1.97
         ],
         "finalDist": 1.5,
         "distToOtherAgents": [
@@ -205,12 +205,12 @@
           3
         ],
         "distSeries": [
-          3.3,
+          4.84,
           1.97,
           1.97,
+          1.5,
           1.97,
-          1.97,
-          1.5
+          1.97
         ]
       }
     },
@@ -223,7 +223,7 @@
           2.77
         ],
         "self": {
-          "x": 113.39999999999964,
+          "x": 116.9999999999996,
           "y": 0,
           "z": 1.5
         }
@@ -236,7 +236,7 @@
           3
         ],
         "self": {
-          "x": 114.46066017177945,
+          "x": 118.06066017177942,
           "y": 0,
           "z": 1.0606601717798214
         }
@@ -249,7 +249,7 @@
           3
         ],
         "self": {
-          "x": 112.33933982821982,
+          "x": 115.93933982821979,
           "y": 0,
           "z": -1.0606601717798214
         }

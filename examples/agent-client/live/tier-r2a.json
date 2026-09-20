@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-19T05:12:59.605Z",
+  "generatedAt": "2026-09-20T02:25:56.591Z",
   "summary": {
     "pass": 12,
     "fail": 0,
@@ -128,7 +128,7 @@
           "added": 1,
           "types": {
             "ENTITY_ADDED": 1,
-            "ENTITY_MOVEMENT_BATCH": 4
+            "ENTITY_MOVEMENT_BATCH": 3
           },
           "gotLate": true
         }
@@ -152,7 +152,7 @@
           "added": 1,
           "types": {
             "ENTITY_ADDED": 1,
-            "ENTITY_MOVEMENT_BATCH": 4
+            "ENTITY_MOVEMENT_BATCH": 3
           },
           "gotLate": true
         }
@@ -226,7 +226,7 @@
         "detail": [
           {
             "sender": "tier_eco_87393",
-            "msg": "广播-1789794"
+            "msg": "广播-1789871"
           }
         ]
       },
@@ -236,7 +236,7 @@
         "detail": [
           {
             "sender": "tier_eco_87393",
-            "msg": "广播-1789794"
+            "msg": "广播-1789871"
           }
         ]
       },
@@ -269,12 +269,12 @@
         "name": "[standard] N 25 实体同时移动 10s",
         "info": true,
         "detail": {
-          "messages": 9,
+          "messages": 10,
           "entitiesCovered": 25,
           "crowdSize": 25,
-          "perEntityMin": 9,
-          "perEntityMax": 9,
-          "perEntityAvg": 9
+          "perEntityMin": 10,
+          "perEntityMax": 10,
+          "perEntityAvg": 10
         }
       },
       {
@@ -345,7 +345,7 @@
           "added": 1,
           "types": {
             "ENTITY_ADDED": 1,
-            "ENTITY_MOVEMENT_BATCH": 4
+            "ENTITY_MOVEMENT_BATCH": 3
           },
           "gotLate": true
         },
@@ -379,19 +379,19 @@
         "eco": [
           {
             "sender": "tier_eco_87393",
-            "msg": "广播-1789794"
+            "msg": "广播-1789871"
           }
         ],
         "standard": [
           {
             "sender": "tier_eco_87393",
-            "msg": "广播-1789794"
+            "msg": "广播-1789871"
           }
         ],
         "realtime": [
           {
             "sender": "tier_eco_87393",
-            "msg": "广播-1789794"
+            "msg": "广播-1789871"
           }
         ]
       },
@@ -402,12 +402,12 @@
       },
       "N": {
         "standard": {
-          "messages": 9,
+          "messages": 10,
           "entitiesCovered": 25,
           "crowdSize": 25,
-          "perEntityMin": 9,
-          "perEntityMax": 9,
-          "perEntityAvg": 9
+          "perEntityMin": 10,
+          "perEntityMax": 10,
+          "perEntityAvg": 10
         },
         "realtime": {
           "messages": 1200,

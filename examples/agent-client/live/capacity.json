@@ -1,61 +1,43 @@
 {
   "title": "accept_agent_capacity",
-  "startedAt": "2026-09-19T09:26:34.587Z",
+  "startedAt": "2026-09-20T02:39:32.303Z",
   "params": {
-    "N": 100,
-    "DURATION_SEC": 60,
-    "MOVERS": 10,
+    "N": 50,
+    "DURATION_SEC": 30,
+    "MOVERS": 5,
     "OBSERVERS": 12,
-    "WITH_BROWSER": true,
+    "WITH_BROWSER": false,
     "port": 3002
   },
   "bringUp": {
-    "ready": 100,
+    "ready": 50,
     "failures": [],
-    "setupMs": 11867
-  },
-  "browser": {
-    "gl": "ANGLE (NVIDIA, NVIDIA GeForce GTX 960 (0x00001401) Direct3D11 vs_5_0 ps_5_0, D3D11)",
-    "players": 105,
-    "fpsSamples": [
-      60.1,
-      60,
-      60.2
-    ],
-    "render": {
-      "calls": 630,
-      "triangles": 228954,
-      "geometries": 853,
-      "programs": 66
-    },
-    "errors": [],
-    "screenshot": "L:\\shegnjir185\\Screenshot\\_tmp_capacity_100_agents.png",
-    "navToDoneMs": 32810
+    "setupMs": 7461
   },
   "capacity": {
-    "agents": 100,
-    "movers": 10,
+    "agents": 50,
+    "movers": 5,
     "observers": 12,
-    "durationSec": 62.2,
-    "cpuCoresUsed": 4.94,
-    "cpuCoresAvg": 0.079,
-    "cpuPercentPeak": 30.9,
-    "rssMBStart": 90,
-    "rssMBEnd": 92,
-    "threadsEnd": 12,
+    "durationSec": 32.3,
+    "cpuCoresUsed": 1.06,
+    "cpuCoresAvg": 0.033,
+    "cpuPercentPeak": 7.8,
+    "rssMBStart": 72,
+    "rssMBEnd": 76,
+    "threadsEnd": 13,
     "observe": {
-      "ok": 276,
+      "ok": 144,
       "rateLimited": 0,
       "other": 0,
-      "p50ms": 7,
+      "p50ms": 5,
       "p95ms": 14,
       "successRate": 1
     },
     "fanout": {
-      "msgPerSecAvg": 116.7,
-      "msgPerSecPeak": 158,
-      "kbPerSecAvg": 26.2,
-      "perMovingAgentMsgPerSec": 11.67,
+      "msgPerSecAvg": 45,
+      "msgPerSecPeak": 45.8,
+      "kbPerSecAvg": 10.9,
+      "perMovingAgentMsgPerSec": 8.99,
       "note": "POSITION_UPDATE 是 broadcastToAll 全量广播（§9 坑 5 预置设计）；公式 = 移动中 Agent 数 × 10Hz × 人类连接数"
     },
     "rejects": {
@@ -76,143 +58,71 @@
     },
     "samples": [
       {
-        "tSec": 8,
-        "agentsOnline": 100,
-        "cpuPercentOfOneCore": 30.9,
-        "rssMB": 94,
-        "threads": 12,
-        "humanPlayersNet": 106,
-        "fanoutMsgPerSec": 100.2,
-        "fanoutKBPerSec": 22.9,
+        "tSec": 7.1,
+        "agentsOnline": 50,
+        "cpuPercentOfOneCore": 7.8,
+        "rssMB": 74,
+        "threads": 16,
+        "humanPlayersNet": 52,
+        "fanoutMsgPerSec": 45,
+        "fanoutKBPerSec": 10.7,
         "observeOk": 24,
         "observe429": 0
       },
       {
-        "tSec": 12.6,
-        "agentsOnline": 100,
-        "cpuPercentOfOneCore": 10.9,
-        "rssMB": 90,
-        "threads": 12,
-        "humanPlayersNet": 106,
-        "fanoutMsgPerSec": 117.6,
-        "fanoutKBPerSec": 26.5,
-        "observeOk": 36,
+        "tSec": 12.1,
+        "agentsOnline": 50,
+        "cpuPercentOfOneCore": 4.1,
+        "rssMB": 75,
+        "threads": 16,
+        "humanPlayersNet": 52,
+        "fanoutMsgPerSec": 45.8,
+        "fanoutKBPerSec": 11.2,
+        "observeOk": 48,
         "observe429": 0
       },
       {
-        "tSec": 17.5,
-        "agentsOnline": 100,
-        "cpuPercentOfOneCore": 6.9,
-        "rssMB": 91,
-        "threads": 12,
-        "humanPlayersNet": 106,
-        "fanoutMsgPerSec": 104.2,
-        "fanoutKBPerSec": 24.1,
-        "observeOk": 60,
+        "tSec": 17.2,
+        "agentsOnline": 50,
+        "cpuPercentOfOneCore": 2.5,
+        "rssMB": 75,
+        "threads": 16,
+        "humanPlayersNet": 52,
+        "fanoutMsgPerSec": 45,
+        "fanoutKBPerSec": 11,
+        "observeOk": 72,
         "observe429": 0
       },
       {
-        "tSec": 22.5,
-        "agentsOnline": 100,
-        "cpuPercentOfOneCore": 10.9,
-        "rssMB": 92,
-        "threads": 12,
-        "humanPlayersNet": 106,
-        "fanoutMsgPerSec": 158,
-        "fanoutKBPerSec": 33.1,
-        "observeOk": 84,
+        "tSec": 22.2,
+        "agentsOnline": 50,
+        "cpuPercentOfOneCore": 2.2,
+        "rssMB": 75,
+        "threads": 16,
+        "humanPlayersNet": 52,
+        "fanoutMsgPerSec": 44,
+        "fanoutKBPerSec": 10.7,
+        "observeOk": 96,
         "observe429": 0
       },
       {
-        "tSec": 27.5,
-        "agentsOnline": 100,
-        "cpuPercentOfOneCore": 9.4,
-        "rssMB": 92,
-        "threads": 12,
-        "humanPlayersNet": 106,
-        "fanoutMsgPerSec": 155.8,
-        "fanoutKBPerSec": 32.5,
-        "observeOk": 108,
-        "observe429": 0
-      },
-      {
-        "tSec": 32.4,
-        "agentsOnline": 100,
-        "cpuPercentOfOneCore": 10,
-        "rssMB": 92,
-        "threads": 12,
-        "humanPlayersNet": 106,
-        "fanoutMsgPerSec": 154.2,
-        "fanoutKBPerSec": 32.1,
-        "observeOk": 132,
-        "observe429": 0
-      },
-      {
-        "tSec": 37.2,
-        "agentsOnline": 100,
-        "cpuPercentOfOneCore": 4.4,
-        "rssMB": 91,
-        "threads": 12,
-        "humanPlayersNet": 105,
-        "fanoutMsgPerSec": 133.2,
-        "fanoutKBPerSec": 28.9,
-        "observeOk": 156,
-        "observe429": 0
-      },
-      {
-        "tSec": 42.2,
-        "agentsOnline": 100,
-        "cpuPercentOfOneCore": 3.8,
-        "rssMB": 91,
-        "threads": 12,
-        "humanPlayersNet": 105,
-        "fanoutMsgPerSec": 90,
-        "fanoutKBPerSec": 22,
-        "observeOk": 180,
-        "observe429": 0
-      },
-      {
-        "tSec": 47.2,
-        "agentsOnline": 100,
-        "cpuPercentOfOneCore": 3.1,
-        "rssMB": 91,
-        "threads": 12,
-        "humanPlayersNet": 105,
-        "fanoutMsgPerSec": 90,
-        "fanoutKBPerSec": 21.9,
-        "observeOk": 204,
-        "observe429": 0
-      },
-      {
-        "tSec": 52.2,
-        "agentsOnline": 100,
-        "cpuPercentOfOneCore": 2.8,
-        "rssMB": 92,
-        "threads": 12,
-        "humanPlayersNet": 105,
-        "fanoutMsgPerSec": 90,
-        "fanoutKBPerSec": 21.9,
-        "observeOk": 228,
-        "observe429": 0
-      },
-      {
-        "tSec": 57.2,
-        "agentsOnline": 100,
-        "cpuPercentOfOneCore": 3.1,
-        "rssMB": 92,
-        "threads": 12,
-        "humanPlayersNet": 105,
-        "fanoutMsgPerSec": 90,
-        "fanoutKBPerSec": 22,
-        "observeOk": 252,
+        "tSec": 27.3,
+        "agentsOnline": 50,
+        "cpuPercentOfOneCore": 1.9,
+        "rssMB": 75,
+        "threads": 16,
+        "humanPlayersNet": 52,
+        "fanoutMsgPerSec": 45,
+        "fanoutKBPerSec": 11,
+        "observeOk": 120,
         "observe429": 0
       }
     ]
   },
   "result": {
-    "pass": 12,
+    "pass": 10,
     "fail": 0,
-    "total": 12
+    "total": 10
   },
   "rows": [
     {
@@ -228,45 +138,45 @@
       "ok": true,
       "detail": {
         "status": 200,
-        "maxAgents": 103,
-        "extraAgents": 3
+        "maxAgents": 50,
+        "extraAgents": 0
       }
     },
     {
       "name": "P2 取得服务器进程句柄（CPU/RSS 可采样）",
       "ok": true,
       "detail": {
-        "pid": 2356
+        "pid": 20552
       }
     },
     {
       "name": "P3 真人侧观察者（Node WS）已入场",
       "ok": true,
-      "detail": "cap_human_194"
+      "detail": "cap_human_172"
     },
     {
-      "name": "L1 100 个游客 Agent 全部 READY",
+      "name": "L1 50 个游客 Agent 全部 READY",
       "ok": true,
       "detail": {
-        "ready": 100,
-        "attempted": 100,
+        "ready": 50,
+        "attempted": 50,
         "failures": 0,
-        "setupMs": 11867
+        "setupMs": 7461
       }
     },
     {
       "name": "L2 真人侧看到 Agent 入场（players 净增 ≥N）",
       "ok": true,
       "detail": {
-        "playersNet": 105,
-        "agentsInState": 3
+        "playersNet": 52,
+        "agentsInState": 0
       }
     },
     {
       "name": "L3 stop 批量生效：停下后人类侧扇出显著下降",
       "ok": true,
       "detail": {
-        "sent": 10,
+        "sent": 5,
         "fanoutWhileIdleMsgPerSec": 0
       }
     },
@@ -274,12 +184,12 @@
       "name": "L4 负载期无 Agent 掉线（连接全存活）",
       "ok": true,
       "detail": {
-        "online": 100,
-        "expected": 100
+        "online": 50,
+        "expected": 50
       }
     },
     {
-      "name": "L5 max_agents 满额（103）：再来一个 Agent 被拒（ERROR + close 1013）",
+      "name": "L5 max_agents 满额（50）：再来一个 Agent 被拒（ERROR + close 1013）",
       "ok": true,
       "detail": {
         "stage": "post_upgrade",
@@ -299,25 +209,7 @@
         "reason": "guest ip concurrency limit",
         "matched": true
       }
-    },
-    {
-      "name": "L7 真 GPU 真人页可读 FPS（≥30 视为不影响正常游玩）",
-      "ok": true,
-      "detail": {
-        "fps": [
-          60.1,
-          60,
-          60.2
-        ],
-        "gl": "ANGLE (NVIDIA, NVIDIA GeForce GTX 960 (0x00001401) Direct3D11 vs_5_0 ps_5_0, D3D11)",
-        "players": 105
-      }
-    },
-    {
-      "name": "L8 真人页 0 console error",
-      "ok": true,
-      "detail": []
     }
   ],
-  "durationMs": 89850
+  "durationMs": 55593
 }

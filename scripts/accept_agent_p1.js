@@ -67,7 +67,23 @@ async function main() {
 
   // ---------- 准备：默认配置行 + 测试 Agent + 先开总开关（在任何 HTTP 前） ----------
   await agentConfigService.ensureDefaultConfig();
+  // v6 批次 D：记住运行前原值 —— 本脚本的 B1 判据需要临时关闸验证 503，收尾必须按原值还原，
+  // 否则连跑回归时紧随其后的脚本会全部撞 503 AGENT_DISABLED_GLOBALLY（§9 坑 35）。
+  const cfgBefore = await agentConfigService.getConfig(true);
+  const origEnabled = !!cfgBefore.agentEnabled;
   await agentConfigService.setConfigValue('agent_enabled', 'true');
+  // 本脚本是**独立进程直写 DB**，而服务器进程有 60s 配置缓存 → 必须等它跟进，
+  // 否则下面的 C1 会拿到 503 而假失败（§9 坑 6；p2 里已有同样的等待逻辑）。
+  // 探针用公开的 /capabilities（返回 agentEnabled，且不计 session 限流窗口）。
+  console.log('\n[wait] 已开总开关，轮询等待服务器 60s 配置缓存跟进（最长 140s）...');
+  {
+    const deadline = Date.now() + 140000;
+    while (Date.now() < deadline) {
+      const probe = await req('GET', '/api/agent/v1/capabilities');
+      if (probe.json && probe.json.agentEnabled === true) { console.log('  服务器已跟进 agentEnabled=true'); break; }
+      await sleep(3000);
+    }
+  }
 
   let agent = await agentManager.getAgentByName('p1_test_agent');
   let apiKey;
@@ -145,7 +161,9 @@ async function main() {
   }
   record('B1', 'agent_enabled=false 时 POST /session 返回 503', off503);
 
-  console.log('\n[cleanup] agent_enabled 已恢复 false（红线：默认关）');
+  // 收尾：按运行前原值还原（v6 批次 D）
+  await agentConfigService.setConfigValue('agent_enabled', origEnabled ? 'true' : 'false');
+  console.log(`\n[cleanup] agent_enabled 已恢复运行前值 = ${origEnabled}（红线 6：默认关）`);
   await finish();
 }
 

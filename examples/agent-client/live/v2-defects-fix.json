@@ -1,58 +1,58 @@
 {
-  "when": "2026-09-19T09:07:55.138Z",
-  "run": 85,
+  "when": "2026-09-20T01:45:49.566Z",
+  "run": 39,
   "ips": {
-    "observer": "203.0.113.265"
+    "observer": "203.0.113.219"
   },
   "groups": {
     "transient": {
       "results": [
         {
           "attempt": 1,
-          "ip": "203.0.113.145",
-          "agentId": "agent:guest:c4ba79d1-819e-4f21-8185-ac8c9e8b03cd",
+          "ip": "203.0.113.99",
+          "agentId": "agent:guest:09ceacf5-302e-4d04-bc19-7ce4e9f35d7a",
           "ghost": false,
           "reconnect": true
         },
         {
           "attempt": 2,
-          "ip": "203.0.113.146",
-          "agentId": "agent:guest:fb79158b-89ca-4fe2-a011-df98ad2bf0ce",
+          "ip": "203.0.113.100",
+          "agentId": "agent:guest:5fd55f82-b8b1-4251-a38c-d365241a0c27",
           "ghost": false,
           "reconnect": true
         },
         {
           "attempt": 3,
-          "ip": "203.0.113.147",
-          "agentId": "agent:guest:20c5dbce-c7e9-4297-8e1f-2cbadae00ede",
+          "ip": "203.0.113.101",
+          "agentId": "agent:guest:81c24a10-1fb4-440e-917a-60daec369d45",
           "ghost": false,
           "reconnect": true
         },
         {
           "attempt": 4,
-          "ip": "203.0.113.148",
-          "agentId": "agent:guest:b6ddc4f9-a594-4af7-9b0c-b44a07aa6325",
+          "ip": "203.0.113.102",
+          "agentId": "agent:guest:a5bd562f-f2b1-453f-8cdb-f159ea72517f",
           "ghost": false,
           "reconnect": true
         },
         {
           "attempt": 5,
-          "ip": "203.0.113.149",
-          "agentId": "agent:guest:db3f6bee-03e0-4501-a958-3c6002c4a009",
+          "ip": "203.0.113.103",
+          "agentId": "agent:guest:5c5a96ef-0e70-41ad-88a8-3d5a286d0eb5",
           "ghost": false,
           "reconnect": true
         },
         {
           "attempt": 6,
-          "ip": "203.0.113.150",
-          "agentId": "agent:guest:3dbd1434-5407-4b52-912e-9f528761a86e",
+          "ip": "203.0.113.104",
+          "agentId": "agent:guest:e5dd0365-ab27-423f-bc82-5976d7e22b96",
           "ghost": false,
           "reconnect": true
         }
       ],
       "ghosts": 0,
       "reconnectFails": 0,
-      "disconnects": 12,
+      "disconnects": 14,
       "preReady": 12
     },
     "receipts": "see rows"
@@ -92,9 +92,9 @@
       "name": "V3 审计日志记录 ws_disconnected（handleClose 确实执行，含 phase=closed_before_ready）",
       "ok": true,
       "detail": {
-        "ws_disconnected": 12,
+        "ws_disconnected": 14,
         "closed_before_ready": 12,
-        "ws_connected": 1
+        "ws_connected": 2
       }
     },
     {
@@ -134,5 +134,5 @@
       "detail": "① move / jump 的 reason=disconnected 回执发给的是**已断开的连接**，客户端无法观测，其清理侧证据 = V3 的 ws_disconnected（handleClose → cleanup → cancelMovement）；② jump 若**复用**既有移动任务（如 walk_to 途中起跳），该 jump 不另占回执位（一条任务只挂一个待回执指令，不覆盖旧 requestId），此时只有主指令收到 superseded —— 属既定契约，非缺陷。"
     }
   ],
-  "durationMs": 21932
+  "durationMs": 21870
 }

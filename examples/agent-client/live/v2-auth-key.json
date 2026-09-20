@@ -1,19 +1,19 @@
 {
-  "when": "2026-09-19T09:15:01.620Z",
-  "run": 11,
-  "agentName": "v2_key_agent_11",
+  "when": "2026-09-20T01:42:51.681Z",
+  "run": 61,
+  "agentName": "v2_key_agent_61",
   "groups": {
     "K1": {
       "success": true,
       "agent": {
-        "id": "4889498c-9c01-4eab-8e71-8be314a7b4ff",
-        "name": "v2_key_agent_11",
+        "id": "4898696a-1dfc-4974-bfc4-539f9670ce56",
+        "name": "v2_key_agent_61",
         "status": "active",
         "pushTier": "realtime",
-        "createdAt": "2026-09-19T09:15:01.751Z"
+        "createdAt": "2026-09-20T01:42:51.854Z"
       },
-      "apiKey": "agk_live_4c73c26754ed2617f3684b94619c54fcac7f1e7a8f3d91e74cc278b329f68a7f",
-      "apiKeyPrefix": "agk_live_4c73c26"
+      "apiKey": "agk_live_572681a49530d1f3a1a737065bf8021e2aa1759e751a9eb7d293604da9d0ab08",
+      "apiKeyPrefix": "agk_live_572681a"
     }
   },
   "fatal": null,
@@ -38,12 +38,12 @@
     {
       "name": "K1b Key 形如 agk_live_<64hex>",
       "ok": true,
-      "detail": "agk_live_4c73c26754e..."
+      "detail": "agk_live_572681a4953..."
     },
     {
       "name": "K1c agent.id 为 UUID（非 agent: 合成 ID）",
       "ok": true,
-      "detail": "4889498c-9c01-4eab-8e71-8be314a7b4ff"
+      "detail": "4898696a-1dfc-4974-bfc4-539f9670ce56"
     },
     {
       "name": "K2 Key 换票 200",
@@ -60,7 +60,7 @@
     {
       "name": "K2c agent.id 与创建时一致",
       "ok": true,
-      "detail": "4889498c-9c01-4eab-8e71-8be314a7b4ff"
+      "detail": "4898696a-1dfc-4974-bfc4-539f9670ce56"
     },
     {
       "name": "K2d scope 无 teleport（红线 2）",
@@ -276,7 +276,7 @@
         "status": 200,
         "body": {
           "success": true,
-          "deleted": "v2_key_agent_11",
+          "deleted": "v2_key_agent_61",
           "kicked": 0
         }
       }
@@ -286,5 +286,5 @@
       "ok": true
     }
   ],
-  "durationMs": 129937
+  "durationMs": 130851
 }

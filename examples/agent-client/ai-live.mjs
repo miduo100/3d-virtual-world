@@ -5,6 +5,19 @@
  *   AGENT_HOST=http://localhost:3002 AGENT_API_KEY=agk_live_xxx node ai-live.mjs
  *   AGENT_HOST=http://localhost:3002 node ai-live.mjs          # 无 Key → 游客拉模式（收不到聊天）
  *
+ * 会话有效期（重要，v6 新增；详见 README「Session Lifetime & Renewal」）：
+ *   - **Key 档：可长期驻场**。启动读 well-known 的 auth.sessionTtlSeconds（缺省 900s），
+ *     按 ttl×2/3 定时用 API Key 换新 token 供 HTTP 调用（observe / chat/history）。**WS 不重连**。
+ *     原因：WS 只在建连时校验一次 JWT，而 HTTP 端点**每次调用都校验** → 不续期的话
+ *     t≈15min 起 observe/chat-history 全部 403 TOKEN_EXPIRED，而 WS 仍活着（还能 say/移动），
+ *     表现为"AI 还回话、但看不见世界、也不再对世界有反应"。
+ *   - **游客档：不可长期驻场**。票 30 分钟到期后 HTTP 全 403（游客 PING 不计活跃 →
+ *     再过约 5 分钟被空闲超时踢出）。换票会换新身份（agent:guest:<uuid>）→ **到期请重启进程**。
+ *
+ * 环境变量：
+ *   AI_LIVE_DIR         覆写 live 目录（默认 ./live）；多实例/测试用独立目录，避免 events.jsonl 混流
+ *   AI_LIVE_REFRESH_MS  覆写续期间隔（毫秒，测试用，如 60000）
+ *
  * 目录约定（相对本脚本所在目录）：
  *   live/inbox/*.json   待执行命令，按文件名升序处理，执行后移入 live/done/
  *                       文件内容 = 单条命令对象，如
@@ -29,7 +42,9 @@ const API_KEY = process.env.AGENT_API_KEY || '';
 const WS_BASE = HOST.replace(/^http/, 'ws');
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const LIVE = path.join(HERE, 'live');
+// AI_LIVE_DIR：多实例/测试用独立目录。两个进程共用 live/ 会互相抢 inbox 命令、events.jsonl 混流
+// （2026-09-19 联测经验 E2）——跑测试或同时驻场多个 Agent 时给每个进程一个目录。
+const LIVE = process.env.AI_LIVE_DIR ? path.resolve(process.env.AI_LIVE_DIR) : path.join(HERE, 'live');
 const INBOX = path.join(LIVE, 'inbox');
 const DONE = path.join(LIVE, 'done');
 const EVENTS = path.join(LIVE, 'events.jsonl');
@@ -93,6 +108,32 @@ async function post(url, headers, body) {
   return { status: r.status, body: j };
 }
 
+/**
+ * 读发现入口拿会话 TTL。**拿不到就用缺省值**：发现端点虽然公开无鉴权，
+ * 但网络抖动 / 版本差异都可能失败，客户端启动绝不能依赖它。
+ */
+async function readWellKnownTtls() {
+  const fallback = { sessionTtlSeconds: 900, guestSessionTtlSeconds: 1800 };
+  try {
+    const r = await fetch(HOST + '/.well-known/virtual-world-agent.json');
+    const j = await r.json();
+    const a = (j && j.auth) || {};
+    const s = Number(a.sessionTtlSeconds), g = Number(a.guestSessionTtlSeconds);
+    return {
+      sessionTtlSeconds: s > 0 ? s : fallback.sessionTtlSeconds,
+      guestSessionTtlSeconds: g > 0 ? g : fallback.guestSessionTtlSeconds
+    };
+  } catch (e) {
+    log('well-known 读取失败，用缺省 TTL（session=' + fallback.sessionTtlSeconds + 's）: ' + e.message);
+    return fallback;
+  }
+}
+
+/** 解 JWT payload 的 exp（仅用于日志/状态落盘，不校验签名） */
+function decodeJwtExp(t) {
+  try { return JSON.parse(Buffer.from(t.split('.')[1], 'base64url').toString('utf8')).exp; } catch (e) { return null; }
+}
+
 function openWs(url) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url);
@@ -106,8 +147,14 @@ function openWs(url) {
   log('ai-live starting | host=' + HOST + ' | mode=' + (API_KEY ? 'key-push' : 'guest-pull'));
   writeState({ started: true, host: HOST, mode: API_KEY ? 'key-push' : 'guest-pull', connected: false });
 
+  // ---- 0. discovery：拿会话 TTL（失败用缺省值，不影响启动）----
+  const ttl = await readWellKnownTtls();
+  const SESSION_TTL = ttl.sessionTtlSeconds;              // Key 档 JWT 有效期（默认 900s）
+  const GUEST_SESSION_TTL = ttl.guestSessionTtlSeconds;   // 游客票有效期（默认 1800s）
+  log('ttl | session=' + SESSION_TTL + 's guest=' + GUEST_SESSION_TTL + 's');
+
   // ---- 1. session ----
-  let token, tier, agentId, agentName;
+  let token, tier, agentId, agentName, guestExpiresIn = 0;
   if (API_KEY) {
     const r = await post(HOST + '/api/agent/v1/session', {
       Authorization: 'Bearer ' + API_KEY, 'Content-Type': 'application/json'
@@ -120,9 +167,14 @@ function openWs(url) {
     if (!r.body || !r.body.token) { log('guest session FAILED', r.status, r.body); writeState({ connected: false, error: 'guest session failed' }); process.exitCode = 1; return; }
     token = r.body.token; tier = r.body.tier;
     agentId = r.body.agent && r.body.agent.id; agentName = r.body.agent && r.body.agent.name;
+    guestExpiresIn = Number(r.body.expiresIn) || GUEST_SESSION_TTL;   // 游客票有效期（秒）
   }
   log('session ok | agent=' + agentName + ' tier=' + tier);
-  writeState({ agentId, agentName, tier, connected: false });
+  const myExp = decodeJwtExp(token);
+  writeState({
+    agentId, agentName, tier, connected: false,
+    tokenExpiresAt: myExp ? new Date(myExp * 1000).toISOString() : null
+  });
 
   // ---- 2. WS ----
   const ws = await openWs(`${WS_BASE}/ws/agent?token=${encodeURIComponent(token)}`);
@@ -143,7 +195,13 @@ function openWs(url) {
       log('ERROR', m.payload && m.payload.code);
     }
   });
-  ws.addEventListener('close', (ev) => { log('ws closed code=' + ev.code + ' reason=' + ev.reason); writeState({ connected: false }); process.exit(0); });
+  ws.addEventListener('close', (ev) => {
+    log('ws closed code=' + ev.code + ' reason=' + ev.reason);
+    // 可观测：会话续期**不应**导致 WS 重连（§5.2 设计），这条事件是验收判据
+    emit({ dir: 'ws', event: 'closed', code: ev.code, reason: ev.reason });
+    writeState({ connected: false, wsClosedAt: new Date().toISOString() });
+    process.exit(0);
+  });
 
   // Key 模式订阅 chat / movement / presence（游客会被拒，忽略）。
   // 2026-09-19 起位置流受订阅门控（T3）：只订阅 chat 的客户端收不到 ENTITY_* 推送，
@@ -159,8 +217,75 @@ function openWs(url) {
     try { if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'PING', payload: {} })); } catch (e) {}
   }, 60000);
 
+  // ---- 2c. 会话续期（v6 新增）----
+  // 为什么必须做：Agent JWT TTL = 900s，**WS 只在建连时校验一次、HTTP 端点每次调用都校验** →
+  // 不续期的话 t≈15min 起 observe / chat/history 全部 403 TOKEN_EXPIRED（WS 仍活着、还能 say/移动），
+  // 世界里表现为"AI 还在回话，但看不见世界、也不再对世界有反应"。
+  //
+  // Key 档：定时用 API Key 换新 token。**只需给闭包里的 token 重新赋值** —— 下面的周期
+  //   observe / history 都是"每次调用时才读 token"，故不用改那两处 fetch；WS 用旧 jti 是
+  //   设计使然（§5.2），**不要重连**。
+  // 游客档：**不续期**（换票会生成新身份 agent:guest:<uuid>，与已建 WS 连接的 presence 身份错位，
+  //   observe 的 self 会变 (0,0,0)）→ 票到期后请重启进程重签。
+  let refreshInFlight = false;
+  let refreshAttempt = 0;
+  const REFRESH_RETRY_MS = [5000, 15000, 45000];   // 失败重试间隔（最多 3 次，之后告警但不退出）
+
+  async function refreshSession() {
+    if (refreshInFlight) return;                    // 防重入：重试与定时器可能撞车
+    refreshInFlight = true;
+    const r = await post(HOST + '/api/agent/v1/session', {
+      Authorization: 'Bearer ' + API_KEY, 'Content-Type': 'application/json'
+    }, {});
+    if (r.body && r.body.token) {
+      token = r.body.token;                         // ★ 关键：只重新赋值，两个周期任务下次调用自会读到新值
+      refreshAttempt = 0;
+      refreshInFlight = false;
+      const exp = decodeJwtExp(token);
+      writeState({
+        tokenRefreshedAt: new Date().toISOString(),
+        tokenExpiresAt: exp ? new Date(exp * 1000).toISOString() : null
+      });
+      emit({ dir: 'session', event: 'refreshed', expiresIn: SESSION_TTL, exp });
+      log('session refreshed | exp=' + (exp ? new Date(exp * 1000).toISOString() : '?'));
+      return;
+    }
+    refreshInFlight = false;
+    const err = 'status=' + r.status + ' ' + JSON.stringify(r.body || {});
+    if (refreshAttempt < REFRESH_RETRY_MS.length) {
+      const wait = REFRESH_RETRY_MS[refreshAttempt++];
+      log('session refresh FAILED (' + err + ')，' + (wait / 1000) + 's 后重试');
+      emit({ dir: 'session', event: 'refresh_retry', waitMs: wait, error: err });
+      setTimeout(refreshSession, wait);
+    } else {
+      // 不退出：WS 还活着，客户端还能 say/walk；只是 HTTP 能力（observe/history）会失效
+      log('session refresh GIVE UP: ' + err + '（WS 仍在，observe/history 将 403）');
+      emit({ dir: 'session', event: 'refresh_giveup', error: err });
+      writeState({ tokenRefreshFailedAt: new Date().toISOString(), tokenRefreshError: err });
+    }
+  }
+
+  if (API_KEY) {
+    const intervalMs = Number(process.env.AI_LIVE_REFRESH_MS) || Math.round(SESSION_TTL * 1000 * 2 / 3);
+    setInterval(refreshSession, intervalMs);        // 首轮不立即续期（第一次在 interval 之后）
+    log('session auto-refresh ON | every ' + Math.round(intervalMs / 1000) + 's (ttl=' + SESSION_TTL + 's)');
+  } else {
+    const expireAt = new Date(Date.now() + guestExpiresIn * 1000).toISOString();
+    writeState({ guestTicketExpiresAt: expireAt, guestNoRenew: true });
+    log('guest ticket expires at ' + expireAt + ' | 游客不自动续期（换票会换身份）→ 到期请重启进程');
+    setTimeout(() => {
+      log('guest ticket EXPIRED — HTTP 调用（observe/chat-history）将开始 403；'
+        + 'WS 约 5 分钟后被空闲超时踢出。请重启本进程重新签票。');
+      writeState({ guestTicketExpired: true });
+      emit({ dir: 'session', event: 'guest_ticket_expired' });
+    }, guestExpiresIn * 1000);
+  }
+
   // ---- 3. 周期 observe ----
+  // v6：HTTP 失败必须留痕 —— 原实现只在 success 时 emit，JWT 过期后
+  // "看不见世界"对客户端自己是**完全静默**的（这正是缺陷 A 难以被发现的原因）。
   let lastObserve = 0;
+  const lastObserveErr = { status: 0 };
   setInterval(async () => {
     if (Date.now() - lastObserve < 3000) return;
     lastObserve = Date.now();
@@ -171,6 +296,14 @@ function openWs(url) {
         const ents = (j.entities || []).map(e => ({ id: e.id, name: e.name, type: e.type, d: e.distance, p: e.position }));
         emit({ dir: 'observe', self: j.self, entities: ents });
         writeState({ self: j.self, entities: ents });
+        if (lastObserveErr.status) { log('observe recovered (HTTP 200)'); lastObserveErr.status = 0; }
+      } else if (!r.ok) {
+        emit({ dir: 'observe', event: 'http_error', status: r.status, code: j && j.code });
+        if (lastObserveErr.status !== r.status) {
+          lastObserveErr.status = r.status;
+          log('observe HTTP ' + r.status + ' ' + ((j && j.code) || '')
+            + ' ← HTTP 凭据失效：Key 档应已自动续期（若持续出现请查 API Key）；游客档请重启进程重签票');
+        }
       }
     } catch (e) { /* ignore */ }
   }, 1000);
@@ -181,6 +314,10 @@ function openWs(url) {
     try {
       const r = await fetch(HOST + '/api/agent/v1/chat/history?limit=30', { headers: { Authorization: 'Bearer ' + token } });
       const j = await r.json().catch(() => null);
+      if (!r.ok) {
+        emit({ dir: 'chat-history', event: 'http_error', status: r.status, code: j && j.code });
+        return;
+      }
       if (!j || !j.success || !Array.isArray(j.history)) return;
       for (const h of j.history.slice().reverse()) {
         if (h.senderType !== 'human') continue;

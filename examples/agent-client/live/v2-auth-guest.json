@@ -1,20 +1,20 @@
 {
-  "when": "2026-09-19T09:14:28.922Z",
-  "run": 68,
+  "when": "2026-09-20T01:33:22.075Z",
+  "run": 32,
   "ips": {
-    "owner": "203.0.113.68",
-    "auth": "203.0.113.98",
-    "main": "203.0.113.108",
-    "c18": "203.0.113.188",
-    "owner2": "203.0.113.168",
-    "rate": "198.51.100.68",
-    "fresh": "203.0.113.118",
-    "fresh2": "203.0.113.218",
-    "xObserver": "203.0.113.138",
+    "owner": "203.0.113.32",
+    "auth": "203.0.113.62",
+    "main": "203.0.113.72",
+    "c18": "203.0.113.152",
+    "owner2": "203.0.113.132",
+    "rate": "198.51.100.32",
+    "fresh": "203.0.113.82",
+    "fresh2": "203.0.113.182",
+    "xObserver": "203.0.113.102",
     "xAttempts": [
-      "203.0.113.128",
-      "203.0.113.129",
-      "203.0.113.130"
+      "203.0.113.92",
+      "203.0.113.93",
+      "203.0.113.94"
     ]
   },
   "groups": {
@@ -1024,8 +1024,8 @@
       }
     },
     "B": {
-      "agentId": "agent:guest:979cd315-ed0a-4241-ae9f-7f2369835dda",
-      "name": "游客AI-e5828c36"
+      "agentId": "agent:guest:185f6550-a43e-4abb-ab48-bfeb662e9330",
+      "name": "游客AI-6c20300e"
     },
     "C": {
       "connected": true
@@ -1043,22 +1043,22 @@
       "results": [
         {
           "attempt": 1,
-          "ip": "203.0.113.128",
-          "agentId": "agent:guest:2d9a8c97-615e-4414-8105-b4c9710168ba",
+          "ip": "203.0.113.92",
+          "agentId": "agent:guest:73f00784-733c-421e-8830-429df503a583",
           "ghost": false,
           "slotLeak": false
         },
         {
           "attempt": 2,
-          "ip": "203.0.113.129",
-          "agentId": "agent:guest:c8af64b6-4cc2-4dbf-9f5d-b6bd3ed51c0e",
+          "ip": "203.0.113.93",
+          "agentId": "agent:guest:08fd6e7e-ddb0-4380-85cd-695e87a169e1",
           "ghost": false,
           "slotLeak": false
         },
         {
           "attempt": 3,
-          "ip": "203.0.113.130",
-          "agentId": "agent:guest:32533b2c-29dd-404d-9d03-0d081047685d",
+          "ip": "203.0.113.94",
+          "agentId": "agent:guest:4dc8e596-1617-41d7-964f-7d78165756eb",
           "ghost": false,
           "slotLeak": false
         }
@@ -1165,12 +1165,12 @@
     {
       "name": "B4 agent.id 形如 agent:guest:<uuid>",
       "ok": true,
-      "detail": "agent:guest:979cd315-ed0a-4241-ae9f-7f2369835dda"
+      "detail": "agent:guest:185f6550-a43e-4abb-ab48-bfeb662e9330"
     },
     {
       "name": "B5 agent.name 以 游客AI- 开头",
       "ok": true,
-      "detail": "游客AI-e5828c36"
+      "detail": "游客AI-6c20300e"
     },
     {
       "name": "B6 tierInfo.pushAllowed=false（红线 14）",
@@ -1278,7 +1278,7 @@
     {
       "name": "C12 WORLD_SNAPSHOT.self.id = 本 Agent",
       "ok": true,
-      "detail": "agent:guest:979cd315-ed0a-4241-ae9f-7f2369835dda"
+      "detail": "agent:guest:185f6550-a43e-4abb-ab48-bfeb662e9330"
     },
     {
       "name": "C14 游客 SUBSCRIBE → GUEST_PUSH_FORBIDDEN",
@@ -1344,7 +1344,7 @@
     {
       "name": "D3 self.id = 本 Agent（同一命名空间）",
       "ok": true,
-      "detail": "agent:guest:979cd315-ed0a-4241-ae9f-7f2369835dda"
+      "detail": "agent:guest:185f6550-a43e-4abb-ab48-bfeb662e9330"
     },
     {
       "name": "D4 tier 字段回显 guest-pull",
@@ -1589,5 +1589,5 @@
       "detail": "联测收尾需按红线 6 恢复 agent_enabled=false"
     }
   ],
-  "durationMs": 32152
+  "durationMs": 32658
 }

@@ -1,6 +1,6 @@
 {
   "title": "accept_agent_longsession",
-  "startedAt": "2026-09-19T10:13:26.053Z",
+  "startedAt": "2026-09-20T02:16:37.377Z",
   "params": {
     "minutes": 6,
     "port": 3002,
@@ -29,12 +29,12 @@
       "observeOk": true,
       "status": "200/200",
       "from": {
-        "x": 137.2000000000001,
+        "x": 30,
         "y": 0,
         "z": 3
       },
       "to": {
-        "x": 201.9999999999995,
+        "x": 94.80000000000014,
         "y": 0,
         "z": 3
       },
@@ -44,23 +44,23 @@
   "rssSamples": [
     {
       "min": 1.04,
-      "rssMB": 81
+      "rssMB": 85
     },
     {
       "min": 2.04,
-      "rssMB": 81
+      "rssMB": 85
     },
     {
       "min": 3.05,
-      "rssMB": 81
+      "rssMB": 86
     },
     {
       "min": 4.05,
-      "rssMB": 81
+      "rssMB": 86
     },
     {
       "min": 5.05,
-      "rssMB": 82
+      "rssMB": 87
     }
   ],
   "observeStats": {
@@ -109,12 +109,12 @@
   ],
   "serverStat": {
     "start": {
-      "cpuSeconds": 54.125,
-      "rssBytes": 84320256
+      "cpuSeconds": 73.03125,
+      "rssBytes": 88715264
     },
     "end": {
-      "cpuSeconds": 59.796875,
-      "rssBytes": 86020096
+      "cpuSeconds": 81.46875,
+      "rssBytes": 90693632
     }
   },
   "result": {
@@ -127,7 +127,7 @@
       "name": "P0 agent_enabled=true（长会话前置）",
       "ok": true,
       "detail": {
-        "wasEnabled": false
+        "wasEnabled": true
       }
     },
     {
@@ -170,12 +170,12 @@
             "observeOk": true,
             "status": "200/200",
             "from": {
-              "x": 137.2000000000001,
+              "x": 30,
               "y": 0,
               "z": 3
             },
             "to": {
-              "x": 201.9999999999995,
+              "x": 94.80000000000014,
               "y": 0,
               "z": 3
             },
@@ -194,9 +194,9 @@
       "name": "C4 服务器内存无失控增长（后 1/3 中位 < 前 1/3×1.5 + 200MB）",
       "ok": true,
       "detail": {
-        "rssMedianFirst": 81,
-        "rssMedianLast": 82,
-        "cap": 322,
+        "rssMedianFirst": 85,
+        "rssMedianLast": 87,
+        "cap": 328,
         "samples": 5
       }
     },
@@ -216,14 +216,14 @@
       "ok": true,
       "detail": {
         "victimPosBefore": {
-          "x": 29.953810596162388,
+          "x": 38,
           "y": 0,
-          "z": 19.969207064108257
+          "z": 3
         },
         "newSpawn": {
-          "x": 29.953810596162388,
+          "x": 38,
           "y": 0,
-          "z": 19.969207064108257
+          "z": 3
         },
         "deltaM": 0
       }
@@ -281,5 +281,5 @@
       }
     }
   ],
-  "durationMs": 377463
+  "durationMs": 378603
 }

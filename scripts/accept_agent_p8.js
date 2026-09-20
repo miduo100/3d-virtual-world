@@ -316,7 +316,8 @@ function readLog(channel) {
     }
     ok('idle-test instance up', ready);
     if (ready) {
-      // 开启该实例的 agent_enabled（同一个 DB，config 共用，主实例已恢复 false → 需重开）
+      // 开启该实例的 agent_enabled（同一个 DB、config 共用；第二个实例有独立 60s 配置缓存，
+      // 看不到主实例的恢复结果 → 这里显式置 true，收尾按 origEnabled 还原）
       const lg = await j('POST', `http://localhost:${IDLE_PORT}/api/admin-auth/login`, { username: ADMIN_USER, password: ADMIN_PASS });
       if (lg.body && lg.body.token) {
         await j('PUT', `http://localhost:${IDLE_PORT}/api/agent/v1/admin/config`, { agent_enabled: 'true' }, lg.body.token);
@@ -330,9 +331,11 @@ function readLog(channel) {
         const closed = await gi.waitClose(50000);
         ok('idle connection closed by server', closed);
       }
-      // 恢复开关
+      // 恢复开关：按**运行前原值**还原。硬编码 false 会让紧随其后的脚本全部 503
+      // AGENT_DISABLED_GLOBALLY（连跑回归必踩）——见文档 §9 坑 35。
       if (lg.body && lg.body.token) {
-        await j('PUT', `http://localhost:${IDLE_PORT}/api/agent/v1/admin/config`, { agent_enabled: 'false' }, lg.body.token);
+        await j('PUT', `http://localhost:${IDLE_PORT}/api/agent/v1/admin/config`,
+          { agent_enabled: origEnabled ? 'true' : 'false' }, lg.body.token);
       }
     }
   } catch (e) {

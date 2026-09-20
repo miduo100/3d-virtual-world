@@ -1,0 +1,160 @@
+{
+  "ts": "2026-09-20T01:26:43.754Z",
+  "durationSec": 406,
+  "config": {
+    "shortTtlSec": 120,
+    "refreshMs": 60000,
+    "runMs": 270000
+  },
+  "origConfig": {
+    "agentEnabled": false,
+    "maxAgents": 50,
+    "pushDefault": "eco"
+  },
+  "pass": 18,
+  "fail": 0,
+  "total": 18,
+  "rows": [
+    {
+      "name": "P0 agent_enabled=true（验收前置）",
+      "ok": true,
+      "detail": 200
+    },
+    {
+      "name": "B0 换票成功（拿有效会话 jti）",
+      "ok": true,
+      "detail": 200
+    },
+    {
+      "name": "B1 自签短命 token 此刻有效（observe 200）",
+      "ok": true,
+      "detail": 200
+    },
+    {
+      "name": "B2 用该 token 连 /ws/agent 成功（此刻未过期）",
+      "ok": true,
+      "detail": "connected"
+    },
+    {
+      "name": "B3 到期后 observe → 403 TOKEN_EXPIRED（HTTP 侧已\"瞎\"）",
+      "ok": true,
+      "detail": {
+        "status": 403,
+        "code": "TOKEN_EXPIRED"
+      }
+    },
+    {
+      "name": "B4 到期后 /me → 403 TOKEN_EXPIRED",
+      "ok": true,
+      "detail": {
+        "status": 403,
+        "code": "TOKEN_EXPIRED"
+      }
+    },
+    {
+      "name": "B5 WS 仍 OPEN（readyState=1）→ 连接没断，客户端表面\"在线\"",
+      "ok": true,
+      "detail": 1
+    },
+    {
+      "name": "B6 到期后 say 仍 ACTION_COMPLETED（WS 侧活着，还能回话）",
+      "ok": true,
+      "detail": {
+        "requestId": "renew-b-say",
+        "result": {
+          "delivered": true
+        }
+      }
+    },
+    {
+      "name": "B7 到期后 move 仍 ACTION_ACCEPTED（移动仍可用 → 会一直走到世界边界）",
+      "ok": true,
+      "detail": {
+        "requestId": "renew-b-move",
+        "result": {}
+      }
+    },
+    {
+      "name": "A0 ai-live 子进程 READY 成功上线",
+      "ok": true,
+      "detail": 1
+    },
+    {
+      "name": "A1 observe 持续成功（≥ 62 条，HTTP 能力在线）",
+      "ok": true,
+      "detail": 89
+    },
+    {
+      "name": "A2 observe 0 次 HTTP 错误（= 0 次 403）",
+      "ok": true,
+      "detail": 0
+    },
+    {
+      "name": "A3 chat/history 0 次 HTTP 错误",
+      "ok": true,
+      "detail": 0
+    },
+    {
+      "name": "A4 tokenRefreshedAt 出现 ≥3 个不同值（确实在续期）",
+      "ok": true,
+      "detail": [
+        "2026-09-20T01:23:13.705Z",
+        "2026-09-20T01:24:13.696Z",
+        "2026-09-20T01:25:13.732Z",
+        "2026-09-20T01:26:13.700Z"
+      ]
+    },
+    {
+      "name": "A5 续期成功事件 ≥3 条",
+      "ok": true,
+      "detail": 4
+    },
+    {
+      "name": "A6 WS 未重连（ws closed 计数 = 0，符合 §5.2 设计）",
+      "ok": true,
+      "detail": 0
+    },
+    {
+      "name": "A7 无 refresh_giveup（续期从未彻底放弃）",
+      "ok": true,
+      "detail": 0
+    },
+    {
+      "name": "P9 收尾恢复运行前配置（agentEnabled=false）",
+      "ok": true,
+      "detail": false
+    }
+  ],
+  "afterDetail": {
+    "observes": 89,
+    "obsErr": 0,
+    "refreshStamps": [
+      "2026-09-20T01:23:13.705Z",
+      "2026-09-20T01:24:13.696Z",
+      "2026-09-20T01:25:13.732Z",
+      "2026-09-20T01:26:13.700Z"
+    ],
+    "childOutTail": [
+      "[2026-09-20T01:22:11.796Z] ai-live starting | host=http://localhost:3002 | mode=key-push",
+      "[2026-09-20T01:22:11.860Z] ttl | session=900s guest=1800s",
+      "[2026-09-20T01:22:12.782Z] session ok | agent=tier_eco_87393 tier=key-push",
+      "[2026-09-20T01:22:12.791Z] session auto-refresh ON | every 60s (ttl=900s)",
+      "[2026-09-20T01:22:12.791Z] ai-live online. inbox=L:\\shegnjir185\\examples\\agent-client\\live\\_tmp_renew_1789867331678\\inbox",
+      "[2026-09-20T01:22:12.793Z] READY tier_eco_87393 tier=key-push push=eco",
+      "[2026-09-20T01:22:15.329Z] PULLED <- 真人-近-standard : 近距-standard-1789794261540",
+      "[2026-09-20T01:22:15.330Z] PULLED <- 真人-远-standard : 远距-standard-1789794261540",
+      "[2026-09-20T01:22:15.330Z] PULLED <- 真人-近-realtime : 近距-realtime-1789794286313",
+      "[2026-09-20T01:22:15.330Z] PULLED <- 真人-远-realtime : 远距-realtime-1789794286313",
+      "[2026-09-20T01:22:15.331Z] PULLED <- 真人-近-eco : 近距-eco-1789794365511",
+      "[2026-09-20T01:22:15.331Z] PULLED <- 真人-远-eco : 远距-eco-1789794365511",
+      "[2026-09-20T01:22:15.331Z] PULLED <- 真人-近-standard : 近距-standard-1789794384292",
+      "[2026-09-20T01:22:15.332Z] PULLED <- 真人-远-standard : 远距-standard-1789794384293",
+      "[2026-09-20T01:22:15.332Z] PULLED <- 真人-近-realtime : 近距-realtime-1789794403080",
+      "[2026-09-20T01:22:15.332Z] PULLED <- 真人-远-realtime : 远距-realtime-1789794403081",
+      "[2026-09-20T01:23:13.706Z] session refreshed | exp=2026-09-20T01:38:13.000Z",
+      "[2026-09-20T01:24:13.697Z] session refreshed | exp=2026-09-20T01:39:13.000Z",
+      "[2026-09-20T01:25:13.733Z] session refreshed | exp=2026-09-20T01:40:13.000Z",
+      "[2026-09-20T01:26:13.701Z] session refreshed | exp=2026-09-20T01:41:13.000Z"
+    ]
+  }
+}

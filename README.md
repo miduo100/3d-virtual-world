@@ -371,25 +371,72 @@ Both modes share **exactly the same behavioral rules** (tourist-level scope). Th
 
 ### Identity & Permission Model
 
-Agents have **tourist-level permissions** — the same rules that apply to human tourists. Allowed: `observe / move / rotate / jump / say / interact`. Forbidden: `teleport / set_position / inventory / shop / profile` (server-side scope rejection — bypassing the front-end `if` guards that protect human tourists is not enough; the scope set simply does not contain these).
+Agents have **tourist-level permissions** — the same rules that apply to human tourists. Allowed: `observe / move / walk_to / follow / stop / rotate / jump / say / interact`. Forbidden: `teleport / set_position / inventory / shop / profile` (server-side scope rejection — bypassing the front-end `if` guards that protect human tourists is not enough; the scope set simply does not contain these).
 
 - **API Key** (`agk_live_<64 hex>`): generated once per Agent in the admin console. Stored only as a bcrypt hash; the plaintext is shown exactly once on creation. Required only for **push mode**.
 - **Guest ticket**: public, no Key, 30-min JWT, fresh synthetic identity each time (no `agents` row, no user/character created — zero residue).
 - **Agent JWT** (15 min for Key sessions, 30 min for guest tickets, signed with a dedicated `AGENT_JWT_SECRET` — independent from the human JWT). One `jti` per session, validated against the DB on every request (revocation is immediate).
 - Master switch `agent_enabled` defaults to `false` (off until the admin explicitly opens it). Hot-reload 60s after a config change in admin.
 
-### The Six Actions (over WS `ACTION` message)
+### Session Lifetime & Renewal
+
+> **This is the single most common way a long-running Agent breaks silently.** Get it wrong and your Agent keeps talking while being blind to the world.
+
+| Credential | Lifetime | Validated when |
+|---|---|---|
+| Agent JWT (Key mode) | `900 s` (15 min) | — |
+| Guest ticket | `1800 s` (30 min) | — |
+| **WebSocket `/ws/agent`** | — | **only at connect time** — the connection stays alive far beyond the JWT TTL (35 min verified) |
+| **All HTTP endpoints** (`observe`, `/me`, `chat/history`, …) | — | **on every single call** |
+
+Consequences of getting it wrong:
+
+- After ~15 min, `observe` / `/me` / `chat/history` start returning **`403 TOKEN_EXPIRED`** while the WebSocket is still `OPEN`.
+- The Agent can still `say` and `move` (those go over the WS), so it *looks* online — but it can no longer see new players, objects or coordinates: distance checks fail, so it answers "ok" and then stands still. If its last accepted instruction was `move`, the server keeps advancing that task until the ±1000 world boundary.
+- Guests fare worse: once the 30-min ticket expires, the client disappears entirely (~5 min later the idle timeout evicts the connection, and humans see "left").
+
+**Correct behavior (Key mode)** — reference implementation: [`ai-live.mjs`](./examples/agent-client/ai-live.mjs).
+
+```js
+// every TTL * 2/3 (≈10 min): exchange the API Key for a fresh token
+const r = await fetch(`${HOST}/api/agent/v1/session`, {
+  method: 'POST', headers: { Authorization: `Bearer ${API_KEY}` }
+});
+token = (await r.json()).token;   // just re-assign — nothing else changes
+```
+
+- Only the token variable is replaced: the next `observe` / `chat/history` call picks it up automatically. Nothing else needs to change.
+- **Do NOT reconnect the WebSocket.** It stays valid (a new session means a new `jti`, but the socket is never re-validated), and reconnecting churns presence — human players see the avatar flicker.
+- Read `auth.sessionTtlSeconds` / `auth.guestSessionTtlSeconds` from `/.well-known/virtual-world-agent.json` instead of hard-coding 900; fall back to a default if discovery fails.
+
+**Guest mode (no Key) cannot be renewed.** Every `POST /api/agent/v1/guest/session` mints a **brand-new synthetic identity** (`agent:guest:<uuid>`), so refreshing the ticket would desynchronise the HTTP identity from the already-connected WS presence identity (`observe.self` would jump back to the origin). Correct handling: let the ticket expire, then **restart the client process** to get a fresh ticket and connection.
+
+### The Eight Actions (over WS `ACTION` message)
 
 | Action | Server behavior |
 |---|---|
-| `move(target)` | Continuous movement toward target |
-| `walk_to(target)` | Walk to point at server-authoritative 5 m/s |
+| `move(direction)` | Continuous movement in a direction |
+| `walk_to(target)` | Walk to a point at the server-authoritative speed (`agent_max_speed`, default 9 m/s = human speed) |
+| `follow(targetId, stopDistance=2, maxDurationMs=60000)` | Continuously follow a moving entity; halts inside `stopDistance`, ends on target loss / timeout / being superseded |
+| `stop()` | Stop **all** movement tasks (move / walk_to / follow) and switch to `idle`. Idempotent — returns `{ wasMoving: false }` when nothing was moving |
 | `rotate(yaw)` | Instant rotation |
-| `jump()` | Jump |
+| `jump()` | Jump (parabolic, lands on the server ground plane) |
 | `say(text)` | Broadcast as `CHAT` to nearby humans (30 m); written to `world_chat_log` |
 | `interact(targetId)` | Validate distance (≤5 m) |
 
-Every action returns `ACTION_ACCEPTED` / `ACTION_COMPLETED` / `ACTION_REJECTED` with a `requestId` echo. `walk_to` completion is detected by the Agent itself (position stops changing) — no double-callback.
+Every action returns `ACTION_ACCEPTED` / `ACTION_COMPLETED` / `ACTION_REJECTED` with a `requestId` echo.
+
+**Movement completion receipts.** Movement actions (`move` / `walk_to` / `follow` / `jump`) are mutually exclusive per connection: a new instruction supersedes the running one, and the old `requestId` receives `ACTION_COMPLETED` with a `reason`:
+
+```
+reason ∈ arrived | superseded | stopped | target_lost | timeout | disconnected
+```
+
+- `arrived` — `walk_to` reached its target. `stopped` — the task was ended by `stop()`. `target_lost` / `timeout` — follow target gone or max duration reached.
+- `superseded` — another movement instruction took over. One movement task carries **one** pending receipt: `jump()` reusing a running task (e.g. jumping mid-`walk_to`) does **not** overwrite the existing `requestId`, so only the primary instruction receives `superseded`.
+- `disconnected` — the receipt is sent to a socket that is already closed, so a client cannot observe it (evidence lives in the audit log as `ws_disconnected`).
+
+`stop()` ends the interrupted instruction with `reason: 'stopped'` (not `superseded`), broadcasts one `idle` position update so humans do not keep seeing a walking animation, and is rate-limited to `1 / 2 s` for guest Agents like every other guest action.
 
 ### Push Tiers (admin-configurable, hot-reload 60s)
 
@@ -436,6 +483,12 @@ The script:
 
 Requires **Node.js 18+** (uses built-in `fetch` + `WebSocket`, zero dependencies).
 
+> This demo is a **short-lived client** and never renews its session (it exits long before the 15-min TTL).
+> For a resident Agent use [`examples/agent-client/ai-live.mjs`](./examples/agent-client/ai-live.mjs):
+> it discovers the TTL from `well-known`, refreshes the Key session every TTL×2/3, keeps the WebSocket
+> connected (no reconnect), and — for guest mode — documents that a fresh ticket requires a process restart.
+> See [Session Lifetime & Renewal](#session-lifetime--renewal).
+
 ### Architecture Invariants (Engineering Red Lines)
 
 1. Agents use HTTP API + `/ws/agent`; never simulate W/A/S/D or browsers.
@@ -448,7 +501,7 @@ Requires **Node.js 18+** (uses built-in `fetch` + `WebSocket`, zero dependencies
 8. AI identifier: `entityType:'agent'` → system message `(AI) joined` + 🤖 name prefix (only ~5 lines of front-end change).
 9. Zero changes to existing `/ws` human protocol, `/api/auth/*`, or tourist mode.
 10. Server-authoritative movement only (no `set_position` raw endpoint).
-11. Engineering safety: `max_agents` rejection; per-Agent token bucket (low-priority dropped first, chat never lost); backpressure monitor (warn >1MB, kill >4MB buffered); 30s heartbeat.
+11. Engineering safety: `max_agents` rejection; per-Agent token bucket for presence/entity messages (chat is never dropped); position streams are bounded **structurally** instead of consuming the bucket (one `ENTITY_MOVEMENT_BATCH` per tick in `standard`, one message per entity per round in `realtime`); backpressure monitor (warn >1MB, kill >4MB buffered); 30s heartbeat.
 12. Federation trust reuse only: `federationSystem.js` is read-only (no new code in the 33KB blacklisted file).
 13. Federation handoff tokens use `principalType:'agent'` + transient sessions — never create a local user/character on the target world.
 14. **Guest Agents (pull mode) never receive push streams** — `SUBSCRIBE` is always rejected; push is an API-Key privilege.

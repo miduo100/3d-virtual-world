@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-19T05:19:17.221Z",
+  "generatedAt": "2026-09-20T02:30:59.640Z",
   "summary": {
     "pass": 7,
     "fail": 0,
@@ -54,11 +54,11 @@
         "detail": {
           "静止": {
             "nodes": 20,
-            "sum": 0
+            "sum": 1.7627
           },
           "移动": {
             "nodes": 20,
-            "sum": 0.4099
+            "sum": 2.7813
           }
         }
       },
@@ -66,14 +66,14 @@
         "name": "BB Agent 静止时不乱动（变化量 < 移动中）",
         "ok": true,
         "detail": {
-          "idle": 0,
-          "walk": 0.4099
+          "idle": 1.7627,
+          "walk": 2.7813
         }
       },
       {
         "name": "CC 真人端显示 y 峰值",
         "info": true,
-        "detail": "2.5120000000000005（Δ1.012m，采样 20）"
+        "detail": "2.5200000000000005（Δ1.020m，采样 20）"
       },
       {
         "name": "CC 服务器权威 y 峰值（观察者收到的广播）",
@@ -104,8 +104,8 @@
         "ok": true,
         "detail": {
           "yBefore": 1.5,
-          "clientYMax": 2.5120000000000005,
-          "clientDelta": 1.012,
+          "clientYMax": 2.5200000000000005,
+          "clientDelta": 1.02,
           "serverYMax": 1.02,
           "serverYSamples": 10,
           "serverYSeries": [
@@ -121,12 +121,12 @@
             0
           ],
           "ack": {
-            "requestId": "ffe48f72-33d4-49fd-be1e-9810d0e8cba0",
+            "requestId": "edfaa158-621c-4fff-9ff6-7695e4b6041b",
             "reason": "arrived",
             "position": {
-              "x": -21.304082348225258,
+              "x": -21.281488522029083,
               "y": 0,
-              "z": 17.546967695303856,
+              "z": 17.55867353321174,
               "yaw": 0
             }
           }
@@ -165,17 +165,17 @@
     "anim": {
       "idle": {
         "nodes": 20,
-        "sum": 0
+        "sum": 1.7627
       },
       "walking": {
         "nodes": 20,
-        "sum": 0.4099
+        "sum": 2.7813
       }
     },
     "jump": {
       "yBefore": 1.5,
-      "clientYMax": 2.5120000000000005,
-      "clientDelta": 1.012,
+      "clientYMax": 2.5200000000000005,
+      "clientDelta": 1.02,
       "serverYMax": 1.02,
       "serverYSamples": 10,
       "serverYSeries": [
@@ -191,12 +191,12 @@
         0
       ],
       "ack": {
-        "requestId": "ffe48f72-33d4-49fd-be1e-9810d0e8cba0",
+        "requestId": "edfaa158-621c-4fff-9ff6-7695e4b6041b",
         "reason": "arrived",
         "position": {
-          "x": -21.304082348225258,
+          "x": -21.281488522029083,
           "y": 0,
-          "z": 17.546967695303856,
+          "z": 17.55867353321174,
           "yaw": 0
         }
       }

@@ -50,6 +50,10 @@ async function main() {
 
   // ---------- 准备：默认配置 + 开总开关（在任何 HTTP 前） ----------
   await agentConfigService.ensureDefaultConfig();
+  // v6 批次 D：记住运行前原值，收尾按原值还原（原实现硬编码 false → 连跑回归时
+  // 紧随其后的脚本会撞 503 AGENT_DISABLED_GLOBALLY，见文档 §9 坑 35）
+  const cfgBefore = await agentConfigService.getConfig(true);
+  const origEnabled = !!cfgBefore.agentEnabled;
   await agentConfigService.setConfigValue('agent_enabled', 'true');
 
   let agent = await agentManager.getAgentByName('p1_test_agent');
@@ -182,9 +186,9 @@ async function main() {
     record('E2', '伪造 token 访问 /observe 被拒', fakeToken.status === 401 || fakeToken.status === 403, `status=${fakeToken.status}`);
   }
 
-  // ---------- 收尾：恢复 agent_enabled=false ----------
-  await agentConfigService.setConfigValue('agent_enabled', 'false');
-  console.log('\n[cleanup] agent_enabled 已恢复 false（红线：默认关）');
+  // ---------- 收尾：按运行前原值还原（v6 批次 D） ----------
+  await agentConfigService.setConfigValue('agent_enabled', origEnabled ? 'true' : 'false');
+  console.log(`\n[cleanup] agent_enabled 已恢复运行前值 = ${origEnabled}（红线 6：默认关）`);
   await finish();
 }
 
