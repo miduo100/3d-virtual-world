@@ -18,6 +18,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { authenticateAdminToken } = require('../middleware/adminAuth');
 const trustManager = require('../services/federationTrustManager');
 const { checkRegistration } = require('../services/worldReachabilityChecker');
+const { findOrCreateFederatedUser } = require('../services/federationUserProvisioner');
 
 // 初始化联邦系统
 let federationSystem = null;
@@ -752,33 +753,34 @@ router.post('/teleport/receive', securityCheck, async (req, res) => {
       });
     }
 
-    // 在本地创建或更新用户账户
+    // 在本地创建或复用用户账户
+    // ⚠️ users.username 是 UNIQUE：本地可能已存在「同名但不同邮箱」的玩家
+    //（最常见场景：同一玩家在两个世界用了相同昵称）。
+    // 旧实现只用 email 查重后就 INSERT，一旦撞上同名会抛
+    // duplicate key value violates unique constraint "users_username_key"
+    // → 返回 500「创建用户失败」→ 前端 showLoginScreen() 弹登录框，
+    //   玩家点「游客跳过」后就是游客状态（表现为"传送过去但没登录"）。
+    // 统一交给 federationUserProvisioner 解析一个不与本地冲突的昵称。
     let localUser;
-    const existingUserResult = await query(
-      'SELECT * FROM users WHERE email = $1',
-      [user.email]
-    );
+    let provisioned = null;
+    try {
+      provisioned = await findOrCreateFederatedUser({
+        email: user.email,
+        username: user.username,
+        worldName: user.fromWorld && user.fromWorld.name,
+        worldId: user.fromWorld && user.fromWorld.id
+      });
+      localUser = provisioned.user;
+    } catch (dbError) {
+      console.error('❌ 创建联邦用户失败:', dbError);
+      return res.status(500).json({
+        success: false,
+        error: '创建用户失败'
+      });
+    }
 
-    if (existingUserResult.rows.length === 0) {
-      // 创建新用户（联邦用户）
-      try {
-        const insertResult = await query(
-          `INSERT INTO users 
-           (id, username, email, password_hash)
-           VALUES ($1, $2, $3, $4)
-           RETURNING *`,
-          [uuidv4(), user.username, user.email, 'FEDERATED_USER']
-        );
-        localUser = insertResult.rows[0];
-      } catch (dbError) {
-        console.error('❌ 创建联邦用户失败:', dbError);
-        return res.status(500).json({
-          success: false,
-          error: '创建用户失败'
-        });
-      }
-    } else {
-      localUser = existingUserResult.rows[0];
+    if (provisioned.renamed) {
+      console.warn(`⚠️ [联邦] 昵称「${provisioned.originalUsername}」已被本地用户占用，已为 ${user.email} 分配「${provisioned.finalUsername}」`);
     }
 
     // 查询或创建对应角色（前端 initializeGame 必须有 characterId）
@@ -805,6 +807,19 @@ router.post('/teleport/receive', securityCheck, async (req, res) => {
       return res.status(500).json({ success: false, error: '角色初始化失败' });
     }
 
+    // 与注册路径对齐：联邦用户同样需要外观记录
+    //（注册接口会 INSERT character_appearance，此处原先缺失，
+    //  会导致联邦用户在目标世界的外观/装扮读取不到基础行）
+    try {
+      await query(
+        'INSERT INTO character_appearance (character_id) VALUES ($1) ON CONFLICT DO NOTHING',
+        [localCharacter.id]
+      );
+    } catch (appearanceError) {
+      // 外观记录不影响登录本身，失败仅告警
+      console.warn('⚠️ [联邦] 创建角色外观记录失败（不影响传送登录）:', appearanceError.message);
+    }
+
     // 生成本地JWT Token
     const localToken = jwt.sign(
       { userId: localUser.id },
@@ -827,7 +842,9 @@ router.post('/teleport/receive', securityCheck, async (req, res) => {
 
     res.json({
       success: true,
-      message: `欢迎来自 ${user.fromWorld.name} 的 ${user.username}！`,
+      message: (provisioned && provisioned.renamed)
+        ? `欢迎来自 ${user.fromWorld.name} 的 ${user.username}！本地已有同名玩家，你在本世界显示为「${provisioned.finalUsername}」。`
+        : `欢迎来自 ${user.fromWorld.name} 的 ${user.username}！`,
       token: localToken,
       user: {
         id: localUser.id,

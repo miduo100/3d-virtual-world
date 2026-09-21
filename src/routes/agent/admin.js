@@ -257,7 +257,7 @@ router.put('/admin/config', async (req, res) => {
     // 客户端校验：仅允许白名单键 + 值域校验
     const allowedKeys = [
       'agent_enabled', 'agent_push_default', 'agent_voice_relay', 'max_agents',
-      'agent_max_connections_per_agent', 'agent_max_speed', 'agent_observe_rate_key',
+      'agent_max_connections_per_agent', 'agent_max_speed', 'agent_follow_speed', 'agent_observe_rate_key',
       'chat_log_enabled', 'chat_log_retention_days', 'chat_log_remote_enabled',
       'chat_log_remote_provider', 'chat_log_s3_endpoint', 'chat_log_s3_bucket',
       'chat_log_s3_prefix', 'chat_log_s3_access_key', 'chat_log_s3_secret_key', 'chat_log_upload_hour'
@@ -286,7 +286,7 @@ router.put('/admin/config', async (req, res) => {
         const n = parseInt(value, 10);
         if (!Number.isFinite(n) || n < 1 || n > 10) continue;
       }
-      if (key === 'agent_max_speed') {
+      if (key === 'agent_max_speed' || key === 'agent_follow_speed') {
         const n = Number(value);
         if (!Number.isFinite(n) || n < 1 || n > 20) continue;
       }

@@ -142,7 +142,21 @@
         continue;
       }
       t.arrived = false;
-      const maxStep = limit * dt;
+      // 【2026-09-20 摆臂连续性修复】三条规则共同保证「每帧都有稳定位移」——
+      // 棍人摆臂完全由位移驱动（world.js:3038 的 isActuallyMoving = 本帧位移 > 0.01m）：
+      //   · 位移 ≤ 0.01m 的那一帧会走 else 分支，把四肢**瞬间归零**（world.js:3061-3064）
+      //     → 观感就是"手摆到一半突然回到中位、像又出现一条手"（用户实测描述）
+      //   · 位移 ≤ 0.05m 时 isSprinting 变 false → 相位速度 0.45→0.3、幅度 1.3→1.0 突变
+      //     → 摆动节奏不匀、四肢看起来"散"
+      //   · 平滑器若按上限（agent_max_speed×1.2 = 14.4 m/s，而实际跟随只有 5 m/s）
+      //     一步追平，每 100ms 就会制造一批 ≈0 位移帧 → 反复归零 → 摆动永远走不完一个循环。
+      // 对策：① 追速 = 实测目标点速度 × 0.95（略慢 → 永不追平 → 每帧位移稳定 > 0.05m）；
+      //      ② 滞后 > 2m 才逐步加速（防止滞后积累到 SNAP_DISTANCE 触发吸附 → 用户看到的"闪一下"）；
+      //      ③ 保持匀速节奏，不做一步到位。
+      const baseSpeed = observedSpeed > 0 ? observedSpeed : MIN_MAX_SPEED;
+      const lagBoost = d > 2 ? Math.min(2.5, 1 + (d - 2) * 0.3) : 1;
+      const chaseSpeed = Math.min(limit, baseSpeed * 0.95 * lagBoost);
+      const maxStep = chaseSpeed * dt;
       const ratio = d <= maxStep ? 1 : maxStep / d;
       t.cur.x += (t.target.x - t.cur.x) * ratio;
       t.cur.z += (t.target.z - t.cur.z) * ratio;

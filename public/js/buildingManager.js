@@ -18,6 +18,8 @@ class BuildingManager {
     this.mouse = new THREE.Vector2();
     this.transformControls = null;
     this.isAdmin = false;
+    // 点击调试开关：true 时逐条打印可选/跳过对象明细（默认关，大世界下会产生上千条日志）
+    this.debugClicks = false;
     
     // 初始化
     this.init();
@@ -185,6 +187,9 @@ class BuildingManager {
     
     // 显示管理面板
     adminPanel.style.display = 'block';
+    
+    // 注入模型级"碰撞开关"（面板底部，每个模型独立，切换即时生效）
+    if (window.BuildingCollisionToggle) window.BuildingCollisionToggle.mount(this);
   }
   
   /**
@@ -206,8 +211,11 @@ class BuildingManager {
       console.group('🔍 [AdminDebug] 管理员模式已启用');
       console.log(`✅ generatedBuildings 总数: ${this.world.generatedBuildings?.size || 0}`);
       
-      let stats = { hasModel: 0, noModel: 0, inScene: 0, notInScene: 0, hasWorldObjectId: 0, noWorldObjectId: 0 };
+      // 【2026-09-20 修复】noModel 拆分为两类：占位条目（对象未加载，属正常）与真正异常（非占位却无model）。
+      // 原实现把 700+ 条占位明细塞进 problemBuildings，进入编辑模式即刷屏 console.table。
+      let stats = { hasModel: 0, inScene: 0, notInScene: 0, placeholder: 0, missing: 0, errorFlag: 0, hasWorldObjectId: 0, noWorldObjectId: 0 };
       let problemBuildings = [];
+      const MAX_PROBLEM_ROWS = 20;
       
       if (this.world.generatedBuildings) {
         this.world.generatedBuildings.forEach((building, id) => {
@@ -219,24 +227,34 @@ class BuildingManager {
                 stats.hasWorldObjectId++;
               } else {
                 stats.noWorldObjectId++;
-                problemBuildings.push({ id, name: building.data?.name || '未命名', reason: '缺少 worldObjectId' });
+                if (problemBuildings.length < MAX_PROBLEM_ROWS) {
+                  problemBuildings.push({ id, name: building.data?.name || '未命名', reason: '缺少 worldObjectId' });
+                }
               }
             } else {
               stats.notInScene++;
-              problemBuildings.push({ id, name: building.data?.name || '未命名', reason: '不在场景中' });
+              if (problemBuildings.length < MAX_PROBLEM_ROWS) {
+                problemBuildings.push({ id, name: building.data?.name || '未命名', reason: '不在场景中' });
+              }
             }
+          } else if (building.isPlaceholder || building.isLoadingPlaceholder) {
+            stats.placeholder++;
+          } else if (building.isError || building.group) {
+            stats.errorFlag++;
           } else {
-            stats.noModel++;
-            problemBuildings.push({ id, name: building.data?.name || '未命名', reason: 'model 为空/null' });
+            stats.missing++;
+            if (problemBuildings.length < MAX_PROBLEM_ROWS) {
+              problemBuildings.push({ id, name: building.data?.name || '未命名', reason: 'model 为空/null（非占位）' });
+            }
           }
         });
         
         console.table(stats);
-        console.log(`📊 可选择对象统计: ✅ 有model且在场景中: ${stats.inScene}, ⚠️ 有model但不在场景: ${stats.notInScene}, ❌ 无model对象: ${stats.noModel}`);
+        console.log(`📊 可选择对象统计: ✅ 有model且在场景中: ${stats.inScene}, ⚠️ 有model但不在场景: ${stats.notInScene}, 🕓 未加载(占位,正常): ${stats.placeholder}, ❌ 非占位但无model: ${stats.missing}`);
         console.log(`🔑 有worldObjectId: ${stats.hasWorldObjectId}, 🔒 缺少worldObjectId: ${stats.noWorldObjectId}`);
         
         if (problemBuildings.length > 0) {
-          console.warn(`⚠️ 发现 ${problemBuildings.length} 个可能无法选中的建筑:`);
+          console.warn(`⚠️ 发现 ${problemBuildings.length} 个可能无法选中的建筑（最多显示 ${MAX_PROBLEM_ROWS} 条）:`);
           console.table(problemBuildings);
         }
         
@@ -364,15 +382,29 @@ class BuildingManager {
     
     // 获取所有可编辑的建筑
     const editableObjects = [];
-    const skippedObjects = [];
-    
+    // 【2026-09-20 修复】跳过对象按原因分类统计：
+    // 占位条目（isPlaceholder：对象超出加载距离/尚未加载完，占位方块由 PlaceholderField 渲染）属设计内正常状态，
+    // 原实现把 700+ 条明细全部打进控制台，既刷屏又让 DevTools 长期持有大量活对象引用（大场景下控制台会卡）。
+    // 需要逐条明细时在控制台执行：gameWorld.buildingManager.debugClicks = true
+    const skipped = { placeholder: 0, errorFlag: 0, missing: 0, samples: [] };
+    const debugDetail = this.debugClicks === true || window.__buildingClickDebug === true;
+
     this.world.generatedBuildings.forEach((building, id) => {
       if (building.model) {
         editableObjects.push(building.model);
-        const meshCount = this.countMeshes(building.model);
-        console.log(`   ➕ 可选: ID=${id}, 名称="${building.data?.name || '未命名'}", Mesh=${meshCount}, worldObjectId=${building.model.userData?.worldObjectId || '❌无'}`);
+        if (debugDetail) {
+          const meshCount = this.countMeshes(building.model);
+          console.log(`   ➕ 可选: ID=${id}, 名称="${building.data?.name || '未命名'}", Mesh=${meshCount}, worldObjectId=${building.model.userData?.worldObjectId || '❌无'}`);
+        }
+      } else if (building.isPlaceholder || building.isLoadingPlaceholder) {
+        skipped.placeholder++;
+      } else if (building.isError || building.group) {
+        skipped.errorFlag++;
       } else {
-        skippedObjects.push({ id, name: building.data?.name || '未命名' });
+        skipped.missing++;
+        if (skipped.samples.length < 10) {
+          skipped.samples.push(`${id}: ${building.data?.name || '未命名'}`);
+        }
       }
     });
 
@@ -386,7 +418,7 @@ class BuildingManager {
             media.mesh.userData.name = media.obj.name || `媒体对象_${id}`;
           }
           editableObjects.push(media.mesh);
-          console.log(`   ➕ 可选(媒体): ID=${id}, 类型="${media.type}", 名称="${media.obj.name || '未命名'}"`);
+          if (debugDetail) console.log(`   ➕ 可选(媒体): ID=${id}, 类型="${media.type}", 名称="${media.obj.name || '未命名'}"`);
         }
       });
     }
@@ -402,14 +434,18 @@ class BuildingManager {
           // 【2026-09-16 修复】标记 portalType，选中回退4可命中 portals 表来源
           portal.group.userData.portalType = portal.portalType || 'local';
           editableObjects.push(portal.group);
-          console.log(`   ➕ 可选(传送门): ID=${id}, 名称="${portal.name}"`);
+          if (debugDetail) console.log(`   ➕ 可选(传送门): ID=${id}, 名称="${portal.name}"`);
         }
       });
     }
     
-    console.log(`📦 可选择对象总数: ${editableObjects.length}`);
-    if (skippedObjects.length > 0) {
-      console.warn(`⚠️ 因 model 为空而跳过的对象 (${skippedObjects.length}个):`, skippedObjects);
+    console.log(`📦 可选择对象总数: ${editableObjects.length}` + (skipped.placeholder > 0 ? `（另有 ${skipped.placeholder} 个对象未加载，仅占位方块，不参与选择）` : ''));
+    if (skipped.missing > 0) {
+      // 只在"既无 model 又非占位"这种真正异常时告警，且最多列 10 条，避免 DevTools 持有 700+ 活引用
+      console.warn(`⚠️ ${skipped.missing} 个对象既无 model 也非占位状态（数据异常，仅列前 ${skipped.samples.length} 条）:`, skipped.samples);
+    }
+    if (skipped.errorFlag > 0) {
+      console.warn(`⚠️ ${skipped.errorFlag} 个对象为错误标志/特殊容器（无 model，不参与选择）`);
     }
     
     // 检测碰撞
@@ -663,6 +699,9 @@ class BuildingManager {
       `${(rot.x * 180 / Math.PI).toFixed(0)}°, ${(rot.y * 180 / Math.PI).toFixed(0)}°, ${(rot.z * 180 / Math.PI).toFixed(0)}°`;
     document.getElementById('scale-display').textContent = 
       `${scale.x.toFixed(2)}, ${scale.y.toFixed(2)}, ${scale.z.toFixed(2)}`;
+    
+    // 模型级碰撞开关状态回填（模块见 buildingCollisionToggle.js，内部做变化检测）
+    if (window.BuildingCollisionToggle) window.BuildingCollisionToggle.sync(this);
   }
   
   /**
@@ -820,7 +859,16 @@ class BuildingManager {
     if (!this.selectedObject) return;
     
     try {
-      const worldObjectId = this.selectedObject.userData.worldObjectId;
+      const obj = this.selectedObject;
+      const worldObjectId = obj.userData.worldObjectId;
+      const entry = this.world.generatedBuildings ? this.world.generatedBuildings.get(worldObjectId) : null;
+      // 仅当选中对象就是 generatedBuildings 里登记的模型根节点时，才传"当前实际变换"：
+      // 编辑时拖动未保存的场景下，副本才不会回到数据库里的旧位置（后端已支持这些字段）
+      const liveTransform = (entry && entry.model === obj) ? {
+        position_x: obj.position.x, position_y: obj.position.y, position_z: obj.position.z,
+        rotation_x: obj.rotation.x, rotation_y: obj.rotation.y, rotation_z: obj.rotation.z,
+        scale_x: obj.scale.x, scale_y: obj.scale.y, scale_z: obj.scale.z
+      } : {};
       
       const response = await fetch(`/api/world/objects/${worldObjectId}/copy`, {
         method: 'POST',
@@ -831,18 +879,26 @@ class BuildingManager {
         body: JSON.stringify({
           offset_x: 5, // 在旁边5米处复制
           offset_y: 0,
-          offset_z: 0
+          offset_z: 0,
+          ...liveTransform
         })
       });
       
       const data = await response.json();
       
       if (data.success) {
-        UI.showNotification('✅ 复制成功', '已创建副本，请刷新页面查看', 3000);
-        // 可以选择自动重新加载建筑
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
+        // 【2026-09-20 修复】去掉 setTimeout(() => window.location.reload(), 2000)：
+        // 整页刷新等于重新下载/解析整个世界（大场景要几十秒）并丢失当前视角与未保存编辑。
+        // 改为把后端返回的副本行原地加载进场景（类型分派见 buildingCopyLoader.js），失败才提示手动刷新。
+        let inPlace = false;
+        if (window.BuildingCopyLoader && data.object) {
+          inPlace = await window.BuildingCopyLoader.loadIntoScene(this.world, data.object, (entry && entry.data) || null);
+        }
+        if (inPlace) {
+          UI.showNotification('✅ 复制成功', '副本已在旁边 5 米处生成', 3000);
+        } else {
+          UI.showNotification('✅ 复制成功', '副本已创建，按 F5 刷新后可见', 4000);
+        }
       } else {
         UI.showNotification('❌ 复制失败', data.error, 3000);
       }

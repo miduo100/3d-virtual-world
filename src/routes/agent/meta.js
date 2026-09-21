@@ -79,6 +79,7 @@ function buildSharedSections(config) {
       sayMaxLength: 200,
       interactMaxDistance: 5,
       movementSpeed: config.maxSpeed,          // m/s，后台 agent_max_speed 可配（默认 9 = 真人速度）
+      followSpeed: config.followSpeed,         // m/s，后台 agent_follow_speed 可配（默认 8，仅 follow 用）
       worldBoundary: 1000,
       followStopDistanceDefault: 2,
       followMaxDurationMs: 600000,

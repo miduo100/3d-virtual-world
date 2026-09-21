@@ -20,6 +20,9 @@ const AGENT_CONFIG_DEFAULTS = {
   // 第一轮联测缺陷 C 配套：Agent 移动速度上限（m/s）。真人约 9 m/s（player.js 0.15/帧 @60fps），
   // 默认与真人对齐；用户实测"Agent 速度应与真人一致"（原固定 5 m/s 会被正常走路/奔跑的真人越拉越远）
   agent_max_speed: { value: '9', description: 'Agent 移动速度上限 m/s（1~20，默认 9 与真人一致）' },
+  // 2026-09-20 联测：follow 原先写死 5 m/s（= movement.MAX_SPEED）导致"跟不上/太慢"，
+  // 现独立成键：与 agent_max_speed 解耦（walk_to/move 用后者），跟随时默认略慢于真人更自然，可后台热调。
+  agent_follow_speed: { value: '8', description: 'Agent 跟随速度上限 m/s（1~20，默认 8；仅 follow 使用）' },
   // 第一轮联测缺陷 D：Key Agent 的 observe 采样率（次/秒）。默认 1 = 与修复前完全一致；
   // 调高可让客户端闭环跟随更稳（游客档固定 1 次/2 秒，不受此键影响）
   agent_observe_rate_key: { value: '1', description: 'Key Agent observe 采样率（次/秒，1~10，默认 1）' },
@@ -175,6 +178,8 @@ function shapeValues(v) {
     maxConnectionsPerAgent: Math.min(10, Math.max(1, parseInt(v.agent_max_connections_per_agent, 10) || 1)),
     // 缺陷 C 配套：移动速度上限（1~20 m/s）
     maxSpeed: Math.min(20, Math.max(1, Number(v.agent_max_speed) || 9)),
+    // 跟随速度上限（1~20 m/s，独立于 maxSpeed；follow 专用）
+    followSpeed: Math.min(20, Math.max(1, Number(v.agent_follow_speed) || 8)),
     // 缺陷 D：Key Agent observe 采样率（1~10 次/秒，默认 1）
     observeRateKey: Math.min(10, Math.max(1, parseInt(v.agent_observe_rate_key, 10) || 1)),
     // 聊天记录与归档配置（P4）

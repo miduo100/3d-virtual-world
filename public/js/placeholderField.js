@@ -14,6 +14,13 @@
  *                             → 下一帧再显示，消除"模型先白闪一下再正常"的观感
  *   4. hideAfterRevealOrTimeout —— 模型确认可见后再渐缩占位方块（600ms 兜底）
  *
+ * 【2026-09-20 长帧治理】compileAsync 只"链接"程序、不读 uniform，而 ANGLE/D3D11 下
+ * 真正昂贵的是程序**首次真实绘制**时的同步 uniform 反射（three.js WebGLUniforms 构造，
+ * 单个复杂程序 160~340ms 且不可中断）。原实现编译完立即上屏，十几个材质同帧结算 =
+ * 单帧冻结 2~5 秒（实测 13 个程序 2588ms、15 个 5170ms）。现在编译完成后先按帧预算
+ * 逐个强制 getUniforms() 把反射成本摊掉，再让模型可见 —— 观感从"画面死住"变为
+ * "模型稍晚出现"（占位方块仍在，用户知道还在加载）。
+ *
  * 依赖：window.THREE（在 three.min.js 之后加载）
  * 挂载：window.PlaceholderField
  */
@@ -41,6 +48,13 @@
   var REVEAL_MAX_MS = 5000;                  // 单模型预热总时长上限：超时先显示、后台继续编译
   var adaptiveChunk = MIN_CHUNK;             // 自适应批大小（跨模型保留经验值）
 
+  // 【2026-09-20 长帧治理】"强制 uniform 反射"的每帧时间预算。
+  // 单个复杂程序首次反射在 ANGLE/D3D11 下要 160~340ms 且不可中断，预算只决定
+  // "一帧最多结算几个程序"，下限天然被单个程序成本托底（约 170ms/帧）。
+  var WARM_BUDGET_MS = 170;
+  var WARM_MIN_MS = 2000;                    // 反射阶段自身的最短预算（与程序数无关的余量）
+  var WARM_PER_PROG_MS = 500;                // 每个程序预留（实测单个 160~340ms，留余量）
+
   // ===== 状态 =====
   var mesh = null;                 // InstancedMesh
   var idToIndex = new Map();       // worldObjectId -> instance index
@@ -50,6 +64,8 @@
   var rafRunning = false;
   var pendingReveal = [];          // 等待预热显示的模型
   var revealScheduled = false;
+  var warmQueue = [];              // [{ progs, idx, deadline, finish }] 待强制反射的程序（逐帧摊薄）
+  var warmScheduled = false;
 
   // ===== 内部：实例矩阵工具 =====
   var _m = null, _q = null, _v = null, _s = null, _zero = null;
@@ -239,6 +255,57 @@
     } catch (e) { return -1; }
   }
 
+  /** 取当前已注册的着色器程序快照（用于编译前后对比，找出"本模型带来的新程序"） */
+  function programList(renderer) {
+    try {
+      var ps = renderer && renderer.info && renderer.info.programs;
+      return ps ? Array.prototype.slice.call(ps) : [];
+    } catch (e) { return []; }
+  }
+
+  /**
+   * 逐帧摊薄"强制 uniform 反射"——长帧治理的核心。
+   *
+   * 背景（2026-09-20 CPU profile 实测）：加载期长帧内 94%~98% 的时间落在 three.js 的
+   * WebGLUniforms 构造（压缩名 Bo）。着色器程序"链接"与"首次真实绘制"是两件事：
+   * compileAsync 只链接、不读 uniform，等到该程序第一次真正 draw call 时才同步向
+   * ANGLE/D3D11 查询全部 uniform 位置，单个复杂程序 160~340ms 且不可中断。
+   * 所以十几个材质同时上屏就是一帧冻结 2~5 秒（实测 13 个程序 2588ms、15 个 5170ms）。
+   *
+   * 对策：在模型【可见之前】按帧预算逐个 getUniforms() 把反射成本结算掉，再让它上屏。
+   * 单帧峰值因此 ≈ 一个程序的成本（约 170ms），观感是"模型稍晚出现"而非"画面死住"。
+   */
+  function warmTick() {
+    var start = nowMs();
+    while (warmQueue.length > 0) {
+      var job = warmQueue[0];
+      // 兜底：程序过多时不能让模型无限期不显示（预算按程序数给，正常不会触发）
+      if (job.deadline && nowMs() > job.deadline) {
+        warmQueue.shift();
+        if (typeof job.finish === 'function') { try { job.finish(); } catch (e) {} }
+        continue;
+      }
+      var pr = job.progs[job.idx];
+      if (pr && typeof pr.getUniforms === 'function') {
+        try { pr.getUniforms(); } catch (e) { /* 单个程序失败不影响其余 */ }
+      }
+      job.idx++;
+      if (job.idx >= job.progs.length) {
+        warmQueue.shift();
+        if (typeof job.finish === 'function') { try { job.finish(); } catch (e) {} }
+      }
+      if (nowMs() - start > WARM_BUDGET_MS) break;   // 本帧预算用尽 → 让出
+    }
+    if (warmQueue.length > 0) requestAnimationFrame(warmTick);
+    else warmScheduled = false;
+  }
+
+  function scheduleWarm() {
+    if (warmScheduled) return;
+    warmScheduled = true;
+    requestAnimationFrame(warmTick);
+  }
+
   function revealTick() {
     var item = pendingReveal.shift();
     if (!item) { revealScheduled = false; return; }
@@ -267,6 +334,10 @@
     item.obj.traverse(function (o) { if (o.isMesh && o !== item.obj) targets.push(o); });
     if (targets.length === 0) { showNow(); nextItem(); return; }
 
+    // 编译前程序快照：用于找出"本模型带来的新程序"
+    var compiledSet;
+    try { compiledSet = new Set(programList(item.renderer)); } catch (e) { compiledSet = null; }
+
     var idx = 0;
     var step = function () {
       if (idx >= targets.length) { showNow(); nextItem(); return; }
@@ -291,8 +362,24 @@
         if (added === 0) adaptiveChunk = MAX_CHUNK;   // 全是缓存命中 → 全速推进
         else if (cost > BUDGET_MS) adaptiveChunk = Math.max(MIN_CHUNK, Math.floor(adaptiveChunk / 2));
         else if (cost < BUDGET_MS * 0.4) adaptiveChunk = Math.min(MAX_CHUNK, adaptiveChunk * 2);
-        if (idx < targets.length) requestAnimationFrame(step);
-        else { showNow(); nextItem(); }
+        if (idx < targets.length) { requestAnimationFrame(step); return; }
+
+        // 编译完毕：compileAsync 只链接、不读 uniform。若此刻直接上屏，这一帧就要
+        // 集中付 Bo（实测 13 个程序 = 2588ms 冻结）。改为先把本模型新增的程序逐个
+        // 强制反射（按帧预算摊薄），反射完再让模型可见。
+        var after = programList(item.renderer);
+        var newProgs = [];
+        for (var i = 0; i < after.length; i++) {
+          if (!compiledSet || !compiledSet.has(after[i])) newProgs.push(after[i]);
+        }
+        if (shown || newProgs.length === 0) { showNow(); nextItem(); return; }
+        warmQueue.push({
+          progs: newProgs,
+          idx: 0,
+          deadline: nowMs() + WARM_MIN_MS + newProgs.length * WARM_PER_PROG_MS,
+          finish: function () { showNow(); nextItem(); }
+        });
+        scheduleWarm();
       };
 
       try {
@@ -331,6 +418,7 @@
     nextIndex = 0;
     fadeAnims.clear();
     pendingReveal.length = 0;
+    warmQueue.length = 0;
   }
 
   global.PlaceholderField = {
@@ -340,8 +428,19 @@
     fadeOutAndHide: fadeOutAndHide,
     has: has,
     shownCount: shownCount,
-    pendingCount: function () { return pendingReveal.length; },
-    _debug: function () { return { adaptiveChunk: adaptiveChunk, pending: pendingReveal.length }; },
+    // 预热进行中的总工作量 = 待显示模型 + 待强制反射的程序。
+    // PreloadSweeper 以此判断"reveal 忙"：若只算 pendingReveal，反射阶段会被误判为空闲，
+    // 扫掠器随即并行渲染制造新程序，两边叠加又把 Bo 挤进同一帧（实测多出 1.8s 长帧）。
+    pendingCount: function () { return pendingReveal.length + warmQueue.length; },
+    _debug: function () {
+      return {
+        adaptiveChunk: adaptiveChunk,
+        pending: pendingReveal.length,
+        warmJobs: warmQueue.length,
+        warmLeft: warmQueue.length > 0 ? (warmQueue[0].progs.length - warmQueue[0].idx) : 0,
+        warmBudgetMs: WARM_BUDGET_MS
+      };
+    },
     reveal: reveal,
     hideAfterRevealOrTimeout: hideAfterRevealOrTimeout,
     dispose: dispose

@@ -1910,7 +1910,10 @@ class World {
       const _hiltColor   = _wCfg.hilt_color   ? parseInt(_wCfg.hilt_color.replace('#',''), 16) : 0x111111;
       const _lightInt    = _wCfg.point_light_intensity ?? 1.5;
       const _particleType= _wCfg.particle_type || 'none';
-      const _weaponGlbUrl = _wCfg.glb_url || null;
+      // 表头修正：https 页面上的 http:// 资产地址会被浏览器以 Mixed Content 拦截
+      const _weaponGlbUrl = (_wCfg.glb_url && window.fixAssetProtocol)
+        ? window.fixAssetProtocol(_wCfg.glb_url)
+        : (_wCfg.glb_url || null);
 
       laserSwordGroup = new THREE.Group();
       laserSwordGroup.position.set(0, -0.3, 0.1);
@@ -2099,7 +2102,9 @@ class World {
     }
 
     const apiBase = CONFIG.API_BASE || (window.location.origin + '/api');
-    const url = glbUrl.startsWith('http') ? glbUrl : (apiBase.replace('/api', '') + glbUrl);
+    let url = glbUrl.startsWith('http') ? glbUrl : (apiBase.replace('/api', '') + glbUrl);
+    // 表头修正：https 页面 + http:// 资产 → 前缀换 https（否则被 Mixed Content 直接拦掉）
+    if (window.fixAssetProtocol) url = window.fixAssetProtocol(url);
 
     // 再次验证最终 URL
     try {
@@ -2598,7 +2603,9 @@ class World {
     }
 
     const apiBase = CONFIG.API_BASE || (window.location.origin + '/api');
-    const url = animUrl.startsWith('http') ? animUrl : (apiBase.replace('/api', '') + animUrl);
+    let url = animUrl.startsWith('http') ? animUrl : (apiBase.replace('/api', '') + animUrl);
+    // 表头修正：动画与模型同源，同样受 Mixed Content 限制
+    if (window.fixAssetProtocol) url = window.fixAssetProtocol(url);
 
     // 🎬 动画守卫：下载前检查
     if (window.RemoteAnimGuard) {

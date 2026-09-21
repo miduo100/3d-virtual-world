@@ -710,12 +710,14 @@ router.post('/objects/:id/copy', async (req, res) => {
     const newSclZ = hasExplicitScl ? scale_z : (original.scale_z || 1);
 
     // Create copy with offset position
+    // 【2026-09-20 修复】补上 has_collision 透传：原 INSERT 列清单不含该列，
+    // 副本会回落列默认值 FALSE，表现为"复制一次碰撞设置就丢了"（管理员模型级碰撞开关被复制动作清掉）。
     const insertQuery = `
       INSERT INTO world_objects
       (type, name, model_path, position_x, position_y, position_z,
        rotation_x, rotation_y, rotation_z, scale_x, scale_y, scale_z,
-       building_id, agent_description, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
+       building_id, has_collision, agent_description, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
       RETURNING *
     `;
 
@@ -733,6 +735,7 @@ router.post('/objects/:id/copy', async (req, res) => {
       newSclY,
       newSclZ,
       original.building_id,
+      original.has_collision === true,
       original.agent_description || null
     ]);
 

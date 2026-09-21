@@ -221,6 +221,34 @@ class WSClient {
     }
   }
 
+  /**
+   * AI 标识（红线：AI 必须在界面上一眼可辨，不允许被误认成真人）
+   *
+   * 2026-09-20 修复两处漏标（真人实测"你这个 AI 名字旁边没有机器人标识"）：
+   *   ① 原实现只在 PLAYER_JOINED 分支加 `🤖` 前缀，而**真人刷新/后进场**时 Agent 是从
+   *      WORLD_STATE 快照建出来的（那条路径直接传 characterName）→ 头顶名字没有标识；
+   *   ② 聊天行用的是服务端下发的 `sender`（原始名），所以聊天里也没有标识。
+   * 这里做成统一出口：只要该 characterId 已知是 Agent，就补上 `🤖`（幂等，不重复加）。
+   */
+  static agentDisplayName(characterId, name) {
+    try {
+      const pd = gameWorld && gameWorld.players && gameWorld.players.get(characterId);
+      const isAgent = !!(pd && pd.group && pd.group.userData && pd.group.userData.isAgent);
+      if (isAgent && name && !String(name).startsWith('🤖')) return '🤖' + name;
+    } catch (e) { /* 拿不到玩家表就原样返回，不影响显示 */ }
+    return name;
+  }
+
+  /** 头顶名字标签自愈：Agent 因历史原因没带标识时，就地改名重建 sprite（幂等） */
+  static ensureAgentNameTag(characterId) {
+    try {
+      const pd = gameWorld.players.get(characterId);
+      if (pd && pd.group.userData.isAgent && pd.name && !String(pd.name).startsWith('🤖')) {
+        gameWorld.updatePlayerName(characterId, '🤖' + pd.name);
+      }
+    } catch (e) { /* 忽略 */ }
+  }
+
   static handlePlayerJoined(payload) {
     const { characterId, characterName, position, isGuest, glbUrl, animUrls, weaponConfig, boneMapConfig, weaponSocketConfig, calibrationConfig, isSelfContainedBundle, entityType } = payload;
 
@@ -379,6 +407,8 @@ class WSClient {
     players.forEach((player) => {
       if (player.characterId !== GAME_STATE.characterId) {
         const finalGlbUrl = player.glbUrl && player.glbUrl !== 'null' ? player.glbUrl : null;
+        // AI 标识：快照路径同样加 🤖（漏这里就是"真人刷新后 AI 名字没标识"的根因）
+        const displayName = player.entityType === 'agent' ? '🤖' + player.characterName : player.characterName;
         if (!gameWorld.players.has(player.characterId)) {
           // Agent：快照路径初始位置贴地+1.5 补偿
           if (player.entityType === 'agent') {
@@ -386,10 +416,14 @@ class WSClient {
           }
           // 直接传入骨骼/武器/校准配置，确保在 _loadPlayerGlb 之前写入 userData
           // 游客玩家显示星星粒子，正式玩家显示完整模型
-          gameWorld.addPlayer(player.characterId, player.characterName, player.position, !player.isGuest, finalGlbUrl, player.weaponConfig || null, player.boneMapConfig || null, player.weaponSocketConfig || null, player.calibrationConfig || null);
+          gameWorld.addPlayer(player.characterId, displayName, player.position, !player.isGuest, finalGlbUrl, player.weaponConfig || null, player.boneMapConfig || null, player.weaponSocketConfig || null, player.calibrationConfig || null);
           const pd = gameWorld.players.get(player.characterId);
           // 快照路径同样标记 Agent 实体（人类后进场时 Agent 经 WORLD_STATE 到达）
           if (pd && player.entityType === 'agent') pd.group.userData.isAgent = true;
+          // 旧会话遗留（名字已建好但没标识）：就地改名，头顶标签补上 🤖
+          if (pd && player.entityType === 'agent' && !String(pd.name || '').startsWith('🤖')) {
+            gameWorld.updatePlayerName(player.characterId, displayName);
+          }
           if (pd && window.SelfContainedChar) {
             window.SelfContainedChar.markGroup(pd.group, player.isSelfContainedBundle === true);
           }
@@ -407,6 +441,8 @@ class WSClient {
             }
           }
         } else {
+          // 已存在的玩家：Agent 若缺标识则就地补（覆盖"AI 先进场、真人后刷新"的顺序）
+          if (player.entityType === 'agent') this.ensureAgentNameTag(player.characterId);
           gameWorld.updatePlayerPosition(player.characterId, player.position);
           // 如果 WORLD_STATE 里携带了 glbUrl，但本地该玩家还没有模型（仍是木棍人），则立即加载
           if (finalGlbUrl) {
@@ -452,10 +488,14 @@ class WSClient {
 
   static handleChat(payload) {
     const { sender, message, characterId } = payload;
-    UI.addChatMessage(sender, message);
+    // AI 标识：聊天里的名字同样带 🤖（服务端下发的 sender 是原始名）
+    const label = this.agentDisplayName(characterId, sender);
+    UI.addChatMessage(label, message);
+    // 头顶名字标签自愈：收到 Agent 消息时顺手补标识（真人无需刷新即可看到）
+    if (characterId) this.ensureAgentNameTag(characterId);
     // 所有消息都在头顶显示气泡（包括自己的，服务器会回显给发送者）
     if (characterId && window.nearbyBubbles) {
-      window.nearbyBubbles.show(characterId, sender, message);
+      window.nearbyBubbles.show(characterId, label, message);
     }
   }
 

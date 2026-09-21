@@ -89,8 +89,49 @@ public/js/skirtDiag.js
 
 世界居民工坊-设计文档.md
 
-# Agent 联测运行时产物（events.jsonl / state.json / follow.log / inbox / done），保留到联测结束再清理
-examples/agent-client/live/
+# 开发过程文档（AI 协作接力/联测/修复提示词、方案规划规范）：仅本地留档，不入库
+AI-Agent接入系统-*.md
+AI-Agent联测提示词-*.md
+AI-Agent修复提示词-*.md
+AI-Agent应用价值与内容系列规划.md
+LOD三版模型方案-开发规划与规范.md
 
-# 联测临时凭证（明文 API Key + admin JWT，禁止入库；脚本 _tmp_tier_setup.js 会重新生成）
-scripts/_tmp_tier_agents.json
+# Agent 联测运行时产物（events.jsonl / state.json / follow.log / inbox / done）
+# 每个驻场客户端用独立目录：live/、live-deepseek/、live-miduo/ ...
+examples/agent-client/live*/
+
+# 临时脚本与运行时产物（_tmp_*.js 诊断脚本 / *_out.txt 输出 / 凭据 json / _tmp_rt 目录）
+scripts/_tmp_*
+# 例外：Agent 验收链的环境前置脚本（保留入库，v3/v5/v6 回归可复现）
+!scripts/_tmp_agent_switch.js
+!scripts/_tmp_cleanup_test_agents.js
+!scripts/_tmp_tier_reset.js
+!scripts/_tmp_tier_seed_positions.js
+!scripts/_tmp_tier_setup.js
+
+# 一次性测试脚本与脚本输出文件
+scripts/test_upload_tmp.js
+scripts/*_out.txt
+
+# 运行日志目录（access/ops/audit 分流日志与服务器 stdout/stderr）
+logs/
+
+# 验收与调试截图产物：整目录忽略，仅白名单保留文档实际引用的图片
+Screenshot/*
+!Screenshot/shipin.gif
+!Screenshot/current_app.png.jpg
+!Screenshot/dashboard.jpg
+!Screenshot/teleport.jpg
+!Screenshot/teleport_button.jpg
+!Screenshot/world_layout.jpg
+!Screenshot/world_info.jpg
+!Screenshot/mobile_home.jpg
+!Screenshot/mobile_world.jpg
+!Screenshot/baseline_r185/
+Screenshot/baseline_r185/*
+!Screenshot/baseline_r185/_stage4_diff_report.md
+
+# 渲染成本诊断工具（控制台 fetch+eval 加载，本地保留、不入库）
+public/js/diagTurnLag.js
+public/js/diagRenderCost.js
+public/js/diagTurnSweep.js
