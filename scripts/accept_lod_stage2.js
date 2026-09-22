@@ -18,16 +18,19 @@ const path = require('path');
 const BASE = process.env.API_BASE || 'http://localhost:3002';
 const UPLOAD_DIR = path.join(__dirname, '..', 'public', 'models', 'uploaded');
 const TMP_DIR = path.join(__dirname, '_tmp_lod_stage2');
+const ADMIN_USER = process.env.ADMIN_USER || 'baseline_shot';
+const ADMIN_PASS = process.env.ADMIN_PASS || 'Baseline#185';
 
 const checks = [];
 function check(id, title, pass, detail) {
   checks.push({ id, title, pass: !!pass, detail: detail === undefined ? '' : String(detail) });
 }
 
-async function req(method, p, body) {
-  const opts = { method };
+async function req(method, p, body, token) {
+  const opts = { method, headers: {} };
+  if (token) opts.headers['Authorization'] = 'Bearer ' + token;
   if (body !== undefined) {
-    opts.headers = { 'Content-Type': 'application/json' };
+    opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
   }
   const r = await fetch(BASE + p, opts);
@@ -123,6 +126,7 @@ async function cleanupCreated() {
   console.log('=== LOD Stage 2 Acceptance ===');
   console.log('API base:', BASE);
   let originalLod = null;
+  let adminToken = '';
 
   try {
     // ---------- 前置：服务可达 ----------
@@ -133,6 +137,15 @@ async function cleanupCreated() {
       throw new Error('server unreachable');
     }
     console.log('lod-enabled (initial):', boot.status, JSON.stringify(boot.json));
+
+    // ---------- 管理员登录（2026-09-22 起 config.js 写接口需管理员 token） ----------
+    const adminLoginRes = await req('POST', '/api/admin-auth/login', { username: ADMIN_USER, password: ADMIN_PASS });
+    adminToken = (adminLoginRes.json && adminLoginRes.json.token) || '';
+    if (!adminToken) {
+      check('FATAL', 'admin login', false, `status=${adminLoginRes.status}`);
+      throw new Error('admin login failed');
+    }
+    console.log('admin login ok');
 
     // 记录当前开关，便于收尾恢复
     const ws0 = await req('GET', '/api/config/world-settings');
@@ -151,7 +164,7 @@ async function cleanupCreated() {
       check('B4', 'world-settings has world_name/world_url for PUT', false, `name="${needName}" url="${needUrl}"`);
     } else {
       const putOff = await req('PUT', '/api/config/world-settings',
-        { world_name: needName, world_url: needUrl, world_description: (ws0.json.world_description || ''), lod_enabled: false });
+        { world_name: needName, world_url: needUrl, world_description: (ws0.json.world_description || ''), lod_enabled: false }, adminToken);
       const getOff = await req('GET', '/api/config/lod-enabled');
       const getOffWs = await req('GET', '/api/config/world-settings');
       check('B4', 'PUT lod_enabled=false -> GET /lod-enabled {enabled:false}',
@@ -160,7 +173,7 @@ async function cleanupCreated() {
         `put=${putOff.status} lodEnabled=${JSON.stringify(getOff.json)} worldSettings.lod_enabled=${getOffWs.json && getOffWs.json.lod_enabled}`);
 
       const putOn = await req('PUT', '/api/config/world-settings',
-        { world_name: needName, world_url: needUrl, world_description: (ws0.json.world_description || ''), lod_enabled: true });
+        { world_name: needName, world_url: needUrl, world_description: (ws0.json.world_description || ''), lod_enabled: true }, adminToken);
       const getOn = await req('GET', '/api/config/lod-enabled');
       check('B3', 'after PUT true -> GET /lod-enabled {enabled:true}',
         putOn.status === 200 && putOn.json && putOn.json.success === true && getOn.json && getOn.json.enabled === true,
@@ -168,7 +181,7 @@ async function cleanupCreated() {
 
       // 非法值应当被拒绝（不写库）
       const putBad = await req('PUT', '/api/config/world-settings',
-        { world_name: needName, world_url: needUrl, lod_enabled: 'maybe' });
+        { world_name: needName, world_url: needUrl, lod_enabled: 'maybe' }, adminToken);
       const getAfterBad = await req('GET', '/api/config/lod-enabled');
       check('B4', 'invalid lod_enabled rejected (400) and state unchanged',
         putBad.status === 400 && getAfterBad.json && getAfterBad.json.enabled === true,
@@ -269,7 +282,7 @@ async function cleanupCreated() {
           await req('PUT', '/api/config/world-settings', {
             world_name: ws.json.world_name, world_url: ws.json.world_url,
             world_description: ws.json.world_description || '', lod_enabled: originalLod,
-          });
+          }, adminToken);
           console.log('restored lod_enabled =', originalLod);
         }
       } catch (e) { console.log('restore lod_enabled failed:', e.message); }

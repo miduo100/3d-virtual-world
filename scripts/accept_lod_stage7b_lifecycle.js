@@ -310,7 +310,7 @@ async function main() {
       lod_near_dist: 20, lod_mid_far_dist: 30, lod_far_dist: Math.max(50, BANDS0.far || 400),
     };
     const tPut = Date.now();
-    const put = await api('PUT', '/api/config/world-settings', putBody);
+    const put = await api('PUT', '/api/config/world-settings', putBody, adminToken);
     let pickedUp = -1;
     if (put.status === 200) {
       const tl = Date.now();
@@ -366,7 +366,7 @@ async function main() {
       world_url: (ws1.json && ws1.json.world_url) || '',
       world_description: (ws1.json && ws1.json.world_description) || '',
       lod_near_dist: BANDS0.near, lod_mid_far_dist: BANDS0.mid, lod_far_dist: BANDS0.far,
-    });
+    }, adminToken);
     let restored = false;
     if (restore.status === 200) {
       const trr = Date.now();

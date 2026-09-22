@@ -258,7 +258,7 @@ async function waitForGroup(page, minInstances, requireLow, timeoutMs) {
     // ---------- D5：真实开关链路（数据库关闭 → 重新加载页面） ----------
     const wsName = (ws0.json && ws0.json.world_name) || '';
     const wsUrl = (ws0.json && ws0.json.world_url) || '';
-    await api('PUT', '/api/config/world-settings', { world_name: wsName, world_url: wsUrl, world_description: (ws0.json && ws0.json.world_description) || '', lod_enabled: false });
+    await api('PUT', '/api/config/world-settings', { world_name: wsName, world_url: wsUrl, world_description: (ws0.json && ws0.json.world_description) || '', lod_enabled: false }, adminToken);
     await page.close();
     page = await ctx.newPage();
     attach(page);
@@ -279,7 +279,7 @@ async function waitForGroup(page, minInstances, requireLow, timeoutMs) {
       `dbOff=${Math.round(offDb.avgTris)} runtimeOff=${Math.round(off.avgTris)}`);
 
     // 恢复开关并重新加载（后续 D6 需要 LOD 生效）
-    await api('PUT', '/api/config/world-settings', { world_name: wsName, world_url: wsUrl, world_description: (ws0.json && ws0.json.world_description) || '', lod_enabled: originalLod });
+    await api('PUT', '/api/config/world-settings', { world_name: wsName, world_url: wsUrl, world_description: (ws0.json && ws0.json.world_description) || '', lod_enabled: originalLod }, adminToken);
     await page.close();
     page = await ctx.newPage();
     attach(page);
@@ -330,7 +330,7 @@ async function waitForGroup(page, minInstances, requireLow, timeoutMs) {
         await api('PUT', '/api/config/world-settings', {
           world_name: ws.json.world_name, world_url: ws.json.world_url,
           world_description: ws.json.world_description || '', lod_enabled: originalLod,
-        });
+        }, adminToken);
         console.log('restored lod_enabled =', originalLod);
       }
     } catch (e) { console.log('restore lod_enabled failed:', e.message); }

@@ -49,10 +49,15 @@ async function req(pathname, headers) {
   return { status: res.status, json, text, headers: res.headers };
 }
 
+// 2026-09-22 起 PUT /api/config/* 需管理员 token（config.js 鉴权收口），main 里登录后自动携带
+let ADMIN_TOKEN = '';
+
 async function putJson(pathname, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (ADMIN_TOKEN) headers['Authorization'] = 'Bearer ' + ADMIN_TOKEN;
   const res = await fetch(BASE + pathname, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body)
   });
   const text = await res.text();
@@ -136,6 +141,20 @@ async function restoreFedConfig(backup) {
 
 async function main() {
   console.log(`[accept] BASE = ${BASE}`);
+
+  // 管理员登录（A4 的 PUT world-settings 需要；登录失败仅告警，A4 走函数级验证路径时无影响）
+  try {
+    const lr = await fetch(BASE + '/api/admin-auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: process.env.ADMIN_USER || 'baseline_shot', password: process.env.ADMIN_PASS || 'Baseline#185' })
+    });
+    const lj = await lr.json().catch(() => ({}));
+    ADMIN_TOKEN = (lj && lj.token) || '';
+    if (!ADMIN_TOKEN) R.info('管理员登录失败（A4 无 PUT 路径时无影响）', { status: lr.status });
+  } catch (e) {
+    R.info('管理员登录异常（A4 无 PUT 路径时无影响）', e.message);
+  }
 
   // ---------- A1 本地直连（无 TLS）：必须广播 http / ws，不能被"强制 https"写死 ----------
   const base = await req(WK_PATH);

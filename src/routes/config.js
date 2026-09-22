@@ -6,6 +6,10 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../database/db');
 const { resolveSky } = require('./sky');
+const { authenticateAdminToken } = require('../middleware/adminAuth');
+// 鉴权口径（2026-09-22 v7 收口）：
+//   写接口需管理员 token：POST /character-editor、PUT /world-settings、PUT /weather、PUT /language、PUT /seo
+//   读接口保持公开（游戏前端无 token 调用）：GET /world-settings、/lod-enabled、/weather、/language、/seo、/character-editor
 let _getFederationSystem = null;
 let _getCentralConnector = null;
 // 延迟引入，避免循环依赖
@@ -22,8 +26,8 @@ function getCentralConnector() {
   return _getCentralConnector();
 }
 
-// 保存配置
-router.post('/character-editor', async (req, res) => {
+// 保存配置（需要管理员 token）
+router.post('/character-editor', authenticateAdminToken, async (req, res) => {
     try {
         const { config_key, config_value } = req.body;
         
@@ -127,8 +131,8 @@ function _lodDist(raw, def) {
   return Number.isFinite(n) && n > 0 ? n : def;
 }
 
-// 保存世界设置
-router.put('/world-settings', async (req, res) => {
+// 保存世界设置（需要管理员 token；匿名可写会导致联邦 URL 连锁污染）
+router.put('/world-settings', authenticateAdminToken, async (req, res) => {
   try {
     const { world_name, world_url, world_description } = req.body;
 
@@ -374,8 +378,8 @@ router.get('/weather', async (req, res) => {
   }
 });
 
-// 保存并广播天气配置（需要管理员token）
-router.put('/weather', async (req, res) => {
+// 保存并广播天气配置（需要管理员 token，已接 authenticateAdminToken）
+router.put('/weather', authenticateAdminToken, async (req, res) => {
   try {
     const { type, intensity, wind, auto_cycle, cycle_interval, sky_id } = req.body;
     const validTypes = ['clear', 'rain', 'snow', 'fog', 'storm'];
@@ -455,8 +459,8 @@ router.get('/language', async (req, res) => {
   }
 });
 
-// 保存系统语言设置（需要管理员权限）
-router.put('/language', async (req, res) => {
+// 保存系统语言设置（需要管理员 token，已接 authenticateAdminToken）
+router.put('/language', authenticateAdminToken, async (req, res) => {
   try {
     const { language } = req.body;
     
@@ -516,8 +520,8 @@ router.get('/seo', async (req, res) => {
   }
 });
 
-// 保存 SEO 配置（需要管理员权限）
-router.put('/seo', async (req, res) => {
+// 保存 SEO 配置（需要管理员 token，已接 authenticateAdminToken）
+router.put('/seo', authenticateAdminToken, async (req, res) => {
   try {
     const { seo_title, seo_description, seo_keywords } = req.body;
 

@@ -182,14 +182,14 @@ function isNoise(t) {
     const name = (ws0.json && ws0.json.world_name) || '';
     const url = (ws0.json && ws0.json.world_url) || '';
     const desc = (ws0.json && ws0.json.world_description) || '';
-    const putOff = await api('PUT', '/api/config/world-settings', { world_name: name, world_url: url, world_description: desc, lod_enabled: false });
+    const putOff = await api('PUT', '/api/config/world-settings', { world_name: name, world_url: url, world_description: desc, lod_enabled: false }, adminToken);
     const dbOff = (await db.query(`SELECT config_value FROM system_config WHERE config_key = 'lod_enabled'`)).rows[0];
     const stOff = await api('GET', '/api/admin/model-lod/status', undefined, adminToken);
     check('C4', 'save OFF -> DB lod_enabled = false',
       putOff.status === 200 && dbOff && dbOff.config_value === 'false' && stOff.json && stOff.json.enabled === false,
       `put=${putOff.status} db=${dbOff && dbOff.config_value} status.enabled=${stOff.json && stOff.json.enabled}`);
 
-    const putOn = await api('PUT', '/api/config/world-settings', { world_name: name, world_url: url, world_description: desc, lod_enabled: true });
+    const putOn = await api('PUT', '/api/config/world-settings', { world_name: name, world_url: url, world_description: desc, lod_enabled: true }, adminToken);
     const dbOn = (await db.query(`SELECT config_value FROM system_config WHERE config_key = 'lod_enabled'`)).rows[0];
     const stOn = await api('GET', '/api/admin/model-lod/status', undefined, adminToken);
     check('C4', 'save ON -> DB lod_enabled = true',
@@ -293,7 +293,7 @@ function isNoise(t) {
           cardsTotal: cards.length,
           statusText,
           hasCheckbox: !!document.getElementById('lod-enabled-checkbox'),
-          hasButtons: ['saveLodEnabled', 'runLodGenerate', 'refreshLodStatus']
+          hasButtons: ['saveLodEnabled', 'runLodRegen', 'refreshLodStatus'] // 2026-09-14 起一键生成合并进 runLodRegen
             .every((fn) => typeof window[fn] === 'function'),
         };
       }, null, { timeout: 20000 }).then((h) => h.jsonValue()).catch(() => null);
@@ -339,35 +339,39 @@ function isNoise(t) {
           }),
         });
       });
-      await page.route('**/api/admin/model-lod/generate', async (route) => {
+      // 2026-09-14 起「一键生成」按钮合并进 runLodRegen（POST /api/admin/model-lod/regen，#lod-regen-btn）
+      await page.route('**/api/admin/model-lod/regen', async (route) => {
         mockCalls += 1;
         if (mockCalls === 1) {
           const snap = await page.evaluate(() => ({
-            disabled: !!document.getElementById('lod-generate-btn').disabled,
+            disabled: !!document.getElementById('lod-regen-btn').disabled,
             progress: (document.getElementById('lod-progress') || {}).textContent || '',
           }));
           disabledDuringRun = snap.disabled;
           progressDuringRun = snap.progress;
         }
-        const body = {
-          success: true, limit: 3, processed: 3, succeeded: 3, failed: 0,
-          remaining: Math.max(0, MOCK_PENDING - mockCalls * 3),
-          results: [{ name: 'mock-' + mockCalls + '.glb', ok: true }],
-        };
+        // 第 3 次调用返回 processed:0，让前端循环收敛结束（runLodRegen: !r.processed -> break）
+        const body = mockCalls >= 3
+          ? { success: true, limit: 3, processed: 0, succeeded: 0, failed: 0, remaining: 0, results: [] }
+          : {
+              success: true, limit: 3, processed: 3, succeeded: 3, failed: 0,
+              remaining: Math.max(0, MOCK_PENDING - mockCalls * 3),
+              results: [{ name: 'mock-' + mockCalls + '.glb', mid: 'ok' }],
+            };
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
       });
-      await page.click('#lod-generate-btn');
+      await page.click('#lod-regen-btn');
       await page.waitForTimeout(2500);
       const genUI = await page.evaluate(() => ({
         progress: (document.getElementById('lod-progress') || {}).textContent || '',
         progressVisible: (document.getElementById('lod-progress') || {}).style.display !== 'none',
-        btnDisabled: !!document.getElementById('lod-generate-btn').disabled,
+        btnDisabled: !!document.getElementById('lod-regen-btn').disabled,
       }));
-      check('C3', 'click 一键生成中低模 -> button disabled during run + progress text',
-        disabledDuringRun === true && /正在生成\s*\d+\/\d+/.test(progressDuringRun),
+      check('C3', 'click 按标准重生成 -> button disabled during run + progress text',
+        disabledDuringRun === true && /正在按当前标准重生成|正在重生成/.test(progressDuringRun),
         `disabledDuringRun=${disabledDuringRun} progressDuringRun="${progressDuringRun}" mockCalls=${mockCalls}`);
       check('C3', 'progress loop completes with summary and button re-enabled',
-        mockCalls >= 2 && genUI.progressVisible && /完成：处理\s*\d+\s*个/.test(genUI.progress) && genUI.btnDisabled === false,
+        mockCalls >= 3 && genUI.progressVisible && /重生成完成：处理\s*\d+\s*个/.test(genUI.progress) && genUI.btnDisabled === false,
         `mockCalls=${mockCalls} progress="${genUI.progress}" btnDisabled=${genUI.btnDisabled}`);
       await page.screenshot({ path: path.join(SHOT_DIR, 'c3_generate_ui.png') });
 
@@ -397,7 +401,7 @@ function isNoise(t) {
         await api('PUT', '/api/config/world-settings', {
           world_name: ws.json.world_name, world_url: ws.json.world_url,
           world_description: ws.json.world_description || '', lod_enabled: originalLod,
-        });
+        }, adminToken);
         console.log('restored lod_enabled =', originalLod);
       }
     } catch (e) { console.log('restore lod_enabled failed:', e.message); }
