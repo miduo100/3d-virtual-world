@@ -1,0 +1,26 @@
+{
+  "name": "virtual-world-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server that lets any AI tool (Claude Desktop / Cursor / Cline) walk into a live 3D virtual world, talk to real players and observe the scene. Zero-credential guest mode: just set AGENT_HOST.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "virtual-world-mcp": "src/index.js"
+  },
+  "files": [
+    "src",
+    "README.md",
+    ".env.example"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^3.25.76"
+  }
+}

@@ -1,5 +1,8 @@
 # Dependencies（2026-09-16 起纳入版本库，支持克隆后直接运行）
 # node_modules/
+# 例外：examples/mcp-server 是**独立发布的 npm 包**（自带 package.json，靠 npx/npm install 装依赖），
+# 不把它的依赖树并进主仓库（2026-09-22 MCP 接入）。
+examples/mcp-server/node_modules/
 
 # Environment files (keep .example files, ignore real configs)
 .env

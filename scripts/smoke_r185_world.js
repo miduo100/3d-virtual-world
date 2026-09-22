@@ -18,6 +18,16 @@ const ADMIN_PASS = 'Baseline#185';
 function log(msg) { console.log('[smoke] ' + msg); }
 
 async function fetchAdminToken() {
+  // 复用外部传入的 adminToken（脚本串联时用）：管理员登录有 IP 限流（5/分钟 + 15/小时，
+  // **成功也计数**，计数器在内存里），连跑多个验收脚本时必被打满 → 支持 ADMIN_TOKEN 传入可避免。
+  const preset = process.env.ADMIN_TOKEN;
+  if (preset) {
+    try {
+      const probe = await fetch(BASE + '/api/agent/v1/admin/config', { headers: { Authorization: 'Bearer ' + preset } });
+      if (probe.ok) return { token: preset };
+      log('ADMIN_TOKEN 已失效，回落到账号登录');
+    } catch (e) { log('ADMIN_TOKEN 校验异常，回落到账号登录：' + e.message); }
+  }
   const res = await fetch(BASE + '/api/admin-auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
