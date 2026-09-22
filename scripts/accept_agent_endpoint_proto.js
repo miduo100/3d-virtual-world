@@ -94,6 +94,18 @@ async function withPg(fn) {
   }
 }
 
+async function countTrustedWorlds() {
+  try {
+    return await withPg(async (p) => {
+      const r = await p.query('SELECT COUNT(*)::int AS n FROM trusted_worlds');
+      return r.rows[0].n;
+    });
+  } catch (e) {
+    R.info('A4 查询 trusted_worlds 失败（按"有信任世界"保守处理）', e.message);
+    return -1;
+  }
+}
+
 async function readFedConfigBackup() {
   try {
     return await withPg(async (p) => {
@@ -236,19 +248,54 @@ async function testA4() {
   let stage = 'origin-https';
 
   try {
-    if (!String(originUrl).startsWith('https://')) {
-      // 本地/内网部署：临时把权威 world_url 抬成 https（保留原 host），
-      // 该端点会同步 federationSystem.worldUrl 内存态（否则需重启服务器才生效）
-      stage = 'temporary-https';
-      const httpsUrl = 'https://' + String(originUrl).replace(/^https?:\/\//i, '');
-      const put = await putJson('/api/config/world-settings', { world_name: originName, world_url: httpsUrl });
-      if (put.status !== 200) {
-        R.check('A4 权威 world_url 为 https 时无任何反代头也广播 https', false,
-          { reason: 'PUT /api/config/world-settings 失败', status: put.status, body: put.text.slice(0, 200) });
-        return;
-      }
-      await sleep(300);
+    if (String(originUrl).startsWith('https://')) {
+      // 权威本来就是 https（线上常态）：零副作用端到端——直接裸请求断言
+      const bare = await req(WK_PATH);
+      const e = (bare.json && bare.json.endpoints) || {};
+      const w = (bare.json && bare.json.world) || {};
+      R.check('A4 权威 world_url 为 https 时无任何反代头也广播 https/wss（权威兜底生效）',
+        String(e.apiBase).startsWith('https://') && String(e.websocket).startsWith('wss://')
+          && schemeFamily(w.url) === 'https',
+        { stage: 'origin-https', world: w.url, apiBase: e.apiBase, websocket: e.websocket });
+      return;
     }
+
+    // 权威是 http（本地/内网）时需要临时抬成 https。但 PUT world-settings 会触发
+    // 「向所有已信任世界广播 URL 变更」，两次广播是 fire-and-forget、顺序不可控
+    // （broadcastWorldUrlChange 内部串行，但两次调用之间会并发交错）——被污染的是
+    // **对方世界的信任表**，且可能留下临时 URL。因此在存在已信任世界时不做端到端，
+    // 改为直接调用 deriveBaseUrl 做函数级验证（同样能钉死兜底规则，零副作用）。
+    const trustedCount = await countTrustedWorlds();
+    if (trustedCount !== 0) {
+      const { deriveBaseUrl } = require('../src/routes/agent/meta');
+      const fakeReq = (headers) => ({ headers, get: (n) => headers[String(n).toLowerCase()] });
+      const cases = {
+        '无头+权威https': deriveBaseUrl(fakeReq({ host: 'localhost:3002' }), 'https://miduo100.com'),
+        '无头+权威http': deriveBaseUrl(fakeReq({ host: 'localhost:3002' }), 'http://localhost:3002'),
+        '反代头+权威https': deriveBaseUrl(fakeReq({ 'x-forwarded-proto': 'https', 'x-forwarded-host': 'miduo100.com' }), 'https://miduo100.com'),
+        '无头+权威非法值': deriveBaseUrl(fakeReq({ host: 'localhost:3002' }), 'not-a-url')
+      };
+      const ok = cases['无头+权威https'] === 'https://miduo100.com'
+        && cases['无头+权威http'] === 'http://localhost:3002'
+        && cases['反代头+权威https'] === 'https://miduo100.com'
+        && cases['无头+权威非法值'] === 'http://localhost:3002';
+      R.info('A4 存在已信任世界，跳过会触发联邦广播的端到端用例（改走函数级验证）', { trustedCount });
+      R.check('A4 权威 world_url 为 https 时无任何反代头也广播 https/wss（权威兜底生效）',
+        ok, { stage: 'unit-level', ...cases });
+      return;
+    }
+
+    // 走到这里 originUrl 必为 http（https 场景已在上方 return）：临时抬成 https（保留原 host）。
+    // 该端点会同步 federationSystem.worldUrl 内存态（否则改 DB 后需重启才生效）
+    stage = 'temporary-https';
+    const httpsUrl = 'https://' + String(originUrl).replace(/^https?:\/\//i, '');
+    const put = await putJson('/api/config/world-settings', { world_name: originName, world_url: httpsUrl });
+    if (put.status !== 200) {
+      R.check('A4 权威 world_url 为 https 时无任何反代头也广播 https', false,
+        { reason: 'PUT /api/config/world-settings 失败', status: put.status, body: put.text.slice(0, 200) });
+      return;
+    }
+    await sleep(300);
 
     // 关键：不带任何 X-Forwarded-* 头（模拟反代漏配头）
     const bare = await req(WK_PATH);
@@ -264,7 +311,7 @@ async function testA4() {
       await putJson('/api/config/world-settings', { world_name: originName, world_url: originUrl });
       await sleep(200);
     }
-    const fedOk = await restoreFedConfig(fedBackup);
+    const fedOk = stage === 'temporary-https' ? await restoreFedConfig(fedBackup) : 'skipped(未改动世界配置)';
     const back = await req(WK_PATH);
     const backUrl = back.json && back.json.world && back.json.world.url;
     const backApi = back.json && back.json.endpoints && back.json.endpoints.apiBase;
