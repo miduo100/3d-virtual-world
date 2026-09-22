@@ -1,5 +1,5 @@
 {
-  "ts": "2026-09-20T01:32:33.026Z",
+  "ts": "2026-09-22T01:42:31.346Z",
   "pass": 23,
   "fail": 0,
   "total": 23,
@@ -267,6 +267,7 @@
       "sayMaxLength": 200,
       "interactMaxDistance": 5,
       "movementSpeed": 12,
+      "followSpeed": 8,
       "worldBoundary": 1000,
       "followStopDistanceDefault": 2,
       "followMaxDurationMs": 600000,
