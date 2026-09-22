@@ -83,7 +83,7 @@ router.post('/teleport/accept', localSecurityCheck, async (req, res) => {
       // 提示 Agent 客户端下一步：用 transientJwt 连本世界的 /ws/agent
       nextStep: {
         method: 'WS',
-        url: buildWsUrl(req, '/ws/agent'),
+        url: await buildWsUrl(req, '/ws/agent'),
         headers: { Authorization: 'Bearer ' + result.transientJwt }
       }
     });
@@ -118,10 +118,20 @@ router.get('/info', localSecurityCheck, async (req, res) => {
 
 // ==================== 工具 ====================
 
-function buildWsUrl(req, path) {
-  const host = req.headers['host'] || req.get('host') || 'localhost';
-  const proto = req.headers['x-forwarded-proto'] || (req.connection.encrypted ? 'wss' : 'ws');
-  return `${proto}://${host}${path}`;
+/**
+ * 返回给 Agent 客户端的绝对 WS 地址。
+ *
+ * 2026-09-21 修正（同类隐患）：原实现 `x-forwarded-proto || (encrypted ? 'wss' : 'ws')`
+ * 在反代下有两个问题——① Nginx 传 `X-Forwarded-Proto: https` 时会拼出
+ * `https://host/ws/agent`（不是 wss，客户端连不上）；② 漏配该头时只能得到 ws://。
+ * 现复用 agent/meta.js 的协议口径（含权威 worldUrl 兜底），再统一 http→ws 映射。
+ */
+async function buildWsUrl(req, path) {
+  const { deriveBaseUrl, resolveAuthoritativeUrl } = require('./agent/meta');
+  const baseUrl = deriveBaseUrl(req, await resolveAuthoritativeUrl());
+  return baseUrl.replace(/^http/, 'ws') + path;   // https→wss、http→ws
 }
 
 module.exports = router;
+// 导出供协议验收（scripts/accept_agent_endpoint_proto.js）与排查复用
+module.exports.buildWsUrl = buildWsUrl;

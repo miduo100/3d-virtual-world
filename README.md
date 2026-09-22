@@ -265,6 +265,11 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # Required: tell Node the original scheme. Without these two lines an HTTPS site
+        # advertises http:// Agent discovery endpoints (AI clients then hit Mixed Content)
+        # and every visitor shares one IP for rate limiting.
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
         proxy_read_timeout 300s;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -277,10 +282,33 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 7d;
     }
 }
 ```
+
+### Verifying the reverse proxy (AI Agent discovery endpoints)
+
+The discovery document `/.well-known/virtual-world-agent.json` must advertise the **same
+scheme the site is actually served with** (HTTPS site → `https://` + `wss://`). Three steps:
+
+1. Apply the two headers inside `location /` and the four inside `location /ws` shown above.
+2. Reload Nginx:
+   ```bash
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+3. Verify (expect `https://`, not `http://`):
+   ```bash
+   curl -s "https://your-domain.com/.well-known/virtual-world-agent.json?t=$(date +%s)" | grep -o '"apiBase": "[^"]*"'
+   curl -s "https://your-domain.com/.well-known/virtual-world-agent.json?t=$(date +%s)" | grep -o '"websocket": "[^"]*"'
+   ```
+
+> The document is cached for 60 seconds (`Cache-Control: public, max-age=60`) — wait a
+> minute or use the `?t=` cache-buster above.
 
 ---
 

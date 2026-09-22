@@ -258,13 +258,20 @@ server {
         add_header Cache-Control "public, immutable";
     }
 
-    # 主应用
+    # 主应用（含浏览器根路径 WebSocket：CONFIG.WS_URL 无路径，连 ws://host/）
     location / {
         proxy_pass http://localhost:3002;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # 必需：告诉 Node 原始请求协议。缺这两行时 https 站点会把 AI Agent 发现端点
+        # 广播成 http://（AI 客户端被 Mixed Content 拦截），且所有访客在限流里算同一个 IP。
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
         proxy_read_timeout 300s;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
     }
 
     # WebSocket
@@ -273,10 +280,33 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 7d;
     }
 }
 ```
+
+### 验证反向代理（AI Agent 发现端点）
+
+发现文档 `/.well-known/virtual-world-agent.json` 广播的协议必须与站点实际协议一致
+（https 站点 → `https://` + `wss://`）。三步：
+
+1. 按上面的配置，在 `location /` 内补两行、`location /ws` 内补四行
+2. 重载 Nginx：
+   ```bash
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+3. 验证（期望看到 `https://`，不是 `http://`）：
+   ```bash
+   curl -s "https://你的域名/.well-known/virtual-world-agent.json?t=$(date +%s)" | grep -o '"apiBase": "[^"]*"'
+   curl -s "https://你的域名/.well-known/virtual-world-agent.json?t=$(date +%s)" | grep -o '"websocket": "[^"]*"'
+   ```
+
+> 该文档有 60 秒缓存（`Cache-Control: public, max-age=60`），改完等 1 分钟或像上面那样加
+> `?t=` 绕过缓存。
 
 ---
 

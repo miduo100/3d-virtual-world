@@ -95,7 +95,7 @@ function buildSharedSections(config) {
 router.get('/capabilities', async (req, res) => {
   try {
     const config = await agentConfigService.getConfig();
-    const baseUrl = deriveBaseUrl(req);
+    const baseUrl = await resolveBaseUrl(req);
     res.json({
       success: true,
       protocolVersion: PROTOCOL_VERSION,
@@ -151,7 +151,7 @@ router.get('/capabilities', async (req, res) => {
 
 router.get('/openapi.json', async (req, res) => {
   try {
-    const baseUrl = deriveBaseUrl(req);
+    const baseUrl = await resolveBaseUrl(req);
     const config = await agentConfigService.getConfig();
     const wsUrl = baseUrl.replace(/^http/, 'ws') + '/ws/agent';
     res.json(buildOpenApiSpec(baseUrl, wsUrl, config.agentEnabled));
@@ -176,32 +176,28 @@ router.get('/well-known/virtual-world-agent.json', async (req, res) => {
 // ==================== 工具：构建 well-known 发现文档 ====================
 
 async function buildWellKnown(req) {
-  const baseUrl = deriveBaseUrl(req);
+  // 权威世界 URL 先取（同时用于 world.url 与 baseUrl 的协议兜底），避免重复读库
+  const authoritativeUrl = await resolveAuthoritativeUrl();
+  const baseUrl = deriveBaseUrl(req, authoritativeUrl);
   const config = await agentConfigService.getConfig();
 
-  // worldId / worldName / worldUrl 来源优先级：federationSystem（权威）→ system_config('world_url') → req 推导
+  // worldUrl 来源优先级：federationSystem（权威）→ system_config('world_url') → req 推导。
+  // 协议对齐：同一份发现文档里 world.url 与 endpoints 必须同协议（线上 bug 的直接症状就是
+  // world.url=https 而 endpoints.apiBase=http，文档自相矛盾）——统一取 baseUrl 的协议，host 保留权威值。
+  const rawWorldUrl = authoritativeUrl || baseUrl;
+  const baseProto = /^([a-z][a-z0-9+.-]*):\/\//i.exec(baseUrl);
+  const worldUrl = baseProto ? rawWorldUrl.replace(/^[a-z][a-z0-9+.-]*:\/\//i, baseProto[1].toLowerCase() + '://') : rawWorldUrl;
+
   let worldId = null;
   let worldName = null;
-  let worldUrl = baseUrl;
   try {
     const federation = require('../../routes/federation').getFederationSystem();
     if (federation) {
       worldId = federation.worldId || null;
       worldName = federation.worldName || null;
-      worldUrl = federation.worldUrl || baseUrl;
     }
   } catch (e) { /* federationSystem 未初始化，降级 */ }
 
-  if (!worldUrl || worldUrl === baseUrl) {
-    // 降级读 system_config('world_url')
-    try {
-      const { query } = require('../../database/db');
-      const r = await query(`SELECT config_value FROM system_config WHERE config_key = 'world_url'`);
-      if (r.rows.length > 0 && r.rows[0].config_value) {
-        worldUrl = r.rows[0].config_value.trim() || baseUrl;
-      }
-    } catch (e) { /* DB 不可用时用 baseUrl */ }
-  }
   if (!worldName) {
     try {
       const { query } = require('../../database/db');
@@ -447,17 +443,56 @@ function buildOpenApiSpec(baseUrl, wsUrl, agentEnabled) {
   };
 }
 
-// ==================== 工具：从 req 推导 baseUrl ====================
+// ==================== 工具：权威世界入口 URL / baseUrl 推导 ====================
 
-function deriveBaseUrl(req) {
-  // 优先信任反代/原请求协议（Nginx 配置 X-Forwarded-Proto / Host）
-  const proto = req.headers['x-forwarded-proto'] || (req.connection && req.connection.encrypted ? 'https' : 'http');
-  const host = req.headers['x-forwarded-host'] || req.headers['host'] || (req.get && req.get('host')) || 'localhost';
+/**
+ * 读取"权威世界入口 URL"（协议一致性兜底）：federationSystem.worldUrl（内存态，权威）
+ * → system_config('world_url') → null（纯靠 req 推导）。反代转发给 Node 的是 http 明文，
+ * 漏配 X-Forwarded-Proto 时 req 侧永远推不出 https（encrypted 恒 false），站点入口 URL 在此。
+ */
+async function resolveAuthoritativeUrl() {
+  try {
+    const federation = require('../../routes/federation').getFederationSystem();
+    if (federation && federation.worldUrl) return String(federation.worldUrl).trim();
+  } catch (e) { /* federationSystem 未初始化，降级 */ }
+  try {
+    const { query } = require('../../database/db');
+    const r = await query(`SELECT config_value FROM system_config WHERE config_key = 'world_url'`);
+    if (r.rows.length > 0 && r.rows[0].config_value) return r.rows[0].config_value.trim() || null;
+  } catch (e) { /* DB 不可用，降级 */ }
+  return null;
+}
+
+/** 三处发现端点统一入口（加固集中在 deriveBaseUrl 一处，勿各写一份） */
+async function resolveBaseUrl(req) {
+  return deriveBaseUrl(req, await resolveAuthoritativeUrl());
+}
+
+/**
+ * 从 req 推导 baseUrl。协议优先级：① x-forwarded-proto（多段取第一段）
+ * ② req.protocol（已 applyTrustProxy）③ 连接加密状态 ④ 权威 URL 兜底
+ * （站点入口是 https 时，反代到 Node 的 http 只是内部事实，覆盖推导结果）。
+ * 主机优先级：x-forwarded-host → host → 权威 host（推导 host 为回环或与权威相同时）。
+ * WS 端点由调用方以 `baseUrl.replace(/^http/, 'ws')` 派生（https→wss、http→ws），协议只在此处改一处。
+ */
+function deriveBaseUrl(req, authoritativeUrl) {
+  const head = (v) => String(v || '').split(',')[0].trim();
+  let proto = head(req.headers['x-forwarded-proto']);
+  if (!proto) proto = (req.protocol === 'https' || (req.connection && req.connection.encrypted)) ? 'https' : 'http';
+  let host = head(req.headers['x-forwarded-host']) || req.headers['host'] || (req.get && req.get('host')) || 'localhost';
+
+  try {
+    const authoritative = new URL(authoritativeUrl);
+    if (authoritative.protocol === 'https:' && proto === 'http') proto = 'https';
+    const authHost = authoritative.host;
+    if (authHost && (host === authHost || /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host))) host = authHost;
+  } catch (e) { /* 无权威 URL 或非法值：按 req 推导结果使用 */ }
+
   return `${proto}://${host}`;
 }
 
 // ==================== 导出（同时供 server.js 直接调 buildWellKnown）====================
 
 module.exports = router;
-module.exports.buildWellKnown = buildWellKnown;
-module.exports.PROTOCOL_VERSION = PROTOCOL_VERSION;
+// deriveBaseUrl / resolveAuthoritativeUrl 导出供 agentFederation.js 复用（协议口径只此一处）
+Object.assign(module.exports, { buildWellKnown, deriveBaseUrl, resolveAuthoritativeUrl, PROTOCOL_VERSION });
