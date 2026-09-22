@@ -81,6 +81,16 @@ const staticCacheOptions = {
   }
 };
 
+// AI 爬虫门面文件（robots.txt / sitemap.xml / llms.txt）短缓存：
+// 上面 staticCacheOptions 的 maxAge(7 天) 会命中 .txt/.xml → 线上改完一周不生效；
+// 只对这三个文件放宽到 5 分钟，不动全局策略（.glb 的 30 天 immutable 是性能红线）。
+for (const facadeFile of ['robots.txt', 'sitemap.xml', 'llms.txt']) {
+  app.get('/' + facadeFile, (req, res) => {
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.sendFile(path.join(__dirname, '../public', facadeFile));
+  });
+}
+
 app.use(express.static(path.join(__dirname, '../public'), staticCacheOptions));
 app.use('/i18n', express.static(path.join(__dirname, '../public/i18n'), staticCacheOptions));
 app.use('/node_modules', express.static(path.join(__dirname, '../node_modules'), staticCacheOptions));

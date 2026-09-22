@@ -93,8 +93,10 @@ public/js/skirtDiag.js
 AI-Agent接入系统-*.md
 AI-Agent联测提示词-*.md
 AI-Agent修复提示词-*.md
+AI-Agent引流提示词-*.md
 AI-Agent应用价值与内容系列规划.md
 LOD三版模型方案-开发规划与规范.md
+*实现提示词-*.md
 
 # Agent 联测运行时产物（events.jsonl / state.json / follow.log / inbox / done）
 # 每个驻场客户端用独立目录：live/、live-deepseek/、live-miduo/ ...

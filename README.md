@@ -547,6 +547,14 @@ Server logs are split by purpose, rotated daily, and auto-pruned (`logs/`):
 
 `/health` and `/favicon.ico` are filtered out of `access.log`. Set `LOG_DIR` / `AUDIT_LOG_RETENTION_DAYS` to override.
 
+### Discovery Facade (for AI crawlers)
+
+`robots.txt` / `sitemap.xml` / `llms.txt` / `agents/index.html` are the crawler-facing facade of the discovery layer. They are plain static files under `public/` — no backend route is involved (the only exception is a 5-minute `Cache-Control` for the three `.txt`/`.xml` files, set by small explicit routes in `src/server.js`; the global static policy would otherwise cache them for 7 days).
+
+- **Keep `llms.txt` in sync**: whenever capabilities change (`actions` / `limits` / `tiers` / `scopes`), `public/llms.txt` **must** be updated in the same commit. A stale capability list inside an LLM index is worse than no listing at all. `scripts/accept_agent_discovery_layer.js` (check `D6`) fails if `llms.txt` drifts from `GET /api/agent/v1/capabilities`.
+- **Multi-world deployments**: replace the domain in `robots.txt` (the `Sitemap:` line), `sitemap.xml` (`<loc>`) and `llms.txt` (Contact → Home). The endpoint links inside `llms.txt` are **deliberately relative** (`/api/agent/v1/...`) — do not rewrite them.
+- **Verification**: submit `sitemap.xml` to Google Search Console; re-test with each AI crawler's official fetch tool.
+
 ### Documentation
 
 - Design spec & progress: [`AI-Agent接入系统-开发规范与进度.md`](./AI-Agent接入系统-开发规范与进度.md) (Chinese)

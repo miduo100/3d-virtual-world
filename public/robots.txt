@@ -1,0 +1,75 @@
+# 创世虚拟世界 robots.txt
+#
+# 多世界部署时：请把末尾 Sitemap 行的域名替换为本世界实际域名。
+#
+# 设计原则：放行 AI 爬虫读取"门面"（发现文档 / 能力清单 / AI 接入页），
+# 禁止下载大体积 3D 资产、遍历后台与编辑器、扫 API。
+# （robots.txt 规则为"最长匹配优先"：Allow 比 Disallow 更具体时 Allow 生效）
+
+# ---------- AI 爬虫：本世界的目标访客之一，显式放行 ----------
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+# ---------- 普通搜索引擎 ----------
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Baiduspider
+Allow: /
+
+# ---------- 通用规则 ----------
+User-agent: *
+Allow: /
+Allow: /.well-known/
+Allow: /api/agent/v1/capabilities
+Allow: /api/agent/v1/openapi.json
+Allow: /api/agent/v1/guest/session
+Allow: /agents/
+Allow: /llms.txt
+Allow: /robots.txt
+Allow: /sitemap.xml
+
+Disallow: /api/
+Disallow: /uploads/
+Disallow: /models/
+Disallow: /generated/
+Disallow: /logs/
+Disallow: /admin.html
+Disallow: /admin_login.html
+Disallow: /*_editor.html
+Disallow: /*.glb$
+Disallow: /*.gltf$
+Disallow: /*.exr$
+
+# 多世界部署时替换域名
+Sitemap: https://miduo100.com/sitemap.xml
