@@ -1,20 +1,20 @@
 {
-  "when": "2026-09-20T01:33:22.075Z",
-  "run": 32,
+  "when": "2026-09-22T03:07:02.282Z",
+  "run": 72,
   "ips": {
-    "owner": "203.0.113.32",
-    "auth": "203.0.113.62",
-    "main": "203.0.113.72",
-    "c18": "203.0.113.152",
-    "owner2": "203.0.113.132",
-    "rate": "198.51.100.32",
-    "fresh": "203.0.113.82",
-    "fresh2": "203.0.113.182",
-    "xObserver": "203.0.113.102",
+    "owner": "203.0.113.72",
+    "auth": "203.0.113.102",
+    "main": "203.0.113.112",
+    "c18": "203.0.113.192",
+    "owner2": "203.0.113.172",
+    "rate": "198.51.100.72",
+    "fresh": "203.0.113.122",
+    "fresh2": "203.0.113.222",
+    "xObserver": "203.0.113.142",
     "xAttempts": [
-      "203.0.113.92",
-      "203.0.113.93",
-      "203.0.113.94"
+      "203.0.113.132",
+      "203.0.113.133",
+      "203.0.113.134"
     ]
   },
   "groups": {
@@ -149,6 +149,7 @@
           "sayMaxLength": 200,
           "interactMaxDistance": 5,
           "movementSpeed": 12,
+          "followSpeed": 8,
           "worldBoundary": 1000,
           "followStopDistanceDefault": 2,
           "followMaxDurationMs": 600000,
@@ -299,6 +300,7 @@
           "sayMaxLength": 200,
           "interactMaxDistance": 5,
           "movementSpeed": 12,
+          "followSpeed": 8,
           "worldBoundary": 1000,
           "followStopDistanceDefault": 2,
           "followMaxDurationMs": 600000,
@@ -1024,8 +1026,8 @@
       }
     },
     "B": {
-      "agentId": "agent:guest:185f6550-a43e-4abb-ab48-bfeb662e9330",
-      "name": "游客AI-6c20300e"
+      "agentId": "agent:guest:409da104-be31-4b74-a83d-db55514d0d49",
+      "name": "游客AI-74c7e14c"
     },
     "C": {
       "connected": true
@@ -1043,22 +1045,22 @@
       "results": [
         {
           "attempt": 1,
-          "ip": "203.0.113.92",
-          "agentId": "agent:guest:73f00784-733c-421e-8830-429df503a583",
+          "ip": "203.0.113.132",
+          "agentId": "agent:guest:4aba4ba5-36f9-4187-ae50-8149a89893c2",
           "ghost": false,
           "slotLeak": false
         },
         {
           "attempt": 2,
-          "ip": "203.0.113.93",
-          "agentId": "agent:guest:08fd6e7e-ddb0-4380-85cd-695e87a169e1",
+          "ip": "203.0.113.133",
+          "agentId": "agent:guest:2088f397-2ff8-407d-a80f-4268571d5902",
           "ghost": false,
           "slotLeak": false
         },
         {
           "attempt": 3,
-          "ip": "203.0.113.94",
-          "agentId": "agent:guest:4dc8e596-1617-41d7-964f-7d78165756eb",
+          "ip": "203.0.113.134",
+          "agentId": "agent:guest:9f0d18c9-b62f-47b4-abf6-01c387214a6c",
           "ghost": false,
           "slotLeak": false
         }
@@ -1165,12 +1167,12 @@
     {
       "name": "B4 agent.id 形如 agent:guest:<uuid>",
       "ok": true,
-      "detail": "agent:guest:185f6550-a43e-4abb-ab48-bfeb662e9330"
+      "detail": "agent:guest:409da104-be31-4b74-a83d-db55514d0d49"
     },
     {
       "name": "B5 agent.name 以 游客AI- 开头",
       "ok": true,
-      "detail": "游客AI-6c20300e"
+      "detail": "游客AI-74c7e14c"
     },
     {
       "name": "B6 tierInfo.pushAllowed=false（红线 14）",
@@ -1278,7 +1280,7 @@
     {
       "name": "C12 WORLD_SNAPSHOT.self.id = 本 Agent",
       "ok": true,
-      "detail": "agent:guest:185f6550-a43e-4abb-ab48-bfeb662e9330"
+      "detail": "agent:guest:409da104-be31-4b74-a83d-db55514d0d49"
     },
     {
       "name": "C14 游客 SUBSCRIBE → GUEST_PUSH_FORBIDDEN",
@@ -1344,7 +1346,7 @@
     {
       "name": "D3 self.id = 本 Agent（同一命名空间）",
       "ok": true,
-      "detail": "agent:guest:185f6550-a43e-4abb-ab48-bfeb662e9330"
+      "detail": "agent:guest:409da104-be31-4b74-a83d-db55514d0d49"
     },
     {
       "name": "D4 tier 字段回显 guest-pull",
@@ -1589,5 +1591,5 @@
       "detail": "联测收尾需按红线 6 恢复 agent_enabled=false"
     }
   ],
-  "durationMs": 32658
+  "durationMs": 32242
 }
