@@ -1,0 +1,1468 @@
+{
+  "createdAt": "2026-09-22T06:12:21.995Z",
+  "note": "rollback = UPDATE world_objects SET agent_description = NULL WHERE id = ANY(ids)",
+  "modelsUpdated": 0,
+  "geometryUpdated": 365,
+  "rows": [
+    {
+      "id": 11,
+      "agent_description": null
+    },
+    {
+      "id": 12,
+      "agent_description": null
+    },
+    {
+      "id": 13,
+      "agent_description": null
+    },
+    {
+      "id": 15,
+      "agent_description": null
+    },
+    {
+      "id": 16,
+      "agent_description": null
+    },
+    {
+      "id": 17,
+      "agent_description": null
+    },
+    {
+      "id": 18,
+      "agent_description": null
+    },
+    {
+      "id": 19,
+      "agent_description": null
+    },
+    {
+      "id": 20,
+      "agent_description": null
+    },
+    {
+      "id": 21,
+      "agent_description": null
+    },
+    {
+      "id": 22,
+      "agent_description": null
+    },
+    {
+      "id": 23,
+      "agent_description": null
+    },
+    {
+      "id": 24,
+      "agent_description": null
+    },
+    {
+      "id": 25,
+      "agent_description": null
+    },
+    {
+      "id": 26,
+      "agent_description": null
+    },
+    {
+      "id": 27,
+      "agent_description": null
+    },
+    {
+      "id": 28,
+      "agent_description": null
+    },
+    {
+      "id": 29,
+      "agent_description": null
+    },
+    {
+      "id": 30,
+      "agent_description": null
+    },
+    {
+      "id": 31,
+      "agent_description": null
+    },
+    {
+      "id": 32,
+      "agent_description": null
+    },
+    {
+      "id": 33,
+      "agent_description": null
+    },
+    {
+      "id": 34,
+      "agent_description": null
+    },
+    {
+      "id": 35,
+      "agent_description": null
+    },
+    {
+      "id": 36,
+      "agent_description": null
+    },
+    {
+      "id": 37,
+      "agent_description": null
+    },
+    {
+      "id": 38,
+      "agent_description": null
+    },
+    {
+      "id": 39,
+      "agent_description": null
+    },
+    {
+      "id": 40,
+      "agent_description": null
+    },
+    {
+      "id": 41,
+      "agent_description": null
+    },
+    {
+      "id": 42,
+      "agent_description": null
+    },
+    {
+      "id": 43,
+      "agent_description": null
+    },
+    {
+      "id": 44,
+      "agent_description": null
+    },
+    {
+      "id": 45,
+      "agent_description": null
+    },
+    {
+      "id": 46,
+      "agent_description": null
+    },
+    {
+      "id": 47,
+      "agent_description": null
+    },
+    {
+      "id": 48,
+      "agent_description": null
+    },
+    {
+      "id": 49,
+      "agent_description": null
+    },
+    {
+      "id": 50,
+      "agent_description": null
+    },
+    {
+      "id": 51,
+      "agent_description": null
+    },
+    {
+      "id": 52,
+      "agent_description": null
+    },
+    {
+      "id": 53,
+      "agent_description": null
+    },
+    {
+      "id": 54,
+      "agent_description": null
+    },
+    {
+      "id": 55,
+      "agent_description": null
+    },
+    {
+      "id": 56,
+      "agent_description": null
+    },
+    {
+      "id": 57,
+      "agent_description": null
+    },
+    {
+      "id": 58,
+      "agent_description": null
+    },
+    {
+      "id": 59,
+      "agent_description": null
+    },
+    {
+      "id": 60,
+      "agent_description": null
+    },
+    {
+      "id": 61,
+      "agent_description": null
+    },
+    {
+      "id": 62,
+      "agent_description": null
+    },
+    {
+      "id": 63,
+      "agent_description": null
+    },
+    {
+      "id": 66,
+      "agent_description": null
+    },
+    {
+      "id": 67,
+      "agent_description": null
+    },
+    {
+      "id": 68,
+      "agent_description": null
+    },
+    {
+      "id": 69,
+      "agent_description": null
+    },
+    {
+      "id": 70,
+      "agent_description": null
+    },
+    {
+      "id": 71,
+      "agent_description": null
+    },
+    {
+      "id": 72,
+      "agent_description": null
+    },
+    {
+      "id": 73,
+      "agent_description": null
+    },
+    {
+      "id": 74,
+      "agent_description": null
+    },
+    {
+      "id": 75,
+      "agent_description": null
+    },
+    {
+      "id": 76,
+      "agent_description": null
+    },
+    {
+      "id": 77,
+      "agent_description": null
+    },
+    {
+      "id": 78,
+      "agent_description": null
+    },
+    {
+      "id": 79,
+      "agent_description": null
+    },
+    {
+      "id": 80,
+      "agent_description": null
+    },
+    {
+      "id": 81,
+      "agent_description": null
+    },
+    {
+      "id": 82,
+      "agent_description": null
+    },
+    {
+      "id": 83,
+      "agent_description": null
+    },
+    {
+      "id": 84,
+      "agent_description": null
+    },
+    {
+      "id": 85,
+      "agent_description": null
+    },
+    {
+      "id": 86,
+      "agent_description": null
+    },
+    {
+      "id": 87,
+      "agent_description": null
+    },
+    {
+      "id": 88,
+      "agent_description": null
+    },
+    {
+      "id": 89,
+      "agent_description": null
+    },
+    {
+      "id": 90,
+      "agent_description": null
+    },
+    {
+      "id": 91,
+      "agent_description": null
+    },
+    {
+      "id": 93,
+      "agent_description": null
+    },
+    {
+      "id": 94,
+      "agent_description": null
+    },
+    {
+      "id": 95,
+      "agent_description": null
+    },
+    {
+      "id": 96,
+      "agent_description": null
+    },
+    {
+      "id": 97,
+      "agent_description": null
+    },
+    {
+      "id": 98,
+      "agent_description": null
+    },
+    {
+      "id": 99,
+      "agent_description": null
+    },
+    {
+      "id": 100,
+      "agent_description": null
+    },
+    {
+      "id": 101,
+      "agent_description": null
+    },
+    {
+      "id": 102,
+      "agent_description": null
+    },
+    {
+      "id": 103,
+      "agent_description": null
+    },
+    {
+      "id": 104,
+      "agent_description": null
+    },
+    {
+      "id": 105,
+      "agent_description": null
+    },
+    {
+      "id": 106,
+      "agent_description": null
+    },
+    {
+      "id": 107,
+      "agent_description": null
+    },
+    {
+      "id": 108,
+      "agent_description": null
+    },
+    {
+      "id": 109,
+      "agent_description": null
+    },
+    {
+      "id": 110,
+      "agent_description": null
+    },
+    {
+      "id": 111,
+      "agent_description": null
+    },
+    {
+      "id": 112,
+      "agent_description": null
+    },
+    {
+      "id": 113,
+      "agent_description": null
+    },
+    {
+      "id": 114,
+      "agent_description": null
+    },
+    {
+      "id": 115,
+      "agent_description": null
+    },
+    {
+      "id": 116,
+      "agent_description": null
+    },
+    {
+      "id": 117,
+      "agent_description": null
+    },
+    {
+      "id": 118,
+      "agent_description": null
+    },
+    {
+      "id": 119,
+      "agent_description": null
+    },
+    {
+      "id": 120,
+      "agent_description": null
+    },
+    {
+      "id": 121,
+      "agent_description": null
+    },
+    {
+      "id": 122,
+      "agent_description": null
+    },
+    {
+      "id": 123,
+      "agent_description": null
+    },
+    {
+      "id": 124,
+      "agent_description": null
+    },
+    {
+      "id": 125,
+      "agent_description": null
+    },
+    {
+      "id": 126,
+      "agent_description": null
+    },
+    {
+      "id": 127,
+      "agent_description": null
+    },
+    {
+      "id": 128,
+      "agent_description": null
+    },
+    {
+      "id": 129,
+      "agent_description": null
+    },
+    {
+      "id": 130,
+      "agent_description": null
+    },
+    {
+      "id": 131,
+      "agent_description": null
+    },
+    {
+      "id": 132,
+      "agent_description": null
+    },
+    {
+      "id": 133,
+      "agent_description": null
+    },
+    {
+      "id": 134,
+      "agent_description": null
+    },
+    {
+      "id": 135,
+      "agent_description": null
+    },
+    {
+      "id": 136,
+      "agent_description": null
+    },
+    {
+      "id": 137,
+      "agent_description": null
+    },
+    {
+      "id": 138,
+      "agent_description": null
+    },
+    {
+      "id": 139,
+      "agent_description": null
+    },
+    {
+      "id": 140,
+      "agent_description": null
+    },
+    {
+      "id": 141,
+      "agent_description": null
+    },
+    {
+      "id": 142,
+      "agent_description": null
+    },
+    {
+      "id": 143,
+      "agent_description": null
+    },
+    {
+      "id": 144,
+      "agent_description": null
+    },
+    {
+      "id": 145,
+      "agent_description": null
+    },
+    {
+      "id": 146,
+      "agent_description": null
+    },
+    {
+      "id": 147,
+      "agent_description": null
+    },
+    {
+      "id": 148,
+      "agent_description": null
+    },
+    {
+      "id": 149,
+      "agent_description": null
+    },
+    {
+      "id": 150,
+      "agent_description": null
+    },
+    {
+      "id": 151,
+      "agent_description": null
+    },
+    {
+      "id": 152,
+      "agent_description": null
+    },
+    {
+      "id": 153,
+      "agent_description": null
+    },
+    {
+      "id": 154,
+      "agent_description": null
+    },
+    {
+      "id": 155,
+      "agent_description": null
+    },
+    {
+      "id": 156,
+      "agent_description": null
+    },
+    {
+      "id": 157,
+      "agent_description": null
+    },
+    {
+      "id": 158,
+      "agent_description": null
+    },
+    {
+      "id": 159,
+      "agent_description": null
+    },
+    {
+      "id": 160,
+      "agent_description": null
+    },
+    {
+      "id": 161,
+      "agent_description": null
+    },
+    {
+      "id": 162,
+      "agent_description": null
+    },
+    {
+      "id": 163,
+      "agent_description": null
+    },
+    {
+      "id": 164,
+      "agent_description": null
+    },
+    {
+      "id": 165,
+      "agent_description": null
+    },
+    {
+      "id": 166,
+      "agent_description": null
+    },
+    {
+      "id": 167,
+      "agent_description": null
+    },
+    {
+      "id": 174,
+      "agent_description": null
+    },
+    {
+      "id": 175,
+      "agent_description": null
+    },
+    {
+      "id": 176,
+      "agent_description": null
+    },
+    {
+      "id": 177,
+      "agent_description": null
+    },
+    {
+      "id": 178,
+      "agent_description": null
+    },
+    {
+      "id": 180,
+      "agent_description": null
+    },
+    {
+      "id": 181,
+      "agent_description": null
+    },
+    {
+      "id": 182,
+      "agent_description": null
+    },
+    {
+      "id": 183,
+      "agent_description": null
+    },
+    {
+      "id": 184,
+      "agent_description": null
+    },
+    {
+      "id": 185,
+      "agent_description": null
+    },
+    {
+      "id": 186,
+      "agent_description": null
+    },
+    {
+      "id": 187,
+      "agent_description": null
+    },
+    {
+      "id": 188,
+      "agent_description": null
+    },
+    {
+      "id": 189,
+      "agent_description": null
+    },
+    {
+      "id": 190,
+      "agent_description": null
+    },
+    {
+      "id": 191,
+      "agent_description": null
+    },
+    {
+      "id": 192,
+      "agent_description": null
+    },
+    {
+      "id": 193,
+      "agent_description": null
+    },
+    {
+      "id": 194,
+      "agent_description": null
+    },
+    {
+      "id": 195,
+      "agent_description": null
+    },
+    {
+      "id": 196,
+      "agent_description": null
+    },
+    {
+      "id": 198,
+      "agent_description": null
+    },
+    {
+      "id": 199,
+      "agent_description": null
+    },
+    {
+      "id": 200,
+      "agent_description": null
+    },
+    {
+      "id": 201,
+      "agent_description": null
+    },
+    {
+      "id": 202,
+      "agent_description": null
+    },
+    {
+      "id": 203,
+      "agent_description": null
+    },
+    {
+      "id": 204,
+      "agent_description": null
+    },
+    {
+      "id": 205,
+      "agent_description": null
+    },
+    {
+      "id": 206,
+      "agent_description": null
+    },
+    {
+      "id": 207,
+      "agent_description": null
+    },
+    {
+      "id": 208,
+      "agent_description": null
+    },
+    {
+      "id": 209,
+      "agent_description": null
+    },
+    {
+      "id": 210,
+      "agent_description": null
+    },
+    {
+      "id": 211,
+      "agent_description": null
+    },
+    {
+      "id": 212,
+      "agent_description": null
+    },
+    {
+      "id": 213,
+      "agent_description": null
+    },
+    {
+      "id": 214,
+      "agent_description": null
+    },
+    {
+      "id": 215,
+      "agent_description": null
+    },
+    {
+      "id": 216,
+      "agent_description": null
+    },
+    {
+      "id": 217,
+      "agent_description": null
+    },
+    {
+      "id": 218,
+      "agent_description": null
+    },
+    {
+      "id": 219,
+      "agent_description": null
+    },
+    {
+      "id": 220,
+      "agent_description": null
+    },
+    {
+      "id": 221,
+      "agent_description": null
+    },
+    {
+      "id": 222,
+      "agent_description": null
+    },
+    {
+      "id": 224,
+      "agent_description": null
+    },
+    {
+      "id": 225,
+      "agent_description": null
+    },
+    {
+      "id": 226,
+      "agent_description": null
+    },
+    {
+      "id": 227,
+      "agent_description": null
+    },
+    {
+      "id": 228,
+      "agent_description": null
+    },
+    {
+      "id": 229,
+      "agent_description": null
+    },
+    {
+      "id": 230,
+      "agent_description": null
+    },
+    {
+      "id": 231,
+      "agent_description": null
+    },
+    {
+      "id": 232,
+      "agent_description": null
+    },
+    {
+      "id": 233,
+      "agent_description": null
+    },
+    {
+      "id": 234,
+      "agent_description": null
+    },
+    {
+      "id": 235,
+      "agent_description": null
+    },
+    {
+      "id": 236,
+      "agent_description": null
+    },
+    {
+      "id": 237,
+      "agent_description": null
+    },
+    {
+      "id": 238,
+      "agent_description": null
+    },
+    {
+      "id": 239,
+      "agent_description": null
+    },
+    {
+      "id": 240,
+      "agent_description": null
+    },
+    {
+      "id": 241,
+      "agent_description": null
+    },
+    {
+      "id": 242,
+      "agent_description": null
+    },
+    {
+      "id": 243,
+      "agent_description": null
+    },
+    {
+      "id": 244,
+      "agent_description": null
+    },
+    {
+      "id": 245,
+      "agent_description": null
+    },
+    {
+      "id": 246,
+      "agent_description": null
+    },
+    {
+      "id": 247,
+      "agent_description": null
+    },
+    {
+      "id": 248,
+      "agent_description": null
+    },
+    {
+      "id": 249,
+      "agent_description": null
+    },
+    {
+      "id": 250,
+      "agent_description": null
+    },
+    {
+      "id": 251,
+      "agent_description": null
+    },
+    {
+      "id": 252,
+      "agent_description": null
+    },
+    {
+      "id": 253,
+      "agent_description": null
+    },
+    {
+      "id": 254,
+      "agent_description": null
+    },
+    {
+      "id": 255,
+      "agent_description": null
+    },
+    {
+      "id": 256,
+      "agent_description": null
+    },
+    {
+      "id": 257,
+      "agent_description": null
+    },
+    {
+      "id": 258,
+      "agent_description": null
+    },
+    {
+      "id": 259,
+      "agent_description": null
+    },
+    {
+      "id": 260,
+      "agent_description": null
+    },
+    {
+      "id": 261,
+      "agent_description": null
+    },
+    {
+      "id": 262,
+      "agent_description": null
+    },
+    {
+      "id": 263,
+      "agent_description": null
+    },
+    {
+      "id": 264,
+      "agent_description": null
+    },
+    {
+      "id": 265,
+      "agent_description": null
+    },
+    {
+      "id": 266,
+      "agent_description": null
+    },
+    {
+      "id": 267,
+      "agent_description": null
+    },
+    {
+      "id": 268,
+      "agent_description": null
+    },
+    {
+      "id": 269,
+      "agent_description": null
+    },
+    {
+      "id": 270,
+      "agent_description": null
+    },
+    {
+      "id": 271,
+      "agent_description": null
+    },
+    {
+      "id": 272,
+      "agent_description": null
+    },
+    {
+      "id": 273,
+      "agent_description": null
+    },
+    {
+      "id": 274,
+      "agent_description": null
+    },
+    {
+      "id": 275,
+      "agent_description": null
+    },
+    {
+      "id": 276,
+      "agent_description": null
+    },
+    {
+      "id": 277,
+      "agent_description": null
+    },
+    {
+      "id": 278,
+      "agent_description": null
+    },
+    {
+      "id": 279,
+      "agent_description": null
+    },
+    {
+      "id": 280,
+      "agent_description": null
+    },
+    {
+      "id": 281,
+      "agent_description": null
+    },
+    {
+      "id": 282,
+      "agent_description": null
+    },
+    {
+      "id": 342,
+      "agent_description": null
+    },
+    {
+      "id": 343,
+      "agent_description": null
+    },
+    {
+      "id": 344,
+      "agent_description": null
+    },
+    {
+      "id": 345,
+      "agent_description": null
+    },
+    {
+      "id": 346,
+      "agent_description": null
+    },
+    {
+      "id": 347,
+      "agent_description": null
+    },
+    {
+      "id": 348,
+      "agent_description": null
+    },
+    {
+      "id": 349,
+      "agent_description": null
+    },
+    {
+      "id": 350,
+      "agent_description": null
+    },
+    {
+      "id": 351,
+      "agent_description": null
+    },
+    {
+      "id": 352,
+      "agent_description": null
+    },
+    {
+      "id": 353,
+      "agent_description": null
+    },
+    {
+      "id": 354,
+      "agent_description": null
+    },
+    {
+      "id": 355,
+      "agent_description": null
+    },
+    {
+      "id": 356,
+      "agent_description": null
+    },
+    {
+      "id": 357,
+      "agent_description": null
+    },
+    {
+      "id": 358,
+      "agent_description": null
+    },
+    {
+      "id": 359,
+      "agent_description": null
+    },
+    {
+      "id": 360,
+      "agent_description": null
+    },
+    {
+      "id": 361,
+      "agent_description": null
+    },
+    {
+      "id": 362,
+      "agent_description": null
+    },
+    {
+      "id": 363,
+      "agent_description": null
+    },
+    {
+      "id": 364,
+      "agent_description": null
+    },
+    {
+      "id": 365,
+      "agent_description": null
+    },
+    {
+      "id": 366,
+      "agent_description": null
+    },
+    {
+      "id": 367,
+      "agent_description": null
+    },
+    {
+      "id": 368,
+      "agent_description": null
+    },
+    {
+      "id": 369,
+      "agent_description": null
+    },
+    {
+      "id": 370,
+      "agent_description": null
+    },
+    {
+      "id": 371,
+      "agent_description": null
+    },
+    {
+      "id": 372,
+      "agent_description": null
+    },
+    {
+      "id": 373,
+      "agent_description": null
+    },
+    {
+      "id": 374,
+      "agent_description": null
+    },
+    {
+      "id": 375,
+      "agent_description": null
+    },
+    {
+      "id": 376,
+      "agent_description": null
+    },
+    {
+      "id": 377,
+      "agent_description": null
+    },
+    {
+      "id": 378,
+      "agent_description": null
+    },
+    {
+      "id": 379,
+      "agent_description": null
+    },
+    {
+      "id": 380,
+      "agent_description": null
+    },
+    {
+      "id": 381,
+      "agent_description": null
+    },
+    {
+      "id": 382,
+      "agent_description": null
+    },
+    {
+      "id": 383,
+      "agent_description": null
+    },
+    {
+      "id": 384,
+      "agent_description": null
+    },
+    {
+      "id": 385,
+      "agent_description": null
+    },
+    {
+      "id": 386,
+      "agent_description": null
+    },
+    {
+      "id": 387,
+      "agent_description": null
+    },
+    {
+      "id": 388,
+      "agent_description": null
+    },
+    {
+      "id": 389,
+      "agent_description": null
+    },
+    {
+      "id": 390,
+      "agent_description": null
+    },
+    {
+      "id": 391,
+      "agent_description": null
+    },
+    {
+      "id": 392,
+      "agent_description": null
+    },
+    {
+      "id": 393,
+      "agent_description": null
+    },
+    {
+      "id": 394,
+      "agent_description": null
+    },
+    {
+      "id": 395,
+      "agent_description": null
+    },
+    {
+      "id": 396,
+      "agent_description": null
+    },
+    {
+      "id": 397,
+      "agent_description": null
+    },
+    {
+      "id": 398,
+      "agent_description": null
+    },
+    {
+      "id": 399,
+      "agent_description": null
+    },
+    {
+      "id": 411,
+      "agent_description": null
+    },
+    {
+      "id": 412,
+      "agent_description": null
+    },
+    {
+      "id": 413,
+      "agent_description": null
+    },
+    {
+      "id": 414,
+      "agent_description": null
+    },
+    {
+      "id": 415,
+      "agent_description": null
+    },
+    {
+      "id": 416,
+      "agent_description": null
+    },
+    {
+      "id": 417,
+      "agent_description": null
+    },
+    {
+      "id": 418,
+      "agent_description": null
+    },
+    {
+      "id": 419,
+      "agent_description": null
+    },
+    {
+      "id": 420,
+      "agent_description": null
+    },
+    {
+      "id": 421,
+      "agent_description": null
+    },
+    {
+      "id": 422,
+      "agent_description": null
+    },
+    {
+      "id": 423,
+      "agent_description": null
+    },
+    {
+      "id": 424,
+      "agent_description": null
+    },
+    {
+      "id": 425,
+      "agent_description": null
+    },
+    {
+      "id": 426,
+      "agent_description": null
+    },
+    {
+      "id": 427,
+      "agent_description": null
+    },
+    {
+      "id": 428,
+      "agent_description": null
+    },
+    {
+      "id": 429,
+      "agent_description": null
+    },
+    {
+      "id": 430,
+      "agent_description": null
+    },
+    {
+      "id": 431,
+      "agent_description": null
+    },
+    {
+      "id": 432,
+      "agent_description": null
+    },
+    {
+      "id": 433,
+      "agent_description": null
+    },
+    {
+      "id": 434,
+      "agent_description": null
+    },
+    {
+      "id": 435,
+      "agent_description": null
+    },
+    {
+      "id": 436,
+      "agent_description": null
+    },
+    {
+      "id": 437,
+      "agent_description": null
+    },
+    {
+      "id": 438,
+      "agent_description": null
+    },
+    {
+      "id": 439,
+      "agent_description": null
+    },
+    {
+      "id": 440,
+      "agent_description": null
+    },
+    {
+      "id": 449,
+      "agent_description": null
+    },
+    {
+      "id": 461,
+      "agent_description": null
+    },
+    {
+      "id": 462,
+      "agent_description": null
+    },
+    {
+      "id": 464,
+      "agent_description": null
+    },
+    {
+      "id": 465,
+      "agent_description": null
+    },
+    {
+      "id": 466,
+      "agent_description": null
+    },
+    {
+      "id": 467,
+      "agent_description": null
+    },
+    {
+      "id": 468,
+      "agent_description": null
+    },
+    {
+      "id": 469,
+      "agent_description": null
+    },
+    {
+      "id": 6156,
+      "agent_description": null
+    },
+    {
+      "id": 6157,
+      "agent_description": null
+    },
+    {
+      "id": 6158,
+      "agent_description": null
+    },
+    {
+      "id": 8417,
+      "agent_description": null
+    },
+    {
+      "id": 8418,
+      "agent_description": null
+    },
+    {
+      "id": 8419,
+      "agent_description": null
+    },
+    {
+      "id": 8420,
+      "agent_description": null
+    },
+    {
+      "id": 8421,
+      "agent_description": null
+    },
+    {
+      "id": 8434,
+      "agent_description": null
+    }
+  ]
+}

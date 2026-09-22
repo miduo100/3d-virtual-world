@@ -16,6 +16,8 @@
  */
 
 const { query } = require('../database/db');
+// 🤖 几何体描述默认值推导（名称类型词 → 映射表；库里有值时不生效）
+const geometryAgentDesc = require('../services/geometryAgentDesc');
 
 // ==================== 常量 ====================
 
@@ -168,15 +170,23 @@ async function queryObjects(pos, radius, limit, include) {
     params
   );
 
-  return result.rows.map(r => ({
-    id: String(r.id),
-    type: r.type,
-    name: r.name,
+  return result.rows.map(r => {
     // 🤖 AI 描述（管理员在编辑器填写，AI 靠它认识物体；截断 300 字防雷达包过大）
-    description: r.agent_description ? String(r.agent_description).slice(0, 300) : null,
-    position: { x: r.position_x, y: r.position_y, z: r.position_z },
-    distance: round2(dist2D(pos.x, pos.z, r.position_x, r.position_z))
-  }));
+    // 库里有值优先（人工填写 / 模型描述继承）；为空且是几何体时，按名称里的类型词推导默认值
+    // ——这样任何创建路径（含 aiSceneGenerator 直插、编辑器批量导入）都自动有描述。
+    let desc = r.agent_description ? String(r.agent_description) : '';
+    if (!desc && geometryAgentDesc.isGeometryType(r.type)) {
+      desc = geometryAgentDesc.deriveAgentDescription({ name: r.name, type: r.type }) || '';
+    }
+    return {
+      id: String(r.id),
+      type: r.type,
+      name: r.name,
+      description: desc ? desc.slice(0, 300) : null,
+      position: { x: r.position_x, y: r.position_y, z: r.position_z },
+      distance: round2(dist2D(pos.x, pos.z, r.position_x, r.position_z))
+    };
+  });
 }
 
 // ==================== 查询：ad_slots（并入 objects，type='ad_slot'）====================
@@ -218,8 +228,10 @@ async function queryPortals(pos, radius, limit) {
   const xMin = pos.x - radius, xMax = pos.x + radius;
   const zMin = pos.z - radius, zMax = pos.z + radius;
 
+  // 2026-09-22（任务 E1）：补 description —— portals 表本就有该列（后台"传送门"编辑弹窗
+  // 的「描述」框可填），此前 observe 没 SELECT 导致 AI 永远读不到，等于白填。
   const result = await query(
-    `SELECT id, name, source_position
+    `SELECT id, name, description, source_position
      FROM portals
      WHERE is_active = true
        AND (source_position->>'x')::float8 BETWEEN $1 AND $2
@@ -237,6 +249,8 @@ async function queryPortals(pos, radius, limit) {
     return {
       id: r.id,
       name: r.name,
+      // 🤖 AI 描述（后台传送门编辑弹窗的「描述」框；未填为 null）
+      description: r.description ? String(r.description).slice(0, 300) : null,
       position: { x: px, y: py, z: pz },
       distance: round2(dist2D(pos.x, pos.z, px, pz))
     };

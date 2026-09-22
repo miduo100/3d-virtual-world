@@ -1589,6 +1589,7 @@
     "fedPortalCooldownLabel": "Cooldown (seconds)",
     "fedPortalDescLabel": "Description",
     "fedPortalDescPlaceholder": "Portal description...",
+    "fedPortalDescAIHint": "🤖 AI agents (including public guests) also read this text. Describe where this portal leads and what it is for; never include sensitive information.",
     "fedPortalWorldPlaceholder": "Dream World",
     "fedNoPortals": "No portals yet",
     "fedColName": "Name",

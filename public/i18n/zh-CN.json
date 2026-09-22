@@ -1589,6 +1589,7 @@
     "fedPortalCooldownLabel": "冷却时间（秒）",
     "fedPortalDescLabel": "描述",
     "fedPortalDescPlaceholder": "传送门描述...",
+    "fedPortalDescAIHint": "🤖 这段文字 AI 也能读到（含公开游客）：请写清这个传送门通向哪里、做什么用，勿写敏感信息",
     "fedPortalWorldPlaceholder": "梦幻世界",
     "fedNoPortals": "暂无传送门",
     "fedColName": "名称",

@@ -1,0 +1,44 @@
+GEOM_TOTAL=365
+PARSED=354  UNPARSED=11
+GROUP_COUNT=33   <-- 需要写多少条描述（按 场景+类型）
+
+=== 场景 :: 类型词 : 数量 : world_objects.type ===
+forest :: tree	28	geometry_nature
+乡村村落 :: flower	25	geometry_nature
+village :: tree	22	geometry_nature
+城市露天停车场 :: car	20	geometry_vehicle
+city :: lamp	20	geometry_decoration
+village_场景 :: tree	20	geometry_nature
+forest :: bush	19	geometry_nature
+village :: fence	16	geometry_decoration
+forest :: flower	15	geometry_nature
+city :: tree	15	geometry_nature
+village_场景 :: fence	14	geometry_decoration
+乡村村落 :: fence	12	geometry_decoration
+village :: cottage	11	geometry_building
+city :: skyscraper	11	geometry_building
+village_场景 :: cottage	10	geometry_building
+forest :: rock	10	geometry_nature
+space_场景 :: crystal	10	geometry_decoration
+city :: car	8	geometry_vehicle
+乡村村落 :: tree	7	geometry_nature
+城市露天停车场 :: lamp	6	geometry_decoration
+乡村村落 :: bush	6	geometry_nature
+village :: mountain	6	geometry_terrain
+village_场景 :: mountain	6	geometry_terrain
+乡村村落 :: hen	5	geometry_animal
+forest :: bird	5	geometry_animal
+乡村村落 :: cottage	4	geometry_building
+space_场景 :: tower	4	geometry_building
+城市露天停车场 :: fence	4	geometry_decoration
+village :: hen	4	geometry_animal
+village_场景 :: hen	4	geometry_animal
+space_场景 :: spaceship	3	geometry_vehicle
+village :: cat	2	geometry_animal
+village_场景 :: cat	2	geometry_animal
+
+=== 无法识别的名称（需单独填）  DISTINCT=4 ===
+长方体	8
+未来塔楼	1
+中世纪城堡	1
+湖泊	1

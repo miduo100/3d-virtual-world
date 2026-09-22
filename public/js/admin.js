@@ -176,7 +176,7 @@ function renderPortals(portals) {
         ${portals.map(p => `
           <tr>
             <td>${p.id}</td>
-            <td>${p.name}</td>
+            <td>${p.name}${p.description && String(p.description).trim() ? '' : ' <span class="badge badge-inactive" title="未填描述：AI 读不到这个传送门的用途（编辑器弹窗里可补）">🤖 未填</span>'}</td>
             <td><span class="badge badge-${p.portal_type}">${p.portal_type === 'local' ? t('adminFed.fedLocal') : t('adminFed.fedRemote')}</span></td>
             <td>${formatPosition(p.source_position)}</td>
             <td>${p.portal_type === 'local' ? formatPosition(p.target_position) : (p.target_world_name || p.target_world_url)}</td>
