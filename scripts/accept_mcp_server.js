@@ -375,6 +375,18 @@ async function runSmoke(adminTok) {
   } finally {
     // ==================== 收尾 ====================
     for (const fn of cleanups) { try { await fn(); } catch (e) { /* noop */ } }
+    // 清理本轮验收自己写的聊天记录（前缀是本脚本自己造的，不会碰到真实玩家/AI 的消息）：
+    // 否则 world_chat_log 里会长期留着 "MCP-E2E-xxxx 我是被派来参观的 AI" 这类测试噪音，
+    // 被下一次 AI 通过 world_chat_history 读到会误导它。
+    try {
+      const dbc = require('../src/database/db');
+      const del = await dbc.query(
+        "DELETE FROM world_chat_log WHERE message LIKE 'MCP-E2E-%' OR message LIKE 'MCP rate test%'"
+      );
+      R.info('已清理本轮验收写入的测试聊天记录', del.rowCount);
+    } catch (e) {
+      R.info('测试聊天记录清理失败（不影响判据）', e.message);
+    }
     if (adminToken) {
       try {
         await M.setAgentEnabled(adminToken, origEnabled);
