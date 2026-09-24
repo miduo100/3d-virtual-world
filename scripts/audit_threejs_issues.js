@@ -19,7 +19,12 @@ const DEFAULT_DIR = 'L:/shegnjir185/网上找的代码';
 const args = process.argv.slice(2);
 const jsonMode = args.indexOf('--json') >= 0;
 const quiet = args.indexOf('--quiet') >= 0;
-const target = args.filter((a) => a.indexOf('--') !== 0)[0] || DEFAULT_DIR;
+const configIdx = args.indexOf('--config');
+const configPath = configIdx >= 0 ? args[configIdx + 1] : null;
+const apiIdx = args.indexOf('--api');
+const apiBase = apiIdx >= 0 ? args[apiIdx + 1] : (process.env.AUDIT_BASE || 'http://localhost:3002');
+const skipConfig = args.indexOf('--no-config') >= 0;
+const target = args.filter((a, i) => a.indexOf('--') !== 0 && args[i - 1] !== '--config' && args[i - 1] !== '--api')[0] || DEFAULT_DIR;
 
 const ICON = { 'auto-fix': '🔧', warn: '⚠️', fatal: '🚫', delegated: 'ℹ️' };
 
@@ -44,6 +49,36 @@ function collectFiles(p) {
     .filter((f) => /\.(html?|js|mjs)$/i.test(f))
     .map((f) => path.join(p, f));
 }
+
+// 词条配置：--config 文件 > 后台 API（与浏览器端同源）> 内置默认
+async function loadConfigForCli() {
+  if (skipConfig) return { source: 'default(跳过)' };
+  if (configPath) {
+    try {
+      const c = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      Registry.applyConfig(c);
+      return { source: 'file:' + configPath };
+    } catch (e) {
+      console.warn('配置读取失败，改用默认值:', e.message);
+      return { source: 'default(配置读取失败)' };
+    }
+  }
+  try {
+    const r = await fetch(apiBase + '/api/threejs-issues/config', { signal: AbortSignal.timeout(3000) });
+    const d = await r.json();
+    if (d && d.success && d.config) {
+      Registry.applyConfig(d.config);
+      return { source: 'api:' + apiBase, updatedAt: d.updatedAt };
+    }
+    return { source: 'default(后台未配置)' };
+  } catch (e) {
+    return { source: 'default(后台不可达)' };
+  }
+}
+
+async function main() {
+const cfgInfo = await loadConfigForCli();
+if (!jsonMode && !quiet) console.log('词条配置: ' + cfgInfo.source + (cfgInfo.updatedAt ? '（更新于 ' + String(cfgInfo.updatedAt).slice(0, 19) + '）' : ''));
 
 const files = collectFiles(target);
 const rows = [];
@@ -87,3 +122,6 @@ hit.forEach((id) => {
 });
 console.log('致命项: ' + fatalCount + (fatalCount ? '（必须人工处理）' : ''));
 process.exit(fatalCount ? 1 : 0);
+}
+
+main().catch((e) => { console.error('FATAL', e); process.exit(1); });

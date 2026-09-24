@@ -7826,20 +7826,26 @@ class World {
 
         // ===== 尺寸归一化：自动缩放适配世界场景 =====
         // 用户代码可能产生 0.001m 的分子模型或 10000m 的城市场景，
-        // 通过 Box3 计算自动限制到合理尺寸范围
-        (function () {
+        // 通过 Box3 计算自动限制到合理尺寸范围。
+        // 返回 true 表示"这一轮确实有可测量的内容"，用于判断是否需要等异步内容。
+        const _normalizeThreejsSize = function () {
           try {
             const bbox = new THREE.Box3().setFromObject(modelGroup);
-            const bboxCenter = new THREE.Vector3();
-            bbox.getCenter(bboxCenter);
+            if (!isFinite(bbox.min.x) || !isFinite(bbox.max.x)) return false;
             const bboxSize = new THREE.Vector3();
             bbox.getSize(bboxSize);
             const maxDim = Math.max(bboxSize.x, bboxSize.y, bboxSize.z);
-            if (maxDim > 0 && maxDim < 0.1) {
-              // 模型过小（<0.1米），放大到 1 米
+            if (!(maxDim > 0)) return false;
+            // 最小可见尺寸阈值（默认 0.5m，可在后台「🧠 问题库」里调整）
+            // 2026-09-24：原阈值为 0.1m，导致 0.18m 的城堡这类样本级微缩模型在世界里等于隐形
+            const _minDim = (window.ThreeJSIssueRegistry && window.ThreeJSIssueRegistry.getConfig
+              && window.ThreeJSIssueRegistry.getConfig().thresholds
+              && window.ThreeJSIssueRegistry.getConfig().thresholds.minObjectDim) || 0.5;
+            if (maxDim < _minDim) {
+              // 模型过小，放大到 1 米（保证在世界里可见）
               const s = 1 / maxDim;
               modelGroup.scale.multiplyScalar(s);
-              console.log('📏 Three.js 模型尺寸归一化：过小 (' + maxDim.toFixed(4) + 'm) → 放大 ×' + s.toFixed(1));
+              console.log('📏 Three.js 模型尺寸归一化：过小 (' + maxDim.toFixed(4) + 'm < ' + _minDim + 'm) → 放大 ×' + s.toFixed(1));
             } else if (maxDim > 50) {
               // 模型过大（>50米），等比缩小到 50 米（2026-09-24 用户拍板：
               // 与小模型放大对称；网上代码常见城市级尺度，如 932×1100m 直接压垮视野）
@@ -7847,10 +7853,29 @@ class World {
               modelGroup.scale.multiplyScalar(s);
               console.log('📏 Three.js 模型尺寸归一化：过大 (' + maxDim.toFixed(1) + 'm) → 缩小 ×' + s.toFixed(3));
             }
+            return true;
           } catch (e) {
             console.warn('📏 Three.js 模型尺寸归一化跳过:', e.message);
+            return false;
           }
-        })();
+        };
+        const _sizeNormalizedNow = _normalizeThreejsSize();
+        // 异步代码块（VOX/GLTF 等资源晚到）在同步阶段测不到内容，需等内容出现后补做一次归一化，
+        // 否则微缩模型/超大场景的自动缩放会完全失效（2026-09-24 城堡 0.18m 不可见即此因）
+        if (!_sizeNormalizedNow) {
+          let _sizeRetry = 0;
+          const _sizeTimer = setInterval(() => {
+            _sizeRetry++;
+            let renderables = 0;
+            modelGroup.traverse((o) => { if (o.isMesh || o.isPoints || o.isLine || o.isSprite || o.isInstancedMesh) renderables++; });
+            if (renderables > 0) {
+              clearInterval(_sizeTimer);
+              _normalizeThreejsSize();
+            } else if (_sizeRetry > 20 || !modelGroup.parent) {
+              clearInterval(_sizeTimer); // 10s 超时或对象已卸载
+            }
+          }, 500);
+        }
 
         // 【custom_config】自动修复粒子白球并应用用户保存的自定义配置
         if (window.CustomConfigApplier) {

@@ -29,9 +29,93 @@
 (function (global) {
   'use strict';
 
-  const REGISTRY_VERSION = '1.0.0';
+  const REGISTRY_VERSION = '1.1.0';
   const ENTRIES = [];
   const SESSION_FINDINGS = [];
+
+  // ======================= 词条配置层（数据与逻辑分离） =======================
+  // 清单型规则的数据全部走这里：新加载器 / 已删除 API / 灯光类名 / 允许的外链域名 /
+  // 阈值 / 规则启停，都可在后台可视化增删，改完即时生效，无需改代码或发版。
+  const DEFAULT_CONFIG = {
+    loaders: ['GLTFLoader', 'DRACOLoader', 'OBJLoader', 'MTLLoader', 'FBXLoader', 'VOXLoader',
+      'TextureLoader', 'CubeTextureLoader', 'FileLoader', 'ImageBitmapLoader', 'Loader',
+      'AudioLoader', 'BufferGeometryLoader'],
+    deadApi: ['THREE.Geometry', 'THREE.Face3', 'RGBFormat', 'THREE.VertexColors', 'THREE.ImageUtils',
+      'THREE.UniformsUtils', 'THREE.TextGeometry', 'THREE.PlaneBufferGeometry', 'THREE.BoxBufferGeometry',
+      'THREE.SphereBufferGeometry', 'THREE.CylinderBufferGeometry', 'THREE.Math'],
+    lights: ['AmbientLight', 'DirectionalLight', 'PointLight', 'SpotLight', 'HemisphereLight', 'RectAreaLight'],
+    externalHostsAllow: [],           // 允许的外链域名（命中即不报 ISS-1002）
+    thresholds: { bigGeometry: 1000, bigDimension: 50, timers: 1, minObjectDim: 0.5 },
+    rulesDisabled: [],                // 临时停用的规则编号
+    notes: ''
+  };
+
+  let CONFIG = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  let configMeta = { loaded: false, updatedAt: null, source: 'default' };
+
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+  function applyConfig(partial) {
+    const merged = clone(DEFAULT_CONFIG);
+    if (partial && typeof partial === 'object') {
+      ['loaders', 'deadApi', 'lights', 'externalHostsAllow', 'rulesDisabled'].forEach(function (k) {
+        if (Array.isArray(partial[k]) && partial[k].length) merged[k] = partial[k].slice();
+      });
+      if (partial.thresholds && typeof partial.thresholds === 'object') {
+        Object.keys(merged.thresholds).forEach(function (tk) {
+          const v = Number(partial.thresholds[tk]);
+          if (Number.isFinite(v) && v > 0) merged.thresholds[tk] = v;
+        });
+      }
+      if (typeof partial.notes === 'string') merged.notes = partial.notes;
+    }
+    CONFIG = merged;
+    return CONFIG;
+  }
+
+  function getConfig() { return CONFIG; }
+  function getConfigMeta() { return configMeta; }
+
+  const CONFIG_CACHE_KEY = 'threejs_issue_config_cache_v1';
+
+  // 拉取后台配置（公开端点），失败静默回落默认值；成功则写入本地缓存供下次首屏即时可用
+  function loadConfig(opts) {
+    opts = opts || {};
+    if (typeof fetch !== 'function') return Promise.resolve(CONFIG);
+    const url = '/api/threejs-issues/config' + (opts.bust ? '?t=' + Date.now() : '');
+    return fetch(url, { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.success) {
+          applyConfig(d.config);
+          configMeta = { loaded: true, updatedAt: d.updatedAt || null, source: d.config ? 'server' : 'default' };
+          try {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify({ config: CONFIG, updatedAt: d.updatedAt || null, at: Date.now() }));
+            }
+          } catch (e) {}
+        }
+        return CONFIG;
+      })
+      .catch(function () { return CONFIG; });
+  }
+
+  // 首屏即时可用：先读本地缓存（同步），再异步刷新
+  function bootstrap() {
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(CONFIG_CACHE_KEY);
+        if (raw) {
+          const cached = JSON.parse(raw);
+          if (cached && cached.config) {
+            applyConfig(cached.config);
+            configMeta = { loaded: true, updatedAt: cached.updatedAt, source: 'cache' };
+          }
+        }
+      } catch (e) {}
+    }
+    loadConfig();
+  }
 
   function E(entry) {
     if (!entry || !entry.id || !entry.title) throw new Error('[IssueRegistry] 条目缺少 id/title');
@@ -67,12 +151,14 @@
     detect: function (code) {
       const urls = code.match(/https?:\/\/[^\s'"`)]+/g);
       if (!urls) return null;
+      const allow = CONFIG.externalHostsAllow || [];
       const hosts = {};
       urls.forEach(function (u) {
         const h = u.replace(/^https?:\/\//, '').split('/')[0];
+        if (allow.indexOf(h) >= 0) return; // 后台已放行的域名
         hosts[h] = (hosts[h] || 0) + 1;
       });
-      return { count: urls.length, hosts: Object.keys(hosts) };
+      return Object.keys(hosts).length ? { count: urls.length, hosts: Object.keys(hosts) } : null;
     },
     hint: '按流程 2.3 节做资源本地化（下载到 public/ 并改为相对路径），否则只能接受占位观感',
     firstSeen: '2026-09-24', samples: ['草地.html', '光柱.html', '代码云.html', '展台.html']
@@ -84,9 +170,9 @@
     symptom: '模型不显示、无报错（加载器被万能桩吞掉）',
     rootCause: 'r185 bundle 只内置部分加载器，未知 Loader 落到万能桩 → new 成功但 load 什么都不做',
     detect: function (code) {
-      // bundle 内置加载器白名单（r185 本地 bundle + 已本地化的 VOXLoader）
-      const BUILTIN = ['GLTFLoader', 'DRACOLoader', 'OBJLoader', 'MTLLoader', 'FBXLoader', 'VOXLoader',
-        'TextureLoader', 'CubeTextureLoader', 'FileLoader', 'ImageBitmapLoader', 'Loader', 'AudioLoader', 'BufferGeometryLoader'];
+      // 内置加载器白名单来自后台配置（CONFIG.loaders）：本地化一个新加载器后，
+      // 后台加一行名字即不再报警告，无需改代码
+      const BUILTIN = CONFIG.loaders || [];
       const missing = {};
       const re = /new\s+([A-Z][A-Za-z0-9]*Loader)\s*\(/g;
       let m;
@@ -134,10 +220,11 @@
     symptom: '报错 "THREE.Xxx is not a constructor" 或几何/材质异常',
     rootCause: '示例代码停留在 r152 以前，相关 API 已被移除',
     detect: function (code) {
-      const DEAD = ['THREE.Geometry', 'THREE.Face3', 'RGBFormat', 'THREE.VertexColors', 'THREE.ImageUtils',
-        'THREE.UniformsUtils', 'THREE.TextGeometry', 'THREE.PlaneBufferGeometry', 'THREE.BoxBufferGeometry',
-        'THREE.SphereBufferGeometry', 'THREE.CylinderBufferGeometry', 'THREE.Math\\b'];
-      const hits = DEAD.filter(function (k) { return new RegExp(k.replace(/\\b/g, '\\b')).test(code); });
+      // 已删除 API 清单来自后台配置（CONFIG.deadApi）：发现新的废弃 API 时加一行即可
+      const DEAD = CONFIG.deadApi || [];
+      const hits = DEAD.filter(function (k) {
+        try { return new RegExp('\\b' + k.replace(/\./g, '\\.') + '\\b').test(code); } catch (e) { return false; }
+      });
       return hits.length ? { api: hits } : null;
     },
     hint: '手工改写为新 API（见 r185 升级文档的 API 对照），normalizer 只能处理其中一部分',
@@ -164,7 +251,8 @@
     rootCause: '示例用 setInterval 驱动 uniform 或每帧创建对象，未接入渲染循环 delta',
     detect: function (code) {
       const timers = (code.match(/setInterval\s*\(/g) || []).length;
-      return timers > 0 ? { timers: timers } : null;
+      const limit = (CONFIG.thresholds && CONFIG.thresholds.timers) || 1;
+      return timers >= limit ? { timers: timers } : null;
     },
     hint: '世界模式会把 setInterval 收编为同步执行 20 次（不残留真实定时器）；建议手工改为渲染循环驱动',
     firstSeen: '2026-09-24', samples: ['代码云.html']
@@ -191,7 +279,12 @@
     title: '代码自带灯光',
     symptom: '世界内亮度与预期不符（或完全不生效）',
     rootCause: '世界模式统一删灯（避免污染全场光照），代码自带的灯会被移除',
-    detect: function (code) { return /new\s+THREE\.(?:AmbientLight|DirectionalLight|PointLight|SpotLight|HemisphereLight|RectAreaLight)\b/.test(code) ? {} : null; },
+    detect: function (code) {
+      // 灯光类名清单来自后台配置（CONFIG.lights）
+      const names = (CONFIG.lights || []).join('|');
+      if (!names) return null;
+      try { return new RegExp('new\\s+THREE\\.(?:' + names + ')\\b').test(code) ? {} : null; } catch (e) { return null; }
+    },
     fixRef: 'threejsWorldSanitizer：世界模式删除全部 isLight',
     hint: '需要自发光请用 MeshBasic/ShaderMaterial 或 emissive，不要依赖自带灯光',
     firstSeen: '2026-09-24', samples: ['代码云.html', '城堡.html']
@@ -203,8 +296,12 @@
     symptom: '对象大得离谱、把视野压垮，或与周围建筑比例失调',
     rootCause: '示例按自身尺度建模（米级/微距/城市级），进世界未换算',
     detect: function (code) {
-      const big = code.match(/(?:BoxGeometry|SphereGeometry|CylinderGeometry|PlaneGeometry)\s*\(\s*(\d{3,})/);
-      return big ? { sample: big[0] } : null;
+      const limit = (CONFIG.thresholds && CONFIG.thresholds.bigGeometry) || 1000;
+      const re = new RegExp('(?:BoxGeometry|SphereGeometry|CylinderGeometry|PlaneGeometry)\\s*\\(\\s*(\\d{' +
+        String(limit).length + ',})');
+      const big = code.match(re);
+      if (!big) return null;
+      return Number(big[1]) >= limit ? { sample: big[0] } : null;
     },
     fixRef: 'world.js addThreeJSModel 尺寸归一化（>50m 等比缩到 50m；<0.1m 放大到 1m）',
     hint: '运行时已自动缩放；若比例仍不合适，用编辑器的缩放手柄微调',
@@ -250,7 +347,8 @@
         mats.forEach(function (m) {
           if (!m || !m.isShaderMaterial || m.isRawShaderMaterial) return;
           const src = (m.vertexShader || '') + (m.fragmentShader || '');
-          if (/vFragDepth|LOGARITHMIC_DEPTH|gl_FragDepth/.test(src)) return; // 已自带
+          // 已自带处理（含 `#include <logdepthbuf_*>` 形式，否则会重复声明变量导致编译失败）
+          if (/vFragDepth|LOGARITHMIC_DEPTH|gl_FragDepth|logdepthbuf_/i.test(src)) return;
           if (!/gl_Position\s*=/.test(m.vertexShader || '')) return;
           if (!/void\s+main\s*\(/.test(m.fragmentShader || '')) return;
           hits.push(m);
@@ -259,6 +357,23 @@
       return hits.length ? { materials: hits.length } : null;
     },
     fix: function (ctx, detail) {
+      // 【2026-09-24 收敛】sanitizer 已加载时委托其 patchShaderLogDepth —— 单一实现，
+      // 同时获得"先校验后提交"（不留半成品）与容忍 `void main() /*c*/ {` 的正则；
+      // 未加载（如 unified_editor 只引 registry+runner）时走下面的本地回退实现。
+      const S = (typeof window !== 'undefined') ? window.ThreeJSWorldSanitizer : null;
+      if (S && typeof S.patchShaderLogDepth === 'function') {
+        let nd = 0;
+        ctx.root.traverse(function (o) {
+          const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+          mats.forEach(function (m) {
+            if (!m || !m.isShaderMaterial || m.isRawShaderMaterial) return;
+            const before = m.vertexShader;
+            S.patchShaderLogDepth(m);
+            if (m.vertexShader !== before) nd++;
+          });
+        });
+        return '已为 ' + nd + ' 个 ShaderMaterial 注入对数深度兼容代码（委托 sanitizer）';
+      }
       const PARS_V = '#ifdef USE_LOGARITHMIC_DEPTH_BUFFER\nvarying float vFragDepth;\nvarying float vIsPerspective;\n#endif\n';
       const BODY_V = '\n#ifdef USE_LOGARITHMIC_DEPTH_BUFFER\nvFragDepth = 1.0 + gl_Position.w;\nvIsPerspective = projectionMatrix[2][3] == -1.0 ? 1.0 : 0.0;\n#endif\n';
       const PARS_F = '#if defined( USE_LOGARITHMIC_DEPTH_BUFFER )\nuniform float logDepthBufFC;\nvarying float vFragDepth;\nvarying float vIsPerspective;\n#endif\n';
@@ -284,6 +399,26 @@
       return '已为 ' + n + ' 个 ShaderMaterial 注入对数深度兼容代码';
     },
     firstSeen: '2026-09-24', samples: ['代码云.html'], fixRef: 'threejsWorldSanitizer.patchShaderLogDepth'
+  });
+
+  E({
+    id: 'ISS-0010', scope: 'scene', category: 'scale', severity: 'medium', action: 'delegated',
+    title: '尺寸远小于世界尺度（微缩模型等于隐形）',
+    symptom: '对象放进世界后完全看不到，但控制台无报错、对象确实存在',
+    rootCause: '示例按微距相机建模（如城堡样本 setScalar(0.0015) → 仅 0.18m）',
+    detect: function (ctx) {
+      const THREE_ = ctx.THREE || global.THREE;
+      if (!THREE_ || !THREE_.Box3) return null;
+      const box = new THREE_.Box3().setFromObject(ctx.root);
+      if (!isFinite(box.min.x)) return null;
+      const s = new THREE_.Vector3(); box.getSize(s);
+      const maxDim = Math.max(s.x, s.y, s.z);
+      const limit = (CONFIG.thresholds && CONFIG.thresholds.minObjectDim) || 0.5;
+      return (maxDim > 0 && maxDim < limit) ? { maxDim: Math.round(maxDim * 1000) / 1000, limit: limit } : null;
+    },
+    fixRef: 'world.js addThreeJSModel 尺寸归一化（< 最小可见尺寸 → 放大到 1m；阈值后台可调）',
+    hint: '运行时已自动放大到 1 米；若比例仍不合适，用编辑器缩放手柄调整',
+    firstSeen: '2026-09-24', samples: ['城堡.html']
   });
 
   E({
@@ -329,6 +464,9 @@
 
   function emptyStat() { return { high: 0, medium: 0, low: 0, info: 0 }; }
 
+  // 规则启停（后台可视化开关）
+  function isDisabled(id) { return (CONFIG.rulesDisabled || []).indexOf(id) >= 0; }
+
   // 剥注释后再做检测，避免注释掉的代码产生误报
   // （例：代码云.html 把 `// vertexColors: THREE.VertexColors` 注释掉仍被旧 API 规则误命中）。
   // 保留 `http://` 这类字符串：行注释正则要求 `//` 前不是冒号。
@@ -344,6 +482,7 @@
     const ctxOpts = Object.assign({ raw: String(code || '') }, opts || {});
     ENTRIES.forEach(function (e) {
       if (e.scope !== 'code' || typeof e.detect !== 'function') return;
+      if (isDisabled(e.id)) return;
       let detail = null;
       try { detail = e.detect(scan, ctxOpts); } catch (err) { detail = { detectError: String(err && err.message || err) }; }
       if (!detail) return;
@@ -359,6 +498,7 @@
     const ctx = { root: root, THREE: THREE || global.THREE, opts: opts };
     ENTRIES.forEach(function (e) {
       if (e.scope !== 'scene' || typeof e.detect !== 'function') return;
+      if (isDisabled(e.id)) return;
       let detail = null;
       try { detail = e.detect(ctx); } catch (err) { detail = null; }
       if (!detail) return;
@@ -414,9 +554,21 @@
     report: report,
     add: E,
     logFindings: logFindings,
+    // 词条配置层（后台可视化维护）
+    DEFAULT_CONFIG: DEFAULT_CONFIG,
+    loadConfig: loadConfig,
+    applyConfig: applyConfig,
+    getConfig: getConfig,
+    getConfigMeta: getConfigMeta,
+    isDisabled: isDisabled,
     SEVERITY_ORDER: { high: 0, medium: 1, low: 2, info: 3 }
   };
 
   global.ThreeJSIssueRegistry = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
+
+  // 浏览器环境自举：先读本地缓存、再拉后台配置（Node/CLI 不执行）
+  if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    try { bootstrap(); } catch (e) {}
+  }
 })(typeof window !== 'undefined' ? window : globalThis);

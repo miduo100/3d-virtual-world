@@ -137,7 +137,12 @@
     if (!mat.isShaderMaterial || mat.isRawShaderMaterial) return;
     const vs = mat.vertexShader || '';
     const fs = mat.fragmentShader || '';
-    if (/vFragDepth|LOGARITHMIC_DEPTH|gl_FragDepth/.test(vs + fs)) return; // 已自带处理
+    // 已自带对数深度处理的直接跳过。
+    // ⚠️ 必须同时识别 `#include <logdepthbuf_*>` 形式：着色器可能通过 chunk 引入
+    // （如草地着色器 `#include <logdepthbuf_pars_vertex>`），源码里不含 vFragDepth 字面量；
+    // 漏判会给它重复声明 vFragDepth / logDepthBufFC → 着色器编译失败 →
+    // 世界渲染器 checkShaderErrors=false 时静默不可见（2026-09-24 实测踩到）。
+    if (/vFragDepth|LOGARITHMIC_DEPTH|gl_FragDepth|logdepthbuf_/i.test(vs + fs)) return;
 
     const PARS_V = '#ifdef USE_LOGARITHMIC_DEPTH_BUFFER\nvarying float vFragDepth;\nvarying float vIsPerspective;\n#endif\n';
     const BODY_V = '\n#ifdef USE_LOGARITHMIC_DEPTH_BUFFER\nvFragDepth = 1.0 + gl_Position.w;\nvIsPerspective = projectionMatrix[2][3] == -1.0 ? 1.0 : 0.0;\n#endif\n';
@@ -153,15 +158,21 @@
       return;
     }
     const idx = lastMatch.index + lastMatch[0].length;
-    mat.vertexShader = PARS_V + vs.slice(0, idx) + BODY_V + vs.slice(idx);
 
-    // 片元：main( 函数体开头插入
-    const fmRe = /(void\s+main\s*\(\s*(?:void\s+)?\)\s*\{)/;
+    // 片元：main( 函数体开头插入（容忍 ) 与 { 之间的注释，如 `void main() /*c*/ {`）
+    const fmRe = /(void\s+main\s*\(\s*(?:void\s*)?\)\s*(?:\/\*[\s\S]*?\*\/\s*)?(?:\/\/[^\n]*\n\s*)?\{)/;
     if (!fmRe.test(fs)) {
       warnOnce('logdepth:no-main', ['[ThreeJSWorldSanitizer] ShaderMaterial 片元未找到 main()，跳过对数深度适配']);
       return;
     }
-    mat.fragmentShader = PARS_F + fs.replace(fmRe, '$1' + BODY_F);
+
+    // 【2026-09-24 收敛】两端校验都通过后再一起提交：
+    // 旧实现先改 vertexShader、再校验片元，片元正则不命中时直接 return，
+    // 会留下「VS 已注入 / FS 未注入 / needsUpdate 未置」的半成品状态。
+    const nextVs = PARS_V + vs.slice(0, idx) + BODY_V + vs.slice(idx);
+    const nextFs = PARS_F + fs.replace(fmRe, '$1' + BODY_F);
+    mat.vertexShader = nextVs;
+    mat.fragmentShader = nextFs;
     mat.needsUpdate = true;
   }
 
@@ -212,7 +223,11 @@
   }
 
   global.ThreeJSWorldSanitizer = {
-    sanitize: sanitize
+    sanitize: sanitize,
+    // 【2026-09-24 收敛】导出供 ThreeJSIssueRegistry 委托调用（单一实现）。
+    // 此前未导出 → registry 只能走自己的旧回退实现，`void main() /*注释*/ {`
+    // 这类写法会留下「VS 已注入 / FS 未注入」的半成品。
+    patchShaderLogDepth: patchShaderLogDepth
   };
 
   if (typeof module !== 'undefined' && module.exports) {

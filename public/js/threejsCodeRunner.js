@@ -88,6 +88,16 @@
     proxy = new Proxy(fn, {
       get(t, prop) {
         if (prop === Symbol.toPrimitive) return function () { return 0; };
+        // 【2026-09-24 收敛】迭代器/序列化/长度守护：
+        // 旧实现未处理 Symbol.iterator —— `for...of 桩` / `[...桩]` 会把桩本身当迭代器，
+        // 调用后返回桩、next() 还是桩 → 可能死循环卡死页面。
+        if (prop === Symbol.iterator || prop === Symbol.asyncIterator) {
+          return function () { return { next: function () { return { done: true, value: undefined }; } }; };
+        }
+        if (prop === Symbol.toStringTag) return 'Stub';
+        if (prop === 'toJSON') return function () { return null; };   // 防 JSON.stringify 递归/抛错
+        if (prop === 'toString') return function () { return '[stub]'; };
+        if (prop === 'length' || prop === 'size' || prop === 'count') return 0;
         if (prop === 'then') return undefined;   // 防被当 Promise/thenable 捕获
         if (prop === 'children') return [];      // 防 Box3.setFromObject/traverse 无限递归
         if (prop === 'parent') return null;
@@ -601,6 +611,29 @@
     ];
     const __AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
     let __usedAsyncExec = false;
+
+    // 【2026-09-24 收敛】世界模式收尾（同步/异步共用一份实现）：
+    // 调用入口函数 → 问题库体检（自动修复）→ 清洗器兜底。
+    // 异步场景下由 Promise 回调再调一次：此时才知道异步代码里的入口函数（body 末尾
+    // `return __entry` 经 Promise 传回），旧实现从不调用它 → 只靠入口函数产出的
+    // 顶层 await 代码块会"什么都没有"（无报错、无内容）。
+    function finalizeWorld(silent) {
+      if (mode !== 'world') return;
+      if (typeof createGeometry === 'function') {
+        try {
+          const g = createGeometry(THREE, captureScene);
+          if (g && g !== captureScene) captureScene.add(g);
+        } catch (e) {
+          console.error('[ThreeJSCodeRunner] createGeometry 调用失败:', e);
+        }
+      }
+      if (typeof ThreeJSIssueRegistry !== 'undefined' && ThreeJSIssueRegistry.auditScene) {
+        try { ThreeJSIssueRegistry.auditScene(captureScene, THREE, { logarithmicDepth: true, silent: !!silent }); } catch (ie) {}
+      }
+      if (typeof ThreeJSWorldSanitizer !== 'undefined' && ThreeJSWorldSanitizer.sanitize) {
+        try { ThreeJSWorldSanitizer.sanitize(captureScene, THREE); } catch (se) {}
+      }
+    }
     const __execSource = function (src) {
       const body = src + '\n;var __entry = null;' +
         'var __ens = [];' +
@@ -629,19 +662,19 @@
         }
       }
       if (__usedAsyncExec) {
-        Promise.resolve(executeCode.apply(null, __execParamValues)).then(function () {
-          // 异步代码晚到的内容补一遍体检 + 世界清洗（灯光/材质/NaN 顶点/层级）
-          if (mode === 'world') {
-            if (typeof ThreeJSIssueRegistry !== 'undefined' && ThreeJSIssueRegistry.auditScene) {
-              try { ThreeJSIssueRegistry.auditScene(captureScene, THREE, { logarithmicDepth: true, silent: true }); } catch (ie2) {}
-            }
-            if (typeof ThreeJSWorldSanitizer !== 'undefined' && ThreeJSWorldSanitizer.sanitize) {
-              try { ThreeJSWorldSanitizer.sanitize(captureScene, THREE); } catch (se) {}
-            }
-          }
+        captureScene.userData.__asyncPending = true; // 诊断/验收用标记（完成后置 false）
+        Promise.resolve(executeCode.apply(null, __execParamValues)).then(function (entry) {
+          // 异步代码的入口函数：body 末尾 `return __entry` 会作为 Promise 值传回
+          if (typeof entry === 'function') createGeometry = entry;
+          captureScene.userData.__asyncPending = false;
+          finalizeWorld(true); // 异步完成后再补一遍：调入口函数 + 体检 + 清洗
         }, function (asyncErr) {
+          captureScene.userData.__asyncPending = false;
           console.error('[ThreeJSCodeRunner] 异步执行失败:', asyncErr);
         });
+        // 返回 null 只是"同步阶段拿不到入口函数"；runThreeJSCode 尾部仍会把捕获组赋给
+        // object（world 模式 object=captureScene，活引用）→ 调用方不会显示错误占位，
+        // 异步内容到达后自动可见。
         return null;
       }
       return executeCode.apply(null, __execParamValues);
@@ -678,28 +711,10 @@
 
     let object = null;
     if (mode === 'world') {
-      if (typeof createGeometry === 'function') {
-        try {
-          const g = createGeometry(THREE, captureScene);
-          // 修复（r185 阶段 2 验收发现）：world 模式下 THREE2.Scene 被替换为共享捕获组，
-          // 入口函数内 `new THREE.Scene()` 再 return 该对象时 g === captureScene，
-          // 原代码 add(g) 即 add 自身 → "object can't be added as a child of itself"。
-          // 跳过即可：其子节点本来就已直接挂进捕获组。
-          if (g && g !== captureScene) captureScene.add(g);
-        } catch (e) {
-          console.error('[ThreeJSCodeRunner] createGeometry 调用失败:', e);
-        }
-      }
-
-      // 世界模式：先跑问题知识库体检（命中即自动处置并记录 ISS 编号），再由清洗器兜底
-      if (typeof ThreeJSIssueRegistry !== 'undefined' && ThreeJSIssueRegistry.auditScene) {
-        try { ThreeJSIssueRegistry.auditScene(captureScene, THREE, { logarithmicDepth: true }); } catch (ie) {}
-      }
-      // 世界模式下只保留模型，清洗灯光/反射/环境等副作用
-      if (typeof ThreeJSWorldSanitizer !== 'undefined' && ThreeJSWorldSanitizer.sanitize) {
-        ThreeJSWorldSanitizer.sanitize(captureScene, THREE);
-      }
-
+      // 收尾统一走 finalizeWorld（与异步路径同一份实现）：
+      // 入口函数调用（含 `g === captureScene` 自添加守卫，r185 阶段 2 验收发现）
+      // → 问题库体检（ISS 自动处置）→ 清洗器兜底（灯光/反射/环境等副作用）
+      finalizeWorld(false);
       object = captureScene;
     }
 

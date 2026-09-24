@@ -703,12 +703,19 @@ router.post('/objects/:id/copy', async (req, res) => {
     // Create copy with offset position
     // 【2026-09-20 修复】补上 has_collision 透传：原 INSERT 列清单不含该列，
     // 副本会回落列默认值 FALSE，表现为"复制一次碰撞设置就丢了"（管理员模型级碰撞开关被复制动作清掉）。
+    // 【2026-09-24 修复】补上 threejs_code / custom_config / video_props / model_type / world_id：
+    // 原列清单不含 threejs_code，导致复制 threejs_code 类对象（如"光柱""草地"）时副本代码为空 →
+    // 副本在世界里什么都不显示（addThreeJSModel 拿到空代码直接 return），
+    // 而前端副本原地加载器认为"加载成功"、也不刷新页面 → 表现为"复制出来的不正常"。
+    // 注意：is_locked 刻意不复制（副本应当可移动/可编辑）。
     const insertQuery = `
       INSERT INTO world_objects
-      (type, name, model_path, position_x, position_y, position_z,
+      (type, name, model_path, model_type, position_x, position_y, position_z,
        rotation_x, rotation_y, rotation_z, scale_x, scale_y, scale_z,
-       building_id, has_collision, agent_description, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+       building_id, has_collision, agent_description,
+       threejs_code, custom_config, video_props, world_id, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+              $17, $18, $19, $20, NOW())
       RETURNING *
     `;
 
@@ -716,6 +723,7 @@ router.post('/objects/:id/copy', async (req, res) => {
       original.type,
       `${original.name} (副本)`,
       original.model_path,
+      original.model_type || null,
       newX,
       newY,
       newZ,
@@ -727,7 +735,11 @@ router.post('/objects/:id/copy', async (req, res) => {
       newSclZ,
       original.building_id,
       original.has_collision === true,
-      original.agent_description || null
+      original.agent_description || null,
+      original.threejs_code || null,
+      original.custom_config || null,
+      original.video_props || null,
+      original.world_id || null
     ]);
 
     res.json({
