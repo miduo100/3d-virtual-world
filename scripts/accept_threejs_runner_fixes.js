@@ -165,6 +165,37 @@ async function main() {
       detail: JSON.stringify(r6) + '（<=1 即未重复注入）',
     });
 
+    // ---------- R7 回退路径（sanitizer 未加载：unified_editor/admin） ----------
+    const r7 = await page.evaluate(() => {
+      const saved = window.ThreeJSWorldSanitizer;
+      window.ThreeJSWorldSanitizer = undefined; // 模拟未加载（registry 走本地回退实现）
+      try {
+        const code = [
+          'const scene = new THREE.Scene();',
+          'const mat = new THREE.ShaderMaterial({',
+          '  vertexShader: "void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",',
+          '  fragmentShader: "void main() /* keep */ { gl_FragColor = vec4(0.2, 0.6, 1.0, 1.0); }"',
+          '});',
+          'scene.add(new THREE.Mesh(new THREE.BoxGeometry(1,1,1), mat));',
+        ].join('\n');
+        const r = window.ThreeJSCodeRunner.runThreeJSCode(code, { mode: 'world', THREE: THREE });
+        let m = null;
+        if (r.object) r.object.traverse((o) => { if (o.material && o.material.isShaderMaterial) m = o.material; });
+        if (!m) return { found: false };
+        const vsPatched = /vFragDepth/.test(m.vertexShader || '');
+        const fsPatched = /gl_FragDepth/.test(m.fragmentShader || '');
+        return { found: true, vsPatched: vsPatched, fsPatched: fsPatched, halfPatch: vsPatched !== fsPatched, sanitizerRestored: false };
+      } finally {
+        window.ThreeJSWorldSanitizer = saved;
+      }
+    });
+    const r7Restored = await page.evaluate(() => !!window.ThreeJSWorldSanitizer);
+    results.push({
+      name: 'R7 回退路径（无 sanitizer）也不出现半成品',
+      pass: r7.found === true && r7.halfPatch === false && r7Restored === true,
+      detail: JSON.stringify(r7) + ' sanitizerRestored=' + r7Restored,
+    });
+
     const failed = results.filter((x) => !x.pass);
     console.log('\n========== Three.js 管线收敛验收 ==========');
     results.forEach((x) => console.log((x.pass ? 'PASS' : 'FAIL') + '  ' + x.name + '  [' + x.detail + ']'));

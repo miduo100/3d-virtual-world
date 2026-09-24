@@ -384,14 +384,21 @@
         mats.forEach(function (m) {
           if (!m || !m.isShaderMaterial || m.isRawShaderMaterial) return;
           const vs = m.vertexShader || '', fs = m.fragmentShader || '';
-          if (/vFragDepth|LOGARITHMIC_DEPTH|gl_FragDepth/.test(vs + fs)) return;
+          // 收敛：守卫与 sanitizer 对齐（含 include <logdepthbuf_*> 形式也要跳过，否则重复声明 varying）
+          if (/vFragDepth|LOGARITHMIC_DEPTH|gl_FragDepth|logdepthbuf_/i.test(vs + fs)) return;
           let last = null, mm;
           const re = /gl_Position\s*=[^;]*;/g;
           while ((mm = re.exec(vs)) !== null) last = mm;
           if (!last) return;
           const idx = last.index + last[0].length;
-          m.vertexShader = PARS_V + vs.slice(0, idx) + BODY_V + vs.slice(idx);
-          m.fragmentShader = PARS_F + fs.replace(/(void\s+main\s*\(\s*(?:void\s+)?\)\s*\{)/, '$1' + BODY_F);
+          // 【2026-09-24 收敛】片元 main 容忍 `)` 与 `{` 之间的注释；两端都校验通过才一起提交
+          // （旧写法 fs.replace 未命中时仍赋 PARS_F → 半成品：VS 已注入 / FS 未注入）
+          const fmRe = /(void\s+main\s*\(\s*(?:void\s*)?\)\s*(?:\/\*[\s\S]*?\*\/\s*)?(?:\/\/[^\n]*\n\s*)?\{)/;
+          if (!fmRe.test(fs)) return;
+          const nextVs = PARS_V + vs.slice(0, idx) + BODY_V + vs.slice(idx);
+          const nextFs = PARS_F + fs.replace(fmRe, '$1' + BODY_F);
+          m.vertexShader = nextVs;
+          m.fragmentShader = nextFs;
           m.needsUpdate = true;
           n++;
         });
