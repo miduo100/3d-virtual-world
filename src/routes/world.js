@@ -588,79 +588,70 @@ router.put('/objects/:id', async (req, res) => {
 });
 
 // Delete world object
+//
+// 修复（2026-09-21）：原先无条件先执行 `DELETE FROM world_objects WHERE id = $1`，
+// 但 world_objects.id 是**整数列** —— 传入 UUID（传送门 / 广告位 / 联邦副本等合成对象）
+// 时 Postgres 抛 `invalid input syntax for type integer` → 直接被 catch → 500，
+// 表现为"管理员模式下删除传送门删不掉"；且后面的 UUID 分支永远执行不到、
+// 分支里也只认 ad_slots / custom_npcs，缺 portals（传送门的主表）。
+// 现按 id 格式分流，并补上 portals。注意本路由**只能定义一次**（Express 先注册先匹配，
+// 曾经的第二个同路径定义是永远执行不到的死代码，已合并删除）。
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** 合成对象删除后同步清理其位置覆盖记录（失败不阻断删除本身） */
+async function clearTransformOverride(objectId) {
+  try {
+    await query('DELETE FROM object_transform_overrides WHERE object_id = $1', [objectId]);
+  } catch (e) { /* 表/列缺失时忽略 */ }
+}
+
 router.delete('/objects/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 先尝试删除world_objects
-    const result = await query(
-      'DELETE FROM world_objects WHERE id = $1 RETURNING *',
-      [id]
-    );
-
-    if (result.rows.length > 0) {
-      return res.json({ success: true, message: 'Object deleted successfully' });
-    }
-
-    // UUID格式ID：尝试ad_slots和custom_npcs
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
-    if (isUUID) {
-      // 尝试ad_slots
-      try {
-        const adResult = await query('DELETE FROM ad_slots WHERE id = $1 RETURNING *', [id]);
-        if (adResult.rows.length > 0) {
-          return res.json({ success: true, message: 'Ad slot deleted successfully' });
-        }
-      } catch (e) { /* ignore */ }
-
-      // 尝试custom_npcs
+    // ---------- 整数 ID：world_objects（主表）/ custom_npcs（SERIAL 主键）----------
+    if (!UUID_RE.test(id)) {
+      const result = await query('DELETE FROM world_objects WHERE id = $1 RETURNING *', [id]);
+      if (result.rows.length > 0) {
+        return res.json({ success: true, message: 'Object deleted successfully' });
+      }
       try {
         const npcResult = await query('DELETE FROM custom_npcs WHERE id = $1 RETURNING *', [id]);
         if (npcResult.rows.length > 0) {
           return res.json({ success: true, message: 'Custom NPC deleted successfully' });
         }
       } catch (e) { /* ignore */ }
+      return res.status(404).json({ success: false, error: 'Object not found' });
     }
 
-    return res.status(404).json({
-      success: false,
-      error: 'Object not found'
-    });
+    // ---------- UUID ID：portals / ad_slots（均 gen_random_uuid() 主键，互不相交）----------
+    try {
+      const portalResult = await query('DELETE FROM portals WHERE id = $1 RETURNING *', [id]);
+      if (portalResult.rows.length > 0) {
+        await clearTransformOverride(id);
+        return res.json({ success: true, message: 'Portal deleted successfully' });
+      }
+    } catch (e) {
+      console.warn('[world] 删除 portals 失败:', e.message);
+    }
+
+    try {
+      const adResult = await query('DELETE FROM ad_slots WHERE id = $1 RETURNING *', [id]);
+      if (adResult.rows.length > 0) {
+        await clearTransformOverride(id);
+        return res.json({ success: true, message: 'Ad slot deleted successfully' });
+      }
+    } catch (e) {
+      console.warn('[world] 删除 ad_slots 失败:', e.message);
+    }
+
+    return res.status(404).json({ success: false, error: 'Object not found' });
   } catch (error) {
     console.error('Delete world object error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to delete world object'
-    });
-  }
-});
-
-// Delete world object
-router.delete('/objects/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const result = await query(
-      'DELETE FROM world_objects WHERE id = $1 RETURNING *',
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Object not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      message: 'Object deleted successfully'
-    });
-  } catch (error) {
-    console.error('Delete world object error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to delete world object'
+      error: 'Failed to delete world object',
+      details: error.message
     });
   }
 });

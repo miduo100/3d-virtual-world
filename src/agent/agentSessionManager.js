@@ -142,6 +142,78 @@ async function revokeAllSessions(agentId) {
   return result.rowCount;
 }
 
+// ==================== 世界出生点（#3：让 AI 与真人落在同一区域）====================
+
+/**
+ * 世界出生点（真人进世界用的那个点，由后台"出生点"对象写入 system_config）。
+ *
+ * 背景（AI 访客体检 [5-5]）：原先 AI 无历史位置时兜底 `(0,0,0)`，而真人出生点是
+ * `system_config('world_spawn_point')`（线上实测 `{x:-26.32, y:9.59, z:12.56}`），
+ * 两者相距 **31.22m —— 恰好超出 30m 的 observe 半径与 30m 的说话气泡半径**：
+ * AI 进世界第一眼 `observe` 是"附近 0 个人"，`say` 一句回执还是 `delivered:true`
+ * 但真人听不见 → AI 判定"这是个空世界"（而且它自查不出来）。
+ *
+ * ⚠️ **不做缓存**：出生点在后台随时可改，而真人前端是"每次进世界都请求一次
+ * `GET /api/world/spawn-point`"（`public/js/world.js` 的 loadAndAddSpawnPoint）——
+ * 用户明确要求"出生点改到哪里，AI 就要跟到哪里"。AI 只在**新建连接**时读一次，频率极低，
+ * 直接查库即可，保证与真人**同频**。（首版加了 60s 缓存，会让改完出生点之后的 AI 最多晚 1 分钟才跟上。）
+ *
+ * 配置缺失 / 非法时，返回与**真人前端完全相同的默认值** `{x:0, y:0.05, z:0}`
+ * （真人侧两处都是这个默认值：`public/js/world.js` 的 `spawnConfig` 初值与
+ * `routes/world.js` 的 `GET /spawn-point` 兜底）。首版在这里返回 null、调用方再兜 `(0,0,0)`，
+ * 与真人不一致。
+ *
+ * y 直接用配置值：真人也从这个点进来，前端对 Agent 有既有的贴地逻辑会自行修正。
+ */
+const DEFAULT_SPAWN = { x: 0, y: 0.05, z: 0 };
+
+async function getWorldSpawnPoint() {
+  try {
+    const r = await query(
+      `SELECT config_value FROM system_config WHERE config_key = 'world_spawn_point'`
+    );
+    if (r.rows.length > 0 && r.rows[0].config_value != null) {
+      const raw = r.rows[0].config_value;
+      const cfg = (typeof raw === 'object') ? raw : safeParse(raw);
+      const p = cfg && cfg.position ? cfg.position : null;
+      const x = p ? Number(p.x) : NaN;
+      const z = p ? Number(p.z) : NaN;
+      if (Number.isFinite(x) && Number.isFinite(z)) {
+        const y = Number(p.y);
+        return { x, y: Number.isFinite(y) ? y : DEFAULT_SPAWN.y, z };
+      }
+    }
+  } catch (e) { /* non-fatal：DB 不可用 → 用默认值，仍然与真人一致 */ }
+  return { ...DEFAULT_SPAWN };
+}
+
+/**
+ * 在出生点周围 ≤radius 米内取一个随机点（圆盘内均匀分布）。
+ * 为什么需要：出生点若完全一致，**多个 AI 同时进世界会重叠在同一点**
+ * （Agent 之间本就没有避让机制，属已知遗留）。
+ */
+function randomizeSpawn(spawn, radius = 3) {
+  if (!spawn) return spawn;
+  const angle = Math.random() * Math.PI * 2;
+  const dist = Math.sqrt(Math.random()) * radius;
+  return {
+    x: Number((spawn.x + Math.cos(angle) * dist).toFixed(2)),
+    y: spawn.y,
+    z: Number((spawn.z + Math.sin(angle) * dist).toFixed(2))
+  };
+}
+
+/**
+ * 新连接"没有历史位置"时使用的出生点 = 世界出生点 + ≤3m 随机偏移。
+ * 调用方（agentWsServer）的兜底链：getLatestPosition() → 本函数 → (0,0,0)
+ */
+async function getInitialSpawn(jitterRadius = 3) {
+  const base = await getWorldSpawnPoint();
+  // getWorldSpawnPoint 现在恒返回一个点（配置缺失时是默认值），因此这里不会返回 null；
+  // randomizeSpawn 内部仍保留 null 保护，调用方也保留最后一层兜底，互不耦合。
+  return randomizeSpawn(base, jitterRadius);
+}
+
 // ==================== 维护 ====================
 
 async function markExpired(sessionId) {
@@ -167,6 +239,10 @@ module.exports = {
   touchSession,
   updatePosition,
   getLatestPosition,
+  // #3 AI 出生点对齐真人区域（getInitialSpawn = 世界出生点 + ≤3m 随机偏移）
+  getWorldSpawnPoint,
+  randomizeSpawn,
+  getInitialSpawn,
   revokeSession,
   revokeAllSessions,
   cleanupExpiredSessions

@@ -22,6 +22,10 @@
 const movement = require('./agentMovementService');
 const followService = require('./agentFollowService');   // C：服务端持续跟随
 const permissionService = require('./agentPermissionService');
+// 红线禁止的动作清单（teleport/set_position/inventory/profile/shop）：
+// #7 的未知动作判定必须**排除**它们，让它们继续走下面的 scope 校验报 scope_denied
+// （"明确禁止"与"拼写错/不存在"是两种不同信号，不能合并成同一个 code）。
+const { FORBIDDEN_SCOPES } = require('./agentSchema');
 const tierService = require('./agentTierService');
 const presenceBridge = require('./agentPresenceBridge');
 const wsServer = require('../websocket/wsServer');
@@ -31,6 +35,11 @@ const agentConfigService = require('./agentConfigService');
 const SAY_MAX_LEN = 200;
 const INTERACT_MAX_DISTANCE = 5;             // 互动距离上限 5m
 const CHAT_NEARBY_RANGE = 30;
+
+// 八动作白名单（#7 用）。契约同步处：capabilities.actions / openapi x-websocket.actions /
+// openapi /action enum / public/llms.txt 的 "WS actions" 行 —— 改这里要同步那几处
+// （scripts/accept_agent_discovery_layer.js 的 D6a 与 accept_agent_p6.js 的 P6/P7 会守住）。
+const AGENT_ACTIONS = ['move', 'walk_to', 'follow', 'rotate', 'jump', 'say', 'interact', 'stop'];
 
 // ==================== 主分发入口 ====================
 
@@ -48,6 +57,20 @@ async function dispatch(ctx, payload) {
   // 1) action 字段校验
   if (!action || typeof action !== 'string') {
     return reject(requestId, 'missing_action', '缺少 action 字段');
+  }
+
+  // 1.2) 未知动作（#7，AI 访客体检 [5-3]）：必须在 scope 校验**之前**判定。
+  //   修复前：`fly_to_moon` 这类"不在 scope 集里"的动作先被 scope 校验拦下、报成
+  //   `scope_denied`（"不在 Agent 权限集中"），而 AI 拼错动作名（如把 walk_to 写成 walkTo）
+  //   会因此理解成"我没有这个权限"从而放弃，而实际只是拼写错；同一个协议里
+  //   `observe`（恰好是合法 scope）却走到 switch default 得 unknown_action，两条口径不一致。
+  //   现在：不在八动作白名单内、**且不是红线明令禁止的动作** → unknown_action（并回可用清单）；
+  //   teleport/set_position/inventory/profile/shop 仍继续走下面的 scope 校验 → scope_denied
+  //   （"明确禁止"与"拼写错/不存在"必须能区分：前者该放弃，后者该改拼写）。
+  //   注：首版漏了这一步，把 teleport 也吃成了 unknown_action，被本脚本 #7c 判据当场抓到。
+  if (!AGENT_ACTIONS.includes(action) && !FORBIDDEN_SCOPES.includes(action)) {
+    return reject(requestId, 'unknown_action',
+      `未知动作: ${action}；可用动作：${AGENT_ACTIONS.join(' / ')}`);
   }
 
   // 1.5) P8：tier 动作限频（游客拉模式；Key Agent 直接放行沿用既有令牌桶）
@@ -151,7 +174,8 @@ function handleWalkTo(ctx, payload) {
 function handleFollow(ctx, payload) {
   const { connectionId, agent, session } = ctx;
   const targetId = payload.targetId || (payload.target && payload.target.id);
-  if (!targetId) return reject(payload.requestId, 'missing_targetId', '缺少 targetId（按实体 id 定位，不用 name）');
+  // B：失败时必须能自诊断（回显 id + 附近候选），否则 AI 只能拿同一个错 id 反复重试
+  if (!targetId) return rejectTarget(payload.requestId, ctx, 'follow', 'missing_targetId', null);
   const result = followService.startFollow(connectionId, agent, session, {
     targetId,
     stopDistance: payload.stopDistance,
@@ -159,7 +183,12 @@ function handleFollow(ctx, payload) {
     requestId: payload.requestId,
     reply: ctx.reply
   });
-  if (!result.ok) return reject(payload.requestId, result.error, 'follow 启动失败');
+  if (!result.ok) {
+    if (result.error === 'target_not_found') {
+      return rejectTarget(payload.requestId, ctx, 'follow', 'target_not_found', targetId);
+    }
+    return reject(payload.requestId, result.error, `follow 启动失败：${result.error}`);
+  }
   return {
     accepted: true, requestId: payload.requestId,
     result: { targetId, targetName: result.targetName, stopDistance: result.stopDistance, maxDurationMs: result.maxDurationMs }
@@ -200,13 +229,23 @@ async function handleSay(ctx, payload) {
     type: 'CHAT',
     payload: {
       sender: agent.name,
+      // ② 名字牌（2026-09-24）：标明"这条是 AI 说的"。缺省（人类侧不发这个字段）按真人处理，
+      // 故**不必改黑名单里的 wsServer.js**，向后兼容。用途：①来访 AI 认出对面是 AI 同伴，
+      // 才能按 ai_talk_mode 决定怎么聊（用户要求：AI 之间也可以对话）②真人端/日志区分人机。
+      senderType: 'agent',
       characterId: agent.id,
       message: text,
       position: myPos,                  // 关键：携带位置供 chatBubbles / Agent 距离过滤
       timestamp: new Date()
     }
   };
-  wsServer.broadcastToNearby(myPos, CHAT_NEARBY_RANGE, chatMessage);
+  // 2026-09-23（AI 访客实访暴露）：回执必须反映**真实收件人数**。
+  // 原实现把 `delivered` 写死成 true，而它调用的 broadcastToNearby 本来就 return count
+  // （只是被 agentWsServer 的 CHAT patch 吞掉过，已一并修好）——于是 AI 分不清
+  // "有人听见"和"对着空气说话"：实测 AI 只能另开一个真实浏览器才能确认真人看没看见它。
+  // recipients = 30m 内**实际收到**这条消息的连接数（真人 WS + 已订阅 chat 的别的 Agent，
+  // 不含发送者自己）；recipients === 0 即"这句话没人/没有 Agent 听见"。
+  const recipients = Number(wsServer.broadcastToNearby(myPos, CHAT_NEARBY_RANGE, chatMessage)) || 0;
 
   // 异步写入聊天记录（不阻塞，失败仅日志）
   chatLogService.insertLog({
@@ -217,13 +256,13 @@ async function handleSay(ctx, payload) {
     position: myPos
   }).catch(() => {});
 
-  return { completed: true, requestId: payload.requestId, result: { delivered: true } };
+  return { completed: true, requestId: payload.requestId, result: { delivered: recipients > 0, recipients } };
 }
 
 function handleInteract(ctx, payload) {
   const { connectionId, agent, session } = ctx;
   const targetId = payload.targetId;
-  if (!targetId) return reject(payload.requestId, 'missing_targetId', '缺少 targetId');
+  if (!targetId) return rejectTarget(payload.requestId, ctx, 'interact', 'missing_targetId', null);
 
   // 距离校验：target 必须在 5m 内（用 playerPositions 找 target 的当前位置）
   const playerPositions = wsServer.getPlayerPositions();
@@ -238,7 +277,7 @@ function handleInteract(ctx, payload) {
   });
   // TODO: 也可扩展到 objects 表的距离查询（worldSpatial /around 同口径）
   if (!targetPos) {
-    return reject(payload.requestId, 'target_not_found', `目标 ${targetId} 不在附近`);
+    return rejectTarget(payload.requestId, ctx, 'interact', 'target_not_found', targetId);
   }
   const dist = calcDist(myEntry.position, targetPos);
   if (dist > INTERACT_MAX_DISTANCE) {
@@ -251,14 +290,65 @@ function handleInteract(ctx, payload) {
 
 // ==================== 工具 ====================
 
-function reject(requestId, code, reason) {
-  return { rejected: true, requestId, code, reason };
+function reject(requestId, code, reason, extra) {
+  // extra：B（2026-09-23）新增，用于把 targetId / candidates 一起回给 AI（可选自纠）。
+  return { rejected: true, requestId, code, reason, ...(extra || {}) };
 }
 
 function calcDist(a, b) {
   if (!a || !b) return Infinity;
   const dx = (a.x || 0) - (b.x || 0), dz = (a.z || 0) - (b.z || 0);
   return Math.sqrt(dx * dx + dz * dz);
+}
+
+/**
+ * 附近实体候选（按水平距离升序，与 interact/observe 的判距同口径）。
+ *
+ * B（2026-09-23 AI 访客实访暴露）：AI 用 targetId 调 follow/interact 失败时，回执只有一句
+ * "follow 启动失败"——既不回显它请求的 id，也不告诉它"附近有谁"，于是 AI 会拿同一个错 id
+ * 反复重试。当场实测：世界里有**两个「米多」**，AI 凭聊天栏记忆拿了另一个的 id 去 follow。
+ * 修好后 AI 一次就能换成对的 id，不必再把"人不在/我瞎了/id 错了"三种情况混在一起猜。
+ */
+function nearbyCandidates(connectionId, limit = 5) {
+  const positions = wsServer.getPlayerPositions ? wsServer.getPlayerPositions() : null;
+  if (!positions || !positions.forEach) return [];
+  const me = positions.get(connectionId);
+  const out = [];
+  positions.forEach((p) => {
+    if (!p || !p.position || !p.characterId) return;
+    const d = me && me.position ? calcDist(me.position, p.position) : null;
+    out.push({
+      id: String(p.characterId),
+      name: p.characterName || null,
+      type: p.entityType === 'agent' ? 'agent' : 'human',
+      distance: d === null ? null : Math.round(d * 10) / 10
+    });
+  });
+  out.sort((a, b) => (a.distance === null ? Infinity : a.distance) - (b.distance === null ? Infinity : b.distance));
+  return out.slice(0, limit);
+}
+
+/** 候选实体摘要（写进 reason：HTTP /api/agent/v1/action 与 WS ACTION_REJECTED 两条路都能看到） */
+function describeCandidates(ctx) {
+  const candidates = nearbyCandidates(ctx && ctx.connectionId);
+  if (!candidates.length) {
+    return { candidates, text: '附近没有任何实体（这里可能真的没人，或对方超出你的观察半径）' };
+  }
+  const text = candidates
+    .map(c => `${c.name || '(无名)'} id=${c.id}${c.distance === null ? '' : ' ' + c.distance + 'm'}`)
+    .join('；');
+  return { candidates, text };
+}
+
+/** targetId 缺失/找不到时的统一回执：回显请求 id + 附近候选，让 AI 自己换 id 重试 */
+function rejectTarget(requestId, ctx, action, code, targetId) {
+  const hint = describeCandidates(ctx);
+  const asked = targetId ? `你请求的 id=${targetId} ` : '';
+  return reject(
+    requestId, code,
+    `${action} 失败：${asked}不在附近。实体 id 随会话变化，请用最近一次 observe 的 entities[].id 重发。附近实体：${hint.text}`,
+    { targetId: targetId || null, candidates: hint.candidates }
+  );
 }
 
 // ==================== 停止 / 取消（WS 断开时调用）====================

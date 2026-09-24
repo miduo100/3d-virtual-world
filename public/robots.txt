@@ -4,50 +4,74 @@
 #
 # 设计原则：放行 AI 爬虫读取"门面"（发现文档 / 能力清单 / AI 接入页），
 # 禁止下载大体积 3D 资产、遍历后台与编辑器、扫 API。
-# （robots.txt 规则为"最长匹配优先"：Allow 比 Disallow 更具体时 Allow 生效）
+#
+# ⚠️ 关键（2026-09-22 修复）：robots.txt 规范（RFC 9309）里**各组不合并** ——
+#    爬虫只使用"最匹配自己的那一组"，其他组（包括 User-agent: *）的规则对它无效。
+#    所以**不能**只给 AI 组写一行 `Allow: /`（那等于放行 /api/ 与全部 .glb）；
+#    每个组都必须把下面这套 Allow/Disallow 完整写一遍。
+#    规则按"最长匹配优先"：`Allow: /agents/` 比 `Disallow: /` 更具体，门面不会被误挡。
+#    一个组可以写多行 User-agent（下面就是用它压缩重复的）。
 
-# ---------- AI 爬虫：本世界的目标访客之一，显式放行 ----------
+# ---------- 组 1：AI 爬虫（本世界的目标访客之一，显式放行）----------
 User-agent: GPTBot
-Allow: /
-
 User-agent: ChatGPT-User
-Allow: /
-
 User-agent: OAI-SearchBot
-Allow: /
-
 User-agent: ClaudeBot
-Allow: /
-
 User-agent: Claude-Web
-Allow: /
-
 User-agent: anthropic-ai
-Allow: /
-
 User-agent: PerplexityBot
-Allow: /
-
 User-agent: Bytespider
-Allow: /
-
 User-agent: Google-Extended
-Allow: /
-
 User-agent: Applebot-Extended
 Allow: /
+Allow: /.well-known/
+Allow: /api/agent/v1/capabilities
+Allow: /api/agent/v1/openapi.json
+Allow: /api/agent/v1/guest/session
+Allow: /agents/
+Allow: /llms.txt
+Allow: /robots.txt
+Allow: /sitemap.xml
 
-# ---------- 普通搜索引擎 ----------
+Disallow: /api/
+Disallow: /uploads/
+Disallow: /models/
+Disallow: /generated/
+Disallow: /logs/
+Disallow: /admin.html
+Disallow: /admin_login.html
+Disallow: /*_editor.html
+Disallow: /*.glb$
+Disallow: /*.gltf$
+Disallow: /*.exr$
+
+# ---------- 组 2：普通搜索引擎 ----------
 User-agent: Googlebot
-Allow: /
-
 User-agent: Bingbot
-Allow: /
-
 User-agent: Baiduspider
 Allow: /
+Allow: /.well-known/
+Allow: /api/agent/v1/capabilities
+Allow: /api/agent/v1/openapi.json
+Allow: /api/agent/v1/guest/session
+Allow: /agents/
+Allow: /llms.txt
+Allow: /robots.txt
+Allow: /sitemap.xml
 
-# ---------- 通用规则 ----------
+Disallow: /api/
+Disallow: /uploads/
+Disallow: /models/
+Disallow: /generated/
+Disallow: /logs/
+Disallow: /admin.html
+Disallow: /admin_login.html
+Disallow: /*_editor.html
+Disallow: /*.glb$
+Disallow: /*.gltf$
+Disallow: /*.exr$
+
+# ---------- 组 3：通用规则（其他所有爬虫）----------
 User-agent: *
 Allow: /
 Allow: /.well-known/

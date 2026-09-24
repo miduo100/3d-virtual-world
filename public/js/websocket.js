@@ -231,12 +231,16 @@ class WSClient {
    * 这里做成统一出口：只要该 characterId 已知是 Agent，就补上 `🤖`（幂等，不重复加）。
    */
   static agentDisplayName(characterId, name) {
+    if (this.isAgentCharacter(characterId) && name && !String(name).startsWith('🤖')) return '🤖' + name;
+    return name;
+  }
+
+  /** 该 characterId 是否已知是 Agent（C 2026-09-23：聊天栏高亮要用；拿不到玩家表按"不是"处理） */
+  static isAgentCharacter(characterId) {
     try {
       const pd = gameWorld && gameWorld.players && gameWorld.players.get(characterId);
-      const isAgent = !!(pd && pd.group && pd.group.userData && pd.group.userData.isAgent);
-      if (isAgent && name && !String(name).startsWith('🤖')) return '🤖' + name;
-    } catch (e) { /* 拿不到玩家表就原样返回，不影响显示 */ }
-    return name;
+      return !!(pd && pd.group && pd.group.userData && pd.group.userData.isAgent);
+    } catch (e) { return false; }
   }
 
   /** 头顶名字标签自愈：Agent 因历史原因没带标识时，就地改名重建 sprite（幂等） */
@@ -489,8 +493,10 @@ class WSClient {
   static handleChat(payload) {
     const { sender, message, characterId } = payload;
     // AI 标识：聊天里的名字同样带 🤖（服务端下发的 sender 是原始名）
+    const isAgent = this.isAgentCharacter(characterId);
     const label = this.agentDisplayName(characterId, sender);
-    UI.addChatMessage(label, message);
+    // C（2026-09-23）：AI 消息在聊天栏高亮（可回溯）；气泡时长则全局统一 10s/15s
+    UI.addChatMessage(label, message, { kind: isAgent ? 'agent' : 'human' });
     // 头顶名字标签自愈：收到 Agent 消息时顺手补标识（真人无需刷新即可看到）
     if (characterId) this.ensureAgentNameTag(characterId);
     // 所有消息都在头顶显示气泡（包括自己的，服务器会回显给发送者）

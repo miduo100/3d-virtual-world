@@ -71,25 +71,42 @@ async function createKeyAgent(tag, pushTier) {
 }
 
 async function startSimHumans(n) {
+  // 2026-09-23 修夹具：模拟真人的站位必须**跟着世界出生点**走。
+  // 原实现硬编码 (10 + 3i, 0, 10)，而 ① 出生点修复后所有 Agent 都在
+  // system_config('world_spawn_point')（本例 -26.32, 9.59, 12.56）附近生成 →
+  // 两者相距 36m，超出 30m 的 CHAT 投递半径与推送订阅半径，导致 M3b（realtime 位置流）、
+  // M4c（真人侧收 CHAT）、M5-rt（follow 收敛）**假失败**。
+  // （历史上 AI 生在 (0,0,0) 才恰好落在 30m 内，属夹具与产品行为耦合的隐患。）
+  const spRes = await K.httpJson('/api/world/spawn-point', { method: 'GET' });
+  const sp = (spRes.json && spRes.json.spawnPoint && spRes.json.spawnPoint.position) || { x: 0, y: 0, z: 0 };
+  R.info('模拟真人站位基准（世界出生点）', JSON.stringify(sp));
   for (let i = 0; i < n; i++) {
     const cid = uuidv4();
-    const c = await K.openHumanWs({ characterId: cid, characterName: `模拟真人${i + 1}`, position: { x: 10 + i * 3, y: 0, z: 10 } });
+    const bx = sp.x + 10 + i * 3;      // 相对出生点：横向 10~22m 内，确保在 30m 半径里
+    const bz = sp.z + 2;
+    const c = await K.openHumanWs({ characterId: cid, characterName: `模拟真人${i + 1}`, position: { x: bx, y: sp.y, z: bz } });
     if (!c.ok) { R.check(`M0 模拟真人${i + 1} 上线`, false, c.error); continue; }
     openSockets.push(c.ws);
     const h = { characterId: cid, name: `模拟真人${i + 1}`, conn: c, t: i * 0.7 };
     h.timer = setInterval(() => {
       h.t++;
       const r = 6 + (i % 3) * 2;
-      const x = 10 + i * 3 + Math.cos(h.t / 6) * r;
-      const z = 10 + Math.sin(h.t / 6) * r;
+      const x = bx + Math.cos(h.t / 6) * r;
+      const z = bz + Math.sin(h.t / 6) * r;
       try {
         c.ws.send(JSON.stringify({
           type: 'POSITION_UPDATE',
-          payload: { characterId: cid, position: { x, y: 0, z }, rotation: h.t / 6, animMode: 'walk' }
+          payload: { characterId: cid, position: { x, y: sp.y, z }, rotation: h.t / 6, animMode: 'walk' }
         }));
       } catch (e) { /* ignore */ }
     }, 250);                       // 4Hz
     simHumans.push(h);
+    // 2026-09-23 修夹具②：**0 号（M5 的跟随目标）保持静止**。
+    // 跟随的契约是"进入 stopDistance(3) + 死区 INNER_SLACK(1.5) = 4.5m 内停住"；目标若以
+    // ~1m/s 绕半径 6m 的圈走动，跟随者只能维持 ~6m 的滞后平衡，而 M5 断言阈值硬编码 ≤6
+    // → 实测两轮分别 5.3/6.1/4.6 与 5.5/6.2/6.5，长期在边界抖动（rt 两轮都 FAIL）。
+    // 静止目标才能真正测"收敛到目标附近"；其余 4 个继续走动，M3 的位置流不受影响。
+    if (i === 0) clearInterval(h.timer);
   }
   return simHumans.length;
 }
@@ -432,6 +449,13 @@ async function m7() {
       if (a.tag === 'guest' || !a.agentId) continue;
       try { await api('/api/agent/v1/admin/agents/' + a.agentId, { method: 'DELETE', token: adminToken }); } catch (e) {}
     }
+    // 2026-09-23：清理本脚本写入的测试聊天（M4 的 "契约探针-xxxx"）。
+    // 不做的话下一个 AI 用 /chat/history 会把它当成世界里的真实对话。
+    try {
+      const dbc = require('../src/database/db');
+      const del = await dbc.query("DELETE FROM world_chat_log WHERE message LIKE '契约探针-%'");
+      if (del.rowCount) console.log(`已清理测试聊天记录 ${del.rowCount} 行`);
+    } catch (e) { /* ignore */ }
   }
 
   const sum = R.summary();

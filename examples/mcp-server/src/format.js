@@ -45,6 +45,20 @@ function animText(animMode) {
 }
 
 /**
+ * 人的距离显示：始终给水平距离；当空间距离明显更大（≥2m）时补一句"实际空间距离"。
+ * 为什么必须补（2026-09-23 AI 访客实访暴露）：服务端没有地形数据，`distance` 是**水平**距离，
+ * 于是 AI 看到"4.44m"以为对方就在旁边，实际对方在 9.6m 高的出生台上、两人互相看不见。
+ * 只对 entities 补注（≤10 条，预算影响可忽略）；物体/传送门保持纯水平距离，不吃 2KB 预算。
+ */
+function entDist(e) {
+  const d2 = Number(e.distance);
+  const d3 = Number(e.distance3D);
+  const base = `${fmt(d2)}m`;
+  if (!Number.isFinite(d3) || Math.abs(d3 - d2) < 2) return base;
+  return `${base}（水平；实际空间距离 ${fmt(d3)}m，注意高度差）`;
+}
+
+/**
  * 组织 world_observe 的返回文本
  * @param {object} opts { body, client, waitedMs, events, maxBytes, maxObjects, maxEntities, maxPortals }
  */
@@ -114,7 +128,10 @@ export function formatObserve(opts) {
   push(`你在 (${fmt(pos.x)}, ${fmt(pos.y)}, ${fmt(pos.z)})，观察半径 ${body.radius}m`
     + (yaw == null ? '' : `，朝向 yaw=${fmt(yaw, 2)}`)
     + `；档位=${st.mode}；推流订阅=${st.subscribedTopics.length ? st.subscribedTopics.join('/') : '无'}`
-    + (waitedMs > 0 ? `；限频等待 ${fmt(waitedMs / 1000)}s` : ''));
+    + (waitedMs > 0 ? `；限频等待 ${fmt(waitedMs / 1000)}s` : '')
+    // 2026-09-23：服务端没有地形数据，**你的 y 是平面估算（0）**，而真人的 y 是客户端按地形
+    // 算出来的真实高度 —— 两者不能直接相减去判断"隔了几层"。判断同层请看"附近的人"里的距离。
+    + '；你的 y 为服务端平面估算（非渲染高度）');
 
   // ---------------- 附近的人 ----------------
   const entities = (body.entities || []).filter((e) => !e.isSelf);
@@ -125,7 +142,7 @@ export function formatObserve(opts) {
   }
   entities.slice(0, maxEntities).forEach((e) => {
     const info = [];
-    info.push(`${fmt(e.distance)}m`);
+    info.push(entDist(e));
     if (e.animMode) info.push(animText(e.animMode));
     if (e.type) info.push(e.type === 'agent' ? 'AI Agent' : '真人玩家');
     push(`- ${e.name} (id=${e.id}) ${info.join('，')}`);

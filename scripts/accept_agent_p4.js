@@ -233,5 +233,11 @@ async function adminToken() {
 });
 
 async function finish() {
+  // 2026-09-23：清理本脚本写入的测试聊天。不做的话 world_chat_log 会长期留 "p4-say-xxxx"，
+  // 被下一个 AI 用 /chat/history 恢复上下文时读到，污染它对世界的认知（本地体检发现的第 3 类问题）。
+  try {
+    const del = await query("DELETE FROM world_chat_log WHERE message LIKE 'p4-say-%'");
+    if (del.rowCount) console.log(`已清理测试聊天记录 ${del.rowCount} 行`);
+  } catch (e) { /* ignore */ }
   try { await pool.end(); } catch (e) { /* ignore */ }
 }

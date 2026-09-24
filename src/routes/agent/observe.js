@@ -55,9 +55,12 @@ function rateLimitObserve(req, res, next) {
     const agentId = req.agent ? req.agent.id : 'unknown';
     const r = tierService.checkActionRate(tier, agentId, 'observe');
     if (!r.ok) {
+      const retryAfterSec = Math.max(1, Math.ceil(r.retryAfterMs / 1000));
+      res.set('Retry-After', String(retryAfterSec));      // 2026-09-24：标准头 + scope（按 agentId 计）
       return res.status(429).json({
         error: `观察请求过于频繁（游客拉模式限 ${r.limit}）`,
-        retryAfter: Math.max(1, Math.ceil(r.retryAfterMs / 1000)),
+        retryAfter: retryAfterSec,
+        scope: 'agent',
         code: 'GUEST_OBSERVE_RATE_LIMITED'
       });
     }
@@ -71,9 +74,15 @@ function rateLimitObserve(req, res, next) {
   if (list.length >= limit) {
     const oldest = list[0];
     const retryAfterMs = OBSERVE_WINDOW_MS - (now - oldest);
+    const retryAfterSec = Math.max(1, Math.ceil(retryAfterMs / 1000));
+    // 2026-09-24：补 scope 与标准 Retry-After 头 —— 配额是**按 agentId** 记的，同一 Agent 的
+    // 多个进程/工具会互相占用；AI 实测只看到 429 会误判成"自己调太快"（真因常是另一个进程在抢）。
+    res.set('Retry-After', String(retryAfterSec));
     return res.status(429).json({
       error: `观察请求过于频繁（当前限 ${limit}Hz，可用 agent_observe_rate_key 调整）`,
-      retryAfter: Math.max(1, Math.ceil(retryAfterMs / 1000)),
+      retryAfter: retryAfterSec,
+      scope: 'agent',
+      hint: '配额按 agentId 计：同一 Agent 的其它进程/工具也会占用它',
       code: 'AGENT_OBSERVE_RATE_LIMITED'
     });
   }

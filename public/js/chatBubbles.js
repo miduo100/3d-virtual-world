@@ -4,7 +4,9 @@
  */
 /**
  * 玩家头顶气泡 + 正在说话指示器
- * - 气泡：5 秒后开始淡出，8 秒完全消失；每人同时只有 1 个气泡（新消息立即覆盖）
+ * - 气泡：默认 10 秒后开始淡出、15 秒完全消失（C 2026-09-23 由 5s/8s 上调，可用
+ *   `window.CHAT_BUBBLE_CONFIG = { fadeMs, removeMs }` 或 `nearbyBubbles.configure()` 覆写）；
+ *   每人同时只有 1 个气泡（新消息立即覆盖）
  * - 🎤：VOICE_STATE 驱动的"正在说话"红色徽标
  * - 每帧将 3D 头顶坐标投影到屏幕定位（被墙挡不做遮挡检测，超出屏幕/过远隐藏）
  */
@@ -14,8 +16,11 @@ const NearbyBubbles = {
   speaking: new Map(),  // characterId -> boolean
   HEAD_OFFSET_Y: 2.2,   // 头顶偏移（米）
   MAX_SHOW_DIST: 40,    // 超过此距离不显示
-  FADE_AT_MS: 5000,
-  REMOVE_AT_MS: 8000,
+  // C（2026-09-23 用户决定）：5s/8s → 10s/15s。动机：AI 的消息是"异步到达"的，人可能正好
+  // 没看屏幕，5 秒的气泡错过就永久错过（真人消息同理，故全局统一时长，不做 AI 特例）。
+  // 覆盖方式：window.CHAT_BUBBLE_CONFIG = { fadeMs, removeMs }（加载本文件后设置）或 configure()。
+  FADE_AT_MS: 10000,
+  REMOVE_AT_MS: 15000,
   _raf: null,
   _styleInjected: false,
 
@@ -74,6 +79,19 @@ const NearbyBubbles = {
     document.body.appendChild(this.container);
     this._loop();
     return true;
+  },
+
+  /**
+   * 覆写气泡时长（C，2026-09-23）。只接受正数，非法值保持默认，便于后台设置/页面注入。
+   * @param opts { fadeMs?: number, removeMs?: number } 毫秒
+   * @returns { fadeMs, removeMs } 生效后的值（便于自检）
+   */
+  configure(opts) {
+    const f = Number(opts && opts.fadeMs);
+    const r = Number(opts && opts.removeMs);
+    if (Number.isFinite(f) && f > 0) this.FADE_AT_MS = f;
+    if (Number.isFinite(r) && r > 0) this.REMOVE_AT_MS = r;
+    return { fadeMs: this.FADE_AT_MS, removeMs: this.REMOVE_AT_MS };
   },
 
   /**
@@ -219,4 +237,6 @@ const NearbyBubbles = {
 // 全局单例
 if (typeof window !== 'undefined') {
   window.nearbyBubbles = NearbyBubbles;
+  // C：可配入口 —— 页面（或后台设置注入的脚本）在本文件之后设置即可覆盖默认 10s/15s
+  if (window.CHAT_BUBBLE_CONFIG) NearbyBubbles.configure(window.CHAT_BUBBLE_CONFIG);
 }

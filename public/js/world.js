@@ -4212,19 +4212,47 @@ class World {
         model.visible = true;
         return;
       }
+      const nowTs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       const p = model.position, r = model.rotation, s = model.scale;
-      const sig = `${p.x},${p.y},${p.z}|${r.x},${r.y},${r.z}|${s.x},${s.y},${s.z}`;
+      // 【2026-09-24 修复】签名加入直接子节点数量：Three.js 代码块等异步构建的模型会在加载后
+      // 继续往自身挂子对象（实测"一个小区"id=8559 的缓存盒中心偏离模型位置约 290 米、范围只有
+      // 真实的一半），而此前的失效判定只看 position/rotation/scale → 缓存盒停在"半成品"状态
+      // 永不重算 → 相机转到某些角度被误判视锥外而整体消失。子节点数量变化即视为结构变化，强制重算。
+      const sig = `${p.x},${p.y},${p.z}|${r.x},${r.y},${r.z}|${s.x},${s.y},${s.z}|${model.children.length}`;
       if (!store._cachedBox3 || store._cachedSig !== sig) {
         model.updateWorldMatrix(true, true);
         store._cachedBox3 = new THREE.Box3().setFromObject(model);
         store._cachedSig = sig;
+        if (!store._firstBoxAt) store._firstBoxAt = nowTs;
+      }
+      if (!store._firstBoxAt) store._firstBoxAt = nowTs;
+      // 首次算盒后 4 秒内不做剔除：等异步构建/纹理加载收尾，避免拿半成品包围盒判定
+      if (nowTs - store._firstBoxAt < 4000) {
+        store.__cullMissStreak = 0;
+        model.visible = true;
+        return;
       }
       if (this.frustum.intersectsBox(store._cachedBox3)) {
         store.__cullMissStreak = 0;
         model.visible = true;
       } else {
         store.__cullMissStreak = (store.__cullMissStreak || 0) + 1;
-        if (store.__cullMissStreak >= 2) model.visible = false;
+        if (store.__cullMissStreak >= 2) {
+          // 即将隐藏前复核一次（每个对象每次"进入锥外"只做一次）：缓存盒可能因模型内部
+          // 子节点移动而陈旧，重算后仍在外才真正隐藏，杜绝陈旧盒造成的误剔除。
+          if (store.__cullMissStreak === 2) {
+            model.updateWorldMatrix(true, true);
+            const freshBox = new THREE.Box3().setFromObject(model);
+            store._cachedBox3 = freshBox;
+            store._cachedSig = sig;
+            if (this.frustum.intersectsBox(freshBox)) {
+              store.__cullMissStreak = 0;
+              model.visible = true;
+              return;
+            }
+          }
+          model.visible = false;
+        }
       }
     };
 

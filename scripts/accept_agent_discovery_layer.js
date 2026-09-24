@@ -57,6 +57,38 @@ async function httpRaw(p, options = {}) {
 
 function jsonOf(r) { try { return JSON.parse(r.text); } catch (e) { return null; } }
 
+/**
+ * 按 RFC 9309 解析 robots.txt 的**分组**（供 D1b2 用）。
+ * 一组 = 「一个或多个连续的 User-agent 行」+「其后的规则行」。
+ * 规则行之后再出现 User-agent 行 → 属于**新的一组**（组之间不合并）。
+ * 返回 [{ agents: ['GPTBot', …], rules: [{type:'Allow'|'Disallow', path:'/x'}] }]
+ */
+function parseRobotsGroups(text) {
+  const groups = [];
+  let cur = null;
+  let lastWasAgent = false;
+  for (const raw of String(text || '').split('\n')) {
+    const line = raw.replace(/#.*$/, '').trim();
+    if (!line) continue;
+    const ua = /^User-agent:\s*(.+)$/i.exec(line);
+    if (ua) {
+      if (!cur || !lastWasAgent) { cur = { agents: [], rules: [] }; groups.push(cur); }
+      cur.agents.push(ua[1].trim());
+      lastWasAgent = true;
+      continue;
+    }
+    const rule = /^(Allow|Disallow):\s*(.*)$/i.exec(line);
+    if (rule) {
+      if (!cur) { cur = { agents: [], rules: [] }; groups.push(cur); }
+      cur.rules.push({ type: rule[1].replace(/^./, c => c.toUpperCase()), path: rule[2].trim() });
+      lastWasAgent = false;
+      continue;
+    }
+    lastWasAgent = false;   // Sitemap 等非规则行：切断当前组的连续性判定
+  }
+  return groups;
+}
+
 // ==================== D8 用的总闸开关（必须走 API，直写 DB 不生效）====================
 
 async function readAgentEnabled() {
@@ -116,6 +148,29 @@ async function waitAgentEnabled(want, timeoutMs = 15000) {
     `${robots.status} ${robots.headers.get('content-type')}`);
   R.check('D1b robots.txt 放行 AI 爬虫且禁止 /admin.html',
     /User-agent:\s*GPTBot/i.test(robots.text) && /Disallow:\s*\/admin\.html/i.test(robots.text) && /Sitemap:/.test(robots.text));
+
+  // D1b2（2026-09-22 新增）：robots 规范里**各组不合并**（RFC 9309：只用最匹配的那一组），
+  // 所以"全文件里存在 Disallow: /admin.html"是不够的 —— 它可能只写在 `User-agent: *` 组里，
+  // 而 GPTBot 组只有一行 `Allow: /`，等于**放行 /api/（含 784KB 的 /api/world/objects）与全部 .glb**。
+  // 实测过就是这个状态（AI 访客体检 [1-2]）。这里按组解析，要求每个 AI 组自己写全关键 Disallow。
+  const groups = parseRobotsGroups(robots.text);
+  const AI_PROBE = ['GPTBot', 'ClaudeBot', 'PerplexityBot', 'Bytespider', 'OAI-SearchBot'];
+  const MUST_DISALLOW = ['/api/', '/admin.html', '/*_editor.html'];
+  const groupBad = [];
+  let aiGroupCount = 0;
+  for (const g of groups) {
+    const isAi = g.agents.some(a => AI_PROBE.some(x => a.toLowerCase() === x.toLowerCase()));
+    if (!isAi) continue;
+    aiGroupCount++;
+    for (const p of MUST_DISALLOW) {
+      if (!g.rules.some(r => r.type === 'Disallow' && r.path === p)) {
+        groupBad.push(`${g.agents[0]} 组缺 Disallow ${p}`);
+      }
+    }
+  }
+  R.check('D1b2 每个 AI 组的组内都写全了关键 Disallow（组不合并，只写 Allow 等于放行 /api/ 与 .glb）',
+    aiGroupCount > 0 && groupBad.length === 0,
+    `AI 组数=${aiGroupCount} ${groupBad.length ? '问题=[' + groupBad.join('; ') + ']' : 'all ok'}`);
   R.info('D1c robots.txt Cache-Control', robots.headers.get('cache-control') || '(none)');
 
   // ---------- D2 sitemap.xml ----------
@@ -172,9 +227,17 @@ async function waitAgentEnabled(want, timeoutMs = 15000) {
     R.check('D6 capabilities 可解析', false, `status=${capsRes.status}`);
   } else {
     const actions = caps.actions || [];
-    const missingActions = actions.filter(x => !llmsText.includes('`' + x + '`'));
-    R.check('D6a capabilities.actions 全部出现在 llms.txt', actions.length > 0 && missingActions.length === 0,
-      `actions=${actions.length} missing=[${missingActions.join(',')}]`);
+    // D6a（2026-09-22 收紧）：原判据是"capabilities 的动作都出现在 llms.txt"（**包含**关系），
+    // superset 也能通过 —— 于是 llms.txt 曾把 HTTP 端点 `observe` 混进 WS 动作清单（9 项 vs 8 项）
+    // 而没被拦住，导致 AI 照文档发 `ACTION{action:'observe'}` 必然 `unknown_action`
+    // （AI 访客体检 [6-1]）。现改为对 llms.txt 的「WS actions」行做**逐项相等**比对。
+    const llmsWsLine = (llmsText.split('\n').find(l => /WS actions/i.test(l)) || '');
+    const llmsWsActions = Array.from(llmsWsLine.matchAll(/`([a-z_]+)`/g)).map(m => m[1]);
+    const onlyInCaps = actions.filter(x => !llmsWsActions.includes(x));
+    const onlyInLlms = llmsWsActions.filter(x => !actions.includes(x));
+    R.check('D6a llms.txt 的 WS 动作清单与 capabilities.actions 逐项相等',
+      actions.length > 0 && llmsWsActions.length > 0 && onlyInCaps.length === 0 && onlyInLlms.length === 0,
+      `caps=${actions.length} llms=${llmsWsActions.length} 仅在caps=[${onlyInCaps.join(',')}] 仅在llms=[${onlyInLlms.join(',')}]`);
 
     const L = caps.limits || {};
     const expect = { observeRadiusMaxGuest: 30, observeRadiusMax: 200, sayMaxLength: 200, guestObserveIntervalSeconds: 2 };
@@ -200,6 +263,21 @@ async function waitAgentEnabled(want, timeoutMs = 15000) {
 
     R.info('D6f capabilities 关键值快照',
       `actions=${actions.length} observeRadiusMaxGuest=${L.observeRadiusMaxGuest} observeRadiusMax=${L.observeRadiusMax} sayMaxLength=${L.sayMaxLength} guestObserveIntervalSeconds=${L.guestObserveIntervalSeconds}`);
+
+    // D6g（2026-09-23 新增）：**语义漂移**守住。
+    // 背景：2026-09-23 AI 访客体检发现 —— 距离/回执语义已经写进 capabilities、openapi、observe 响应，
+    // 而两份门面文档（llms.txt / /agents/）**0 处提及**：AI 读完门面仍不知道"服务端判距是水平距离"
+    // "say 回执里有 recipients""自己的 y 不是渲染高度"。与 D6a 同理：契约里的语义必须同步到门面，
+    // 否则 AI 会按旧认知写错代码（例如拿 y 差判断楼层、把 delivered 当成真有人听见）。
+    const oaRes = await httpRaw('/api/agent/v1/openapi.json');
+    const oa = jsonOf(oaRes) || {};
+    const oaObsDesc = String((((oa.paths || {})['/observe'] || {}).get || {}).description || '');
+    const semKeys = ['distance3D', 'recipients', 'positionIsServerPlane'];
+    const missingInLlms = semKeys.filter(k => !llmsText.includes(k));
+    const missingInAgents = semKeys.filter(k => !a.includes(k));
+    R.check('D6g 新语义（distance3D / recipients / positionIsServerPlane）已同步进门面（llms.txt + /agents/），且 openapi 描述含 distance3D',
+      missingInLlms.length === 0 && missingInAgents.length === 0 && /distance3D/.test(oaObsDesc),
+      `llms缺=[${missingInLlms.join(',')}] agents缺=[${missingInAgents.join(',')}] openapi含distance3D=${/distance3D/.test(oaObsDesc)}`);
   }
 
   // ---------- D7 llms.txt 里每个端点都可达 ----------
@@ -268,10 +346,28 @@ try { ws.close(); } catch (e) {}
   }
   R.check('D8 llms.txt 示例代码可运行（票 + WS + READY）', d8pass, d8detail);
 
+  // D8b（2026-09-23 新增）：D8 是把 llms.txt 的示例**原样跑一遍**，而示例里带一句 say ——
+  // 于是每次跑验收都会往世界聊天记录里写一条示例文案（体检时实测就是这类噪音的来源之一）。
+  // 这里把它清掉；只在打本机时清（db 句柄永远指向本机库，打远端不能删）。
+  try {
+    const sampleText = (llmsText.match(/text:\s*'([^']{1,80})'/) || [])[1];
+    if (sampleText && /localhost|127\.0\.0\.1|\[::1\]/.test(BASE)) {
+      const dbc = require('../src/database/db');
+      const del = await dbc.query('DELETE FROM world_chat_log WHERE message = $1', [sampleText]);
+      R.info('D8b 已清理示例代码写入的聊天记录', `${del.rowCount} 行（"${sampleText.slice(0, 24)}…"）`);
+    } else {
+      R.info('D8b 跳过示例聊天清理', sampleText ? '目标是远端' : '未从 llms.txt 解析出示例文案');
+    }
+  } catch (e) { R.info('D8b 示例聊天清理失败（不影响判据）', e.message); }
+
   // ---------- D9 index.html 含 /agents/ 入口 ----------
+  // 2026-09-23 放宽：原判据按提示词 §4 写的是"**恰好 1 个**"，但首页后来在「世界简介」SEO 区块
+  // （#world-intro 的「入口：AI 接入说明」）里也加了一个，与专用爬虫入口各司其职 —— 于是
+  // "恰好 1 个"成了误报。判据的真实意图是"首页有 AI 接入入口、且不堆砌（防 SEO 垃圾化）"，
+  // 故改为 1~3 个并记录条数；若将来要继续收紧，应先决定删哪一个入口（属产品决策）。
   const allAgentsLinks = [...indexText.matchAll(/href="\/agents\/?"/g)].length;
-  R.check('D9 public/index.html 含指向 /agents/ 的链接',
-    /href="\/agents\/?"/.test(indexText) && allAgentsLinks === 1, `count=${allAgentsLinks}`);
+  R.check('D9 public/index.html 含指向 /agents/ 的入口（1~3 个，防堆砌）',
+    allAgentsLinks >= 1 && allAgentsLinks <= 3, `count=${allAgentsLinks}`);
 
   // ---------- D10 无 5xx + 主世界冒烟 ----------
   const smoke = spawnSync(process.execPath, [path.join(__dirname, 'smoke_r185_world.js')], {

@@ -122,7 +122,10 @@ export function registerTools(mcp, client, deps = {}) {
       + '同时返回「自上次观察以来的事件」（有人跟你说话会出现在这里）。'
       + '游客半径上限 30m、限频 1 次/2 秒；Key 档上限 200m。半径越大返回越多，建议先用 30m，需要看远处再用大半径或分次观察。'
       + '输出默认约 2KB（够看清最近的人与物体，避免撑爆上下文）：物体太多时，远处的会降级成"仅名称"，'
-      + '近处的描述**始终完整**。想看更多就缩小 radius 分次观察，或把 maxBytes 调大。',
+      + '近处的描述**始终完整**。想看更多就缩小 radius 分次观察，或把 maxBytes 调大。'
+      + '距离口径：**你自己的 y 是服务端平面估算（0）、不是你被真人看到的高度**（服务端没有地形数据，'
+      + '客户端会把你贴到地面上）——所以别用"我和他的 y 差多少"判断楼层；看条目里的距离：'
+      + '`distance` 是水平距离（服务端投递聊天/互动也按水平距离判定），`distance3D` 含高度差、对你只是上界。',
     inputSchema: {
       radius: z.number().optional().describe('观察半径（米）。游客上限 30、Key 上限 200；不传则用当前档位上限'),
       include: z.string().optional().describe('按世界对象类型过滤，如 "uploaded_model,geometry_building"；不传返回全部类型'),
@@ -142,6 +145,8 @@ export function registerTools(mcp, client, deps = {}) {
     description:
       '用当前形象说一句话，**30 米内的真人玩家和 AI Agent 会看到你头顶的聊天气泡**。'
       + '限频：游客 1 条/5 秒（Key 档更宽松），上限 200 字。说话要克制、有礼貌，不要刷屏。'
+      + '回执里会告诉你 30m 内**实际有几个连接收到**这句话（recipients）——0 就是没有人听见，'
+      + '别以为"说过了就行"；先用 world_observe 看看附近有谁，再决定说不说。'
       + '注意：游客档收不到别人的回复推送，想知道对方有没有回话请用 world_chat_history 拉取。',
     inputSchema: {
       text: z.string().min(1).max(200).describe('说话内容（≤200 字）')
@@ -151,8 +156,18 @@ export function registerTools(mcp, client, deps = {}) {
     const res = await client.action('say', { text });
     const { receiptType, result } = interpretReceipt(res);
     const lines = [];
-    lines.push(`已说出：「${text}」（回执 ${receiptType}，服务端 delivered=${result.delivered !== false}）`);
-    lines.push('这句话已广播给 30m 内的玩家与 Agent；真人会看到你形象头顶的气泡。');
+    const recipients = Number(result.recipients);
+    if (Number.isFinite(recipients)) {
+      lines.push(`已说出：「${text}」（回执 ${receiptType}；30m 内收到这句话的连接：${recipients} 个）`);
+      lines.push(recipients > 0
+        ? '有真人/AI 收到了，他们那里会看到你形象头顶的气泡。'
+        : '⚠️ 此刻 30m 内**没有任何人听到**（recipients=0）。先用 world_observe 看附近有谁，'
+          + '再用 world_walk_to / world_follow 走近了再说，否则这句话只留在了日志里。');
+    } else {
+      // 旧服务端没有 recipients 字段：退回 delivered 布尔，不假装知道具体人数
+      lines.push(`已说出：「${text}」（回执 ${receiptType}，服务端 delivered=${result.delivered !== false}）`);
+      lines.push('这句话已广播给 30m 内的玩家与 Agent；真人会看到你形象头顶的气泡。');
+    }
     lines.push('');
     lines.push('下一步：想确认有没有人回应，用 world_chat_history 拉最近聊天；想走近某个人用 world_walk_to。');
     return ok(lines.join('\n'));

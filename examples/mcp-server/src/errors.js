@@ -54,13 +54,27 @@ const HTTP_HINTS = {
     '游客档（拉模式）不支持实时推流：不会收到真人聊天与位置推送，只能用 world_observe / world_chat_history 主动拉取。想实时收到消息请配置 AGENT_API_KEY 转正。'
 };
 
+/**
+ * B（2026-09-23）：服务端在 target_not_found / missing_targetId 的回执里带了
+ * `candidates`（附近实体 id/name/距离）。把它翻成人话给 AI，AI 才能自己换 id 重试 ——
+ * 实访实测：世界里有两个「米多」，只回一句"目标不在附近"时 AI 会拿错 id 反复重试。
+ */
+function candidateHint(payload) {
+  const list = payload && Array.isArray(payload.candidates) ? payload.candidates : null;
+  if (!list || !list.length) return null;
+  const who = list.map(c => `${c.name || '(无名)'} id=${c.id}${c.distance == null ? '' : ' ' + c.distance + 'm'}`).join('；');
+  return `附近实体（按距离）：${who} —— 从这些 id 里挑（entity id 每次进场/重连都会变，别用旧 id 或名字）。`;
+}
+
 /** 动作被拒（ACTION_REJECTED.payload）→ 人话 */
 const ACTION_HINTS = {
   rate_limited: (extra) => `${extra || ''}游客档对每个动作都有独立限频（比如 say 1 条 / 5 秒、移动类 1 次 / 2 秒）。等一两秒再试。`,
   scope_denied: () => HTTP_HINTS.SCOPE_DENIED,
   unknown_action: () => '这个动作服务端不认识。可用的动作见 world_discover 返回的能力清单。',
-  missing_targetId: () => 'follow / interact 需要目标实体的 id（不是名字；世界里同名是常态，name 仅供显示）。',
-  target_not_found: () => '目标不在附近或已经离开世界。先 world_observe 看一下当前在场的实体 id。',
+  missing_targetId: (_r, p) => candidateHint(p)
+    || 'follow / interact 需要目标实体的 id（不是名字；世界里同名是常态，name 仅供显示）。',
+  target_not_found: (_r, p) => candidateHint(p)
+    || '目标不在附近或已经离开世界。先 world_observe 看一下当前在场的实体 id。',
   too_far: () => '距离太远。先用 world_walk_to 走近，再执行该动作。',
   no_position: () => '服务端暂时取不到你的位置（刚连上时会出现）。稍等一秒重试。',
   empty_message: () => '消息内容为空。',
@@ -93,7 +107,8 @@ export function actionError(payload = {}) {
   const code = payload.code || 'REJECTED';
   const reason = payload.reason || '';
   const hintFn = ACTION_HINTS[code];
-  const hint = typeof hintFn === 'function' ? hintFn(reason) : null;
+  // 第二个参数：整个 payload（B 用它读 candidates）
+  const hint = typeof hintFn === 'function' ? hintFn(reason, payload) : null;
   return new WorldError(reason || `动作被拒绝（${code}）`, { code: String(code), hint });
 }
 

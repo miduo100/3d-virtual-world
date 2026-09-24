@@ -458,11 +458,20 @@ function broadcastToNearby(sourcePosition, range, message, excludeConnectionId =
   return count;
 }
 
+/**
+ * 距离口径：**水平距离（2D，忽略 y）**。2026-09-23 由 3D 改为 2D，理由：
+ *   Agent 的 y 是服务端的**平面估算**（`agentMovementService.GROUND_Y_DEFAULT = 0`，
+ *   真实渲染高度由客户端贴地决定），拿它参与 3D 必然算错 —— 本世界地面 y≈0、出生点却
+ *   是 9.6m 高的孤立台，AI 站在台面上（服务端 y=0）、真人在台面上，3D 距离凭空多出 9.6m，
+ *   say 的 30m 半径实际只剩 28.4m（实测）。
+ *   而 Agent 侧所有判定（observe 半径 / follow 停靠 / interact 5m / Agent 间 CHAT 转发）
+ *   本来就是 2D —— 这里统一为 2D，让"AI 的距离观"与"服务端判据"一致。
+ * 代价：人类聊天与语音也变水平距离 → 楼上楼下会互通（本世界地形平坦，实测影响≈0）。
+ */
 function calculateDistance(pos1, pos2) {
   const dx = pos1.x - pos2.x;
-  const dy = pos1.y - pos2.y;
   const dz = pos1.z - pos2.z;
-  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+  return Math.sqrt(dx * dx + dz * dz);
 }
 
 // ==================== 传送门WebSocket处理 ====================

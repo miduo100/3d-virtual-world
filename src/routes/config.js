@@ -6,6 +6,8 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../database/db');
 const { resolveSky } = require('./sky');
+// SEO 默认值同源（首页服务端注入器）：避免"后台看到一套、页面注入另一套"
+const { DEFAULT_SEO } = require('../services/seoHtmlInjector');
 const { authenticateAdminToken } = require('../middleware/adminAuth');
 // 鉴权口径（2026-09-22 v7 收口）：
 //   写接口需管理员 token：POST /character-editor、PUT /world-settings、PUT /weather、PUT /language、PUT /seo
@@ -507,12 +509,14 @@ router.get('/seo', async (req, res) => {
       [keys]
     );
     const data = {};
-    result.rows.forEach(r => { data[r.config_key] = r.config_value || ''; });
+    // 与首页服务端注入器口径一致：去掉首尾空白
+    // （否则会出现"后台标题末尾带空格、爬虫拿到的被 trim"的伪不一致）
+    result.rows.forEach(r => { data[r.config_key] = String(r.config_value || '').trim(); });
 
     res.json({
-      seo_title:       data.seo_title       || '创世虚拟世界CRM系统',
-      seo_description: data.seo_description || '',
-      seo_keywords:    data.seo_keywords    || ''
+      seo_title:       data.seo_title       || DEFAULT_SEO.title,
+      seo_description: data.seo_description || DEFAULT_SEO.description,
+      seo_keywords:    data.seo_keywords    || DEFAULT_SEO.keywords
     });
   } catch (error) {
     console.error('获取SEO配置失败:', error);

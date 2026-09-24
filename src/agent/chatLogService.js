@@ -50,18 +50,24 @@ async function insertLog({ senderType, senderId, senderName, message, position }
 // ==================== 读取 ====================
 
 /**
- * 读取最近 N 条聊天记录（GET /chat/history）
+ * 读取聊天记录（GET /chat/history）
  * 返回 [{ id, senderType, senderId, senderName, message, position, createdAt }]
+ *
+ * @param sinceId 增量游标（2026-09-24，用户决策）：只取 `id > sinceId` 的**新增**消息。
+ *   为什么必须有它：游客档收不到推送，只能轮询本接口；而原来只有"最近 N 条"，于是每来
+ *   1 条新消息，客户端都会把同一批 N 条重新拉一遍 —— 同一批消息被重复拉 N 次，游客 AI 一多
+ *   就把 DB 压力放大 N 倍，客户端还得自造去重（上一版 ai-live 为此写了两套去重表）。
+ *   有游标后每次只取新增（通常 0~1 条）：**既是"AI 能自动接话"的前提，也是减压开关**。
+ *   排序口径：缺省（无 since）保持历史行为 created_at DESC（最新在前）；since 分支按
+ *   id ASC（最旧的新消息在前），客户端顺序消费并推进游标 —— 不重、不漏、不乱序。
  */
-async function getRecentHistory(limit = 20) {
+async function getRecentHistory(limit = 20, sinceId = null) {
   const safeLimit = Math.min(200, Math.max(1, parseInt(limit, 10) || 20));
-  const result = await query(
-    `SELECT id, sender_type, sender_id, sender_name, message, position, created_at
-     FROM world_chat_log
-     ORDER BY created_at DESC
-     LIMIT $1`,
-    [safeLimit]
-  );
+  const since = Number(sinceId) > 0 ? Math.floor(Number(sinceId)) : null;
+  const cols = 'id, sender_type, sender_id, sender_name, message, position, created_at';
+  const result = since
+    ? await query(`SELECT ${cols} FROM world_chat_log WHERE id > $2 ORDER BY id ASC LIMIT $1`, [safeLimit, since])
+    : await query(`SELECT ${cols} FROM world_chat_log ORDER BY created_at DESC LIMIT $1`, [safeLimit]);
   return result.rows.map(r => ({
     id: r.id,
     senderType: r.sender_type,

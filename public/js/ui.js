@@ -28,13 +28,21 @@ class UI {
     }
   }
 
-  static addChatMessage(sender, message) {
+  /**
+   * 追加一行聊天记录。
+   * @param opts { kind?: 'agent'|'human'|'system' } C（2026-09-23）：AI 消息在聊天栏高亮 —— 头顶
+   *   气泡只活十几秒，人没看屏幕就错过了；聊天栏是可回溯的那一层，必须一眼能认出"这是 AI 说的"。
+   */
+  static addChatMessage(sender, message, opts) {
     const chatBox = document.getElementById('chatBox');
+    if (!chatBox) return;
     const messageEl = document.createElement('div');
-    messageEl.className = 'chat-message';
+    const kind = opts && opts.kind;
+    messageEl.className = 'chat-message' + (kind ? ` chat-${kind}` : '');
 
     const timestamp = new Date().toLocaleTimeString();
-    messageEl.textContent = `[${timestamp}] ${sender}: ${message}`;
+    // textContent（而不是 innerHTML）：sender/message 都来自 WS，不给 XSS 留面
+    messageEl.textContent = `${kind === 'agent' ? '🔔 ' : ''}[${timestamp}] ${sender}: ${message}`;
 
     chatBox.appendChild(messageEl);
     chatBox.scrollTop = chatBox.scrollHeight;

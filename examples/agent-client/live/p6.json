@@ -1,5 +1,5 @@
 {
-  "ts": "2026-09-22T01:42:31.346Z",
+  "ts": "2026-09-23T22:23:55.047Z",
   "pass": 23,
   "fail": 0,
   "total": 23,
@@ -272,7 +272,14 @@
       "followStopDistanceDefault": 2,
       "followMaxDurationMs": 600000,
       "maxAgents": 50,
-      "maxConnectionsPerAgent": 1
+      "maxConnectionsPerAgent": 1,
+      "radii": {
+        "sayNearbyRange": 30,
+        "observeMax": 200,
+        "observeMaxGuest": 30,
+        "subscribeMax": 200,
+        "oneWsPerAgent": true
+      }
     },
     "outbound": [
       "READY",

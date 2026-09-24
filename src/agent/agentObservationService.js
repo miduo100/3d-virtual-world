@@ -125,6 +125,13 @@ function dist2D(ax, az, bx, bz) {
   return Math.sqrt(dx * dx + dz * dz);
 }
 
+/** 空间距离（3D，含高度差）：2026-09-23 实测 AI 据"水平 4.44m"误判"我就在他旁边"，
+ *  实际对方在 9.6m 高的出生台上、根本看不到我。两个口径都如实给出，由 AI 判断隔了几层。 */
+function dist3D(ax, ay, az, bx, by, bz) {
+  const dx = ax - bx, dy = (ay || 0) - (by || 0), dz = az - bz;
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
 function round2(n) { return Math.round(n * 100) / 100; }
 
 /**
@@ -184,7 +191,8 @@ async function queryObjects(pos, radius, limit, include) {
       name: r.name,
       description: desc ? desc.slice(0, 300) : null,
       position: { x: r.position_x, y: r.position_y, z: r.position_z },
-      distance: round2(dist2D(pos.x, pos.z, r.position_x, r.position_z))
+      distance: round2(dist2D(pos.x, pos.z, r.position_x, r.position_z)),
+      distance3D: round2(dist3D(pos.x, pos.y, pos.z, r.position_x, r.position_y, r.position_z))
     };
   });
 }
@@ -217,7 +225,8 @@ async function queryAdSlots(pos, radius, limit) {
       type: 'ad_slot',
       name: r.name || '广告位',
       position: { x: px, y: py, z: pz },
-      distance: round2(dist2D(pos.x, pos.z, px, pz))
+      distance: round2(dist2D(pos.x, pos.z, px, pz)),
+      distance3D: round2(dist3D(pos.x, pos.y, pos.z, px, py, pz))
     };
   });
 }
@@ -252,7 +261,8 @@ async function queryPortals(pos, radius, limit) {
       // 🤖 AI 描述（后台传送门编辑弹窗的「描述」框；未填为 null）
       description: r.description ? String(r.description).slice(0, 300) : null,
       position: { x: px, y: py, z: pz },
-      distance: round2(dist2D(pos.x, pos.z, px, pz))
+      distance: round2(dist2D(pos.x, pos.z, px, pz)),
+      distance3D: round2(dist3D(pos.x, pos.y, pos.z, px, py, pz))
     };
   });
 }
@@ -295,7 +305,10 @@ function collectEntities(pos, radius, selfAgent) {
           y: Number(p.position.y) || 0,
           z: Number(p.position.z) || 0
         },
-        distance: round2(d),
+        distance: round2(d),   // 半径过滤口径（水平距离，同 /around；空间距离见 distance3D）
+        distance3D: round2(dist3D(pos.x, pos.y, pos.z, Number(p.position.x) || 0, Number(p.position.y) || 0, Number(p.position.z) || 0)),
+        // A(2026-09-23)：角色朝向（弧度）——真人上报 avatar.rotation.y，Agent 侧可能裹成 {yaw}，两形态都归一化，拿不到为 null
+        yaw: (p.rotation && Number.isFinite(Number(p.rotation.yaw))) ? Number(p.rotation.yaw) : (Number.isFinite(Number(p.rotation)) ? Number(p.rotation) : null),
         animMode: p.animMode || null,
         isSelf: id === String(selfAgent.id)
       };
@@ -314,6 +327,7 @@ function collectEntities(pos, radius, selfAgent) {
       name: selfAgent.name,
       position: { x: pos.x, y: pos.y, z: pos.z },
       distance: 0,
+      distance3D: 0,
       animMode: null,
       isSelf: true
     });
@@ -329,6 +343,9 @@ function shapeSelf(agent, pos) {
     id: agent.id,
     name: agent.name,
     position: { x: pos.x, y: pos.y, z: pos.z },
+    // 2026-09-23：**你的 y 不是渲染高度**。服务端没有地形数据，Agent 走平面
+    // （agentMovementService.GROUND_Y_DEFAULT = 0），真人看到的你在哪一层由客户端贴地决定。
+    positionIsServerPlane: true,
     // 有在线连接时用实时朝向（presenceBridge 写入的 rotation 是数字 yaw），否则 0
     rotation: { yaw: Number.isFinite(pos.yaw) ? pos.yaw : 0 }
   };
@@ -336,25 +353,86 @@ function shapeSelf(agent, pos) {
 
 // ==================== world 信息（60s 缓存）====================
 
+/**
+ * 世界身份。**2026-09-22 AI 访客体检 [6-2] 修复**：原实现查的键名是
+ * `config_key IN ('147','20','21','22','148')`，而真实库（本地与线上都一样）用的是
+ * **命名键** `world_id` / `world_name` / `world_url` —— 该查询恒返回 0 行，导致
+ * `observe.world` 从写下那天起就恒为 `{id:null,name:null}`：
+ *   - MCP `world_observe` 首行显示「世界「未知」（id=?）」，与同一会话的
+ *     `world_discover`（「世界「创世虚拟世界」」）自相矛盾；
+ *   - AI 失去唯一的结构化“我在哪个世界”来源（跨世界/联邦场景尤其致命）。
+ * 因为从未有验收断言检查过 world 字段，所以一直没暴露。
+ *
+ * 现口径（**与 routes/agent/meta.js 的 well-known、routes/agent/session.js 的 /me 同源**，
+ * 避免同一个世界在三个端点上报出两个不同的 id）：
+ *   ① federationSystem 内存态（**权威**，well-known 的 `world.id` 与 /me 的 `worldId` 都取自它）
+ *   ② system_config 命名键 `world_id`/`world_name`/`world_url`（真实库的键名）
+ *   ③ system_config 历史数字键 `147`/`20`/`21`（老库兼容）
+ * 读不到就如实返回 null，绝不编造。
+ *
+ * ⚠️ 优先级不能反：本地库实测 `system_config.world_id` 是 init 脚本里的**占位 UUID**
+ * （`550e8400-…`），而 federationSystem 持有真实 id（`world_…`）。若以 DB 为先，observe 会与
+ * well-known / /me 报出两个不同 id（验收脚本 W6b/W7 就是这么抓到的）。
+ */
 let worldInfoCache = null;
+let fedWarned = false;              // federationSystem 读取失败只告警一次
+
+// 命名键（现行）→ 历史数字键（老库）→ 返回字段
+const WORLD_KEY_ALIASES = {
+  'world_id': 'id', '147': 'id',
+  'world_name': 'name', '20': 'name',
+  'world_url': 'url', '21': 'url'
+};
 
 async function getWorldInfo() {
-  if (worldInfoCache && Date.now() - worldInfoCache.at < 60000) {
+  if (worldInfoCache && Date.now() - worldInfoCache.at < worldInfoCache.ttl) {
     return worldInfoCache.value;
   }
-  let value = { id: null, name: null };
+
+  // ① federationSystem（权威；异步 init，启动初期可能还没就绪）
+  let fed = null;
+  try {
+    // 注意路径层级：本文件在 src/agent/，故是 `../routes/federation`（`../database/db` 同款）。
+    // 曾误写成 `../../routes/federation`（解析到工作区根目录）→ MODULE_NOT_FOUND 被下面 catch
+    // 静默吞掉，表现为"federation 分支永不生效"且毫无日志。失败只警告一次，不刷屏。
+    const federation = require('../routes/federation').getFederationSystem();
+    if (federation) {
+      fed = {
+        id: federation.worldId ? String(federation.worldId).trim() : null,
+        name: federation.worldName ? String(federation.worldName).trim() : null,
+        url: federation.worldUrl ? String(federation.worldUrl).trim() : null
+      };
+    }
+  } catch (e) {
+    // 首次失败告警一次（绝不静默：路径写错与"尚未初始化"必须能区分开）
+    if (!fedWarned) { fedWarned = true; console.warn('[Agent observe] federationSystem 不可用，world 将回落 system_config：', e.message); }
+  }
+
+  // ② / ③ system_config（命名键优先，历史数字键兜底）
+  let db = { id: null, name: null, url: null };
   try {
     const result = await query(
       `SELECT config_key, config_value FROM system_config
-       WHERE config_key IN ('147','20','21','22','148')`
+       WHERE config_key IN ('world_id','world_name','world_url','147','20','21')`
     );
     for (const row of result.rows) {
-      if (row.config_key === '147') value.id = row.config_value;
-      if (row.config_key === '20') value.name = row.config_value;
-      if (row.config_key === '21') value.url = row.config_value;
+      const field = WORLD_KEY_ALIASES[row.config_key];
+      if (field && row.config_value != null && row.config_value !== '' && !db[field]) {
+        db[field] = String(row.config_value).trim() || null;
+      }
     }
-  } catch (e) { /* non-fatal */ }
-  worldInfoCache = { value, at: Date.now() };
+  } catch (e) { /* non-fatal：DB 不可用则只用 federationSystem */ }
+
+  const value = {
+    id: (fed && fed.id) || db.id,
+    name: (fed && fed.name) || db.name,
+    url: (fed && fed.url) || db.url
+  };
+
+  // federationSystem 未就绪时用短 TTL（5s），就绪后用 60s：
+  // 否则启动初期算出的 DB 兜底值会被钉住一分钟（实测会与 well-known 短暂不一致）。
+  const fedReady = !!(fed && (fed.id || fed.name || fed.url));
+  worldInfoCache = { value, at: Date.now(), ttl: fedReady ? 60000 : 5000 };
   return value;
 }
 
@@ -370,7 +448,8 @@ function nextSeq() { return ++sequenceCounter; }
  * @param agent       Agent 主体（req.agent）
  * @param session     Agent 会话行（req.agentSession，含 current_position）
  * @param options     { radius, limit, include, x, y, z }
- * @returns { world, self, entities, objects, portals, radius, limit, timestamp, sequence }
+ * @returns { world, self, entities, objects, portals, distanceSemantics, radius, limit, timestamp, sequence }
+ *   entities/objects/portals 每项都带 distance（水平 2D）与 distance3D（空间 3D）
  */
 async function observe(agent, session, options) {
   const radius = clampRadius(options.radius);
@@ -395,6 +474,9 @@ async function observe(agent, session, options) {
     entities,
     objects: allObjects,
     portals,
+    // 距离语义（2026-09-23）：distance=水平(2D，忽略 y)；distance3D=空间(3D)。服务端移动恒为
+    // 平面（y=0，无地形数据），真人/AI 的渲染高度由客户端贴地决定 → 小 distance ≠ 同一层。
+    distanceSemantics: 'distance=horizontal(2D,ignores y); distance3D=spatial(3D); your own y is a server-side plane estimate(=0), NOT your rendered height (clients snap avatars to terrain), so distance3D involving yourself is an upper bound; all server-side delivery checks (chat/voice/interact) use horizontal distance',
     radius,
     limit,
     timestamp: new Date().toISOString(),

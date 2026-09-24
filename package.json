@@ -10,7 +10,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "init-admin": "node src/init_admin_users.js",
-    "init-ai-scenes": "node src/init_ai_scenes_db.js"
+    "init-ai-scenes": "node src/init_ai_scenes_db.js",
+    "sync:samples": "node scripts/syncAgentSamples.js",
+    "check:samples": "node scripts/syncAgentSamples.js --check"
   },
   "dependencies": {
     "@types/three": "~0.185.4",

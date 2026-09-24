@@ -91,6 +91,14 @@ for (const facadeFile of ['robots.txt', 'sitemap.xml', 'llms.txt']) {
   });
 }
 
+// 首页 SEO「服务端注入」（必须注册在 express.static 之前）：
+// 后台「🔍 SEO TDK 配置」（system_config: seo_title / seo_description / seo_keywords）是唯一权威数据源，
+// 浏览器与 AI 爬虫都拿到注入后的同一份 HTML。此前靠浏览器端 JS 覆盖，
+// 而 AI 爬虫/搜索引擎不执行 JS → 后台 SEO 对它们完全无效（见 src/services/seoHtmlInjector.js 头部说明）。
+// 注入失败会自动回退静态文件，首页永不 500。
+const seoHtmlInjector = require('./services/seoHtmlInjector');
+app.get(['/', '/index.html'], seoHtmlInjector.handler);
+
 app.use(express.static(path.join(__dirname, '../public'), staticCacheOptions));
 app.use('/i18n', express.static(path.join(__dirname, '../public/i18n'), staticCacheOptions));
 app.use('/node_modules', express.static(path.join(__dirname, '../node_modules'), staticCacheOptions));
@@ -571,6 +579,14 @@ async function start() {
       require('./services/chatArchiveService').startArchiveLoop();
     } catch (e) {
       console.warn('[Server] 聊天归档循环启动失败（不影响主服务）:', e.message);
+    }
+
+    // 2026-09-23：AI 接入数据维护循环（agent_sessions / agent_transient_sessions / token_usage）
+    // 背景：三个清理函数此前**全项目零调用**，表只增不减（实测 478 / 796 行）。
+    try {
+      require('./agent/agentMaintenanceService').startMaintenanceLoop();
+    } catch (e) {
+      console.warn('[Server] AI 维护循环启动失败（不影响主服务）:', e.message);
     }
   } catch (error) {
     console.error('Failed to start server:', error);

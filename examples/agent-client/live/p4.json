@@ -1,6 +1,6 @@
 {
-  "ts": "2026-09-20T01:33:13.320Z",
-  "message": "p4-say-67990062",
+  "ts": "2026-09-23T22:23:32.800Z",
+  "message": "p4-say-02208321",
   "pass": 26,
   "fail": 0,
   "total": 26,
@@ -29,14 +29,14 @@
       "ok": true,
       "detail": {
         "self": {
-          "x": 201.9999999999995,
-          "y": 0,
-          "z": 3
+          "x": -24.03,
+          "y": 9.59,
+          "z": 13.1
         },
         "spawn": {
-          "x": 201.9999999999995,
-          "y": 0,
-          "z": 3
+          "x": -24.03,
+          "y": 9.59,
+          "z": 13.1
         }
       }
     },
@@ -51,7 +51,8 @@
       "detail": {
         "requestId": "p4-say-1",
         "result": {
-          "delivered": true
+          "delivered": true,
+          "recipients": 1
         }
       }
     },
@@ -67,9 +68,9 @@
       "name": "S7 CHAT 携带 position 字段（Agent 距离过滤用，P4 新增）",
       "ok": true,
       "detail": {
-        "x": 201.9999999999995,
-        "y": 0,
-        "z": 3
+        "x": -24.03,
+        "y": 9.59,
+        "z": 13.1
       }
     },
     {
@@ -89,17 +90,17 @@
       "name": "S10 history 行含 senderType/senderName/message/createdAt 字段",
       "ok": true,
       "detail": {
-        "id": "256",
+        "id": "623",
         "senderType": "agent",
         "senderId": "02303f29-02be-495d-b99a-d59d37dcbcc9",
         "senderName": "tier_eco_87393",
-        "message": "p4-say-67990062",
+        "message": "p4-say-02208321",
         "position": {
-          "x": 201.9999999999995,
-          "y": 0,
-          "z": 3
+          "x": -24.03,
+          "y": 9.59,
+          "z": 13.1
         },
-        "createdAt": "2026-09-20T01:33:12.674Z"
+        "createdAt": "2026-09-23T22:23:32.172Z"
       }
     },
     {
@@ -125,7 +126,7 @@
       "ok": true,
       "detail": {
         "status": 200,
-        "count": 20
+        "count": 31
       }
     },
     {
@@ -133,8 +134,8 @@
       "ok": true,
       "detail": {
         "status": 200,
-        "id": "d9fdc9fe-6984-4483-95d5-9047637c7500",
-        "keyPrefix": "agk_live_dbe721a"
+        "id": "80b44c84-989d-42b8-b1e6-ef1c293c922b",
+        "keyPrefix": "agk_live_0f70db5"
       }
     },
     {
@@ -171,7 +172,7 @@
       "ok": true,
       "detail": {
         "status": 200,
-        "prefix": "agk_live_9c8dbb8"
+        "prefix": "agk_live_793fd57"
       }
     },
     {
@@ -190,18 +191,19 @@
       "name": "O1 observe objects[].description 字段存在（AI 物体描述列）",
       "ok": true,
       "detail": {
-        "objects": 7,
+        "objects": 100,
         "first": {
-          "id": "49",
-          "type": "geometry_nature",
-          "name": "village_场景_1770866496982_tree_10",
-          "description": null,
+          "id": "464",
+          "type": "geometry_building",
+          "name": "长方体",
+          "description": "一个长方体积木块（程序生成的几何体，静态装饰，不可交互）",
           "position": {
-            "x": 119.73808817981211,
-            "y": 0,
-            "z": 8.589329325070384
+            "x": -19.611295136901624,
+            "y": 10.549882525924131,
+            "z": 6.948269734121807
           },
-          "distance": 82.45
+          "distance": 7.57,
+          "distance3D": 7.63
         }
       }
     },
@@ -222,7 +224,7 @@
     {
       "name": "O4 observe 不泄露私有字段（无 email/userId/role/scopes）",
       "ok": true,
-      "detail": "7 objects 检查"
+      "detail": "100 objects 检查"
     },
     {
       "name": "P9 收尾恢复运行前配置（agentEnabled=true）",

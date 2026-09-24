@@ -193,7 +193,13 @@ wss.on('connection', async (ws, request, authResult) => {
 
   const avatar = agentManager.shapeAvatar(agent);
   // 缺陷 J：新会话没有 current_position 时继承该 Agent 上次落库位置（防重连瞬移回原点）
-  const spawn = (await agentSessionManager.getLatestPosition(agent.id, session.jti)) || resolveSpawn(session);
+  // #3（AI 访客体检 [5-5]）：两层都没有时，**不要**再兜底 (0,0,0) —— 真人出生点在
+  //   system_config('world_spawn_point')，而 (0,0,0) 与它相距 31.22m，恰好超出 30m 的
+  //   observe 半径与说话气泡半径 → AI 进来第一眼"附近 0 个人"、说话没真人能听见。
+  //   改为取世界出生点 + ≤3m 随机偏移（多 AI 同时进世界不会完全重叠）。
+  const spawn = (await agentSessionManager.getLatestPosition(agent.id, session.jti))
+    || (await agentSessionManager.getInitialSpawn())
+    || resolveSpawn(session);
 
   // 缺陷 v2-1 修复②：await 期间连接可能已经关闭 —— 此刻 state 尚未建立，handleClose 无处可清，
   // 这里直接归还刚拿到的每 IP 名额并退出（同时避免为一条已死的连接广播 PLAYER_JOINED）。
@@ -237,6 +243,7 @@ wss.on('connection', async (ws, request, authResult) => {
     type: 'READY',
     payload: {
       agentId: agent.id, agentName: agent.name, avatar, spawn,
+      serverTime: Date.now(),          // 2026-09-24：进场即给服务器时钟，AI 可自校本机偏移（实测可差 15s）
       pushTier: state.pushTier,
       // P8：tier 决定能做什么（推流/半径/限频），scope 决定能做什么动作（两者行为准则一致）
       tier: state.tier,
@@ -270,7 +277,15 @@ wss.on('connection', async (ws, request, authResult) => {
 function handleMessage(connectionId, ws, data) {
   let msg;
   try { msg = JSON.parse(data.toString()); } catch (e) {
-    safeSendRaw(ws, { type: 'ERROR', payload: { code: 'BAD_JSON' } });
+    // #8（AI 访客体检 [5-4]）：原来只回 code 不回 message，AI 无法知道"是整体格式坏了还是
+    // 某个字段坏了"，排错成本高于同类错误（missing_action 是有文案的）。补可执行提示。
+    safeSendRaw(ws, {
+      type: 'ERROR',
+      payload: {
+        code: 'BAD_JSON',
+        message: '消息不是合法 JSON，请发送形如 {"type":"ACTION","payload":{"action":"say","text":"…","requestId":1}} 的文本'
+      }
+    });
     return;
   }
   const state = activeAgents.get(connectionId);
@@ -357,7 +372,9 @@ async function handleAction(connectionId, state, payload) {
   try {
     const result = await agentActionService.dispatch(ctx, payload);
     if (result.rejected) {
-      safeSendRaw(state.ws, { type: 'ACTION_REJECTED', payload: { requestId: result.requestId, reason: result.reason, code: result.code } });
+      // B（2026-09-23）：targetId / candidates 必须透传 —— 否则 AI 只看到"目标不在附近"，
+      // 不知道附近有谁，只能拿同一个错 id 反复重试（实测世界里有两个「米多」）。
+      safeSendRaw(state.ws, { type: 'ACTION_REJECTED', payload: { requestId: result.requestId, reason: result.reason, code: result.code, targetId: result.targetId, candidates: result.candidates } });
       return;
     }
     if (result.completed) {
@@ -445,9 +462,7 @@ function startPushLoop() {
       for (const p of visible) {
         if (snap.has(p.characterId)) continue;
         if (wantPresence) {
-          safeSend(state, { type: 'ENTITY_ADDED', payload: {
-            id: p.characterId, type: entityKind(p), name: p.characterName, position: p.position, animMode: p.animMode || null
-          } }, 'entity');
+          safeSend(state, { type: 'ENTITY_ADDED', payload: moveEntry(p) }, 'entity');   // 与位置流同一形状（含 yIsServerPlane/serverTime）
         }
         snap.set(p.characterId, { pos: p.position, type: entityKind(p), name: p.characterName });
       }
@@ -488,7 +503,14 @@ function startPushLoop() {
 function entityKind(p) { return p.entityType === 'agent' ? 'agent' : 'human'; }
 
 function moveEntry(p) {
-  return { id: p.characterId, type: entityKind(p), name: p.characterName, position: p.position, animMode: p.animMode || null };
+  const type = entityKind(p);
+  return {
+    id: p.characterId, type, name: p.characterName, position: p.position, animMode: p.animMode || null,
+    // 2026-09-24：位置语义。type=agent 时 y 是**服务端平面估计(=0)**（真人看到的你在哪一层由客户端贴地决定）；
+    // type=human 时 y 是对方客户端上报的真实高度。AI 判断"是否同一层"看这个标志，别硬算 y 差。
+    yIsServerPlane: type === 'agent',
+    serverTime: Date.now()
+  };
 }
 
 /** Agent 自身实时位置（半径判定基准）；首帧尚未 publish 时回落 READY.spawn */
@@ -588,14 +610,37 @@ function installChatPatch() {
 
   const origNearby = wsServer.broadcastToNearby;
   wsServer.broadcastToNearby = function (sourcePos, range, message, excludeConnId) {
-    origNearby.call(wsServer, sourcePos, range, message, excludeConnId);
-    forwardChatToAgents(message, sourcePos);
+    // 2026-09-23（say 回执修复）：**必须透传计数**。patch 装上后，调用方
+    // （agentActionService.handleSay）拿到的就是本函数的返回值。原实现在这里把
+    // origNearby 的 count 吞掉了 → recipients 恒为 undefined → say 回执永远
+    // delivered:false，比修复前"写死 true"更糟（AI 会以为没人听见）。
+    const humans = origNearby.call(wsServer, sourcePos, range, message, excludeConnId);
+    const agents = forwardChatToAgents(message, sourcePos);
+    return (Number(humans) || 0) + (Number(agents) || 0);
   };
 }
 
+/** 推送内的单调序号（2026-09-24）：给 AI 一个稳定的"这条我处理过没有"的钥匙 */
+let chatSeq = 0;
+
+/** @returns {number} 实际投递给多少个**别的** Agent（不含发送者自己） */
 function forwardChatToAgents(message, sourcePos) {
-  if (!message || message.type !== 'CHAT' || !message.payload) return;
+  if (!message || message.type !== 'CHAT' || !message.payload) return 0;
+  let delivered = 0;
   const chat = message.payload;
+  // 推给 Agent 的副本补齐四个字段（2026-09-24，AI 实访踩坑后加）：
+  //   seq        推送内单调序号 → 同一条不必重复处理（示例客户端过去只能靠"文本 + 10s 窗口"去重）
+  //   senderId / senderName   与 chat/history 行**同名**（两条通道字段统一，AI 少写一套适配）
+  //   serverTime 服务器当前时间 → 客户端可自校时钟偏移（实测机器间可差 15s，别拿本地时间直接对齐）
+  if (chat.seq == null) chat.seq = ++chatSeq;
+  const payload = {
+    ...chat,
+    senderId: chat.characterId != null ? String(chat.characterId) : null,
+    senderName: chat.sender || null,
+    serverTime: Date.now()
+  };
+  // 收件人账目剔除发送者：Agent 说给自己听不算"有人听见"（投递行为刻意不动）。
+  const selfId = chat.characterId != null ? String(chat.characterId) : null;
   // 若 message 已带 position（P4 say 由 agentActionService 写入），用它；否则用调用方传入的 sourcePos
   const refPos = chat.position || sourcePos;
   for (const [, state] of activeAgents.entries()) {
@@ -604,8 +649,12 @@ function forwardChatToAgents(message, sourcePos) {
     if (!myPos || !myPos.position) continue;
     // 30m 附近口径（与人类侧一致）
     const dist = calcDist(myPos.position, refPos || myPos.position);
-    if (dist <= CHAT_NEARBY_RANGE) safeSend(state, { type: 'CHAT', payload: chat }, 'chat');
+    if (dist <= CHAT_NEARBY_RANGE) {
+      safeSend(state, { type: 'CHAT', payload }, 'chat');
+      if (!selfId || String(state.agent.id) !== selfId) delivered += 1;
+    }
   }
+  return delivered;
 }
 
 function calcDist(a, b) {

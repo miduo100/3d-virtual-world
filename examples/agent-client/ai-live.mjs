@@ -68,6 +68,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const CHAT_DEDUPE_WINDOW_MS = 10000;
 const chatSeen = new Map();     // `${senderId}|${message}` -> 最近一次时间戳（跨通道）
 const historySeen = new Set();  // history 行的持久去重键
+const seqSeen = new Set();      // 推送 CHAT 的 `seq`（2026-09-24 起服务端提供）→ 精确去重，替代文本窗口
 
 function isDuplicateChat(senderId, message) {
   const key = `${senderId || '?'}|${message}`;
@@ -186,9 +187,17 @@ function openWs(url) {
       writeState({ connected: true, tier: m.payload && m.payload.tier, pushTier: m.payload && m.payload.pushTier, spawn: m.payload && m.payload.spawn });
       log('READY', m.payload && m.payload.agentName, 'tier=' + (m.payload && m.payload.tier), 'push=' + (m.payload && m.payload.pushTier));
     } else if (m.type === 'CHAT') {
-      // G：按 id 判重（同一条消息也会被下面的 history 轮询拉到）
+      // G：判重。2026-09-24 起推送带 `seq`（推送内单调序号）+ `senderId/senderName/serverTime`：
+      // 有 seq 就精确去重（并注意服务端会把**你自己说的**也推回来，按字符名/ID 自行过滤）；
+      // 老服务端没有 seq 时才回落到"文本 + 10s 窗口"。同理可读 `serverTime` 校准本机时钟偏移。
       const p = m.payload || {};
-      if (!isDuplicateChat(p.characterId || p.senderId, p.message)) {
+      if (p.seq != null) {
+        if (!seqSeen.has(p.seq)) {
+          seqSeen.add(p.seq);
+          if (seqSeen.size > 1000) seqSeen.clear();
+          log('CHAT <-', p.senderName || p.sender, ':', p.message);
+        }
+      } else if (!isDuplicateChat(p.characterId || p.senderId, p.message)) {
         log('CHAT <-', p.sender, ':', p.message);
       }
     } else if (m.type === 'ERROR') {
@@ -293,9 +302,19 @@ function openWs(url) {
       const r = await fetch(HOST + '/api/agent/v1/observe?radius=100', { headers: { Authorization: 'Bearer ' + token } });
       const j = await r.json().catch(() => null);
       if (j && j.success) {
-        const ents = (j.entities || []).map(e => ({ id: e.id, name: e.name, type: e.type, d: e.distance, p: e.position }));
-        emit({ dir: 'observe', self: j.self, entities: ents });
-        writeState({ self: j.self, entities: ents });
+        // 2026-09-23：把 distance3D 与"你的 y 是服务端平面估算"一起落盘 —— 这两个字段是
+        // 判断"我和他隔了几层"的唯一依据，原实现只留 distance 会让 AI 客户端看不见高差。
+        const ents = (j.entities || []).map(e => ({
+          id: e.id, name: e.name, type: e.type,
+          d: e.distance, d3: e.distance3D,
+          y: e.position && e.position.y, p: e.position
+        }));
+        emit({ dir: 'observe', self: j.self, entities: ents, distanceSemantics: j.distanceSemantics });
+        writeState({
+          self: j.self, entities: ents,
+          selfIsServerPlane: j.self && j.self.positionIsServerPlane === true,
+          distanceSemantics: j.distanceSemantics
+        });
         if (lastObserveErr.status) { log('observe recovered (HTTP 200)'); lastObserveErr.status = 0; }
       } else if (!r.ok) {
         emit({ dir: 'observe', event: 'http_error', status: r.status, code: j && j.code });
@@ -344,7 +363,9 @@ function openWs(url) {
     for (const f of files) {
       const src = path.join(INBOX, f);
       let cmd = null;
-      try { cmd = JSON.parse(fs.readFileSync(src, 'utf8')); } catch (e) {
+      // 2026-09-24：先剥掉 BOM —— Windows 工具（PowerShell Set-Content / 记事本）写出的 JSON 常带
+      // U+FEFF，JSON.parse 会抛错 → 被静默判为坏文件丢进 done/*.bad，调用方（AI）看不到任何报错。
+      try { cmd = JSON.parse(fs.readFileSync(src, 'utf8').replace(/^\uFEFF/, '')); } catch (e) {
         try { fs.renameSync(src, path.join(DONE, f + '.bad')); } catch (e2) {}
         continue;
       }

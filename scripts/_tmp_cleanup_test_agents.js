@@ -30,10 +30,16 @@ const PATTERNS = [
   /^p1_test_agent$/, /^p3_test_agent$/, /^p4_test_agent$/, /^p5_test_agent$/, /^p6_test_agent$/,
   /^p4_pw_agent_/, /^p4_probe_/, /^p6_pw_/, /^pw_agent_/, /^accept_/,
   /^tier_eco(_|$)/, /^tier_std(_|$)/, /^tier_rt(_|$)/,
-  /^fix[a-z]_agent/, /^v2_/, /^live_agent_/, /^stop_/, /^cap_/, /^renew_/, /^test_agent/
+  /^fix[a-z]_agent/, /^v2_/, /^live_agent_/, /^stop_/, /^cap_/, /^renew_/, /^test_agent/,
+  // 2026-09-23 AI 访客体检补充：以下前缀此前**未被识别**，会永久留在库里
+  // （实测 p8_accept_agent_* 就有 12 个，占 max_agents 名额、且其 API Key 仍可换票进场）
+  /^p8_accept_agent/, /^d1_probe/, /^cmd_test_agent/, /^capacity_/, /^longsession_/, /^workbuddy_/
 ];
 
-const isTestName = (n) => PATTERNS.some(re => re.test(String(n || '')));
+// 名字无规律但明确是测试（体检时人工确认过）；用显式名单而不是放宽正则，避免误伤真实 Agent
+const EXPLICIT_NAMES = new Set(['dsasdfsadfsd']);
+
+const isTestName = (n) => PATTERNS.some(re => re.test(String(n || ''))) || EXPLICIT_NAMES.has(String(n || ''));
 
 async function httpJson(p, { method = 'GET', token, body } = {}) {
   const h = {};

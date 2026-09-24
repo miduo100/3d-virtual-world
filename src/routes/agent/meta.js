@@ -1,7 +1,6 @@
 /**
  * AI Agent 接入 - 元数据路由（P6）
  * 挂载于 /api/agent/v1（公开读，无鉴权）
- *
  * 端点：
  *   GET /capabilities           机器可读能力清单（scopes/actions/ws 消息/push 档位）
  *   GET /openapi.json           OpenAPI 3.0 schema（仅含实际已实现端点，管理员端点不写）
@@ -84,7 +83,9 @@ function buildSharedSections(config) {
       followStopDistanceDefault: 2,
       followMaxDurationMs: 600000,
       maxAgents: config.maxAgents,
-      maxConnectionsPerAgent: config.maxConnectionsPerAgent
+      maxConnectionsPerAgent: config.maxConnectionsPerAgent,
+      // 半径口径一次说清（2026-09-24，AI 实访踩坑）：说话投递 30m / 观察 30~200m / 订阅 ≤200m（互动 5m 见上）
+      radii: { sayNearbyRange: 30, observeMax: KEY_OBSERVE_MAX_RADIUS, observeMaxGuest: GUEST_OBSERVE_MAX_RADIUS, subscribeMax: 200, oneWsPerAgent: true }
     },
     entityIdentity: ENTITY_IDENTITY
   };
@@ -371,7 +372,7 @@ function buildOpenApiSpec(baseUrl, wsUrl, agentEnabled) {
         get: {
           tags: ['observe'],
           summary: 'Spatial radar: nearby entities / objects / portals',
-          description: 'self.position is the **live** position of the calling Agent (falls back to the session position when it has no live WS connection); every distance is measured from it. Rate-limited: `agent_observe_rate_key` (default 1/s) for Key tier, 1 per 2s for guest tier. Radius hard cap: 200m for Key, 30m for guest. Entity identity: `entities[].id` (=== characterId) is the ONLY identifier, `name` is display-only (duplicates by name are normal); `chat.characterId` / `chat/history.senderId` share the same namespace — see `x-entity-identity`.',
+          description: 'self.position is the **live** position of the calling Agent (falls back to the session position when it has no live WS connection); every distance is measured from it. Rate-limited: `agent_observe_rate_key` (default 1/s) for Key tier, 1 per 2s for guest tier (**sliding window**: polling exactly every 2s hits 429 on jitter — use ≥2.5s spacing). Radius hard cap: 200m for Key, 30m for guest. Entity identity: `entities[].id` (=== characterId) is the ONLY identifier, `name` is display-only (duplicates by name are normal); `chat.characterId` / `chat/history.senderId` share the same namespace — see `x-entity-identity`. Distance semantics (2026-09-23): `distance` is **horizontal (2D, ignores y)** and is what the radius filter uses, `distance3D` is the spatial distance (includes height difference). The server has **no terrain data** — agent movement is planar (y=0) while every client renders avatars snapped to ground height, so a small `distance` does NOT mean the same floor (real case: 4.44m horizontal but 9.6m apart vertically, unable to see each other). `self.positionIsServerPlane: true` means **your own y is a server-side plane estimate (0), NOT your rendered height** — so `distance3D` involving yourself is an upper bound; all server-side delivery checks (chat 30m / voice / interact 5m) use **horizontal** distance, matching the other distances you see here. Facing (2026-09-23): `entities[].yaw` is that entity avatar **yaw in radians** (which way it is facing; `null` when unknown) and your own facing is `self.rotation.yaw` — use it to tell whether someone is facing you or which way they walked off. It is the avatar yaw the client reports each frame, not a separate camera value.',
           security: [{ AgentJwt: [] }],
           parameters: [
             { name: 'radius', in: 'query', schema: { type: 'number', maximum: 200 }, description: 'Search radius in meters (≤200)' },
@@ -391,9 +392,9 @@ function buildOpenApiSpec(baseUrl, wsUrl, agentEnabled) {
       '/chat/history': {
         get: {
           tags: ['chat'],
-          summary: 'Recent chat messages (for AI reconnect context)',
+          summary: 'Chat log: recent N, or **incremental** when `since` is given (the cursor auto-reply loops need)',
           security: [{ AgentJwt: [] }],
-          parameters: [{ name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } }],
+          parameters: [{ name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } }, { name: 'since', in: 'query', schema: { type: 'integer' }, description: 'Cursor: return only messages with `id > since` (oldest-first). Response adds `nextSince` (max id seen) and `order`. Store nextSince and pass it back on the next poll. **Pull-tier clients (guests) must use it**: polling without a cursor re-reads the same N rows every tick, so one new message is fetched N times — multiplying DB load by N with no benefit.' }],
           responses: { 200: { description: 'OK' } }
         }
       },
@@ -401,7 +402,7 @@ function buildOpenApiSpec(baseUrl, wsUrl, agentEnabled) {
         post: {
           tags: ['action'],
           summary: 'HTTP fallback entry (limited; primary is WS ACTION)',
-          description: 'Returns 501 WS_REQUIRED for all actions. Use WebSocket /ws/agent ACTION message instead.',
+          description: 'Returns 501 WS_REQUIRED for all actions. Use WebSocket /ws/agent ACTION message instead. WS receipt contract (2026-09-23): `say` resolves to ACTION_COMPLETED with `{ delivered: boolean, recipients: number }` where `recipients` = how many connections actually received the words within 30m (human WS + other chat-subscribed Agents, excluding the sender). `recipients: 0` means nobody heard you — do NOT assume your words were received; move closer with walk_to/follow and say again.',
           security: [{ AgentJwt: [] }],
           requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { action: { type: 'string', enum: ['say', 'rotate', 'move', 'walk_to', 'follow', 'jump', 'interact', 'stop'] } } } } } },
           responses: { 501: { description: 'WS_REQUIRED — use /ws/agent ACTION instead', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } } }
