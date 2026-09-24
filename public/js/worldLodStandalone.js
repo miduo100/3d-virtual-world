@@ -502,7 +502,16 @@
               var band2 = (A2 && A2.resolveBand) ? A2.resolveBand(d2) : 'high';
               if (band2 !== 'high') {
                 if (o.parent) world.scene.remove(o);
-                o.userData.__lodCandidatePending = true;   // cullUnmerged 跳过 + syncFarBoxes 画方块
+                // 修复（2026-09-24）：本实例【已被合批组接管】时只摘场景、绝不挂标记。
+                // 本回调是在模型"上屏"时才触发的，而合批（≤2s 扫描）可能早已完成并把该 id
+                // 记入 sourceIds → 标记挂上后组不会再重建（idsEqual 判"无变化"）→ 没人清理
+                // → syncFarBoxes 第 1 段每帧为这个【正在被实例渲染】的模型重复画深蓝方块
+                // （用户实测红军区 364 个方块盖在士兵身上、永不回收）。
+                if (M2.isMergedInstance && M2.isMergedInstance(url2, wid)) {
+                  delete o.userData.__lodCandidatePending;
+                } else {
+                  o.userData.__lodCandidatePending = true; // cullUnmerged 跳过 + syncFarBoxes 画方块
+                }
               }
             }
           }

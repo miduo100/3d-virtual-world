@@ -521,6 +521,22 @@
         }
       }
 
+      // ===== 修复（2026-09-24）："隐藏待渲染"标记泄漏自愈 =====
+      // 现象：红军集群 364 个深蓝占位方块盖在【已渲染】的士兵身上且永不回收（用户实测）。
+      // 成因：__lodCandidatePending / __lodPending 唯一的清理点是 mergeGroup（组创建/重建时），
+      //   而 worldLodStandalone.onModelShown（模型上屏钩子）会在【合批之后】才回调——
+      //   此时该实例 id 早已在 rec.sourceIds 内，scanAndMerge 的 idsEqual 判定"无变化"
+      //   → 组永不重建 → 标记永生 → syncFarBoxes 第 1 段每帧为"已由实例渲染"的模型重复画方块。
+      // 判据：该 URL 已合批 且 本实例 id 在该组内 = 合批组正在渲染它 → 标记必须清掉。
+      // 位置刻意放在 nearSq/LOD 开关判定之外：关掉 LOD 时 syncFarBoxes 同样会画方块。
+      if ((ud.__lodCandidatePending || ud.__lodPending) && ud.__texOptSource && mergedGroups.has(ud.__texOptSource)) {
+        const recMerged = mergedGroups.get(ud.__texOptSource);
+        if (recMerged && recMerged.sourceIds.has(id)) {
+          delete ud.__lodCandidatePending;
+          delete ud.__lodPending;
+        }
+      }
+
       // 已合批源模型已从场景摘除且不带裁剪标记 → 由合批组 im.count 控制，跳过。
       // 散装LOD 的 __lodPending / 候选的 __lodCandidatePending 两类"隐藏等变体"模型
       // 同样在此跳过——绝不能被通用裁剪加回场景，否则"高模顶替"闪现回归。
@@ -852,6 +868,16 @@
     rescan: scanAndMerge,
     /** 三期（散装 LOD）：某 URL 是否已被合批接管（散装模块据此跳过，避免双渲染竞争） */
     isMergedUrl: function (url) { return mergedGroups.has(url); },
+    /**
+     * 某 URL 的【指定实例】是否已被合批组接管（id 已在 rec.sourceIds 内 = 合批组正在渲染它）。
+     * 修复（2026-09-24）：worldLodStandalone.onModelShown 据此避免给"已由实例渲染"的模型
+     * 挂 __lodCandidatePending —— 那个标记在合批之后挂上就永远没人清理，会让 syncFarBoxes
+     * 重复画深蓝占位方块（红军区实测 364 个方块盖在士兵身上）。
+     */
+    isMergedInstance: function (url, id) {
+      const rec = mergedGroups.get(url);
+      return !!(rec && rec.sourceIds.has(id));
+    },
     /** 严格分带（2026-09-14）：某 URL 是否为合批候选（实例数达阈值，正被 cullUnmerged 预接管） */
     isCandidateUrl: function (url) { return candidateCounts.get(url) >= MERGE_THRESHOLD; },
     /** 把指定模型从合批组排除并恢复独立渲染（供编辑模式选中被合批对象时调用） */
