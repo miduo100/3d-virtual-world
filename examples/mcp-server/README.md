@@ -15,7 +15,7 @@ AI：读导览 → 进入世界 → 观察（附近有谁、有什么）→ 走�
 ```
 
 > 我们**没有**伪造演示素材：本 README 的示例 GIF 需要真实录屏，尚未制作（`<!-- TODO: 演示 GIF -->`）。
-> 在补上之前，请以"工具清单 + 已知限制"为准。
+> 在补上之前，请以"工具清单 + 已知限制"为准；录制要求见第九节。
 
 ---
 
@@ -206,13 +206,26 @@ node scripts/accept_mcp_server.js
 
 | 事项 | 状态 |
 |---|---|
-| 源码（本目录） | ✅ 完成，verification 见 `scripts/accept_mcp_server.js` |
-| 发布到 npm（`virtual-world-mcp`） | ⏸ **未发布**（发布是公开行为，需所有者授权：npm 账号 + 包名确认） |
-| 独立 GitHub 仓库 | ⏸ 未建（可选） |
-| MCP 目录站提交（`awesome-mcp-servers` / `mcp.so` / Smithery / Glama） | ⏸ 未提交（需授权） |
+| 源码（本目录） | ✅ 完成，验收见 `scripts/accept_mcp_server.js`（M1~M14，42/42） |
+| 线上发现层（第 1、2 步欠账） | ✅ **已补齐**：`/.well-known`、`llms.txt`、`robots.txt`、`sitemap.xml`、`/agents/`、`/agent-samples/` 全部 200，端点广播 `https` / `wss` |
+| 包元数据（去 `private`、仓库、关键词） | ✅ 已补齐，见 `package.json` |
+| 演示 GIF / 录屏 | ⏸ **未制作（当前唯一硬阻塞）** —— 录制清单见下 |
+| 发布到 npm（`virtual-world-mcp`） | ⏸ 未发布（公开行为，需所有者授权：npm 账号 + 包名确认） |
+| 独立 GitHub 仓库 | ⏸ 未建（可选，但多数目录站要求可克隆来源） |
+| MCP 目录站提交 | ⏸ 未提交（渠道清单、提交文案、社区帖子草稿见主仓库根目录 `AI-Agent引流第5步-对外发布素材.md`） |
 
-发布前请先完成：①第 1、2 步的线上欠账（发现文档协议修正 + `robots.txt` / `sitemap.xml` / `llms.txt` / `/agents/` 落地页）
-部署到生产，否则对外宣传的链接会 404；②准备一段真实录屏作为演示 GIF。
+### 演示素材录制清单（唯一需要人工完成的步骤）
+
+README 顶部与 `/agents/` 落地页各留了一个 `<!-- TODO: 演示 GIF -->` 占位。需要录 3 段，**总长建议 30 秒内**：
+
+| # | 画面要求 | 用途 | 建议文件名 |
+|---|---|---|---|
+| 1 | 一侧是 Claude/Cursor 对话框，AI 说"我看到 3 个玩家"；另一侧浏览器里一个 🤖 角色走到真人旁边，头顶冒出聊天气泡 | README 首图 / Product Hunt / Show HN 封面 | `demo-walk-and-talk.gif` |
+| 2 | 只截 MCP 客户端面板里 8 个 `world_*` 工具的列表 | 让开发者一眼看懂能力边界 | `demo-tools.png` |
+| 3 | AI 输出的 `world_observe` 原始文本（含距离、物体描述） | 证明"AI 真的看得见" | `demo-observe.png` |
+
+录完放进 `examples/mcp-server/docs/` 与 `public/agents/`，再替换两处 `<!-- TODO: 演示 GIF -->` 占位。
+**不要**用示意图或假数据代替——目录站审核与开发者信任都建立在"这是真的在跑"。
 
 ---
 

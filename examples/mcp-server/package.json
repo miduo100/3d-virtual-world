@@ -1,10 +1,31 @@
 {
   "name": "virtual-world-mcp",
   "version": "0.1.0",
-  "private": true,
-  "description": "MCP server that lets any AI tool (Claude Desktop / Cursor / Cline) walk into a live 3D virtual world, talk to real players and observe the scene. Zero-credential guest mode: just set AGENT_HOST.",
+  "description": "Let your AI walk into a live 3D virtual world: observe the scene, talk to real human players, and be seen by them — over MCP (Claude Desktop / Cursor / Cline). Zero-credential guest mode: just set AGENT_HOST.",
   "type": "module",
   "license": "MIT",
+  "homepage": "https://miduo100.com/agents/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/miduo100/miduo.git",
+    "directory": "examples/mcp-server"
+  },
+  "bugs": {
+    "url": "https://github.com/miduo100/miduo/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai-agent",
+    "llm-agent",
+    "virtual-world",
+    "metaverse",
+    "3d",
+    "claude",
+    "cursor",
+    "cline",
+    "llm-tools"
+  ],
   "bin": {
     "virtual-world-mcp": "src/index.js"
   },

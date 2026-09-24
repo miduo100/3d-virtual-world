@@ -1512,8 +1512,8 @@
   <!-- 【2026-09-08 会话2】GLB 解析 Worker 客户端（worker 内 parse，主线程零停顿） -->
   <script src="js/gltfWorkerClient.js?v=1"></script>
   <script src="js/loadingProgress.js?v=7"></script>
-  <script src="js/skyManager.js?v=1"></script>
-  <script src="js/world.js?v=13"></script>
+  <script src="js/skyManager.js?v=2"></script>
+  <script src="js/world.js?v=14"></script>
   <script src="js/worldObjectBounds.js?v=3"></script>
   <script src="js/placeholderField.js?v=5"></script>
   <script src="js/worldTextureOptimizer.js"></script>
@@ -1524,13 +1524,18 @@
   <!-- frameBudgetScheduler.js 引用移除：该文件从未存在（git 历史为空），每次加载 404 -->
   <script src="js/worldLoadingOptimizer.js"></script>
   <script src="js/worldSpatialManager.js?v=1"></script>
+  <!-- 【首屏丝滑化 Step1】环境就绪闸门：几何体全上屏 + 队列无<15MB对象（或12s兜底） -->
+  <script src="js/worldReadyGate.js?v=1"></script>
+  <!-- 【首屏丝滑化 Step3】同模板多玩家复用（解析/显存 N→1）+ 玩家模型调度（就绪放行/视野过滤/让路） -->
+  <script src="js/gltfTemplateCache.js?v=1"></script>
+  <script src="js/playerModelScheduler.js?v=1"></script>
   <script src="js/gaussianSplatLoader.js"></script>
   <script src="js/gaussianSplatRenderer.js"></script>
   <script src="js/world3dgs.js?v=2"></script>
   <script src="js/threejsCompatibility.js"></script>
   <script src="js/threejsCodeNormalizer.js"></script>
   <script src="js/threejsWorldSanitizer.js?v=185fix1"></script>
-  <script src="js/threejsCodeRunner.js"></script>
+  <script src="js/threejsCodeRunner.js?v=1"></script>
   <script src="js/customConfigRegistry.js"></script>
   <script src="js/customConfigApplier.js"></script>
   <script src="js/galleryRenderer.js?v=1"></script>

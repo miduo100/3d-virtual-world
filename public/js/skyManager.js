@@ -37,7 +37,13 @@
     loading: false,
     loadToken: 0,       // 防止并发加载互相覆盖
     cache: new Map(),   // url -> texture
-    attached: false
+    attached: false,
+    // 【首屏丝滑化 Step2】天空让路：环境未就绪时重资产天空（HDR）先用程序化渐变占位
+    deferred: false,          // 是否处于"占位等待就绪"状态
+    deferredSky: null,        // 被让路的真实天空配置
+    deferredSince: 0,         // performance.now() 起点占位开始
+    placeholderKind: 'none',  // 'gradient' | 'none'
+    _placeholderTex: null     // 占位纹理（替换/重置时 dispose，不进 cache）
   };
 
   function warn(msg, err) {
@@ -90,20 +96,105 @@
     }
   }
 
-  /** 把已加载好的纹理装到场景背景上 */
-  function paint() {
+  /** 把已加载好的纹理装到场景背景上（skipEnv=true 跳过 PMREM——占位阶段不做环境光） */
+  function paint(skipEnv) {
     if (!state.scene) return;
     if (state.texture) {
       state.scene.background = state.texture;
     }
     applyTuning();
-    applyEnvironment();
+    if (!skipEnv) applyEnvironment();
+  }
+
+  /** 【Step2】程序化渐变占位天空（CanvasTexture，零网络、<5ms） */
+  function makeGradientPlaceholder() {
+    const w = 512, h = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0.00, '#3d76c9');   // 天顶蓝
+    g.addColorStop(0.55, '#9db8d9');   // 中层渐亮
+    g.addColorStop(0.62, '#e8e0d0');   // 地平线暖色
+    g.addColorStop(1.00, '#8a7f6e');   // 地面暗色
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  function disposePlaceholder() {
+    if (state._placeholderTex) {
+      try { state._placeholderTex.dispose(); } catch (e) { /* 忽略清理异常 */ }
+      state._placeholderTex = null;
+    }
+    if (state.placeholderKind !== 'none') state.placeholderKind = 'none';
+  }
+
+  /** 【Step2】就绪后加载被让路的真实天空（复用 loadToken 防旧选择覆盖） */
+  function loadDeferredSky(sky) {
+    const token = ++state.loadToken;
+    state.loading = true;
+    loadTexture(sky)
+      .then((tex) => {
+        if (token !== state.loadToken) return; // 已被更新的选择取代
+        const oldPlaceholder = state._placeholderTex;
+        state.texture = tex;
+        state.deferred = false;
+        state.deferredSky = null;
+        state.loading = false;
+        disposePlaceholder();
+        if (oldPlaceholder && state.scene && state.scene.background === oldPlaceholder) {
+          state.scene.background = null; // 立即解除占位引用，paint 会装上真纹理
+        }
+        paint();
+        console.log(`🌌 已应用天空：${sky.name || sky.url}（HDR，就绪后替换占位）`);
+      })
+      .catch((e) => {
+        if (token !== state.loadToken) return;
+        state.loading = false;
+        state.deferred = false;
+        state.deferredSky = null;
+        disposePlaceholder();
+        warn(`天空加载失败（${sky.url}），已回退默认天空`, e);
+        resetToDefault();
+      });
+  }
+
+  /** 【Step2】重资产天空让路：渐变占位立即上屏，注册就绪回调替换 */
+  function deferSky(sky) {
+    state.sky = sky;              // 防重复触发（applyConfig 的 nextId===curId 早退）
+    state.deferred = true;
+    state.deferredSky = sky;
+    state.deferredSince = performance.now();
+    state.loading = false;
+    disposePlaceholder();          // 先清旧占位（会把 placeholderKind 复位为 none）
+    state.placeholderKind = 'gradient';
+    state._placeholderTex = makeGradientPlaceholder();
+    state.texture = state._placeholderTex;
+    paint(true); // 占位阶段跳过 PMREM 环境光（与高清纹理一起推迟）
+    console.log('[SkyManager] 🌒 环境未就绪，天空先用程序化渐变占位，就绪后再拉高清 HDR');
+
+    const consume = () => {
+      if (!state.deferred || state.deferredSky !== sky) return; // 已被新选择取代
+      loadDeferredSky(sky);
+    };
+    if (window.WorldReadyGate && typeof window.WorldReadyGate.onReady === 'function') {
+      window.WorldReadyGate.onReady(consume); // 闸门自带 12s 兜底
+    }
+    setTimeout(consume, 20000); // 双保险：闸门缺失/异常时 20s 兜底
   }
 
   /** 回到默认天空（纯色），由 world.js 提供颜色 */
   function resetToDefault() {
     state.sky = null;
     state.texture = null;
+    state.deferred = false;
+    state.deferredSky = null;
+    disposePlaceholder();
     applyEnvironment(); // 清掉 environment
     if (state.scene) {
       state.scene.backgroundIntensity = 1;
@@ -164,14 +255,33 @@
       return;
     }
 
+    // 【首屏丝滑化 Step2】重资产天空（HDR EXR 11.75MB 级）在环境就绪前让路：
+    // 先程序化渐变占位（零网络），就绪后再拉高清替换，PMREM 一并推迟。
+    if (sky.kind === 'hdr' && window.WorldReadyGate && !window.WorldReadyGate.isReady()) {
+      deferSky(sky);
+      return;
+    }
+
+    // 走真实加载：清掉可能残留的延迟占位态（例如占位期间换成了非 HDR 天空）
+    if (state.deferred) {
+      state.deferred = false;
+      state.deferredSky = null;
+      state.loading = false;
+    }
+
     const token = ++state.loadToken;
     state.loading = true;
     loadTexture(sky)
       .then((tex) => {
         if (token !== state.loadToken) return; // 已被更新的选择取代
+        const hadPlaceholder = !!state._placeholderTex;
+        disposePlaceholder();
         state.sky = sky;
         state.texture = tex;
         state.loading = false;
+        if (hadPlaceholder && state.scene && state.scene.background && state.scene.background !== tex) {
+          state.scene.background = null;
+        }
         paint();
         console.log(`🌌 已应用天空：${sky.name || sky.url}（${sky.kind === 'hdr' ? 'HDR' : '全景图'}）`);
       })
@@ -223,7 +333,10 @@
         blurriness: state.scene ? state.scene.backgroundBlurriness : null,
         hasEnvironment: !!(state.scene && state.scene.environment),
         loading: state.loading,
-        weather: state.weather
+        weather: state.weather,
+        deferred: state.deferred,
+        deferredSince: state.deferred ? Math.round(performance.now() - state.deferredSince) : null,
+        placeholderKind: state.placeholderKind
       };
     }
   };

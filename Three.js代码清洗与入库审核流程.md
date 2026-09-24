@@ -238,7 +238,47 @@ S6 回归    → 加入回归集（见 4.3）
 
 ---
 
-## 六、红线（任何批次不得突破）
+## 五点五、链路加固记录（2026-09-24，已实施）
+
+首批 8 样本实测驱动的一轮执行链路加固，核心策略转变：**清洗从"删代码"改为"运行时桩化"**。
+
+| 项 | 改动 | 文件 |
+|---|---|---|
+| F1 | 存库不再删代码。原 `cleanThreeJSCode` 删 renderer/controls 声明但留下悬空引用（8 样本中 4 个因此 ReferenceError），现保存链 = 形态识别 → normalize → 直接入库；`clean_options` 仅作元数据记录 | admin.html saveThreejsBlock |
+| F2 | 万能桩。`makeSmartStub` 首字母大写分支改为万能 Proxy 桩：任意方法存在、链式返回自身、可 new 可调用；`isXxx` 判定恒假、`children` 恒 `[]`、`then` 恒 undefined（防 Promise 捕获/递归/误添加）。一处修复覆盖 VOXLoader/dat.GUI/anime 等所有未知库类 | threejsCodeRunner.js |
+| F3 | 顶层 await 兜底。同步 Function 构造报 await 语法错误时自动换 AsyncFunction 执行（world 模式捕获组为活引用，异步完成后照样显示），异步完成后补一遍世界清洗；ReferenceError 自愈由"重试一次"升级为最多 5 个缺失变量循环注入 | threejsCodeRunner.js |
+| F4 | 超大模型自动等比缩小：最大维度 >50m 缩到 50m（与小模型放大到 1m 对称；小区样本 1100m 实测 ×0.05 生效） | world.js addThreeJSModel |
+| 附带 | unified_editor 裸 `new Function` 恢复路径（无规范化/无桩化/无安全层）统一改走 runner | unified_editor.html |
+
+**加固后实测**：8/8 样本 world 模式零执行错误；草地/代码云/光柱/新的文档 7 直接出内容；城堡/教学楼/展台/小区（外链资源缺失）优雅降级为空组，由 admin 预览"零渲染物"预验证门槛标黄拦截。主世界冒烟 9/9 无回归。
+
+**留待后续评估**（本轮未动）：normalizer 的 16 条 legacy API 规则仍是 r128 基线方向（把新 API 降级旧写法，靠 compatibility 的 accessor 桥救回），r185 下建议评估反转或停用；world_editor/unified_editor 未加载 normalizer（二次规范化静默跳过，用户决策暂不补）。
+
+---
+
+## 六、落地记录
+
+### v1.1（2026-09-24）链路稳健化改造已实施
+
+基于首批 8 样本实测（改造前仅 2/8 能过），完成 4 项修复 + 1 项一致性统一，验收 **12/12 PASS**（`scripts/accept_threejs_pipeline.js`，可重跑，含 F4 世界侧验证）+ 主世界冒烟 9/9：
+
+| # | 修复 | 位置 | 内容 |
+|---|---|---|---|
+| F1 | 存库不再删代码 | `public/admin.html` saveThreejsBlock | 旧 cleanThreeJSCode 删 renderer/controls 声明留悬空引用（4/8 样本被它破坏）；现保存=规范化后完整代码，clean_options 仅作元数据记录 |
+| F2 | 万能桩 | `public/js/threejsCodeRunner.js` makeSmartStub | 大写开头未知类一律返回万能 Proxy 桩（任意方法链式、可 new、防 thenable 捕获、防 Box3 无限递归）；修复 VOXLoader.load、gui.addColor 两类崩溃 |
+| F3 | 顶层 await 兜底 + 自愈升级 | `threejsCodeRunner.js` 执行层 | await 语法错误自动换 AsyncFunction（world 模式捕获组活引用，异步完成后照样显示，并补一遍世界清洗）；ReferenceError 自愈由重试 1 次升级为最多 5 个缺失变量循环注入 |
+| F4 | 超大自动缩小 | `public/js/world.js` 尺寸归一化 | 最大维度 >50m 等比缩到 50m（用户拍板），与小模型放大对称；实测 1000m→×0.05、10m 不变 |
+| F5 | unified_editor 裸执行统一 | `public/unified_editor.html` | 废弃绕开规范化/桩化/安全层的裸 new Function 恢复路径，统一走 runner |
+
+版本号：`threejsCodeRunner.js?v=1`（4 个 HTML）、`world.js?v=14`。
+
+**实测断点归因备忘**（供后续批次参考）：①最大断点是旧存库删行逻辑本身（4/8）；②`autoDeclareImports` 生成的 `var X = typeof X!=='undefined' ? X : …` 因 var 提升自判失败，永远落到 THREE 命名空间桩——万能桩从根上兜住了这类问题；③"OK 但 0 渲染物"（城堡/教学楼/展台）由后台 world 预验证拦截，属正常分流；④展台的视频材质部分卡在外部 video 元素等待上，需按 3.3 节切层提取，不是 runner 问题。
+
+**遗留待评估**（本次未动）：normalizer 的 16 条 legacy API 规则仍是 r128 基线方向（把新 API 降级旧写法、靠 compatibility 的 accessor 桥接救回），r185 下建议后续专项评估反转或停用；`threejs_code_blocks` 表的 source_type/auto_fixes/import_status 三列缺 DDL 迁移。
+
+---
+
+## 七、红线（任何批次不得突破）
 
 1. **incoming/ 原始存档永不修改**——所有清洗在副本上进行。
 2. **无版本号 CDN、个人站点活链接严禁入库**——资源必须闭环。

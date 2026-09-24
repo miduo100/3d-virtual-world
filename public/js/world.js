@@ -7835,12 +7835,17 @@ class World {
             const bboxSize = new THREE.Vector3();
             bbox.getSize(bboxSize);
             const maxDim = Math.max(bboxSize.x, bboxSize.y, bboxSize.z);
-            // 【修复】不再强制缩小大模型，保持与编辑器一致的原始尺寸
             if (maxDim > 0 && maxDim < 0.1) {
               // 模型过小（<0.1米），放大到 1 米
               const s = 1 / maxDim;
               modelGroup.scale.multiplyScalar(s);
               console.log('📏 Three.js 模型尺寸归一化：过小 (' + maxDim.toFixed(4) + 'm) → 放大 ×' + s.toFixed(1));
+            } else if (maxDim > 50) {
+              // 模型过大（>50米），等比缩小到 50 米（2026-09-24 用户拍板：
+              // 与小模型放大对称；网上代码常见城市级尺度，如 932×1100m 直接压垮视野）
+              const s = 50 / maxDim;
+              modelGroup.scale.multiplyScalar(s);
+              console.log('📏 Three.js 模型尺寸归一化：过大 (' + maxDim.toFixed(1) + 'm) → 缩小 ×' + s.toFixed(3));
             }
           } catch (e) {
             console.warn('📏 Three.js 模型尺寸归一化跳过:', e.message);

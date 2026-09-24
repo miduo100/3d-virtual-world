@@ -5233,37 +5233,28 @@
             if (type === 'generated_threejs' && obj.threejs_code) {
                 try {
                     console.log('🔄 正在从threejs_code恢复模型:', obj.name || obj.id);
-                    
-                    // 执行Three.js代码生成函数
-                    const executeCode = new Function(
-                        'THREE', 
-                        'scene', 
-                        'camera', 
-                        'currentWorldId',
-                        obj.threejs_code + '\nreturn typeof createGeometry !== "undefined" ? createGeometry : null;'
-                    );
-                    
-                    const createGeometry = executeCode(THREE, scene, camera, currentWorldId || 1);
-                    
-                    if (typeof createGeometry === 'function') {
-                        const mesh = createGeometry({});
-                        
-                        // 应用保存的变换
-                        mesh.position.set(obj.position_x || 0, obj.position_y || 0, obj.position_z || 0);
-                        mesh.rotation.set(obj.rotation_x || 0, obj.rotation_y || 0, obj.rotation_z || 0);
-                        mesh.scale.set(obj.scale_x || 1, obj.scale_y || 1, obj.scale_z || 1);
-                        
-                        // 保存代码到mesh的userData，方便后续编辑
-                        mesh.userData.threeJSCode = obj.threejs_code;
-                        mesh.userData.isThreeJSGenerated = true;
-                        
-                        console.log('✅ Three.js模型恢复成功:', obj.name || obj.id);
-                        return mesh;
-                    } else {
-                        console.error('❌ createGeometry函数未找到');
-                        // 返回占位符
-                        return createPlaceholderMesh('Three.js模型（加载失败）', 0xff0000);
+
+                    // 统一走 runner：规范化 + 桩化 + 安全层（2026-09-24 起废弃裸 new Function 路径——
+                    // 原路径无规范化/无桩化/无安全拦截，是链路中的一致性隐患）
+                    if (!window.ThreeJSCodeRunner || !window.ThreeJSCodeRunner.runThreeJSCode) {
+                        throw new Error('ThreeJSCodeRunner 未加载');
                     }
+                    const runResult = window.ThreeJSCodeRunner.runThreeJSCode(obj.threejs_code, { mode: 'world', THREE: THREE });
+                    if (runResult.error) throw runResult.error;
+                    const mesh = runResult.object;
+                    if (!mesh) throw new Error('runner 未返回对象');
+
+                    // 应用保存的变换
+                    mesh.position.set(obj.position_x || 0, obj.position_y || 0, obj.position_z || 0);
+                    mesh.rotation.set(obj.rotation_x || 0, obj.rotation_y || 0, obj.rotation_z || 0);
+                    mesh.scale.set(obj.scale_x || 1, obj.scale_y || 1, obj.scale_z || 1);
+
+                    // 保存代码到mesh的userData，方便后续编辑
+                    mesh.userData.threeJSCode = obj.threejs_code;
+                    mesh.userData.isThreeJSGenerated = true;
+
+                    console.log('✅ Three.js模型恢复成功:', obj.name || obj.id);
+                    return mesh;
                 } catch (error) {
                     console.error('❌ 恢复Three.js模型失败:', error);
                     // 返回占位符
@@ -8086,7 +8077,7 @@
 <script src="js/objectThumbnailQueue.js?v=1"></script>
 <script src="js/meshoptSetup.js"></script>
 <script src="js/threejsCompatibility.js"></script>
-<script src="js/threejsCodeRunner.js"></script>
+<script src="js/threejsCodeRunner.js?v=1"></script>
 <script>
   // ===== 统一编辑器：Three.js 代码块集成 =====
   window.__threejsBlockFrames = window.__threejsBlockFrames || [];

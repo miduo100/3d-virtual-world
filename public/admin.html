@@ -2112,7 +2112,7 @@
       })();
     </script>
     <script src="js/threejsCompatibility.js"></script>
-    <script src="js/threejsCodeRunner.js"></script>
+    <script src="js/threejsCodeRunner.js?v=1"></script>
     <script src="js/threejsCodeNormalizer.js?v=ts3"></script>
     <script src="js/threejsInputAdapter.js"></script>
     <script>
@@ -2394,12 +2394,13 @@
           extractedCode = norm.code;
           autoFixes = norm.fixes;
         }
-        // 自动检测清洗选项（替代手动复选框）
+        // 自动检测清洗选项（仅作元数据记录；2026-09-24 起不再删代码——删 renderer/controls
+        // 声明会留下悬空引用导致 ReferenceError，实测 8 个网上样本 4 个被旧删行逻辑破坏；
+        // renderer/controls/DOM 一律由 runner 运行时桩兜底）
         var cleanOpts = (window.ThreeJSCodeNormalizer && window.ThreeJSCodeNormalizer.autoDetectCleanOptions)
           ? window.ThreeJSCodeNormalizer.autoDetectCleanOptions(rawInput)
           : { stripImport: true, stripRenderer: false, stripControls: false, stripDOMBox: false, stripLog: false };
-        // 原有 cleanThreeJSCode 再做一层兼容处理
-        const cleaned = window.ThreeJSCodeRunner.cleanThreeJSCode(extractedCode, cleanOpts);
+        const cleaned = extractedCode;
 
         // 检查是否有敏感模式（保存前告警）
         if (window.ThreeJSCodeNormalizer) {

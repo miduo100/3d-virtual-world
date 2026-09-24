@@ -73,19 +73,41 @@
   }
 
   // ---- Smart Proxy：终极兜底，访问 THREE 上不存在的属性返回"智能桩" ----
+  // 万能桩：任意属性访问/调用/new 全部安全（链式返回自身），
+  // 覆盖未知库类（VOXLoader/dat.GUI/anime 等）被实例化后调用任意方法的场景。
+  // 2026-09-24：替代旧"桩类只有 clone/copy/dispose/update/render"的实现——
+  // 旧实现在 loader.load、gui.addColor 等未穷举方法上直接 TypeError。
+  function makeUniversalStub() {
+    if (typeof Proxy === 'undefined') {
+      var f = function () { return f; };
+      f.isStub = true;
+      return f;
+    }
+    var proxy;
+    var fn = function () { return proxy; };
+    proxy = new Proxy(fn, {
+      get(t, prop) {
+        if (prop === Symbol.toPrimitive) return function () { return 0; };
+        if (prop === 'then') return undefined;   // 防被当 Promise/thenable 捕获
+        if (prop === 'children') return [];      // 防 Box3.setFromObject/traverse 无限递归
+        if (prop === 'parent') return null;
+        if (prop === 'isStub') return true;
+        // isObject3D/isMesh/isLight 等判定恒假：保证 scene.add(桩) 走"非法对象"告警而非错乱添加
+        if (typeof prop === 'string' && prop.indexOf('is') === 0) return undefined;
+        return proxy;
+      },
+      apply() { return proxy; },
+      construct() { return proxy; },
+      has() { return true; },
+      set() { return true; }
+    });
+    return proxy;
+  }
+
   function makeSmartStub(name) {
     const str = String(name);
-    // 首字母大写的构造函数：返回可调用的桩类（不会崩溃）
-    if (/^[A-Z]/.test(str)) {
-      function Stub() {}
-      Stub.prototype.isStub = true;
-      Stub.prototype.clone = function () { return this; };
-      Stub.prototype.copy = function () { return this; };
-      Stub.prototype.dispose = function () {};
-      Stub.prototype.update = function () {};
-      Stub.prototype.render = function () {};
-      return Stub;
-    }
+    // 首字母大写的构造函数/命名空间：返回万能桩（可 new、任意方法链式调用）
+    if (/^[A-Z]/.test(str)) return makeUniversalStub();
     // 全大写常量：返回数字 0（THREE.SomeConst 不会是 undefined）
     if (/^[A-Z_0-9]+$/.test(str)) return 0;
     // 其余：返回 undefined（让 if 判断走 else 分支，不崩溃）
@@ -553,19 +575,34 @@
 
     let createGeometry = null;
     let runError = null;
+    const __execParamNames = [
+      'THREE', 'OrbitControls', 'GLTFLoader', 'DRACOLoader', 'RoomEnvironment',
+      'EffectComposer', 'RenderPass', 'OutputPass', 'KawaseBlurPass',
+      'GUI', 'Pane', 'Stats', 'Tweakpane',
+      'postprocessing', 'tweakpane', 'lilGUI', 'datGUI', 'gsap', 'TWEEN',
+      'fetch', 'XMLHttpRequest', 'localStorage', 'sessionStorage',
+      'evalFn', 'Worker', 'WebSocket', 'AudioCtor', 'ImageCtor',
+      'navigator', 'alertFn', 'confirmFn', 'promptFn',
+      'atob', 'btoa', 'indexedDB', 'Notification',
+      'document', 'window', 'requestAnimationFrame', 'cancelAnimationFrame',
+      'setInterval', 'setTimeout', 'clearInterval', 'clearTimeout'
+    ];
+    const __execParamValues = [
+      THREE3, THREE3.OrbitControls, THREE3.GLTFLoader, THREE3.DRACOLoader, THREE3.RoomEnvironment,
+      EffectComposerStub, RenderPassStub, OutputPassStub, KawaseBlurPassStub,
+      GUIStub, PaneStub, StatsStub, PaneStub,
+      postprocessingStub, PaneStub, GUIStub, function () {}, gsapStub, tweenStub,
+      securityStubs.fetch, securityStubs.XMLHttpRequest, securityStubs.localStorage, securityStubs.sessionStorage,
+      securityStubs.evalFn, securityStubs.Worker, securityStubs.WebSocket, securityStubs.AudioCtor, securityStubs.ImageCtor,
+      securityStubs.navigator, securityStubs.alertFn, securityStubs.confirmFn, securityStubs.promptFn,
+      securityStubs.atob, securityStubs.btoa, securityStubs.indexedDB, securityStubs.Notification,
+      docStub, windowStub, captureRAF, noopCancel,
+      timerStubs.setInterval, timerStubs.setTimeout, timerStubs.clearInterval, timerStubs.clearTimeout
+    ];
+    const __AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+    let __usedAsyncExec = false;
     const __execSource = function (src) {
-      const executeCode = new Function(
-        'THREE', 'OrbitControls', 'GLTFLoader', 'DRACOLoader', 'RoomEnvironment',
-        'EffectComposer', 'RenderPass', 'OutputPass', 'KawaseBlurPass',
-        'GUI', 'Pane', 'Stats', 'Tweakpane',
-        'postprocessing', 'tweakpane', 'lilGUI', 'datGUI', 'gsap', 'TWEEN',
-        'fetch', 'XMLHttpRequest', 'localStorage', 'sessionStorage',
-        'evalFn', 'Worker', 'WebSocket', 'AudioCtor', 'ImageCtor',
-        'navigator', 'alertFn', 'confirmFn', 'promptFn',
-        'atob', 'btoa', 'indexedDB', 'Notification',
-        'document', 'window', 'requestAnimationFrame', 'cancelAnimationFrame',
-        'setInterval', 'setTimeout', 'clearInterval', 'clearTimeout',
-        src + '\n;var __entry = null;' +
+      const body = src + '\n;var __entry = null;' +
         'var __ens = [];' +
         'if (typeof __export_entries !== "undefined" && Object.prototype.toString.call(__export_entries) === "[object Array]") { for (var __xi = 0; __xi < __export_entries.length; __xi++) __ens.push(__export_entries[__xi]); }' +
         'var __ns = ' + __entryListStr + ';' +
@@ -577,40 +614,60 @@
         '    try { var __fn = eval(__ens[__ni]); if (typeof __fn === "function") { __entry = __fn; break; } } catch(__ne) {}' +
         '  }' +
         '}' +
-        'return __entry;'
-      );
-      return executeCode(
-        THREE3, THREE3.OrbitControls, THREE3.GLTFLoader, THREE3.DRACOLoader, THREE3.RoomEnvironment,
-        EffectComposerStub, RenderPassStub, OutputPassStub, KawaseBlurPassStub,
-        GUIStub, PaneStub, StatsStub, PaneStub,
-        postprocessingStub, PaneStub, GUIStub, function () {}, gsapStub, tweenStub,
-        securityStubs.fetch, securityStubs.XMLHttpRequest, securityStubs.localStorage, securityStubs.sessionStorage,
-        securityStubs.evalFn, securityStubs.Worker, securityStubs.WebSocket, securityStubs.AudioCtor, securityStubs.ImageCtor,
-        securityStubs.navigator, securityStubs.alertFn, securityStubs.confirmFn, securityStubs.promptFn,
-        securityStubs.atob, securityStubs.btoa, securityStubs.indexedDB, securityStubs.Notification,
-        docStub, windowStub, captureRAF, noopCancel,
-        timerStubs.setInterval, timerStubs.setTimeout, timerStubs.clearInterval, timerStubs.clearTimeout
-      );
+        'return __entry;';
+      let executeCode;
+      // 顶层 await 兜底（2026-09-24）：同步 Function 构造报 await 语法错误时，
+      // 换 AsyncFunction 执行——world 模式捕获组是活引用，异步完成后 add 的对象照样显示
+      try {
+        executeCode = Function.apply(null, __execParamNames.concat([body]));
+      } catch (syntaxErr) {
+        if (syntaxErr && syntaxErr.name === 'SyntaxError' && /await/.test(String(syntaxErr.message || syntaxErr))) {
+          executeCode = __AsyncFunction.apply(null, __execParamNames.concat([body]));
+          __usedAsyncExec = true;
+        } else {
+          throw syntaxErr;
+        }
+      }
+      if (__usedAsyncExec) {
+        Promise.resolve(executeCode.apply(null, __execParamValues)).then(function () {
+          // 异步代码晚到的内容补一遍世界清洗（灯光/材质/NaN 顶点）
+          if (mode === 'world' && typeof ThreeJSWorldSanitizer !== 'undefined' && ThreeJSWorldSanitizer.sanitize) {
+            try { ThreeJSWorldSanitizer.sanitize(captureScene, THREE); } catch (se) {}
+          }
+        }, function (asyncErr) {
+          console.error('[ThreeJSCodeRunner] 异步执行失败:', asyncErr);
+        });
+        return null;
+      }
+      return executeCode.apply(null, __execParamValues);
     };
     try {
       createGeometry = __execSource(cleaned);
     } catch (e) {
       // ReferenceError 自愈：AI 生成代码常漏声明 GUI 参数对象（如 parameters）。
       // 抛出 "X is not defined" 即证明该标识符在作用域内无声明（顶层 let/const 会报 TDZ 而非此错），
-      // 因此在代码头部注入 var X = {} 桩重试一次是安全的，不会与已有声明冲突。
-      const __refMatch = (e && (e.name === 'ReferenceError' || /ReferenceError/.test(String(e))))
-        ? /([A-Za-z_$][\w$]*) is not defined/.exec(e.message || String(e)) : null;
-      if (__refMatch) {
+      // 因此在代码头部注入 var X = {} 桩重试是安全的，不会与已有声明冲突。
+      // 2026-09-24：由"仅重试一次"升级为最多 5 个缺失变量循环注入（网上代码常连环缺声明）
+      const __injected = [];
+      let __lastErr = e;
+      while (__injected.length < 5) {
+        const __refMatch = (__lastErr && (__lastErr.name === 'ReferenceError' || /ReferenceError/.test(String(__lastErr))))
+          ? /([A-Za-z_$][\w$]*) is not defined/.exec(__lastErr.message || String(__lastErr)) : null;
+        if (!__refMatch || __injected.indexOf(__refMatch[1]) >= 0) break;
+        __injected.push(__refMatch[1]);
+        const __prefix = __injected.map(function (n) { return 'var ' + n + ' = {};'; }).join('\n') + '\n';
         try {
-          createGeometry = __execSource('var ' + __refMatch[1] + ' = {};\n' + cleaned);
-          console.warn('[ThreeJSCodeRunner] 检测到未声明变量 ' + __refMatch[1] + '，已注入空对象桩并重试成功');
+          createGeometry = __execSource(__prefix + cleaned);
+          console.warn('[ThreeJSCodeRunner] 检测到未声明变量 ' + __injected.join(', ') + '，已注入空对象桩并重试成功');
+          __lastErr = null;
+          break;
         } catch (e2) {
-          runError = e2;
-          console.error('[ThreeJSCodeRunner] 执行失败:', e2);
+          __lastErr = e2;
         }
-      } else {
-        runError = e;
-        console.error('[ThreeJSCodeRunner] 执行失败:', e);
+      }
+      if (__lastErr) {
+        runError = __lastErr;
+        console.error('[ThreeJSCodeRunner] 执行失败:', __lastErr);
       }
     }
 
