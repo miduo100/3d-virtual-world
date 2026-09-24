@@ -17,56 +17,113 @@
   'use strict';
   if (window.GltfWorkerClient) return;
 
-  var WORKER_URL = '/js/workers/gltfWorker.js';
+  var DEFAULT_WORKER_URL = '/js/workers/gltfWorker.js?v=2';
   var PARSE_TIMEOUT_MS = 30000;
 
-  var worker = null;
-  var workerBroken = false;
-  var seq = 0;
-  var pending = new Map();   // id -> { resolve, reject }
-  var stats = { worker: 0, fallback: 0, failed: 0 };
+  /* ---------------- 客户端工厂（二期B）----------------
+   * createClient() 返回隔离实例（各自的 Worker/序号/统计）。
+   * 玩家模板解析（gltfTemplateCache）用专用实例，避免与场景 GLB 队列
+   * 争用同一个 Worker（实测在线玩家 28MB 模型 + 场景大 GLB 会把 0.76MB
+   * 角色模型排队挤到 +7s）。默认实例供 world.js 场景路径继续使用。 */
+  function createClient(workerUrl) {
+    var WORKER_URL = workerUrl || DEFAULT_WORKER_URL;
 
-  function ensureWorker() {
-    if (workerBroken) return null;
-    if (worker) return worker;
-    try {
-      worker = new Worker(WORKER_URL);
-      worker.onmessage = onMessage;
-      worker.onerror = function (e) {
-        // 脚本级失败：拒绝全部在途请求（走兜底），本会话不再尝试 worker
+    var worker = null;
+    var workerBroken = false;
+    var seq = 0;
+    var pending = new Map();   // id -> { resolve, reject }
+    var stats = { worker: 0, fallback: 0, failed: 0 };
+
+    function ensureWorker() {
+      if (workerBroken) return null;
+      if (worker) return worker;
+      try {
+        worker = new Worker(WORKER_URL);
+        worker.onmessage = onMessage;
+        worker.onerror = function (e) {
+          // 脚本级失败：拒绝全部在途请求（走兜底），本会话不再尝试 worker
+          workerBroken = true;
+          pending.forEach(function (p) { p.reject(new Error('worker script error')); });
+          pending.clear();
+          try { console.warn('[GltfWorkerClient] worker 不可用，后续解析走主线程兜底'); } catch (err) {}
+        };
+        return worker;
+      } catch (e) {
         workerBroken = true;
-        pending.forEach(function (p) { p.reject(new Error('worker script error')); });
-        pending.clear();
-        try { console.warn('[GltfWorkerClient] worker 不可用，后续解析走主线程兜底'); } catch (err) {}
-      };
-      return worker;
-    } catch (e) {
-      workerBroken = true;
-      return null;
-    }
-  }
-
-  function onMessage(e) {
-    var msg = e.data;
-    if (!msg || !msg.type) return;
-    var p = pending.get(msg.id);
-    if (msg.type !== 'ok') {
-      if (p) {
-        if (msg.type === 'fb') { try { console.info('[GltfWorkerClient] 回退主线程解析:', msg.reason); } catch (e) {} }
-        else { try { console.warn('[GltfWorkerClient] worker 解析失败，回退主线程:', msg.message); } catch (e) {} }
-        pending.delete(msg.id);
-        p.reject(Object.assign(new Error(msg.message || 'fallback'), { fallback: msg.type === 'fb' }));
+        return null;
       }
-      return;
     }
-    if (!p) return; // 超时后迟到：丢弃（buffer 已 transfer，无泄漏）
-    pending.delete(msg.id);
-    try {
-      var scene = buildScene(msg.payload);
-      p.resolve({ scene: scene, __viaWorker: true });
-    } catch (err) {
-      p.reject(err);
+
+    function onMessage(e) {
+      var msg = e.data;
+      if (!msg || !msg.type) return;
+      var p = pending.get(msg.id);
+      if (msg.type !== 'ok') {
+        if (p) {
+          if (msg.type === 'fb') { try { console.info('[GltfWorkerClient] 回退主线程解析:', msg.reason); } catch (e) {} }
+          else { try { console.warn('[GltfWorkerClient] worker 解析失败，回退主线程:', msg.message); } catch (e) {} }
+          pending.delete(msg.id);
+          p.reject(Object.assign(new Error(msg.message || 'fallback'), { fallback: msg.type === 'fb' }));
+        }
+        return;
+      }
+      if (!p) return; // 超时后迟到：丢弃（buffer 已 transfer，无泄漏）
+      pending.delete(msg.id);
+      try {
+        var scene = buildScene(msg.payload);
+        p.resolve({ scene: scene, animations: buildAnimations(msg.payload), __viaWorker: true });
+      } catch (err) {
+        p.reject(err);
+      }
     }
+
+    function parseBuffer(buffer, opts) {
+      opts = opts || {};
+      return new Promise(function (resolve, reject) {
+        var fallbackParse = function () {
+          try {
+            if (!opts.fallbackLoader) { stats.failed++; reject(new Error('no fallback loader')); return; }
+            opts.fallbackLoader.parse(buffer, '', function (gltf) {
+              stats.fallback++;
+              resolve({ scene: gltf.scene, animations: gltf.animations || [], __viaWorker: false });
+            }, function (err) {
+              stats.failed++;
+              reject(err);
+            });
+          } catch (e) { stats.failed++; reject(e); }
+        };
+
+        var w = ensureWorker();
+        if (!w || workerBroken) { fallbackParse(); return; }
+
+        var id = ++seq;
+        var settled = false;
+        var timer = setTimeout(function () {
+          if (settled) return;
+          settled = true;
+          pending.delete(id);
+          fallbackParse();               // worker 超时 → 主线程兜底
+        }, PARSE_TIMEOUT_MS);
+
+        pending.set(id, {
+          resolve: function (result) { if (settled) return; settled = true; clearTimeout(timer); stats.worker++; resolve(result); },
+          reject: function (err) { if (settled) return; settled = true; clearTimeout(timer); fallbackParse(); }
+        });
+
+        try {
+          var copy = buffer.slice(0);      // 副本 transfer 给 worker，原 buffer 留给兜底
+          w.postMessage({ type: 'parse', id: id, buffer: copy, dracoPath: '/js/libs/draco/', static: !!opts.static, strict: !!opts.strict, maxTexSize: opts.maxTexSize }, [copy]);
+        } catch (e) {
+          settled = true; clearTimeout(timer); pending.delete(id);
+          fallbackParse();
+        }
+      });
+    }
+
+    return {
+      parseBuffer: parseBuffer,
+      stats: function () { return Object.assign({}, stats, { pending: pending.size, workerBroken: workerBroken }); }
+    };
   }
 
   /* ---------------- 主线程组装 ---------------- */
@@ -196,9 +253,22 @@
       return matIdx >= 0 ? mats[matIdx] : null;
     }
 
+    /* 【二期B strict】节点序号 → 已构建 Object3D（骨架 bones 按索引引用） */
+    var nodesByIdx = [];
+
     function buildNode(n) {
       var obj;
-      if (n.type === 'mesh') {
+      if (n.type === 'skinned') {
+        obj = new THREE.SkinnedMesh(geos[n.geo], matFor(n.mat));
+        if (n.skinned) {
+          obj.__skel = n.skinned.skel;
+          if (n.skinned.bindMatrix) obj.__bindMatrix = n.skinned.bindMatrix;
+          if (n.skinned.bindMatrixInverse) obj.__bindMatrixInverse = n.skinned.bindMatrixInverse;
+          obj.bindMode = n.skinned.bindMode || 'attached';
+        }
+      } else if (n.type === 'bone') {
+        obj = new THREE.Bone();
+      } else if (n.type === 'mesh') {
         obj = new THREE.Mesh(geos[n.geo], matFor(n.mat));
       } else {
         obj = new THREE.Group();
@@ -209,11 +279,31 @@
       obj.scale.fromArray(n.scale);
       obj.visible = n.visible;
       if (n.userData) obj.userData = n.userData;
+      if (n.i !== undefined) nodesByIdx[n.i] = obj;
       for (var i = 0; i < n.children.length; i++) obj.add(buildNode(n.children[i]));
       return obj;
     }
 
     var scene = buildNode(payload.root);
+
+    /* 【二期B strict】骨架绑定：先建 Skeleton（bones 按 node 索引取回 + IBM），
+     * 再给每个 SkinnedMesh bind()（bindMatrix/bindMatrixInverse 精确还原 GLTFLoader 产物） */
+    if (payload.skeletons && payload.skeletons.length) {
+      var skeletons = payload.skeletons.map(function (s) {
+        var bones = s.bones.map(function (i) { return nodesByIdx[i]; });
+        var inverses = s.boneInverses.map(function (m) { return new THREE.Matrix4().fromArray(m); });
+        return new THREE.Skeleton(bones, inverses);
+      });
+      scene.traverse(function (o) {
+        if (o.isSkinnedMesh && o.__skel != null && skeletons[o.__skel]) {
+          var bm = o.__bindMatrix ? new THREE.Matrix4().fromArray(o.__bindMatrix) : undefined;
+          o.bind(skeletons[o.__skel], bm);
+          if (o.__bindMatrixInverse) o.bindMatrixInverse.fromArray(o.__bindMatrixInverse);
+          delete o.__skel; delete o.__bindMatrix; delete o.__bindMatrixInverse;
+        }
+      });
+    }
+
     // 兜底：任何缺失包围盒的几何体现在补算（正常已在 worker 算好，零成本）
     scene.traverse(function (o) {
       if (o.isMesh && o.geometry && !o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
@@ -221,58 +311,44 @@
     return scene;
   }
 
-  /* ---------------- 对外入口 ---------------- */
-
-  /**
-   * 解析 GLB/Gltf 二进制。成功 resolve({scene})；彻底失败 reject(Error)。
-   * @param {ArrayBuffer} buffer 原始二进制（不会被 transfer，保留给兜底）
-   * @param {Object} opts { fallbackLoader: 配好 Draco/Meshopt 的 GLTFLoader 实例 }
-   */
-  function parseBuffer(buffer, opts) {
-    opts = opts || {};
-    return new Promise(function (resolve, reject) {
-      var fallbackParse = function () {
-        try {
-          if (!opts.fallbackLoader) { stats.failed++; reject(new Error('no fallback loader')); return; }
-          opts.fallbackLoader.parse(buffer, '', function (gltf) {
-            stats.fallback++;
-            resolve({ scene: gltf.scene, __viaWorker: false });
-          }, function (err) {
-            stats.failed++;
-            reject(err);
-          });
-        } catch (e) { stats.failed++; reject(e); }
+  /* 【二期B strict】AnimationClip 重建：ValueTypeName 精确映射回轨道类 */
+  var TRACK_CLASS = null;
+  function trackClass(vt) {
+    if (!TRACK_CLASS) {
+      TRACK_CLASS = {
+        vector: THREE.VectorKeyframeTrack,
+        quaternion: THREE.QuaternionKeyframeTrack,
+        number: THREE.NumberKeyframeTrack,
+        color: THREE.ColorKeyframeTrack,
+        string: THREE.StringKeyframeTrack,
+        boolean: THREE.BooleanKeyframeTrack
       };
-
-      var w = ensureWorker();
-      if (!w || workerBroken) { fallbackParse(); return; }
-
-      var id = ++seq;
-      var settled = false;
-      var timer = setTimeout(function () {
-        if (settled) return;
-        settled = true;
-        pending.delete(id);
-        fallbackParse();               // worker 超时 → 主线程兜底
-      }, PARSE_TIMEOUT_MS);
-
-      pending.set(id, {
-        resolve: function (result) { if (settled) return; settled = true; clearTimeout(timer); stats.worker++; resolve(result); },
-        reject: function (err) { if (settled) return; settled = true; clearTimeout(timer); fallbackParse(); }
+    }
+    return TRACK_CLASS[vt] || null;
+  }
+  function buildAnimations(payload) {
+    return (payload.animations || []).map(function (c) {
+      var tracks = [];
+      (c.tracks || []).forEach(function (t) {
+        var C = trackClass(t.valueType);
+        if (!C) return; // 未知轨道类型：跳过该轨道（宁可少一条轨道也不错渲染）
+        var tr = new C(t.name, t.times, t.values);
+        if (t.blendMode !== undefined && t.blendMode !== null) tr.blendMode = t.blendMode;
+        tracks.push(tr);
       });
-
-      try {
-        var copy = buffer.slice(0);      // 副本 transfer 给 worker，原 buffer 留给兜底
-        w.postMessage({ type: 'parse', id: id, buffer: copy, dracoPath: '/js/libs/draco/', static: !!opts.static }, [copy]);
-      } catch (e) {
-        settled = true; clearTimeout(timer); pending.delete(id);
-        fallbackParse();
-      }
+      return new THREE.AnimationClip(c.name, c.duration, tracks);
     });
   }
 
+  /* ---------------- 对外入口 ---------------- */
+
+  var defaultClient = createClient();
+
   window.GltfWorkerClient = {
-    parseBuffer: parseBuffer,
-    stats: function () { return Object.assign({}, stats, { pending: pending.size, workerBroken: workerBroken }); },
+    /** 默认实例（world.js 场景模型路径沿用） */
+    parseBuffer: defaultClient.parseBuffer,
+    stats: defaultClient.stats,
+    /** 【二期B】创建隔离实例（专用 Worker）——玩家模板解析用，避免与场景队列争用 */
+    create: createClient,
   };
 })();

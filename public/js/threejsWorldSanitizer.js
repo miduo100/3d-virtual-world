@@ -109,14 +109,17 @@
     }
   }
 
-  // 世界模式下强制点/线/精灵参与正常深度遮挡，避免被建筑/角色看穿
+  // 世界模式深度状态规范化：
+  // 1) 强制参与正常深度遮挡——网上代码常见 depthTest=false 的"X 光"特效（如光柱），
+  //    单独看没事，放进共享世界会穿透建筑/地形/角色；
+  // 2) 透明材质关闭深度写入，避免自遮挡闪烁。
   function normalizeDepthState(child) {
     if (!child.material) return;
     const mats = Array.isArray(child.material) ? child.material : [child.material];
     mats.forEach(function (mat) {
       if (!mat) return;
       if (mat.depthTest === false) {
-        warnOnce('depthTest:' + (mat.constructor && mat.constructor.name), ['[ThreeJSWorldSanitizer] 世界模式强制点/线/精灵 depthTest=true，避免被遮挡物看穿:', mat.constructor && mat.constructor.name]);
+        warnOnce('depthTest:' + (mat.constructor && mat.constructor.name), ['[ThreeJSWorldSanitizer] 世界模式强制 depthTest=true（原值 false 会穿透遮挡物）:', mat.constructor && mat.constructor.name]);
         mat.depthTest = true;
       }
       // 透明材质关闭深度写入，避免自遮挡闪烁
@@ -124,6 +127,42 @@
         mat.depthWrite = false;
       }
     });
+  }
+
+  // 世界渲染器启用 logarithmicDepthBuffer（world.js:37），内置材质经着色器块自动适配，
+  // 但用户 ShaderMaterial 不含 logdepth 块 → 深度编码与世界其余物体不一致 → 遮挡层级错乱。
+  // 这里按 r185 ShaderChunk（USE_LOGARITHMIC_DEPTH_BUFFER / logDepthBufFC / vFragDepth）等价注入，
+  // 全部包在 #ifdef 里：渲染器未开 logdepth（如 admin 预览）时编译为空，零副作用。
+  function patchShaderLogDepth(mat) {
+    if (!mat.isShaderMaterial || mat.isRawShaderMaterial) return;
+    const vs = mat.vertexShader || '';
+    const fs = mat.fragmentShader || '';
+    if (/vFragDepth|LOGARITHMIC_DEPTH|gl_FragDepth/.test(vs + fs)) return; // 已自带处理
+
+    const PARS_V = '#ifdef USE_LOGARITHMIC_DEPTH_BUFFER\nvarying float vFragDepth;\nvarying float vIsPerspective;\n#endif\n';
+    const BODY_V = '\n#ifdef USE_LOGARITHMIC_DEPTH_BUFFER\nvFragDepth = 1.0 + gl_Position.w;\nvIsPerspective = projectionMatrix[2][3] == -1.0 ? 1.0 : 0.0;\n#endif\n';
+    const PARS_F = '#if defined( USE_LOGARITHMIC_DEPTH_BUFFER )\nuniform float logDepthBufFC;\nvarying float vFragDepth;\nvarying float vIsPerspective;\n#endif\n';
+    const BODY_F = '\n#if defined( USE_LOGARITHMIC_DEPTH_BUFFER )\ngl_FragDepth = vIsPerspective == 0.0 ? gl_FragCoord.z : log2( vFragDepth ) * logDepthBufFC * 0.5;\n#endif\n';
+
+    // 顶点：在最后一次 gl_Position 赋值之后插入（多段赋值时取最后一处）
+    let lastMatch = null, m;
+    const vpRe = /gl_Position\s*=[^;]*;/g;
+    while ((m = vpRe.exec(vs)) !== null) lastMatch = m;
+    if (!lastMatch) {
+      warnOnce('logdepth:no-gl_Position', ['[ThreeJSWorldSanitizer] ShaderMaterial 未找到 gl_Position 赋值，跳过对数深度适配']);
+      return;
+    }
+    const idx = lastMatch.index + lastMatch[0].length;
+    mat.vertexShader = PARS_V + vs.slice(0, idx) + BODY_V + vs.slice(idx);
+
+    // 片元：main( 函数体开头插入
+    const fmRe = /(void\s+main\s*\(\s*(?:void\s+)?\)\s*\{)/;
+    if (!fmRe.test(fs)) {
+      warnOnce('logdepth:no-main', ['[ThreeJSWorldSanitizer] ShaderMaterial 片元未找到 main()，跳过对数深度适配']);
+      return;
+    }
+    mat.fragmentShader = PARS_F + fs.replace(fmRe, '$1' + BODY_F);
+    mat.needsUpdate = true;
   }
 
   /**
@@ -148,13 +187,16 @@
         return;
       }
 
-      // 2. 处理可渲染对象：Mesh 降级材质；点/线/精灵只规范化深度状态
+      // 2. 处理可渲染对象：Mesh 降级材质；全部规范化深度状态 + ShaderMaterial 对数深度适配
       const isRenderable = child.isMesh || child.isPoints || child.isLine || child.isLineLoop || child.isLineSegments || child.isSprite;
       if (isRenderable && child.material) {
         if (child.isMesh) {
           sanitizeMaterial(child, THREE_);
-        } else {
-          normalizeDepthState(child);
+        }
+        normalizeDepthState(child);
+        const mats2 = Array.isArray(child.material) ? child.material : [child.material];
+        for (let mi = 0; mi < mats2.length; mi++) {
+          if (mats2[mi]) patchShaderLogDepth(mats2[mi]);
         }
       }
 

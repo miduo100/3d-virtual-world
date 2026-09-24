@@ -10,8 +10,10 @@
  * 机制：包装 THREE.GLTFLoader.prototype.load，**只拦截被 register() 过的 URL**
  * （由 playerModelScheduler 在放行玩家模型/动画前注册），场景模型/武器等未注册
  * URL 完全走原路径零影响。
- *  - miss：真实加载一次，源 gltf 存入缓存，向调用方交付【克隆】（源保持纯净，
- *    防止第一个玩家的 fitModel/缩放污染源）；
+ *  - miss：【二期B】走 Worker 解析（strict：保留骨骼/蒙皮/动画），源 gltf 存入
+ *    缓存，向调用方交付【克隆】（源保持纯净，防止第一个玩家的 fitModel/缩放污染源）；
+ *    动画 GLB 同走此路径（独立动画文件的 scene 极小，克隆成本可忽略，每玩家独立
+ *    clip 的语义与模型一致）；
  *  - hit / 在途等待：交付克隆，不再触发下载与解析；
  *  - 克隆用 SkeletonUtils.clone（蒙皮正确换绑骨骼，vendor 于
  *    /js/lib/three-examples/utils/SkeletonUtils.js）；
@@ -136,6 +138,38 @@
 
   // ---------- 包装 THREE.GLTFLoader.prototype.load ----------
   var origLoad = THREE.GLTFLoader.prototype.load;
+  /** 【二期B】玩家模板专用 Worker 实例（与场景 GLB 队列隔离——实测共享 Worker 时
+   * 在线玩家 28MB 模型 + 场景大 GLB 会把小角色模型排队挤到 +7s）。
+   * 模块加载即创建（Worker 启动=importScripts three.min.js 860KB，冷启动成本
+   * 落在加载屏期并行完成，首个玩家模型解析时零等待）。 */
+  var playerWorker = (window.GltfWorkerClient && typeof window.GltfWorkerClient.create === 'function')
+    ? window.GltfWorkerClient.create()
+    : null;
+  function ensurePlayerWorker() {
+    if (playerWorker) return playerWorker;
+    if (window.GltfWorkerClient && typeof window.GltfWorkerClient.create === 'function') {
+      playerWorker = window.GltfWorkerClient.create();
+    }
+    return playerWorker;
+  }
+  /** 【二期B】miss 路径改走 Worker 解析（strict：保留骨骼/蒙皮/动画），
+   * 把主线程解析长任务（28MB 模板实测 ~2.7s）整体移出主线程；
+   * worker 不可序列化时 parseBuffer 内部自动回落主线程 parse（与旧 origLoad 等价）。 */
+  function parseViaWorker(url, loaderInstance) {
+    var client = ensurePlayerWorker() || window.GltfWorkerClient;
+    if (!client) return Promise.reject(new Error('no worker client'));
+    return fetch(url).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + url);
+      return r.arrayBuffer();
+    }).then(function (buf) {
+      return client.parseBuffer(buf, {
+        strict: true,
+        maxTexSize: Infinity,          // 玩家模型纹理不降级（§7.3-6）
+        fallbackLoader: loaderInstance // 兜底用调用方自己的 loader（已配 Draco）
+      });
+    });
+  }
+
   THREE.GLTFLoader.prototype.load = function (url, onLoad, onProgress, onError) {
     var key = keyOf(url);
     if (!managed.has(key)) {
@@ -157,26 +191,43 @@
       return;
     }
 
-    // miss：真实加载一次（本调用方与后续等待者都收克隆，源保持纯净）
+    // miss：解析一次（本调用方与后续等待者都收克隆，源保持纯净）
     stats.missCount++;
     stats.parseCount++;
-    var e = { state: 'loading', source: null, waiters: [], lastUsed: Date.now(), parses: 1, hits: 0, shared: 0 };
+    var e = { state: 'loading', source: null, waiters: [], lastUsed: Date.now(), parses: 1, hits: 0, shared: 0, viaWorker: null };
     store.set(key, e);
-    origLoad.call(this, url, function (gltf) {
-      if (store.get(key) !== e) return; // 已被淘汰等异常场景
-      e.source = gltf;
+
+    var useWorker = !!(window.GltfWorkerClient && window.fetch);
+    var settled = false;
+    var onParsed = function (result) {
+      if (settled || store.get(key) !== e) return;
+      settled = true;
+      e.source = { scene: result.scene, animations: result.animations || [] };
+      e.viaWorker = !!result.__viaWorker;
       e.state = 'ready';
       e.lastUsed = Date.now();
       deliverClone(e, onLoad, onError);
       var ws = e.waiters.splice(0);
       for (var i = 0; i < ws.length; i++) deliverClone(e, ws[i].onLoad, ws[i].onError);
       evictIfNeeded();
-    }, onProgress, function (err) {
-      if (store.get(key) === e) store.delete(key);
+    };
+    var onParseError = function (err) {
+      if (settled || store.get(key) !== e) return;
+      settled = true;
+      store.delete(key);
       if (onError) onError(err);
       var ws = e.waiters.splice(0);
       for (var i = 0; i < ws.length; i++) { if (ws[i].onError) ws[i].onError(err); }
-    });
+    };
+
+    if (useWorker) {
+      parseViaWorker(url, this).then(onParsed, onParseError);
+    } else {
+      // Worker 基建缺失：回落原 GLTFLoader.load（旧路径）
+      origLoad.call(this, url, function (gltf) {
+        onParsed({ scene: gltf.scene, animations: gltf.animations || [], __viaWorker: false });
+      }, onProgress, onParseError);
+    }
   };
 
   window.GltfTemplateCache = {
@@ -191,7 +242,7 @@
     _diag: function () {
       var keys = [];
       store.forEach(function (e, k) {
-        keys.push({ key: k, state: e.state, waiters: e.waiters.length, ageMs: Date.now() - e.lastUsed, parses: e.parses || 0, hits: e.hits || 0, shared: e.shared || 0 });
+        keys.push({ key: k, state: e.state, waiters: e.waiters.length, ageMs: Date.now() - e.lastUsed, parses: e.parses || 0, hits: e.hits || 0, shared: e.shared || 0, viaWorker: e.viaWorker === null ? null : !!e.viaWorker });
       });
       return {
         hitCount: stats.hitCount,
@@ -202,6 +253,7 @@
         evictions: stats.evictions,
         lruCap: LRU_CAP,
         managedCount: managed.size,
+        workerStats: playerWorker ? playerWorker.stats() : null,
         keys: keys
       };
     }

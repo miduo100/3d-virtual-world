@@ -1411,6 +1411,8 @@
                 showLoadFailure('bundle 加载失败');
                 return;
             }
+            // VOXLoader（MagicaVoxel）：供代码块使用，失败不阻断主流程
+            try { await loadScript('js/lib/VOXLoader.js?v=1'); } catch (e2) { console.warn('VOXLoader 加载失败(不影响主流程)', e2); }
 
             if (typeof THREE === 'undefined') {
                 showLoadFailure('THREE 未定义');
@@ -8077,6 +8079,7 @@
 <script src="js/objectThumbnailQueue.js?v=1"></script>
 <script src="js/meshoptSetup.js"></script>
 <script src="js/threejsCompatibility.js"></script>
+<script src="js/threejsIssueRegistry.js?v=1"></script>
 <script src="js/threejsCodeRunner.js?v=1"></script>
 <script>
   // ===== 统一编辑器：Three.js 代码块集成 =====

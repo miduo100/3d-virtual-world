@@ -6,13 +6,16 @@
  *   → 主线程只做 1~3ms 的 BufferGeometry/Material 组装。
  *
  * 协议：
- *   入：{ type:'parse', id, buffer(ArrayBuffer, transfer), dracoPath }
+ *   入：{ type:'parse', id, buffer(ArrayBuffer, transfer), dracoPath,
+ *         static, strict, maxTexSize }
  *   出：{ type:'ok',    id, payload, transfer }   payload=可组装的序列化模型
- *       { type:'fb',    id, reason }              不可序列化（动画/蒙皮/特殊材质），主线程回退
+ *       { type:'fb',    id, reason }              不可序列化（主线程回退）
  *       { type:'err',   id, message }             parse 失败，主线程回退
  *
- * 不可序列化判定（宁可回退，不可错渲染）：动画、骨骼/蒙皮、morph、
- *   Interleaved 属性、非 MeshStandardMaterial、Points/Line。
+ * 不可序列化判定（宁可回退，不可错渲染）：【非 strict 模式】动画、骨骼/蒙皮、
+ *   morph、Interleaved 属性、非 MeshStandardMaterial、Points/Line。
+ *   strict 模式（二期B 玩家模型专用）：允许并完整序列化 骨骼/Bone 节点树/
+ *   SkinnedMesh(skeleton+IBM+bindMatrix)/AnimationClip（times/values 传输）。
  * meshopt（gltfpack -cc）用动态 import 加载 ESM 解码器；Draco 用本地 wasm 目录。
  */
 'use strict';
@@ -53,12 +56,15 @@ function parseAsync(loader, buffer) {
 
 /* ---------------- 纹理预降级（worker 内 OffscreenCanvas，主线程零 Canvas 开销） ----------------
  * 与 worldTextureOptimizer 的 1024px 策略对齐：worker 侧先降好，主线程 downsizeSceneTextures
- * 检测到纹理已 ≤1024 会整体跳过（不再有主线程 drawImage 重采样的长帧），transfer 体量也同步减小。 */
-var MAX_TEX_SIZE = 1024;
+ * 检测到纹理已 ≤1024 会整体跳过（不再有主线程 drawImage 重采样的长帧），transfer 体量也同步减小。
+ * 【二期B】strict 模式（玩家模型）传 maxTexSize=Infinity：纹理保持原分辨率不降级
+ *（玩家模型路径本就不走降级管线，§7.3-6；降级档位若将来接入必须并入缓存 key）。 */
 var TEX_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap', 'bumpMap', 'lightMap', 'specularMap'];
 
-async function downscaleGltfTextures(gltf) {
+async function downscaleGltfTextures(gltf, maxTexSize) {
   if (typeof OffscreenCanvas === 'undefined' || typeof createImageBitmap === 'undefined') return;
+  if (maxTexSize === Infinity) return; // strict（玩家模型）：不降级，保持原分辨率
+  var MAX_TEX_SIZE = (typeof maxTexSize === 'number' && isFinite(maxTexSize) && maxTexSize > 0) ? maxTexSize : 1024;
   var texSet = new Set();
   gltf.scene.traverse(function (o) {
     if (!o.isMesh || !o.material) return;
@@ -94,10 +100,11 @@ async function downscaleGltfTextures(gltf) {
 
 /* ---------------- 序列化（仅可安全重建的子集，其余回退） ---------------- */
 
-function serializeGltf(gltf, staticMode) {
+function serializeGltf(gltf, staticMode, strictMode) {
   // static 模式（世界对象专用）：世界管线本来就把蒙皮烘焙为静态、不播世界对象动画
   //（world.js _bakeSkinsToStatic），因此动画可安全丢弃、SkinnedMesh 按静态网格序列化。
-  if (!staticMode && gltf.animations && gltf.animations.length > 0) throw { fallback: 'animations' };
+  // strict 模式（二期B 玩家模型专用）：动画/骨骼/蒙皮 允许并完整序列化。
+  if (!staticMode && !strictMode && gltf.animations && gltf.animations.length > 0) throw { fallback: 'animations' };
 
   var textures = [];   // { id, imageId, colorSpace, wrapS, wrapT, repeat, offset, rotation }
   var texIds = new Map();
@@ -254,12 +261,58 @@ function serializeGltf(gltf, staticMode) {
   }
 
   function meshEntry(mesh) {
-    if (mesh.isSkinnedMesh && !staticMode) throw { fallback: 'skinned' };
+    if (mesh.isSkinnedMesh && !staticMode && !strictMode) throw { fallback: 'skinned' };
     if (!mesh.isMesh) throw { fallback: 'objtype:' + mesh.type };
     var matIdx;
     if (Array.isArray(mesh.material)) matIdx = mesh.material.map(matId);
     else matIdx = matId(mesh.material);
-    return { geo: serializeGeometry(mesh), mat: matIdx };
+    var entry = { geo: serializeGeometry(mesh), mat: matIdx };
+    if (mesh.isSkinnedMesh && strictMode) {
+      // 【二期B】蒙皮绑定数据：skeleton（骨索引 + IBM）+ bindMatrix 全套
+      if (!mesh.skeleton || !mesh.skeleton.bones || !mesh.skeleton.bones.length) throw { fallback: 'empty-skeleton' };
+      entry.skinned = {
+        skel: skelId(mesh.skeleton),
+        bindMatrix: mesh.bindMatrix.toArray(),
+        bindMatrixInverse: mesh.bindMatrixInverse.toArray(),
+        bindMode: (typeof mesh.bindMode === 'string') ? mesh.bindMode : (mesh.bindMode === 1 ? 'detached' : 'attached')
+      };
+    }
+    return entry;
+  }
+
+  /* 【二期B strict】节点索引预分配：骨架 bones 按节点序号引用（骨骼可能晚于
+   * SkinnedMesh 被遍历，索引必须先于序列化建立） */
+  var nodeIndices = new Map();
+  var animationsOut = [];
+  var skeletons = [];
+  var skelIds = new Map();
+  function skelId(s) {
+    if (!s || !s.bones || !s.bones.length) return -1;
+    if (skelIds.has(s.uuid)) return skelIds.get(s.uuid);
+    var id = skeletons.length;
+    var bones = s.bones.map(function (b) {
+      var idx = nodeIndices.get(b);
+      if (idx === undefined) throw { fallback: 'bone-outside-scene' }; // 骨不在场景树（理论不出现，宁可回退）
+      return idx;
+    });
+    var inverses = s.boneInverses.map(function (m) { return m.toArray(); });
+    skeletons.push({ id: id, bones: bones, boneInverses: inverses });
+    skelIds.set(s.uuid, id);
+    return id;
+  }
+
+  /** 【二期B strict】AnimationClip 序列化：times/values 是 TypedArray（进 transfer），
+   * string/boolean 轨道的 values 是普通数组（走结构化克隆）。ValueTypeName 精确映射回轨道类。 */
+  function serializeClip(clip) {
+    return {
+      name: clip.name || '',
+      duration: clip.duration,
+      tracks: (clip.tracks || []).map(function (t) {
+        var e = { name: t.name, valueType: t.ValueTypeName, times: t.times, values: t.values };
+        if (t.blendMode !== undefined && t.blendMode !== null) e.blendMode = t.blendMode;
+        return e;
+      })
+    };
   }
 
   // 递归序列化节点树
@@ -284,16 +337,22 @@ function serializeGltf(gltf, staticMode) {
       }
     });
     interleaved.forEach(function (ib) { pushBuf(ib.array.buffer); });
+    animationsOut.forEach(function (c) {
+      c.tracks.forEach(function (t) {
+        if (t.times && t.times.buffer) pushBuf(t.times.buffer);
+        if (t.values && t.values.buffer) pushBuf(t.values.buffer);
+      });
+    });
     images.forEach(function (im) { transfer.push(im.bitmap); });
     return transfer;
   }
 
   function node(n) {
-    if (n.isBone && !staticMode) throw { fallback: 'bone' };
+    if (n.isBone && !staticMode && !strictMode) throw { fallback: 'bone' };
     if (!n.isMesh && !n.isObject3D) throw { fallback: 'objtype:' + n.type };
     var out = {
       name: n.name || '',
-      type: n.isMesh ? 'mesh' : 'group',
+      type: (n.isMesh ? 'mesh' : 'group'),
       pos: n.position.toArray(),
       quat: n.quaternion.toArray(),
       scale: n.scale.toArray(),
@@ -301,6 +360,7 @@ function serializeGltf(gltf, staticMode) {
       userData: null,
       children: []
     };
+    if (strictMode) out.i = nodeIndices.get(n);
     try {
       out.userData = n.userData && Object.keys(n.userData).length ? JSON.parse(JSON.stringify(n.userData)) : null;
     } catch (e) { out.userData = null; }
@@ -308,14 +368,30 @@ function serializeGltf(gltf, staticMode) {
       var me = meshEntry(n);
       out.geo = me.geo;
       out.mat = me.mat;
+      if (me.skinned) {
+        out.type = 'skinned';
+        out.skinned = me.skinned;
+      }
     }
+    if (strictMode && n.isBone) out.type = 'bone';
     for (var i = 0; i < n.children.length; i++) out.children.push(node(n.children[i]));
     return out;
   }
 
   var root = gltf.scene || (gltf.scenes && gltf.scenes[0]);
   if (!root) throw { fallback: 'no-scene' };
+  if (strictMode) {
+    (function walk(n) {
+      nodeIndices.set(n, nodeIndices.size);
+      for (var i = 0; i < n.children.length; i++) walk(n.children[i]);
+    })(root);
+    animationsOut = (gltf.animations || []).map(serializeClip);
+  }
   var payload = { root: node(root), images: images, textures: textures, materials: materials, geometries: geometries, interleaved: interleaved };
+  if (strictMode) {
+    payload.skeletons = skeletons;
+    payload.animations = animationsOut;
+  }
   payload.transfer = collectTransfer();
   return payload;
 }
@@ -334,11 +410,11 @@ self.addEventListener('message', function (e) {
       return parseAsync(loader, msg.buffer);
     })
     .then(function (gltf) {
-      return downscaleGltfTextures(gltf).then(function () { return gltf; });
+      return downscaleGltfTextures(gltf, msg.maxTexSize).then(function () { return gltf; });
     })
     .then(function (gltf) {
       try {
-        var payload = serializeGltf(gltf, !!msg.static);
+        var payload = serializeGltf(gltf, !!msg.static, !!msg.strict);
         self.postMessage({ type: 'ok', id: msg.id, payload: payload, transfer: payload.transfer }, payload.transfer);
       } catch (fb) {
         if (fb && fb.fallback) self.postMessage({ type: 'fb', id: msg.id, reason: fb.fallback });

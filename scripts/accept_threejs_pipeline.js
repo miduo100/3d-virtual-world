@@ -20,6 +20,9 @@ const PUBLIC_DIR = path.resolve(__dirname, '../public');
 const TMP_SAMPLES = path.join(PUBLIC_DIR, '_tmp_samples');
 const TMP_HARNESS = path.join(PUBLIC_DIR, '_tmp_harness.html');
 
+// 已知能产出渲染物的样本（含异步加载的城堡/展台）：这些必须真的有内容
+const EXPECT_CONTENT = ['草地.html', '代码云.html', '光柱.html', '新的文档 7.html', '城堡.html', '展台.html'];
+
 const results = [];
 function check(name, ok, detail) {
   results.push({ name, ok, detail });
@@ -29,10 +32,12 @@ function check(name, ok, detail) {
 const HARNESS_HTML = [
   '<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8"><title>harness</title>',
   '<script src="/js/lib/three.min.js?v=185"></scr' + 'ipt>',
+  '<script src="/js/lib/VOXLoader.js?v=1"></scr' + 'ipt>',
   '<script src="/js/threejsCompatibility.js"></scr' + 'ipt>',
   '<script src="/js/threejsCodeRunner.js?v=1"></scr' + 'ipt>',
   '<script src="/js/threejsCodeNormalizer.js"></scr' + 'ipt>',
   '<script src="/js/threejsInputAdapter.js"></scr' + 'ipt>',
+  '<script src="/js/threejsIssueRegistry.js?v=1"></scr' + 'ipt>',
   '<script src="/js/threejsWorldSanitizer.js"></scr' + 'ipt>',
   '</head><body><div id="pv" style="width:400px;height:300px"></div><script>',
   'window.__results=[];window.__pageErrors=[];',
@@ -49,7 +54,8 @@ const HARNESS_HTML = [
   'if(res.object){var c={meshes:0,points:0,lines:0,sprites:0,inst:0};res.object.traverse(function(o){',
   'if(o.isInstancedMesh)c.inst++;else if(o.isMesh)c.meshes++;else if(o.isPoints)c.points++;else if(o.isLine)c.lines++;else if(o.isSprite)c.sprites++;});rec.counts=c;',
   'var box=new THREE.Box3().setFromObject(res.object);if(isFinite(box.min.x)&&isFinite(box.max.x)){var s=new THREE.Vector3();box.getSize(s);rec.size=[s.x,s.y,s.z].map(function(v){return Math.round(v*100)/100;});}}',
-  'await sleep(1200);if(res.dispose){try{res.dispose();}catch(e){}}}catch(e){rec.worldOk=false;rec.worldError="THROW: "+String((e&&e.message)||e);}',
+  'var waited=0;while(waited<9000){await sleep(500);waited+=500;var cn=0,pts=0,lns=0;if(res.object){res.object.traverse(function(o){if(o.isInstancedMesh||o.isMesh)cn++;else if(o.isPoints)pts++;else if(o.isLine)lns++;});}rec.counts={meshes:cn,points:pts,lines:lns,inst:0,sprites:0};if(cn>0)break;}rec.waitedMs=waited;',
+  'if(res.dispose){try{res.dispose();}catch(e){}}}catch(e){rec.worldOk=false;rec.worldError="THROW: "+String((e&&e.message)||e);}',
   'if(fname==="光柱.html"||fname==="草地.html"){',
   'try{var pv=document.getElementById("pv");pv.innerHTML="";',
   'var res3=window.ThreeJSCodeRunner.runThreeJSCode(stored,{mode:"preview",container:pv});',
@@ -86,10 +92,18 @@ const HARNESS_HTML = [
     for (const r of rows) {
       const c = r.counts ? ('m' + r.counts.meshes + ' p' + r.counts.points + ' l' + r.counts.lines) : '-';
       check('A world执行 ' + r.file, r.worldOk === true && !r.fatal,
-        c + (r.size ? ' size=' + r.size.join('x') : '') + (r.worldError ? ' err=' + r.worldError : '') + (r.fatal ? ' fatal=' + r.fatal : ''));
+        c + (r.size ? ' size=' + r.size.join('x') : '') + (r.worldError ? ' err=' + r.worldError : '') +
+        (r.fatal ? ' fatal=' + r.fatal : '') +
+        (r.lateMeshes !== undefined ? ' lateMeshes=' + r.lateMeshes : '') +
+        (r.counts && r.counts.meshes === 0 && r.consoleErrs && r.consoleErrs.length ? ' console=' + r.consoleErrs[0].slice(0, 120) : ''));
       if (r.previewOk !== undefined) {
         check('B preview ' + r.file, r.previewOk === true && r.previewCanvas === true,
           'canvas=' + r.previewCanvas + (r.previewError ? ' err=' + r.previewError : ''));
+      }
+      // 内容产出判据：已知能出画面的样本必须最终产出渲染物（异步内容最多等 9s）
+      if (EXPECT_CONTENT.indexOf(r.file) >= 0) {
+        const got = r.counts ? (r.counts.meshes || 0) : 0;
+        check('D 内容产出 ' + r.file, got > 0, 'renderables=' + got + ' waited=' + (r.waitedMs || 0) + 'ms');
       }
     }
     await page2.close();

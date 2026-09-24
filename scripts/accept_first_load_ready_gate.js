@@ -72,6 +72,19 @@ async function main() {
     page.on('console', (m) => { if (m.type() === 'error' && !isNoise(m.text())) errors.push(m.text().slice(0, 200)); });
     page.on('pageerror', (e) => errors.push('PAGEERROR: ' + String(e.message).slice(0, 200)));
 
+    // 【二期A】页内埋点：longtask + 关键日志时间戳（天空替换 hitch 归因用）
+    await page.addInitScript(() => {
+      window.__lt = [];
+      window.__marks = [];
+      try {
+        new PerformanceObserver((list) => {
+          list.getEntries().forEach((e) => window.__lt.push({ t: Math.round(e.startTime), d: Math.round(e.duration) }));
+        }).observe({ entryTypes: ['longtask'] });
+      } catch (e) {}
+      const ol = console.log;
+      console.log = function () { try { window.__marks.push({ t: Math.round(performance.now()), m: [].slice.call(arguments).join(' ').slice(0, 120) }); } catch (e) {} ol.apply(console, arguments); };
+    });
+
     // CDP 限速：必须在 goto 之前
     const cdp = await context.newCDPSession(page);
     await cdp.send('Network.enable');
@@ -158,13 +171,13 @@ async function main() {
     });
     log('B 组 diag: ' + JSON.stringify(diagB));
 
-    // ---------- C 组：天空盒让路（Step 2） ----------
-    // 等真实天空替换完成（EXR 11.75MB @6Mbps ≈ 20s+）
+    // ---------- C 组：天空盒让路（Step 2 + 二期A 错峰/分帧/降采样） ----------
+    // 等真实天空替换完成（EXR 11.75MB @6Mbps ≈ 20s+），含空闲期 PMREM 环境光
     const t2 = Date.now();
     let skyFinal = null;
-    while (Date.now() - t2 < 45000) {
+    while (Date.now() - t2 < 60000) {
       skyFinal = await page.evaluate(() => (window.SkyManager && window.SkyManager._diag) ? window.SkyManager._diag() : null);
-      if (skyFinal && !skyFinal.deferred && skyFinal.hasTexture && skyFinal.backgroundIsTexture) break;
+      if (skyFinal && !skyFinal.deferred && skyFinal.hasTexture && skyFinal.backgroundIsTexture && skyFinal.hasEnvironment) break;
       await page.waitForTimeout(500);
     }
     // 等场景 GLB #1 完成（最多 40s，用于 C4）
@@ -172,6 +185,18 @@ async function main() {
     while (sceneGlbDone.length === 0 && Date.now() - t3 < 40000) {
       await page.waitForTimeout(400);
     }
+    // 等空闲期 PMREM 完成（真纹理上屏后 ~1s 内；hasEnvironment 自占位期即 true 不能作判据）
+    const tEnv = Date.now();
+    while (Date.now() - tEnv < 15000) {
+      const hasEnvMark = await page.evaluate(() => (window.__marks || []).some((m) => /环境光照已生成/.test(m.m)));
+      if (hasEnvMark) break;
+      await page.waitForTimeout(500);
+    }
+    // 页内埋点快照（longtask + 标记，页面时钟）
+    const probes = await page.evaluate(() => ({
+      marks: (window.__marks || []).filter((m) => /SkyManager|已应用天空/.test(m.m)),
+      longtasks: (window.__lt || []).filter((x) => x.d >= 100),
+    }));
 
     results.push({ name: 'C0 就绪前天空处于渐变占位态', pass: skyDeferredSeen === true, detail: 'deferred+gradient seen=' + skyDeferredSeen });
     const exrReqs = reqLog.filter((r) => r.kind === 'skyExr');
@@ -209,9 +234,55 @@ async function main() {
       detail: firstSceneGlb ? (firstSceneGlb.url + ' @' + firstSceneGlb.t + 'ms') : 'none',
     });
     results.push({
-      name: 'C5 占位已被真天空替换',
-      pass: !!skyFinal && skyFinal.deferred === false && skyFinal.hasTexture === true && skyFinal.backgroundIsTexture === true,
+      name: 'C5 占位已被真天空替换（含环境光）',
+      pass: !!skyFinal && skyFinal.deferred === false && skyFinal.hasTexture === true && skyFinal.backgroundIsTexture === true && skyFinal.hasEnvironment === true,
       detail: JSON.stringify(skyFinal),
+    });
+
+    // ---------- 【二期A】天空替换瞬间的 hitch 与错峰断言 ----------
+    // 页面时钟换算：skyMark 的页面时间 → 相对 pageStart
+    const skyMark = probes.marks.find((m) => /已应用天空/.test(m.m)) || null;
+    const envMark = probes.marks.find((m) => /环境光照已生成/.test(m.m)) || null;
+    const prewarmMark = probes.marks.find((m) => /占位环境光已上屏/.test(m.m)) || null;
+    if (skyMark) log('（INFO）skyMark(页面时钟)=' + skyMark.t + 'ms envMark=' + (envMark ? envMark.t : 'none') + 'ms prewarm=' + (prewarmMark ? prewarmMark.t : 'none') + 'ms');
+    // C6：替换瞬间（含解码）的最大 longtask —— 基线 2717ms（解码+PMREM+同步 paint），
+    // 二期A 后应只剩解码任务（PMREM 已错峰空闲期 + 降采样）
+    let c6pass = false, c6detail = 'no-sky-mark';
+    let c6bpass = false, c6bdetail = 'no-env-mark';
+    if (skyMark) {
+      const rel = (x) => x; // longtask/marks 同为页面 performance.now 时钟
+      // 归因：每个任务找最近日志标记
+      const nearestMark = (x) => {
+        let best = null, bd = Infinity;
+        probes.marks.forEach((mk) => { const dd = Math.abs(mk.t - x.t); if (dd < bd) { bd = dd; best = mk; } });
+        return (best && bd < 4000) ? best.m : '';
+      };
+      // C6：替换瞬间本身（解码任务，结束于 mark 前）：窗口 [mark-2500, mark+400]
+      const atReplace = probes.longtasks.filter((x) => x.t + x.d > rel(skyMark.t) - 2500 && x.t < rel(skyMark.t) + 400);
+      const replaceMax = atReplace.length ? Math.max(...atReplace.map((x) => x.d)) : 0;
+      c6pass = replaceMax <= 1000;
+      c6detail = 'maxAtReplace(EXR解码)=' + replaceMax + 'ms（基线 2717ms 同步含 PMREM）';
+      // C6b：空闲期 env 任务（含降采样+PMREM+回收；错峰后世界已可交互、天空已可见）
+      if (envMark) {
+        const atEnv = probes.longtasks.filter((x) => x.t + x.d > rel(envMark.t) - 2500 && x.t < rel(envMark.t) + 2500);
+        const envMax = atEnv.length ? Math.max(...atEnv.map((x) => x.d)) : 0;
+        c6bpass = envMax <= 2200;
+        c6bdetail = 'maxEnvIdleTask=' + envMax + 'ms（基线该成本混在替换瞬间的 2717ms 里同步支付）';
+      }
+    }
+    results.push({ name: 'C6 天空替换瞬间 hitch ≤1000ms（基线 2717ms）', pass: c6pass, detail: c6detail });
+    results.push({ name: 'C6b 空闲期 env 任务 ≤2200ms（已错峰，世界可交互）', pass: c6bpass, detail: c6bdetail });
+    // C7：PMREM 错峰——环境光生成发生在背景上屏之后（空闲期）
+    results.push({
+      name: 'C7 PMREM 错峰（env 在背景上屏之后生成）',
+      pass: !!(skyMark && envMark && envMark.t > skyMark.t),
+      detail: 'sky=' + (skyMark ? skyMark.t : '-') + ' env=' + (envMark ? envMark.t : '-'),
+    });
+    // C8：占位环境光在加载屏内就位（材质从此带 envmap 编译，换真纹理零重编译）
+    results.push({
+      name: 'C8 占位环境光已预热（加载屏内）',
+      pass: !!prewarmMark && !!skyMark && prewarmMark.t < skyMark.t,
+      detail: 'prewarm=' + (prewarmMark ? prewarmMark.t : 'none') + 'ms',
     });
 
     // ---------- 汇总 ----------

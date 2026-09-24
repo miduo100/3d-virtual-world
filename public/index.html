@@ -1463,6 +1463,7 @@
   <!-- WebGL2 能力检测与友好降级（r163 起不再支持 WebGL1，旧设备全屏提示；须先于 three 加载以便 window.stop 省流量） -->
   <script src="js/webgl2Guard.js?v=185"></script>
   <script src="js/lib/three.min.js?v=185"></script>
+  <script src="js/lib/VOXLoader.js?v=1"></script>
   <script src="js/lib/three-mesh-bvh.min.js?v=1"></script>
   <script src="js/lib/GLTFLoader.js?v=185"></script>
   <script src="js/lib/DRACOLoader.js?v=185"></script>
@@ -1510,9 +1511,9 @@
   <script src="js/geometryBatcher.js?v=4"></script>
   <script src="js/capsuleCollision.js?v=6"></script>
   <!-- 【2026-09-08 会话2】GLB 解析 Worker 客户端（worker 内 parse，主线程零停顿） -->
-  <script src="js/gltfWorkerClient.js?v=1"></script>
+  <script src="js/gltfWorkerClient.js?v=2"></script>
   <script src="js/loadingProgress.js?v=7"></script>
-  <script src="js/skyManager.js?v=2"></script>
+  <script src="js/skyManager.js?v=3"></script>
   <script src="js/world.js?v=14"></script>
   <script src="js/worldObjectBounds.js?v=3"></script>
   <script src="js/placeholderField.js?v=5"></script>
@@ -1526,15 +1527,16 @@
   <script src="js/worldSpatialManager.js?v=1"></script>
   <!-- 【首屏丝滑化 Step1】环境就绪闸门：几何体全上屏 + 队列无<15MB对象（或12s兜底） -->
   <script src="js/worldReadyGate.js?v=1"></script>
-  <!-- 【首屏丝滑化 Step3】同模板多玩家复用（解析/显存 N→1）+ 玩家模型调度（就绪放行/视野过滤/让路） -->
-  <script src="js/gltfTemplateCache.js?v=1"></script>
-  <script src="js/playerModelScheduler.js?v=1"></script>
+  <!-- 【首屏丝滑化 Step3 + 二期B】同模板多玩家复用（解析/显存 N→1，miss 走 Worker）+ 玩家模型调度（就绪放行/视野过滤/让路） -->
+  <script src="js/gltfTemplateCache.js?v=2"></script>
+  <script src="js/playerModelScheduler.js?v=2"></script>
   <script src="js/gaussianSplatLoader.js"></script>
   <script src="js/gaussianSplatRenderer.js"></script>
   <script src="js/world3dgs.js?v=2"></script>
   <script src="js/threejsCompatibility.js"></script>
   <script src="js/threejsCodeNormalizer.js"></script>
-  <script src="js/threejsWorldSanitizer.js?v=185fix1"></script>
+  <script src="js/threejsIssueRegistry.js?v=1"></script>
+  <script src="js/threejsWorldSanitizer.js?v=185fix2"></script>
   <script src="js/threejsCodeRunner.js?v=1"></script>
   <script src="js/customConfigRegistry.js"></script>
   <script src="js/customConfigApplier.js"></script>

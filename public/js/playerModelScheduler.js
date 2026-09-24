@@ -16,7 +16,8 @@
  *              双保险，WorldReadyGate 缺失时直接放行=旧行为）。
  *   P3 远端  ：onReady 后做"视野内"过滤：距离 ≤60m 且（视锥内 或 ≤25m）；
  *              每 2s 重评（BgThrottle）；按距离升序；并发 1。
- *   动画     ：挂在对应玩家上，其模型就绪后立即放行（杜绝 500ms×20 空转重试）。
+ *   动画     ：挂在对应玩家上，其模型就绪后立即放行（杜绝 500ms×20 空转重试）；
+ *              放行前把动画 URL 注册进 GltfTemplateCache（走 Worker 解析，二期B）。
  *
  * 5 条硬性要求（§6）逐条落实：
  *   1. 放行前绝不写 characterGroup.userData._loadingGlbUrl（world.js 用它做幂等，
@@ -202,6 +203,7 @@
       var a = byType[types[i]];
       if (!validGlbUrl(a.animUrl)) continue;
       if (!playerExists(gw, cid)) continue;
+      if (window.GltfTemplateCache) window.GltfTemplateCache.register(finalUrl(a.animUrl));
       log('放行动画: cid=' + cid + ' type=' + a.type);
       origLoadPlayerAnimGlb.call(gw, cid, a.type, a.animUrl, 0);
     }
@@ -288,8 +290,12 @@
     if (!pd) return origLoadPlayerAnimGlb.apply(this, arguments);
 
     if (pd.group.userData.glbModel) {
-      // 模型已就绪 → 立即放行（动画文件不入 GltfTemplateCache——§7.2 共享范围
-      // 仅为模型源 scene/AnimationClip[]；独立动画 GLB 走原路径，parseCount 口径=模型）
+      // 模型已就绪 → 立即放行；动画 URL 注册进模板缓存（走 Worker 解析，
+      // 8 个动画 × 主线程解析实测 ~1.9s 长任务整体移出主线程）。动画文件
+      // 的"克隆语义"与模型一致：每玩家独立 clip（compensator 就地改 track.values）。
+      if (validGlbUrl(animUrl) && window.GltfTemplateCache) {
+        window.GltfTemplateCache.register(finalUrl(animUrl));
+      }
       return origLoadPlayerAnimGlb.apply(this, arguments);
     }
 

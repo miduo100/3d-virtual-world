@@ -43,7 +43,9 @@
     deferredSky: null,        // 被让路的真实天空配置
     deferredSince: 0,         // performance.now() 起点占位开始
     placeholderKind: 'none',  // 'gradient' | 'none'
-    _placeholderTex: null     // 占位纹理（替换/重置时 dispose，不进 cache）
+    _placeholderTex: null,    // 占位纹理（替换/重置时 dispose，不进 cache）
+    envToken: 0,              // 【二期A】空闲期 PMREM 任务令牌（防旧任务覆盖）
+    envPrewarmed: false       // 【二期A】PMREM 着色器是否已预热
   };
 
   function warn(msg, err) {
@@ -69,7 +71,49 @@
     }
   }
 
-  /** 生成/清理环境光照（PBR 反射） */
+  /** 生成/清理环境光照（PBR 反射）。
+   * 【二期A】PMREM 源降采样：4K EXR → ≤1024 宽的 DataTexture 再生成环境贴图。
+   * PMREM 成本 ∝ 分辨率（16×像素差），而环境反射本身被 PMREM 卷积模糊，
+   * 1K 源在视觉上无感——实测把"替换天空"瞬间的长任务从 ~2.7s 砍掉大半。 */
+  function makeEnvSource(tex) {
+    try {
+      const img = tex && tex.image;
+      if (!img || !img.data || !(img.width > 0) || !(img.height > 0)) return tex; // 非浮点数据（JPG 全景）直接用
+      const w = img.width, h = img.height;
+      const MAXW = 1024;
+      if (w <= MAXW) return tex;
+      const ch = Math.floor(img.data.length / (w * h));
+      if (ch !== 3 && ch !== 4) return tex;
+      const factor = Math.max(2, Math.ceil(w / MAXW));
+      const nw = Math.max(1, Math.floor(w / factor)), nh = Math.max(1, Math.floor(h / factor));
+      const out = new img.data.constructor(nw * nh * ch);
+      for (let y = 0; y < nh; y++) {
+        for (let x = 0; x < nw; x++) {
+          for (let c = 0; c < ch; c++) {
+            let sum = 0, n = 0;
+            const yEnd = Math.min((y + 1) * factor, h), xEnd = Math.min((x + 1) * factor, w);
+            for (let sy = y * factor; sy < yEnd; sy++) {
+              for (let sx = x * factor; sx < xEnd; sx++) {
+                sum += img.data[(sy * w + sx) * ch + c]; n++;
+              }
+            }
+            out[(y * nw + x) * ch + c] = sum / Math.max(1, n);
+          }
+        }
+      }
+      const dt = new THREE.DataTexture(out, nw, nh, ch === 4 ? THREE.RGBAFormat : THREE.RGBFormat, tex.type);
+      dt.mapping = THREE.EquirectangularReflectionMapping;
+      dt.colorSpace = tex.colorSpace;
+      dt.magFilter = THREE.LinearFilter;
+      dt.minFilter = THREE.LinearFilter;
+      dt.generateMipmaps = false;
+      dt.needsUpdate = true;
+      return dt;
+    } catch (e) {
+      return tex; // 降采样失败退回原始纹理
+    }
+  }
+
   function applyEnvironment() {
     if (!state.scene) return;
     const need = !!(state.sky && state.sky.use_env && state.texture && state.renderer && THREE.PMREMGenerator);
@@ -85,25 +129,78 @@
     }
     try {
       const pmrem = new THREE.PMREMGenerator(state.renderer);
+      const t0 = performance.now();
+      const src = makeEnvSource(state.texture);
+      const t1 = performance.now();
+      const rt = pmrem.fromEquirectangular(src);
+      const t2 = performance.now();
+      if (src !== state.texture) src.dispose(); // 降采样副本用完即弃（背景仍用原 4K）
+      pmrem.dispose();
+      if (state.envRT) state.envRT.dispose();
+      state.envRT = rt;
+      rt.texture.__skyEnv = true;
+      state.scene.environment = rt.texture;
+      console.log('[SkyManager] ✨ 环境光照已生成（空闲期，降采样 ' + Math.round(t1 - t0) + 'ms / PMREM ' + Math.round(t2 - t1) + 'ms）');
+    } catch (e) {
+      warn('生成环境光照失败，已仅保留背景', e);
+    }
+  }
+
+  /** 【二期A】PMREM 延后空闲期执行：背景同步上屏（纯赋值零成本），
+   * 环境光（主线程 GPU 大开销）错峰到 requestIdleCallback，且用 envToken 防旧任务覆盖 */
+  function scheduleEnvironment() {
+    const token = ++state.envToken;
+    const run = () => {
+      if (token !== state.envToken) return; // 已被更新的天空/重置取代
+      applyEnvironment();
+    };
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(run, { timeout: 2500 });
+    } else {
+      setTimeout(run, 400);
+    }
+  }
+
+  /** 【二期A】占位环境光 + PMREM 着色器预热（加载屏内一次性付清两笔成本）：
+   *  1. PMREMGenerator 首跑要编译整套卷积着色器（Windows ANGLE 每程序反射
+   *     ~160ms，不预热则正式生成时 ~800ms+）；
+   *  2. scene.environment 从无到有会让【全体 PBR 材质】带 envmap 重编译
+   *     （实测 ~3s 长任务，基线里混在"替换天空"帧间隙中）。加载屏内就挂上
+   *     占位 env → 所有材质从首次编译起就带 envmap（只编一次，且处于加载屏
+   *     的编译预算摊薄期内）；正式天空到达后仅换纹理引用——envmap 存在性
+   *     不变 → 程序缓存键不变 → 零重编译。 */
+  function prewarmPmremShaders() {
+    if (state.envPrewarmed || !state.renderer || !state.texture || !THREE.PMREMGenerator) return;
+    if (!state.sky || !state.sky.use_env) return; // 该天空不产环境光时不预热
+    if (!state.scene) return;
+    state.envPrewarmed = true;
+    try {
+      const pmrem = new THREE.PMREMGenerator(state.renderer);
       const rt = pmrem.fromEquirectangular(state.texture);
       pmrem.dispose();
       if (state.envRT) state.envRT.dispose();
       state.envRT = rt;
       rt.texture.__skyEnv = true;
       state.scene.environment = rt.texture;
+      console.log('[SkyManager] 🔥 占位环境光已上屏（加载屏内预热 PMREM；正式天空到达后换纹理零重编译）');
     } catch (e) {
-      warn('生成环境光照失败，已仅保留背景', e);
+      warn('PMREM 预热失败（不影响后续正式生成）', e);
     }
   }
 
-  /** 把已加载好的纹理装到场景背景上（skipEnv=true 跳过 PMREM——占位阶段不做环境光） */
-  function paint(skipEnv) {
+  /** 只装背景（占位阶段用：不生成环境光） */
+  function paintBackground() {
     if (!state.scene) return;
     if (state.texture) {
       state.scene.background = state.texture;
     }
     applyTuning();
-    if (!skipEnv) applyEnvironment();
+  }
+
+  /** 把已加载好的纹理装到场景背景上（背景同步；PMREM 延后空闲期） */
+  function paint() {
+    paintBackground();
+    scheduleEnvironment();
   }
 
   /** 【Step2】程序化渐变占位天空（CanvasTexture，零网络、<5ms） */
@@ -175,7 +272,8 @@
     state.placeholderKind = 'gradient';
     state._placeholderTex = makeGradientPlaceholder();
     state.texture = state._placeholderTex;
-    paint(true); // 占位阶段跳过 PMREM 环境光（与高清纹理一起推迟）
+    paintBackground(); // 占位阶段只装背景，不生成环境光（PMREM 与高清一起推迟）
+    prewarmPmremShaders(); // 【二期A】趁加载屏还在，把 PMREM 着色器编译成本付掉
     console.log('[SkyManager] 🌒 环境未就绪，天空先用程序化渐变占位，就绪后再拉高清 HDR');
 
     const consume = () => {
@@ -194,6 +292,7 @@
     state.texture = null;
     state.deferred = false;
     state.deferredSky = null;
+    state.envToken++;      // 【二期A】作废排队中的空闲期 PMREM 任务
     disposePlaceholder();
     applyEnvironment(); // 清掉 environment
     if (state.scene) {

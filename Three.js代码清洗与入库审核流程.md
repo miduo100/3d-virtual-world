@@ -236,6 +236,15 @@ S6 回归    → 加入回归集（见 4.3）
 | 新的文档 7.html | 能跑 | console.log×5、dat.GUI hack、七位色值 | effect-水波（shader/self-contained/perf-light） | 提取着色器三件套入库 |
 | 展台.html | 能跑 | 天空盒/视频/模型三外链、traverse 覆写保护、顶层 await | video-tex + gltf-load 两份 | 切层提取入库 |
 
+> **2026-09-24 链路加固后的实测更新**（本表"预判"列已部分过时）：
+> | 文件 | 世界模式实测 | 说明 |
+> |---|---|---|
+> | 城堡.html | **能显示**（2 渲染物） | VOXLoader 已本地化 + monu10.vox 已入库；样本自带 scale=0.0015，进世界约 0.18m，需编辑器放大 |
+> | 小区.html | **14 渲染物** | 外链模型加载后产出内容；尺寸 932×1100m 由世界侧自动缩到 50m |
+> | 展台.html | **15 渲染物**（异步晚到） | 异步等待 + 外部资源加载，需轮询 9s 才见内容 |
+> | 教学楼.html | 0 渲染物 | 缺 IFC 模型与 WASM，属 needs-asset，仍建议 rejected |
+> | 其余 4 个 | 正常产出 | 代码云 2000 / 光柱 44 / 草地 2 / 水波 1+1 |
+
 ---
 
 ## 五点五、链路加固记录（2026-09-24，已实施）
@@ -253,6 +262,18 @@ S6 回归    → 加入回归集（见 4.3）
 **加固后实测**：8/8 样本 world 模式零执行错误；草地/代码云/光柱/新的文档 7 直接出内容；城堡/教学楼/展台/小区（外链资源缺失）优雅降级为空组，由 admin 预览"零渲染物"预验证门槛标黄拦截。主世界冒烟 9/9 无回归。
 
 **留待后续评估**（本轮未动）：normalizer 的 16 条 legacy API 规则仍是 r128 基线方向（把新 API 降级旧写法，靠 compatibility 的 accessor 桥救回），r185 下建议评估反转或停用；world_editor/unified_editor 未加载 normalizer（二次规范化静默跳过，用户决策暂不补）。
+
+### 加固第二轮（2026-09-24 晚）：层级/显示问题修复
+
+用户实测反馈"光柱/代码云层级不对、城堡不显示"，三根因全部定位并修复：
+
+| 问题 | 根因 | 修复 |
+|---|---|---|
+| 光柱穿透一切（X 光） | 样本 `planeMaterial.depthTest=false`，而清洗器的 depthTest 修正只覆盖点/线/精灵、不管 Mesh | 清洗器 `normalizeDepthState` 扩展到 Mesh（threejsWorldSanitizer.js，v=185fix2） |
+| 代码云遮挡错乱 | 世界渲染器 `logarithmicDepthBuffer:true`（world.js:37），用户 ShaderMaterial 不含 logdepth 着色器块 → 深度编码与世界不一致 | 清洗器新增 `patchShaderLogDepth`：按 r185 ShaderChunk 等价注入（`USE_LOGARITHMIC_DEPTH_BUFFER` 宏包裹 + `logDepthBufFC`），渲染器未开 logdepth（admin 预览）时编译为空零副作用；已在 `gl_Position` 赋值后/片元 main 开头安全注入，自带 logdepth 处理的跳过 |
+| 城堡不显示 | `VOXLoader` 不在 r185 bundle → 万能桩吞掉；且 monu10.vox 属无节点图老式文件，r185 解析器返回 `scene=null` → 代码 `result.scene.children[0]` 抛错被吞 | ①本地化 `public/js/lib/VOXLoader.js`（自 three r185 examples 转换：剥 import/export、等待式挂载 `THREE.VOXLoader`、无节点 scene 兜底补丁）；②资产 `public/models/vox/monu10.vox`（632KB，magic 校验通过）；③接入 index/world_editor/unified_editor/admin 四处（admin 两处惰性链） |
+
+验证：世界内实测 光柱 depthTestFalse 33→0、代码云 logdepthInShader 0→2000、城堡 0→2 mesh；截图目检代码雨被建筑正确遮挡；冒烟 9/9。**注意**：城堡样本自带 `scale.setScalar(0.0015)`（demo 微距相机专用），进世界约 0.18m 很小，需在编辑器放大。
 
 ---
 
@@ -275,6 +296,60 @@ S6 回归    → 加入回归集（见 4.3）
 **实测断点归因备忘**（供后续批次参考）：①最大断点是旧存库删行逻辑本身（4/8）；②`autoDeclareImports` 生成的 `var X = typeof X!=='undefined' ? X : …` 因 var 提升自判失败，永远落到 THREE 命名空间桩——万能桩从根上兜住了这类问题；③"OK 但 0 渲染物"（城堡/教学楼/展台）由后台 world 预验证拦截，属正常分流；④展台的视频材质部分卡在外部 video 元素等待上，需按 3.3 节切层提取，不是 runner 问题。
 
 **遗留待评估**（本次未动）：normalizer 的 16 条 legacy API 规则仍是 r128 基线方向（把新 API 降级旧写法、靠 compatibility 的 accessor 桥接救回），r185 下建议后续专项评估反转或停用；`threejs_code_blocks` 表的 source_type/auto_fixes/import_status 三列缺 DDL 迁移。
+
+---
+
+## 五点八、问题知识库（自动检测与处置，2026-09-24 建成）
+
+**目的**：把踩过的坑固化成「机器可识别 + 可自动处置」的条目。问题库越大，新代码放进来被自动识别/修正的比例越高。
+
+**实现**：`public/js/threejsIssueRegistry.js`（知识库 + 执行器，浏览器/Node 双端可用）
+
+| 作用域 | 触发时机 | 行为 |
+|---|---|---|
+| `code` | 入库前（admin 预览诊断区、批量 CLI） | 静态体检：只读源码，命中即在后台诊断区列出 ISS 编号 + 处置建议 |
+| `scene` | 世界加载时（runner world 模式，清洗器之前） | 对象体检验：命中即**自动修复**，控制台按 ISS 编号输出 |
+| `delegated` | — | 已由其它模块（清洗器/世界归一化）自动处理，知识库只登记根因与处置位置，不重复执行 |
+
+**动作分级**：`auto-fix`（安全自动修复，幂等）/ `warn`（自动识别 + 人工判断）/ `fatal`（必须人工处理）/ `delegated`（已自动处理，仅记录）。
+
+**现有条目（v1.0.0，16 条）**
+
+| 编号 | 问题 | 作用域 | 动作 |
+|---|---|---|---|
+| ISS-0001 | 材质 depthTest=false 穿透遮挡物 | scene | auto-fix |
+| ISS-0002 | ShaderMaterial 缺对数深度适配（遮挡层级错乱） | scene | auto-fix |
+| ISS-0003 | 执行成功但零渲染物（空对象） | scene | warn |
+| ISS-0004 | NaN 顶点（视锥剔除异常） | scene | delegated |
+| ISS-0005 | 非标准材质 | scene | delegated |
+| ISS-1001 | 顶层 await | code | delegated |
+| ISS-1002 | 外链资源依赖 | code | warn |
+| ISS-1003 | 未内置的 Loader | code | warn |
+| ISS-1004 | 悬空引用（renderer/controls 未声明） | code | warn |
+| ISS-1005 | depthTest=false 静态出现 | code | delegated |
+| ISS-1006 | 已删除的旧 API | code | fatal |
+| ISS-1007 | TypeScript 语法 | code | delegated |
+| ISS-1008 | 定时器驱动动画 | code | warn |
+| ISS-1009 | 无入口函数且不产生对象 | code | warn |
+| ISS-1010 | 代码自带灯光 | code | delegated |
+| ISS-1011 | 尺寸超出世界尺度 | code | delegated |
+
+**批量体检（入库前第一步）**
+
+```
+node scripts/audit_threejs_issues.js [目录]     # 默认 L:\shegnjir185\网上找的代码
+node scripts/audit_threejs_issues.js --json     # 机器可读输出
+```
+
+输出逐文件命中的 ISS 编号 + 处置建议 + 汇总（按编号统计命中次数、致命项数量）；退出码 1 = 存在致命项。检测前会自动剥注释，避免注释掉的代码产生误报（代码云.html 的 `// vertexColors: THREE.VertexColors` 曾误命中旧 API 规则）。
+
+**累积新问题的三步流程（缺一不可）**
+
+1. 现象定位到根因后，在 `threejsIssueRegistry.js` 末尾按文件头模板追加条目（编号递增：场景级 ISS-00xx、代码级 ISS-10xx）；
+2. `detect` 写"能判定的最小条件"，`fix` 必须**幂等**（重复执行无副作用）；能自动处理写 `auto-fix`，需人判断写 `warn`；
+3. 本节表格补一行，并把案例样本写进条目的 `samples` 字段——下次同类代码进来即自动命中。
+
+**实测纠正（重要）**：判定"有没有内容"必须**轮询等待**，异步加载晚到会让即时计数误判为空对象——城堡/展台/小区三个样本都曾被误判，轮询后分别为 2/15/14 个渲染物。验收脚本已改为轮询最多 9s，并把"内容产出"作为独立判据。
 
 ---
 

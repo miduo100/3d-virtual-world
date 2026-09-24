@@ -630,9 +630,14 @@
       }
       if (__usedAsyncExec) {
         Promise.resolve(executeCode.apply(null, __execParamValues)).then(function () {
-          // 异步代码晚到的内容补一遍世界清洗（灯光/材质/NaN 顶点）
-          if (mode === 'world' && typeof ThreeJSWorldSanitizer !== 'undefined' && ThreeJSWorldSanitizer.sanitize) {
-            try { ThreeJSWorldSanitizer.sanitize(captureScene, THREE); } catch (se) {}
+          // 异步代码晚到的内容补一遍体检 + 世界清洗（灯光/材质/NaN 顶点/层级）
+          if (mode === 'world') {
+            if (typeof ThreeJSIssueRegistry !== 'undefined' && ThreeJSIssueRegistry.auditScene) {
+              try { ThreeJSIssueRegistry.auditScene(captureScene, THREE, { logarithmicDepth: true, silent: true }); } catch (ie2) {}
+            }
+            if (typeof ThreeJSWorldSanitizer !== 'undefined' && ThreeJSWorldSanitizer.sanitize) {
+              try { ThreeJSWorldSanitizer.sanitize(captureScene, THREE); } catch (se) {}
+            }
           }
         }, function (asyncErr) {
           console.error('[ThreeJSCodeRunner] 异步执行失败:', asyncErr);
@@ -686,6 +691,10 @@
         }
       }
 
+      // 世界模式：先跑问题知识库体检（命中即自动处置并记录 ISS 编号），再由清洗器兜底
+      if (typeof ThreeJSIssueRegistry !== 'undefined' && ThreeJSIssueRegistry.auditScene) {
+        try { ThreeJSIssueRegistry.auditScene(captureScene, THREE, { logarithmicDepth: true }); } catch (ie) {}
+      }
       // 世界模式下只保留模型，清洗灯光/反射/环境等副作用
       if (typeof ThreeJSWorldSanitizer !== 'undefined' && ThreeJSWorldSanitizer.sanitize) {
         ThreeJSWorldSanitizer.sanitize(captureScene, THREE);

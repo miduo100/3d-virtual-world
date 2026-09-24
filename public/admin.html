@@ -232,6 +232,7 @@
       return new Promise((resolve, reject) => {
         const scripts = [
           'js/lib/three.min.js?v=185',
+          'js/lib/VOXLoader.js?v=1',
           'js/lib/OrbitControls.js?v=185',
           'js/lib/TransformControls.js?v=185',
           'js/lib/GLTFLoader.js?v=185'
@@ -2112,6 +2113,7 @@
       })();
     </script>
     <script src="js/threejsCompatibility.js"></script>
+    <script src="js/threejsIssueRegistry.js?v=1"></script>
     <script src="js/threejsCodeRunner.js?v=1"></script>
     <script src="js/threejsCodeNormalizer.js?v=ts3"></script>
     <script src="js/threejsInputAdapter.js"></script>
@@ -2303,6 +2305,24 @@
                 (f.rule.indexOf('sensitive') >= 0 ? '⚠️ ' : f.rule.indexOf('unsupported') >= 0 ? '🚫 ' : '🔧 ') +
                 tjsEscapeHtml(f.description) + '</div>';
             });
+            // 问题知识库自动体检（ISS-xxxx：命中即代表"这是第几类已知问题"，可回查根因与处置）
+            if (window.ThreeJSIssueRegistry) {
+              try {
+                var iaFindings = window.ThreeJSIssueRegistry.auditCode(extractedCode).findings;
+                if (iaFindings.length) {
+                  html += '<div style="color:#ffd966;margin-top:4px;">🧠 问题库体检：命中 ' + iaFindings.length +
+                    ' 项（知识库共 ' + window.ThreeJSIssueRegistry.stats().total + ' 条规则）</div>';
+                  iaFindings.forEach(function (f) {
+                    var ic = f.action === 'fatal' ? '#ff6666' : f.action === 'warn' ? '#ff9966' :
+                             f.action === 'auto-fix' ? '#66ff66' : '#99ccff';
+                    var icn = f.action === 'fatal' ? '🚫' : f.action === 'warn' ? '⚠️' :
+                              f.action === 'auto-fix' ? '🔧' : 'ℹ️';
+                    html += '<div style="color:' + ic + ';">' + icn + ' [' + f.id + '] ' +
+                      tjsEscapeHtml(f.title) + (f.hint ? '｜' + tjsEscapeHtml(f.hint) : '') + '</div>';
+                  });
+                }
+              } catch (ie) { }
+            }
             if (html) { diag.innerHTML = html; diag.style.display = 'block'; }
           })();
 
@@ -9051,6 +9071,7 @@ async function initBoneEditor() {
       // 动态注入 Three.js（使用本地文件，加载速度更快）
       const scripts = [
         'js/lib/three.min.js?v=185',
+        'js/lib/VOXLoader.js?v=1',
         'js/lib/GLTFLoader.js?v=185',
         'js/lib/OrbitControls.js?v=185',
         'js/lib/TransformControls.js?v=185'

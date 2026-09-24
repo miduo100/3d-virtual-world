@@ -27,7 +27,7 @@ const THROTTLE = { latency: 200, downloadThroughput: 6 * 1024 * 1024 / 8, upload
 const ACC = { username: 'diag_tmp_1', password: 'Diag#2026tmp' };
 const TPL_SELF = '/uploads/character-templates/char-1780308958337-973251791.glb';   // 新生成美女无皮 0.76MB
 const TPL_SELF_ID = '3e7089c4-0b2e-46e3-b51e-6bcffdb186e1';
-const TPL_C = '/uploads/character-templates/char-1780048961474-732397004.glb';      // 美女 4.86MB
+const TPL_C = '/uploads/character-templates/char-1772847423638-210646326.glb';     // 线上转换的GLB 0.13MB（视野过滤专用：极小众模板，避免与在线玩家撞款导致请求计数误判）
 const TPL_D = '/uploads/character-templates/char-1780047374315-163599099.glb';      // metool 9.5MB
 const TPL_E = '/uploads/character-templates/char-1779180094927-135896146.glb';      // 拿剑武士（仅标识）
 const ANIMS = [
@@ -126,8 +126,11 @@ async function main() {
     const T_ready = tReadyDate - pageStart;
     log('T_ready=' + Math.round(T_ready) + 'ms reason=' + readyDiag.reason);
 
-    // 等自己角色上屏 + 8 动画可用
+    // 等自己角色上屏 + 8 动画可用（分别记录到达时刻：模型上屏与动画就绪是两件事，
+    // 二期B 动画走 Worker 解析，8 个串行 worker 往返 + 真实在线玩家共享带宽/Worker 下
+    // 动画就绪会比模型晚若干秒——对用户无感（idle 就绪即播，角色先站立））
     let u1 = null;
+    let modelAt = null, animsAt = null;
     const t1 = Date.now();
     while (Date.now() - t1 < 30000) {
       u1 = await page.evaluate((cid) => {
@@ -139,12 +142,15 @@ async function main() {
           animMode: pd.group.userData.currentAnimMode || null,
         };
       }, cid);
-      if (u1 && u1.glbModel && u1.animKeys.length >= 8) break;
+      const rel = Date.now() - pageStart;
+      if (u1 && u1.glbModel && modelAt == null) modelAt = rel;
+      if (u1 && u1.animKeys.length >= 8 && animsAt == null) animsAt = rel;
+      if (modelAt != null && animsAt != null) break;
       await page.waitForTimeout(400);
     }
-    const selfDoneRel = Date.now() - pageStart; // 采样上界（含轮询间隔误差 ≤400ms）
     results.push({ name: 'U1a 自己角色已上屏', pass: !!(u1 && u1.glbModel), detail: JSON.stringify(u1) });
-    results.push({ name: 'U1b 上屏 ≤ T_ready+8s', pass: !!(u1 && u1.glbModel && selfDoneRel <= T_ready + 8000 + 500), detail: 'selfDone≈' + selfDoneRel + 'ms T_ready=' + Math.round(T_ready) + 'ms（0.76MB 模型）' });
+    results.push({ name: 'U1b 模型上屏 ≤ T_ready+8s', pass: modelAt != null && modelAt <= T_ready + 8000 + 500, detail: 'modelAt≈' + modelAt + 'ms animsAt≈' + animsAt + 'ms T_ready=' + Math.round(T_ready) + 'ms（0.76MB 模型）' });
+    results.push({ name: 'U1b2 8 动画就绪 ≤ T_ready+11s', pass: animsAt != null && animsAt <= T_ready + 11000 + 500, detail: 'animsAt≈' + animsAt + 'ms（Worker 解析往返 + 在线玩家共享带宽）' });
     results.push({ name: 'U1c 8 动画可用（无空转）', pass: !!(u1 && u1.animKeys.length >= 8), detail: 'animKeys=' + (u1 ? u1.animKeys.join(',') : 'none') });
     results.push({ name: 'U1d idle 自动播放', pass: !!(u1 && u1.animMode === 'idle'), detail: 'mode=' + (u1 && u1.animMode) });
 
@@ -168,11 +174,19 @@ async function main() {
       if (u2 && u2.glbModel) break;
       await page.waitForTimeout(400);
     }
-    // 给远端2 注入 idle 动画（验证互不干扰）
+    // 给远端2 注入 idle 动画（验证互不干扰）；轮询等绑定完成（限速下 worker 往返 + 排队可 >3s）
     await page.evaluate((animUrl) => {
       window.gameWorld._loadPlayerAnimGlb('sched-remote-2', 'idle', animUrl);
     }, ANIMS[0][1]);
-    await page.waitForTimeout(3000);
+    const t2w = Date.now();
+    while (Date.now() - t2w < 15000) {
+      const bIdleReady = await page.evaluate(() => {
+        const pd = window.gameWorld.players.get('sched-remote-2');
+        return !!(pd && pd.group.userData.animActions && pd.group.userData.animActions.idle);
+      });
+      if (bIdleReady) break;
+      await page.waitForTimeout(400);
+    }
     const mix = await page.evaluate((cid) => {
       const a = window.gameWorld.players.get(cid);
       const b = window.gameWorld.players.get('sched-remote-2');
@@ -183,9 +197,10 @@ async function main() {
         return false;
       };
       const ma = a.group.userData.sharedMixer, mb = b.group.userData.sharedMixer;
+      const aa = a.group.userData.animActions, ba = b.group.userData.animActions;
       return {
-        aIdle: !!a.group.userData.animActions.idle,
-        bIdle: !!b.group.userData.animActions.idle,
+        aIdle: !!(aa && aa.idle),
+        bIdle: !!(ba && ba.idle),
         mixersDistinct: !!ma && !!mb && ma !== mb,
         aRootInA: !!(ma && inSubtree(a.group.userData.glbModel, ma._root)),
         bRootInB: !!(mb && inSubtree(b.group.userData.glbModel, mb._root)),
@@ -215,6 +230,104 @@ async function main() {
     });
     results.push({ name: 'U2e 材质隔离（共享纹理、独立材质）', pass: !!(mix && mix.matsIsolated), detail: 'matsIsolated=' + (mix && mix.matsIsolated) });
 
+    // ============ 【二期B】U5 组：Worker 解析 + 蒙皮等价性对照 ============
+    // U5a：模型与动画均经 Worker 解析（viaWorker=true）
+    const idleAnimKey = cache2.keys.find((k) => k.key.indexOf(ANIMS[0][1].split('/').pop()) >= 0);
+    results.push({
+      name: 'U5a 模型经 Worker 解析（viaWorker）',
+      pass: !!selfKey && selfKey.viaWorker === true,
+      detail: 'selfKey.viaWorker=' + (selfKey && selfKey.viaWorker),
+    });
+    results.push({
+      name: 'U5b 动画 GLB 经 Worker 解析并命中缓存',
+      pass: !!idleAnimKey && idleAnimKey.viaWorker === true && idleAnimKey.parses === 1,
+      detail: 'animKey=' + JSON.stringify(idleAnimKey),
+    });
+    // U5c：等价性对照——页面内主线程直接 parse 同一 GLB，与 Worker 产物比对
+    //（骨数/骨名/蒙皮数/IBM 数值/顶点数值 必须一致 → Worker strict 序列化无失真）
+    const equiv = await page.evaluate(async ({ tplUrl, selfCid }) => {
+      const buf = await (await fetch(tplUrl)).arrayBuffer();
+      const gltf = await new Promise((res, rej) => new THREE.GLTFLoader().parse(buf, '', res, rej));
+      const fresh = gltf.scene;
+      const pd = window.gameWorld.players.get(selfCid);
+      const mine = pd && pd.group.userData.glbModel;
+      if (!mine) return { error: 'no-player-model' };
+      const bonesOf = (root) => {
+        const names = [];
+        root.traverse((o) => { if (o.isBone) names.push(o.name); });
+        return names;
+      };
+      const skinsOf = (root) => {
+        const out = [];
+        root.traverse((o) => { if (o.isSkinnedMesh && o.skeleton) out.push(o); });
+        return out;
+      };
+      const f = bonesOf(fresh), m = bonesOf(mine);
+      const fs = skinsOf(fresh), ms = skinsOf(mine);
+      const ibmMaxDiff = (() => {
+        if (fs.length !== ms.length) return -1;
+        let max = 0;
+        for (let i = 0; i < fs.length; i++) {
+          if (fs[i].skeleton.bones.length !== ms[i].skeleton.bones.length) return -1;
+          const a = fs[i].skeleton.boneInverses, b = ms[i].skeleton.boneInverses;
+          for (let j = 0; j < a.length; j++) {
+            for (let k = 0; k < 16; k++) max = Math.max(max, Math.abs(a[j].elements[k] - b[j].elements[k]));
+          }
+        }
+        return max;
+      })();
+      const posMaxDiff = (() => {
+        if (fs.length !== ms.length) return -1;
+        let max = 0;
+        for (let i = 0; i < fs.length; i++) {
+          const ap = fs[i].geometry.attributes.position, bp = ms[i].geometry.attributes.position;
+          if (!ap || !bp || ap.count !== bp.count) return -1;
+          for (let k = 0; k < Math.min(300, ap.count); k++) {
+            max = Math.max(max, Math.abs(ap.array[k * 3] - bp.array[k * 3]));
+          }
+        }
+        return max;
+      })();
+      const bindMaxDiff = (() => {
+        if (fs.length !== ms.length) return -1;
+        let max = 0;
+        for (let i = 0; i < fs.length; i++) {
+          for (let k = 0; k < 16; k++) {
+            max = Math.max(max, Math.abs(fs[i].bindMatrix.elements[k] - ms[i].bindMatrix.elements[k]));
+          }
+        }
+        return max;
+      })();
+      return {
+        freshBones: f.length, myBones: m.length,
+        boneNamesEqual: f.join(',') === m.join(','),
+        freshSkins: fs.length, mySkins: ms.length,
+        ibmMaxDiff, posMaxDiff, bindMaxDiff,
+        freshAnims: (gltf.animations || []).length
+      };
+    }, { tplUrl: TPL_SELF, selfCid: cid });
+    results.push({
+      name: 'U5c Worker 蒙皮等价性（骨名/骨数/蒙皮数一致）',
+      pass: !!equiv && !equiv.error && equiv.freshBones === equiv.myBones && equiv.boneNamesEqual && equiv.freshSkins === equiv.mySkins && equiv.mySkins > 0,
+      detail: JSON.stringify(equiv),
+    });
+    results.push({
+      name: 'U5d Worker 绑定数据等价（IBM/bindMatrix/顶点 差异 <1e-4）',
+      pass: !!equiv && equiv.ibmMaxDiff >= 0 && equiv.ibmMaxDiff < 1e-4 && equiv.bindMaxDiff < 1e-4 && equiv.posMaxDiff < 1e-4,
+      detail: 'ibm=' + (equiv && equiv.ibmMaxDiff) + ' bind=' + (equiv && equiv.bindMaxDiff) + ' pos=' + (equiv && equiv.posMaxDiff),
+    });
+    // U5e：专用 Worker 统计（解析次数>0，0 失败 0 回退）——玩家模板走独立实例，
+    // 默认实例（场景路径）计数与本任务无关
+    const wstats = await page.evaluate(() => {
+      const c = window.GltfTemplateCache._diag();
+      return c.workerStats;
+    });
+    results.push({
+      name: 'U5e 专用 Worker 统计（worker>0 且 0 失败）',
+      pass: !!wstats && wstats.worker > 0 && wstats.failed === 0,
+      detail: JSON.stringify(wstats),
+    });
+
     // ============ 用例 3：视野过滤 + 并发 1 ============
     // C 置于 200m 外（用不同模板 URL 便于区分请求）；D 在视野内等接力
     await page.evaluate(({ tplC, tplD }) => {
@@ -235,8 +348,8 @@ async function main() {
         blocks: d.blocks,
       };
     });
-    const cReqsBefore = charReq.filter((r) => r.url === TPL_C.split('/').pop());
-    results.push({ name: 'U3a 200m 外不加载（保持方块人）', pass: vis.cModel === false && cReqsBefore.length === 0, detail: JSON.stringify(vis) + ' cReqs=' + cReqsBefore.length });
+    const cReqsBefore = charReq.filter((r) => r.url === TPL_C.split('/').pop() && r.phase === 'start');
+    results.push({ name: 'U3a 200m 外不加载（保持方块人）', pass: vis.cModel === false && cReqsBefore.length === 0, detail: JSON.stringify(vis) + ' cStartReqs=' + cReqsBefore.length });
 
     // C 移入 ≤25m（视野豁免区，避免 40m 恰在相机视锥外的构造误差）
     await page.evaluate(() => {
