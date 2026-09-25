@@ -530,17 +530,31 @@ class FederationSystem {
           response.data.publicKey
         );
 
+        // 【2026-09-25 修复】把对方世界信息一并返回（worldId/worldName/worldUrl/publicKey）。
+        // 原本这两个成功分支都不返回 worldId，而调用方（routes/federation.js 的 POST /trust、
+        // centralWorldConnector.autoConnectToCentral）都是「用 result.worldId 去内存表取对象再写库」，
+        // get(undefined) 恒为 undefined → 写库整段被静默跳过 →
+        // 表现为「从自己后台添加的世界只存在于内存，一重启互信列表就空了」。
+        const peer = {
+          worldId: response.data.worldId,
+          worldName: response.data.worldName,
+          worldUrl: response.data.worldUrl,
+          publicKey: response.data.publicKey
+        };
+
         // 对方开启了审批，需要等待对方管理员同意
         if (response.data.requiresApproval) {
           return {
             success: true,
             requiresApproval: true,
+            ...peer,
             message: `信任请求已发送给 ${response.data.worldName}，等待对方管理员审批`
           };
         }
 
         return {
           success: true,
+          ...peer,
           message: `已与 ${response.data.worldName} 建立信任关系`
         };
       }

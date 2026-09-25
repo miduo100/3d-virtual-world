@@ -637,7 +637,15 @@ router.post('/trust', authenticateAdminToken, securityCheck, async (req, res) =>
 
     if (result.success) {
       // 保存到数据库
-      const targetWorld = federationSystem.trustedWorlds.get(result.worldId);
+      // 【2026-09-25 加固】先按 worldId 取；取不到再按 URL 反查（兼容返回体缺 worldId 的情况）；
+      // 仍然取不到时明确告警 —— 绝不静默跳过写库（静默跳过 = 互信只存在内存，一重启就消失）。
+      const stripTrailingSlash = (u) => String(u || '').replace(/\/+$/, '');
+      let targetWorld = result.worldId ? federationSystem.trustedWorlds.get(result.worldId) : null;
+      if (!targetWorld) {
+        const wantUrl = stripTrailingSlash(result.worldUrl || targetWorldUrl);
+        targetWorld = Array.from(federationSystem.trustedWorlds.values())
+          .find(w => stripTrailingSlash(w.worldUrl) === wantUrl) || null;
+      }
       if (targetWorld) {
         try {
           await query(
@@ -652,6 +660,8 @@ router.post('/trust', authenticateAdminToken, securityCheck, async (req, res) =>
           console.error('❌ 保存信任世界失败:', dbError);
           // 数据库错误不影响信任建立，继续返回成功
         }
+      } else {
+        console.warn('⚠️ [联邦] 握手成功但未能在信任表中定位目标世界，已跳过写库（该信任重启后会丢失）:', targetWorldUrl);
       }
     }
 
