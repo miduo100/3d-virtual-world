@@ -98,8 +98,19 @@ AI-Agent联测提示词-*.md
 AI-Agent修复提示词-*.md
 AI-Agent引流提示词-*.md
 AI-Agent应用价值与内容系列规划.md
-LOD三版模型方案-开发规划与规范.md
 *实现提示词-*.md
+# 2026-09-25 起改为模式匹配：此后新建的进度/规范/规格类文档自动忽略，无需逐条追加
+*开发规范与进度.md
+*开发规划与规范.md
+*阶段规格.md
+AI描述待填清单.md
+
+# 第三方收集的 Three.js 测试样本（accept_threejs_pipeline.js 的默认样本目录）
+# 2026-09-25 移出版本控制；本地保留，克隆仓库后跑该脚本需自备样本
+网上找的代码/
+
+# AI 面向访客的审计报告（本地留档，2026-09-25 移出版本控制）
+docs/ai-audit/
 
 # Agent 联测运行时产物（events.jsonl / state.json / follow.log / inbox / done）
 # 每个驻场客户端用独立目录：live/、live-deepseek/、live-miduo/ ...
@@ -117,6 +128,14 @@ scripts/_tmp_*
 # 一次性测试脚本与脚本输出文件
 scripts/test_upload_tmp.js
 scripts/*_out.txt
+
+# 一次性诊断脚本（2026-09-25 移出版本控制）
+# 例外：四个已沉淀为可复用诊断工具的脚本保留入库
+scripts/diag_*.js
+!scripts/diag_bo_stack.js
+!scripts/diag_first_entry.js
+!scripts/diag_longtask_profile.js
+!scripts/diag_turn_reveal_probe.js
 
 # 运行日志目录（access/ops/audit 分流日志与服务器 stdout/stderr）
 logs/
