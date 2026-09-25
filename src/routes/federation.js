@@ -1004,10 +1004,14 @@ router.get('/central-status', securityCheck, async (req, res) => {
 
     const status = await centralConnector.checkCentralConnection();
 
+    // 【2026-09-25】改为回报 connector 的真实值：原来这里自带 'https://miduo100.com' 兜底，
+    // 而真正发请求的 CentralWorldConnector 没有兜底 → 后台显示"已配置中心世界"却从不连接（配置假象）。
+    const realCentralUrl = centralConnector.centralWorldUrl || null;
+
     res.json({
       success: true,
-      hasCentral: !!(process.env.CENTRAL_WORLD_URL || 'https://miduo100.com'),
-      centralUrl: process.env.CENTRAL_WORLD_URL || 'https://miduo100.com',
+      hasCentral: !!realCentralUrl,
+      centralUrl: realCentralUrl,
       ...status
     });
 

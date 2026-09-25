@@ -229,18 +229,22 @@ cd <project-dir> && AGENT_HOST=https://$D node examples/agent-client/node-agent.
 
 ## Federation System Configuration
 
-### Central World
+### Central World (hosting the federation)
 ```env
-IS_CENTRAL_WORLD=true
-AUTO_CONNECT_CENTRAL=false
+WORLD_URL=https://your-public-domain     # must be publicly reachable
+AUTO_CONNECT_CENTRAL=false               # a central world never auto-connects
 ```
 
-### Child World
+### Child World (default: joins the federation on startup)
 ```env
-IS_CENTRAL_WORLD=false
-CENTRAL_WORLD_URL=https://<central-world-address>
-AUTO_CONNECT_CENTRAL=true
+WORLD_URL=https://your-public-domain        # publicly reachable; the central world calls back to verify
+CENTRAL_WORLD_URL=https://miduo100.com      # defaults to this when unset
+AUTO_CONNECT_CENTRAL=true                   # set to false to opt out
 ```
+
+> - `localhost` / `192.168.x.x` / `10.x.x.x` addresses are skipped automatically (use `FEDERATION_ALLOW_PRIVATE=1` for local testing only).
+> - Watch the startup log: `✅ 成功连接到中心世界！` (connected) / `ℹ️  自动连接已禁用，跳过` (opt-out) / `⚠️  [联邦] 本世界 worldUrl 为内网/本机地址…` (private URL).
+> - Check `GET /api/federation/central-status`; the central world lists you under its trusted worlds.
 
 ## Docker Deployment
 ```bash

@@ -333,10 +333,15 @@ All worlds interconnect equally, establishing federation relationships through b
 
 **`.env` for federation participating worlds:**
 ```env
-IS_CENTRAL_WORLD=false
 WORLD_NAME=My World
 WORLD_URL=https://my-world.your-domain.com
+CENTRAL_WORLD_URL=https://miduo100.com
+AUTO_CONNECT_CENTRAL=true
 ```
+
+> - `WORLD_URL` must be **publicly reachable**; `localhost` / private addresses are skipped automatically (use `FEDERATION_ALLOW_PRIVATE=1` for local testing only).
+> - `CENTRAL_WORLD_URL` defaults to `https://miduo100.com` when unset; set `AUTO_CONNECT_CENTRAL=false` to opt out of the federation.
+> - A central world never connects to itself — the connector detects "central URL == own URL" and skips.
 
 ### Verify Federation Connection
 

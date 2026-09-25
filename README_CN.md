@@ -331,10 +331,15 @@ server {
 
 **联邦参与世界的 `.env`：**
 ```env
-IS_CENTRAL_WORLD=false
 WORLD_NAME=我的世界
 WORLD_URL=https://my-world.your-domain.com
+CENTRAL_WORLD_URL=https://miduo100.com
+AUTO_CONNECT_CENTRAL=true
 ```
+
+> - `WORLD_URL` 必须是**公网可访问**地址；`localhost`/内网地址会被自动跳过（本地测试可用 `FEDERATION_ALLOW_PRIVATE=1` 强制放行）。
+> - `CENTRAL_WORLD_URL` 不配置时默认 `https://miduo100.com`；设为 `AUTO_CONNECT_CENTRAL=false` 即退出联邦（不自动建立信任）。
+> - 中心世界自身无需自连，启动时会自动识别"中心世界与本世界同址"并跳过。
 
 ### 验证联邦连接
 

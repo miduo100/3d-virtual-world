@@ -7,11 +7,27 @@ const axios = require('axios');
 const { query } = require('./database/db');
 const { classifyUrlHost } = require('./services/worldReachabilityChecker');
 
+// 【2026-09-25】中心世界默认地址。原来这里是 `|| null`，而 routes/federation.js 的
+// /central-status 与 .env.production.example 都写着"不配置则默认连接 https://miduo100.com"，
+// 结果：后台显示「已配置中心世界」但真正发请求的这里从不发（配置假象）。
+// 现在统一以本常量兜底；用 CENTRAL_WORLD_URL 可覆盖，用 AUTO_CONNECT_CENTRAL=false 可关闭自连。
+const DEFAULT_CENTRAL_WORLD_URL = 'https://miduo100.com';
+
+// 去掉末尾斜杠，便于比较（https://a.com/ 与 https://a.com 视为同一个）
+const stripTrailingSlash = (u) => String(u || '').replace(/\/+$/, '');
+
+// 两个 URL 是否指向同一台主机（host 含端口；解析失败时退化为去斜杠字符串比较）
+function isSameHost(a, b) {
+  if (!a || !b) return false;
+  try { return new URL(a).host === new URL(b).host; }
+  catch { return stripTrailingSlash(a) === stripTrailingSlash(b); }
+}
+
 class CentralWorldConnector {
   constructor(federationSystem) {
     this.federationSystem = federationSystem;
-    // 默认连接到主世界，部署后自动生效
-    this.centralWorldUrl = process.env.CENTRAL_WORLD_URL || null;
+    // 默认连接到中心世界（部署后自动生效）
+    this.centralWorldUrl = process.env.CENTRAL_WORLD_URL || DEFAULT_CENTRAL_WORLD_URL;
     this.autoCentralConnect = process.env.AUTO_CONNECT_CENTRAL !== 'false';
   }
 
@@ -27,6 +43,13 @@ class CentralWorldConnector {
     if (!this.autoCentralConnect) {
       console.log('ℹ️  自动连接已禁用，跳过');
       return { success: false, reason: 'disabled' };
+    }
+
+    // 【2026-09-25】中心世界 == 本世界时跳过：中心世界自己不需要自连，
+    // 否则每次启动都会把自己写进互信列表（列表里会多出一条"本世界"）。
+    if (isSameHost(this.centralWorldUrl, this.federationSystem.worldUrl)) {
+      console.log('ℹ️  中心世界与本世界是同一个地址，跳过自动连接');
+      return { success: false, reason: 'self_world' };
     }
 
     // 握手也会向对方登记本世界的 URL，同样先做源头自检
@@ -88,6 +111,12 @@ class CentralWorldConnector {
   async registerToCentral() {
     if (!this.centralWorldUrl) {
       return { success: false, reason: 'no_central_url' };
+    }
+
+    // 【2026-09-25】同理：中心世界不需要把自己注册给自己
+    if (isSameHost(this.centralWorldUrl, this.federationSystem.worldUrl)) {
+      console.log('ℹ️  中心世界与本世界是同一个地址，跳过向中心世界注册');
+      return { success: false, reason: 'self_world' };
     }
 
     // 发送前自检：本机 worldUrl 为内网/本机地址时不向中心世界发请求（源头屏蔽）
