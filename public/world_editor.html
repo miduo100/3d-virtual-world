@@ -7816,7 +7816,7 @@
                 const dracoLoader = new THREE.DRACOLoader();
                 dracoLoader.setDecoderPath('/js/libs/draco/');
                 loader.setDRACOLoader(dracoLoader);
-                loader.parse(buffer, modelPath,
+                loader.parse(buffer, modelPath.slice(0, modelPath.lastIndexOf('/') + 1),
                     (gltf) => {
                         try {
                             console.log('✅ GLTF模型解析成功:', modelPath);

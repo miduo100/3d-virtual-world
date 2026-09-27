@@ -5996,6 +5996,27 @@ class World {
         offset += chunk.length;
       }
 
+      // 【2026-09-26 glTF 修复】.gltf 是 JSON+外置 bin/贴图：不能进 Worker / parse('')
+      // ——相对 URI 会解析到站点根（如 /TwistedTree_5.bin）而 404，模型不显示。
+      // 主线程 parse 并把 resourcePath 指到模型所在目录，外置 bin/贴图按目录解析；
+      // GLB 自包含不受影响，仍走 Worker 通道。
+      if (url.toLowerCase().endsWith('.gltf')) {
+        const baseDir = url.slice(0, url.lastIndexOf('/') + 1);
+        this.gltfLoader.parse(
+          arrayBuffer.buffer,
+          baseDir,
+          (gltf) => {
+            this._showCompleteOnPlaceholder(name);
+            if (onComplete) onComplete(gltf);
+          },
+          (error) => {
+            console.error(`❌ GLTF 解析失败 (.gltf, base=${baseDir}):`, error);
+            if (onError) onError(error);
+          }
+        );
+        return;
+      }
+
       // 【2026-09-08 会话2】GLB 解析进 Worker（主线程零停顿）；动画/蒙皮/morph 等
       // 不可序列化子集自动回退主线程 parse（fallbackLoader 已配 Draco+Meshopt）
       if (window.GltfWorkerClient && window.GltfWorkerClient.parseBuffer) {
