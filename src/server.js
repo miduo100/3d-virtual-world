@@ -129,6 +129,7 @@ const federationTrustRoutes = require('./routes/federationTrust');
 const aiSceneGeneratorRoutes = require('./routes/aiSceneGenerator');
 const uploadedModelsRoutes = require('./routes/uploadedModels');
 const uploadedModelMetaRoutes = require('./routes/uploadedModelMeta');  // 🤖 上传模型 AI 描述端点
+const modelBundleRoutes = require('./routes/modelBundleUpload');  // 📦 多文件资源包上传（glTF/OBJ bundle）
 const aiProvidersRoutes = require('./routes/aiProviders');
 const tagsRoutes = require('./routes/tags');
 const configRoutes = require('./routes/config');
@@ -178,6 +179,7 @@ app.use('/api/ai-scene', aiSceneGeneratorRoutes);  // AI场景生成路由
 app.use('/api/ui-controls', uiControlsRouter);  // UI控件路由（包含公开接口和管理员接口）
 app.use('/api', uploadedModelsRoutes);  // 上传模型路由
 app.use('/api', uploadedModelMetaRoutes);  // 🤖 上传模型 AI 描述端点（独立小模块）
+app.use('/api', modelBundleRoutes);  // 📦 多文件资源包上传（glTF/OBJ bundle）
 app.use('/api/tags', tagsRoutes);  // 标签管理路由
 app.use('/api/config', configRoutes);  // 配置管理路由
 app.use('/api/character-templates', characterTemplatesRoutes);  // 角色模板路由（管理员）
