@@ -16,7 +16,7 @@ AI：读导览 → 进入世界 → 观察（附近有谁、有什么）→ 走�
 
 ![MCP 宿主在调用 world_* 工具的同时，浏览器里的真人玩家看到一个 🤖 角色走到身边并弹出聊天气泡](./docs/demo-live.png)
 > 演示素材是**真实录屏截图**，不是示意图：左边是 MCP 宿主在调用工具，右边是浏览器里真人玩家看到的画面。
-> 目前已录 2 段（画面全景、工具清单），第 3 段（`world_observe` 原始输出）待补，见第九节。
+> 3 段已齐：画面全景、工具清单、`world_observe` 原始输出（见第九节）。
 
 ---
 
@@ -96,6 +96,8 @@ Key 只是"推流特权"，不是权限等级：**所有 Agent 的动作权限�
 
 ## 三、工具清单
 
+![MCP 宿主里读到的 8 个 world_* 工具](./docs/demo-tools.png)
+
 | 工具 | 作用 | 关键限制 |
 |---|---|---|
 | `world_discover` | 读世界的公开发现文档：世界名、是否开放接入、能力与限流 | 无需凭证；建议第一步就调 |
@@ -106,6 +108,8 @@ Key 只是"推流特权"，不是权限等级：**所有 Agent 的动作权限�
 | `world_follow` | 按 **id** 跟随某个玩家（长时任务，立刻返回） | 结束方式：再发 walk_to 或 world_leave |
 | `world_chat_history` | 读最近聊天（游客档靠它知道有没有人回话） | 历史数据，不是实时推送 |
 | `world_leave` | 离场（世界里的形象消失） | 下次调用工具会自动重新进入 |
+
+![world_observe 的原始返回：附近物体带名称、距离与 AI 描述](./docs/demo-observe.png)
 
 不做的事（**服务端红线，MCP 侧绝不包装绕过**）：`teleport`（传送）、`set_position`（直接设坐标）。
 
@@ -210,7 +214,7 @@ node scripts/accept_mcp_server.js
 | 源码（本目录） | ✅ 完成，验收见 `scripts/accept_mcp_server.js`（M1~M14，42/42） |
 | 线上发现层（第 1、2 步欠账） | ✅ **已补齐**：`/.well-known`、`llms.txt`、`robots.txt`、`sitemap.xml`、`/agents/`、`/agent-samples/` 全部 200，端点广播 `https` / `wss` |
 | 包元数据（去 `private`、仓库、关键词） | ✅ 已补齐，见 `package.json` |
-| 演示素材 | 🟡 已录 2 段：`docs/demo-live.png`（画面全景，README 首图）、`docs/demo-tools.png`（工具清单）；第 3 段 `demo-observe.png` 待补 |
+| 演示素材 | ✅ 3 段已齐：`docs/demo-live.png`（画面全景，README 首图）、`docs/demo-tools.png`（工具清单）、`docs/demo-observe.png`（`world_observe` 原始输出）；README 与 `/agents/` 落地页均已引用 |
 | 发布到 npm（`agent-virtual-world`） | ⏸ 未发布（公开行为，需所有者授权：npm 账号 + 包名确认） |
 | 独立 GitHub 仓库 | 🟡 已创建 `miduo100/agent-virtual-world`，但**仍是空仓库（未 push）** —— 必须先 push，否则本文档与 npm 页面引用的 `docs/*.png` 会是坏图 |
 | MCP 目录站提交 | ⏸ 未提交（渠道清单、提交文案、帖子草稿、执行步骤见对外发布工作台 `L:\AI Agent 引流`） |
@@ -223,7 +227,7 @@ README 顶部与 `/agents/` 落地页的 `<!-- TODO: 演示 GIF -->` 占位**已
 |---|---|---|---|
 | 1 | 一侧是 Claude/Cursor 对话框，AI 说"我看到 3 个玩家"；另一侧浏览器里一个 🤖 角色走到真人旁边，头顶冒出聊天气泡 | README 首图 / Product Hunt / Show HN 封面 | `demo-live.png` ✅ 已录（2026-09-28，静态截图） |
 | 2 | 只截 MCP 客户端面板里 8 个 `world_*` 工具的列表 | 让开发者一眼看懂能力边界 | `demo-tools.png` ✅ 已录（2026-09-28） |
-| 3 | AI 输出的 `world_observe` 原始文本（含距离、物体描述） | 证明"AI 真的看得见" | `demo-observe.png` ⏸ 待补 |
+| 3 | AI 输出的 `world_observe` 原始文本（含距离、物体描述） | 证明"AI 真的看得见" | `demo-observe.png` ✅ 已录（09-29） |
 
 素材存放：`examples/mcp-server/docs/`（README 引用）与 `public/agents/`（落地页引用），两处需保持一致；源图另存于对外发布工作台 `L:\AI Agent 引流\图片\`。
 **不要**用示意图或假数据代替——目录站审核与开发者信任都建立在"这是真的在跑"。

@@ -29,6 +29,7 @@
   .demo { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; margin:14px 0; }
   .demo img { display:block; width:100%; height:auto; border-radius:8px; }
   .demo p { margin:10px 4px 2px; color:var(--dim); font-size:13.5px; text-align:center; }
+  .demo--narrow img { max-width:66%; margin:0 auto; }
   footer { margin-top:64px; padding-top:22px; border-top:1px solid var(--line); color:var(--dim); font-size:13px; }
 </style>
 </head>
@@ -57,6 +58,11 @@
     <img src="demo-tools.png" width="2832" height="929" loading="lazy"
          alt="MCP 宿主里读到的 8 个 world_* 工具清单">
     <p>宿主里读到的 8 个 <code>world_*</code> 工具，能力边界一眼可见。</p>
+  </div>
+  <div class="demo demo--narrow">
+    <img src="demo-observe.png" width="980" height="836" loading="lazy"
+         alt="world_observe 返回的原始 JSON：附近物体带名称、距离与 AI 描述">
+    <p><code>world_observe</code> 的原始返回：附近物体带名称、距离和 AI 描述——AI 是真的“看得见”。</p>
   </div>
 
   <h2>三步接入</h2>
