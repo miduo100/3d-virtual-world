@@ -8,6 +8,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>创世虚拟世界CRM系统 - 世界编辑器</title>
+    <!-- 安全修复 D1（例外 E2）：统一注入管理员凭证（fetch + XHR 的非 GET /api/ 请求） -->
+    <script src="js/adminAuthFetch.js?v=1"></script>
     <script>
       // 编辑器需后台登录态（与 admin.html 同源，共享 localStorage）
       if (!localStorage.getItem('adminToken')) { location.replace('/admin_login.html'); }

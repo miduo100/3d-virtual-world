@@ -101,7 +101,6 @@ app.get(['/', '/index.html'], seoHtmlInjector.handler);
 
 app.use(express.static(path.join(__dirname, '../public'), staticCacheOptions));
 app.use('/i18n', express.static(path.join(__dirname, '../public/i18n'), staticCacheOptions));
-app.use('/node_modules', express.static(path.join(__dirname, '../node_modules'), staticCacheOptions));
 
 // Database initialization
 const { initializeDatabase, query } = require('./database/db');
@@ -151,50 +150,55 @@ const worldSpatialRoutes = require('./routes/worldSpatial');
 const skyRoutes = require('./routes/sky');
 const { worldWriteGuard } = require('./middleware/worldWriteGuard');
 const agentApiRoutes = require('./routes/agent');  // AI Agent 接入 API（/api/agent/v1）
+// 安全修复（D1/D3/D5②）：挂载层写操作鉴权 / AI 额度限频 / 联邦 sync-user 提权拦截
+// 统一策略表与保险丝（SECURITY_GUARD_OFF=1 全放行）见 src/middleware/apiWriteGuard.js
+const apiWriteGuard = require('./middleware/apiWriteGuard');
+const aiQuotaGuard = require('./middleware/aiQuotaGuard');
+const { federationSyncGuard } = require('./middleware/federationSyncGuard');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', securityQuestionsRoutes);  // 安全问题管理（需管理员认证）
-app.use('/api/users', userRoutes);
+app.use('/api/users', apiWriteGuard.forMount('/api/users'), userRoutes);
 app.use('/api/world/spatial', worldSpatialRoutes);
 // 世界内容写操作仅管理员可用（GET 在守卫内部放行，联邦跨域读取不受影响）
 app.use('/api/world', worldWriteGuard, worldRoutes);
 app.use('/api/world', worldWriteGuard, worldLockRoutes);
 app.use('/api/world', worldWriteGuard, worldGroundRoutes);
-app.use('/api/shop', shopRoutes);
-app.use('/api/plot', plotRoutes);
-app.use('/api/skills', skillRoutes);
-app.use('/api/monster', monsterRoutes);
+app.use('/api/shop', apiWriteGuard.forMount('/api/shop'), shopRoutes);
+app.use('/api/plot', apiWriteGuard.forMount('/api/plot'), plotRoutes);
+app.use('/api/skills', apiWriteGuard.forMount('/api/skills'), skillRoutes);
+app.use('/api/monster', apiWriteGuard.forMount('/api/monster'), monsterRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api/admin-auth', adminAuthRoutes);  // 管理员认证路由
 app.use('/api/admin', adminRoutes);  // 管理后台路由（需要管理员认证）
 app.use('/api/admin/maintenance', adminMaintenanceRoutes);  // 维护工具路由
 app.use('/api/admin/model-lod', modelLodRoutes);  // 模型 LOD 管理路由（需管理员认证）
-app.use('/api/tripo', tripoRoutes);  // Tripo AI 3D生成路由
-app.use('/api/ai', aiAssistantRoutes);  // AI助手路由
-app.use('/api/ai-providers', aiProvidersRoutes);  // AI提供商配置路由
-app.use('/api/geometry-building', geometryBuildingRoutes);  // 几何体建筑路由
-app.use('/api/federation', federationRouter);  // 联邦系统路由
+app.use('/api/tripo', apiWriteGuard.forMount('/api/tripo'), tripoRoutes);  // Tripo AI 3D生成路由
+app.use('/api/ai', apiWriteGuard.forMount('/api/ai'), aiAssistantRoutes);  // AI助手路由
+app.use('/api/ai-providers', apiWriteGuard.forMount('/api/ai-providers'), aiProvidersRoutes);  // AI提供商配置路由
+app.use('/api/geometry-building', apiWriteGuard.forMount('/api/geometry-building'), geometryBuildingRoutes);  // 几何体建筑路由
+app.use('/api/federation', federationSyncGuard, federationRouter);  // 联邦系统路由
 app.use('/api/federation', federationTrustRoutes);  // 联邦信任审批路由（开关/待审批请求）
-app.use('/api/ai-scene', aiSceneGeneratorRoutes);  // AI场景生成路由
+app.use('/api/ai-scene', apiWriteGuard.forMount('/api/ai-scene'), aiSceneGeneratorRoutes);  // AI场景生成路由
 app.use('/api/ui-controls', uiControlsRouter);  // UI控件路由（包含公开接口和管理员接口）
-app.use('/api', uploadedModelsRoutes);  // 上传模型路由
-app.use('/api', uploadedModelMetaRoutes);  // 🤖 上传模型 AI 描述端点（独立小模块）
-app.use('/api', modelBundleRoutes);  // 📦 多文件资源包上传（glTF/OBJ bundle）
-app.use('/api/tags', tagsRoutes);  // 标签管理路由
+app.use('/api', apiWriteGuard.forMount('/api'), uploadedModelsRoutes);  // 上传模型路由
+app.use('/api', apiWriteGuard.forMount('/api'), uploadedModelMetaRoutes);  // 🤖 上传模型 AI 描述端点（独立小模块）
+app.use('/api', apiWriteGuard.forMount('/api'), modelBundleRoutes);  // 📦 多文件资源包上传（glTF/OBJ bundle）
+app.use('/api/tags', apiWriteGuard.forMount('/api/tags'), tagsRoutes);  // 标签管理路由
 app.use('/api/config', configRoutes);  // 配置管理路由
-app.use('/api/character-templates', characterTemplatesRoutes);  // 角色模板路由（管理员）
-app.use('/api/inventory', inventoryRoutes);  // 背包/奖励池/掉落物路由
-app.use('/api/npc', npcRoutes);  // NPC管理路由
-app.use('/api/custom-npc', customNpcRoutes);  // 定制NPC路由
-app.use('/api/media', mediaRoutes);  // 媒体图片上传路由
+app.use('/api/character-templates', apiWriteGuard.forMount('/api/character-templates'), characterTemplatesRoutes);  // 角色模板路由（管理员）
+app.use('/api/inventory', apiWriteGuard.forMount('/api/inventory'), inventoryRoutes);  // 背包/奖励池/掉落物路由
+app.use('/api/npc', apiWriteGuard.forMount('/api/npc'), npcRoutes);  // NPC管理路由
+app.use('/api/custom-npc', apiWriteGuard.forMount('/api/custom-npc'), customNpcRoutes);  // 定制NPC路由
+app.use('/api/media', apiWriteGuard.forMount('/api/media'), mediaRoutes);  // 媒体图片上传路由
 app.use('/api/three-dgs', threeDgsRoutes);  // 3D高斯泼溅场景公开只读列表路由
-app.use('/api/ai-factory', aiFactoryRoutes);  // AI动作工厂路由
-app.use('/api/gallery', galleryRoutes);  // 画廊系统路由
+app.use('/api/ai-factory', apiWriteGuard.forMount('/api/ai-factory'), aiFactoryRoutes);  // AI动作工厂路由
+app.use('/api/gallery', apiWriteGuard.forMount('/api/gallery'), galleryRoutes);  // 画廊系统路由
 app.use('/api/model-guard', modelGuardRoutes);  // 远程模型守卫路由（公开读）
 app.use('/api/admin/model-guard', modelGuardRoutes);  // 远程模型守卫管理接口（PUT 需管理员鉴权）
 app.use('/api/threejs-blocks', threejsCodeBlocksRoutes);  // Three.js 代码库路由（公开读，写需管理员）
 app.use('/api/threejs-issues', require('./routes/threejsIssues'));  // Three.js 问题库词条配置（公开读，写需管理员）
-app.use('/api/threejs-blocks', threejsImportRoutes);    // Three.js URL导入路由（管理员）
+app.use('/api/threejs-blocks', apiWriteGuard.forMount('/api/threejs-blocks'), threejsImportRoutes);    // Three.js URL导入路由（管理员）
 app.use('/api/subscription', subscriptionRoutes);  // 订阅管理路由
 app.use('/api/sky', skyRoutes.router);  // 天空库路由（列表公开读，上传/删除需管理员）
 app.use('/api/agent/v1', agentApiRoutes);  // AI Agent 接入 API（独立 JWT 体系）
