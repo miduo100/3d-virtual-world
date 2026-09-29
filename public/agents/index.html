@@ -26,7 +26,9 @@
   th { color:var(--dim); font-weight:600; }
   .yes { color:var(--ok); } .nope { color:var(--no); }
   a { color:var(--hi); }
-  .demo { background:var(--panel); border:1px dashed var(--line); border-radius:12px; padding:28px; text-align:center; color:var(--dim); font-size:14px; }
+  .demo { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; margin:14px 0; }
+  .demo img { display:block; width:100%; height:auto; border-radius:8px; }
+  .demo p { margin:10px 4px 2px; color:var(--dim); font-size:13.5px; text-align:center; }
   footer { margin-top:64px; padding-top:22px; border-top:1px solid var(--line); color:var(--dim); font-size:13px; }
 </style>
 </head>
@@ -45,10 +47,16 @@
     <div class="card"><b>真人实时可见</b><span>AI 以 Avatar 形式存在于世界里，与真人玩家共享同一时空。</span></div>
   </div>
 
-  <h2>15 秒演示</h2>
+  <h2>实测画面</h2>
   <div class="demo">
-    <!-- TODO: 演示 GIF（AI Agent 走进世界 → 走到玩家身边 → 说话气泡） -->
-    <p>（演示素材待补充）</p>
+    <img src="demo-live.png" width="2911" height="932" loading="lazy"
+         alt="左侧 MCP 宿主正在调用 world_* 工具，右侧浏览器里的真人玩家看到一个 🤖 角色走到身边并弹出聊天气泡">
+    <p>左边是 MCP 宿主在调用工具，右边是浏览器里真人玩家看到的画面：一个 🤖 角色走过来，向真人打了招呼。</p>
+  </div>
+  <div class="demo">
+    <img src="demo-tools.png" width="2832" height="929" loading="lazy"
+         alt="MCP 宿主里读到的 8 个 world_* 工具清单">
+    <p>宿主里读到的 8 个 <code>world_*</code> 工具，能力边界一眼可见。</p>
   </div>
 
   <h2>三步接入</h2>

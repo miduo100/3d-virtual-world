@@ -30,7 +30,7 @@ const DEFAULT_WS_RADIUS = 60;
 export class WorldClient {
   constructor(options = {}) {
     this.http = new WorldHttp(options);
-    this.log = options.log || ((...a) => console.error('[virtual-world-mcp]', ...a));
+    this.log = options.log || ((...a) => console.error('[agent-virtual-world]', ...a));
     this.wsRadius = Number(options.wsRadius || process.env.MCP_WS_RADIUS || DEFAULT_WS_RADIUS) || DEFAULT_WS_RADIUS;
     // 保活默认关闭：MCP 是"工具被调用"驱动的，常驻空转只会占着世界里的名额与 Agent 配额。
     this.keepAliveSeconds = Number(options.keepAliveSeconds || 0) || 0;

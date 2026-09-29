@@ -1,4 +1,4 @@
-# virtual-world-mcp
+# agent-virtual-world
 
 **让你的 AI 走进一个真实的 3D 世界 —— 与真人玩家实时共处，无需浏览器、无需 3D 引擎。**
 
@@ -14,8 +14,9 @@ AI：读导览 → 进入世界 → 观察（附近有谁、有什么）→ 走�
 你在世界里留下一段别人从没见过的画面：一个 AI 玩家路过并跟你打了招呼
 ```
 
-> 我们**没有**伪造演示素材：本 README 的示例 GIF 需要真实录屏，尚未制作（`<!-- TODO: 演示 GIF -->`）。
-> 在补上之前，请以"工具清单 + 已知限制"为准；录制要求见第九节。
+![MCP 宿主在调用 world_* 工具的同时，浏览器里的真人玩家看到一个 🤖 角色走到身边并弹出聊天气泡](./docs/demo-live.png)
+> 演示素材是**真实录屏截图**，不是示意图：左边是 MCP 宿主在调用工具，右边是浏览器里真人玩家看到的画面。
+> 目前已录 2 段（画面全景、工具清单），第 3 段（`world_observe` 原始输出）待补，见第九节。
 
 ---
 
@@ -30,14 +31,14 @@ AI：读导览 → 进入世界 → 观察（附近有谁、有什么）→ 走�
   "mcpServers": {
     "virtual-world": {
       "command": "npx",
-      "args": ["-y", "virtual-world-mcp"],
+      "args": ["-y", "agent-virtual-world"],
       "env": { "AGENT_HOST": "https://miduo100.com" }
     }
   }
 }
 ```
 
-> ⚠️ `npx -y virtual-world-mcp` 需要本包**已发布到 npm**（发布动作待授权，见文末「发布状态」）。
+> ⚠️ `npx -y agent-virtual-world` 需要本包**已发布到 npm**（发布动作待授权，见文末「发布状态」）。
 > 在那之前，用本仓库里的源码路径代替：
 
 ```json
@@ -70,7 +71,7 @@ AI：读导览 → 进入世界 → 观察（附近有谁、有什么）→ 走�
   "mcpServers": {
     "virtual-world": {
       "command": "npx",
-      "args": ["-y", "virtual-world-mcp"],
+      "args": ["-y", "agent-virtual-world"],
       "env": {
         "AGENT_HOST": "https://miduo100.com",
         "AGENT_API_KEY": "agk_live_xxxxxxxxxxxxxxxx"
@@ -168,7 +169,7 @@ Key 只是"推流特权"，不是权限等级：**所有 Agent 的动作权限�
 ## 七、它是怎么工作的（30 秒版）
 
 ```
-你的 AI 宿主 ──stdio JSON-RPC──▶ virtual-world-mcp ──HTTP──▶ 世界服务器（会话/观察/聊天历史）
+你的 AI 宿主 ──stdio JSON-RPC──▶ agent-virtual-world ──HTTP──▶ 世界服务器（会话/观察/聊天历史）
                                         └──WebSocket──▶ /ws/agent（动作、事件推送）
 ```
 
@@ -209,22 +210,22 @@ node scripts/accept_mcp_server.js
 | 源码（本目录） | ✅ 完成，验收见 `scripts/accept_mcp_server.js`（M1~M14，42/42） |
 | 线上发现层（第 1、2 步欠账） | ✅ **已补齐**：`/.well-known`、`llms.txt`、`robots.txt`、`sitemap.xml`、`/agents/`、`/agent-samples/` 全部 200，端点广播 `https` / `wss` |
 | 包元数据（去 `private`、仓库、关键词） | ✅ 已补齐，见 `package.json` |
-| 演示 GIF / 录屏 | ⏸ **未制作（当前唯一硬阻塞）** —— 录制清单见下 |
-| 发布到 npm（`virtual-world-mcp`） | ⏸ 未发布（公开行为，需所有者授权：npm 账号 + 包名确认） |
-| 独立 GitHub 仓库 | ⏸ 未建（可选，但多数目录站要求可克隆来源） |
+| 演示素材 | 🟡 已录 2 段：`docs/demo-live.png`（画面全景，README 首图）、`docs/demo-tools.png`（工具清单）；第 3 段 `demo-observe.png` 待补 |
+| 发布到 npm（`agent-virtual-world`） | ⏸ 未发布（公开行为，需所有者授权：npm 账号 + 包名确认） |
+| 独立 GitHub 仓库 | 🟡 已创建 `miduo100/agent-virtual-world`，但**仍是空仓库（未 push）** —— 必须先 push，否则本文档与 npm 页面引用的 `docs/*.png` 会是坏图 |
 | MCP 目录站提交 | ⏸ 未提交（渠道清单、提交文案、帖子草稿、执行步骤见对外发布工作台 `L:\AI Agent 引流`） |
 
-### 演示素材录制清单（唯一需要人工完成的步骤）
+### 演示素材清单（唯一需要人工完成的步骤）
 
-README 顶部与 `/agents/` 落地页各留了一个 `<!-- TODO: 演示 GIF -->` 占位。需要录 3 段，**总长建议 30 秒内**：
+README 顶部与 `/agents/` 落地页的 `<!-- TODO: 演示 GIF -->` 占位**已替换**，现在引用的是真实录屏截图。计划共 3 段，**总长建议 30 秒内**：
 
 | # | 画面要求 | 用途 | 建议文件名 |
 |---|---|---|---|
-| 1 | 一侧是 Claude/Cursor 对话框，AI 说"我看到 3 个玩家"；另一侧浏览器里一个 🤖 角色走到真人旁边，头顶冒出聊天气泡 | README 首图 / Product Hunt / Show HN 封面 | `demo-walk-and-talk.gif` |
-| 2 | 只截 MCP 客户端面板里 8 个 `world_*` 工具的列表 | 让开发者一眼看懂能力边界 | `demo-tools.png` |
-| 3 | AI 输出的 `world_observe` 原始文本（含距离、物体描述） | 证明"AI 真的看得见" | `demo-observe.png` |
+| 1 | 一侧是 Claude/Cursor 对话框，AI 说"我看到 3 个玩家"；另一侧浏览器里一个 🤖 角色走到真人旁边，头顶冒出聊天气泡 | README 首图 / Product Hunt / Show HN 封面 | `demo-live.png` ✅ 已录（2026-09-28，静态截图） |
+| 2 | 只截 MCP 客户端面板里 8 个 `world_*` 工具的列表 | 让开发者一眼看懂能力边界 | `demo-tools.png` ✅ 已录（2026-09-28） |
+| 3 | AI 输出的 `world_observe` 原始文本（含距离、物体描述） | 证明"AI 真的看得见" | `demo-observe.png` ⏸ 待补 |
 
-录完放进 `examples/mcp-server/docs/` 与 `public/agents/`，再替换两处 `<!-- TODO: 演示 GIF -->` 占位。
+素材存放：`examples/mcp-server/docs/`（README 引用）与 `public/agents/`（落地页引用），两处需保持一致；源图另存于对外发布工作台 `L:\AI Agent 引流\图片\`。
 **不要**用示意图或假数据代替——目录站审核与开发者信任都建立在"这是真的在跑"。
 
 ---

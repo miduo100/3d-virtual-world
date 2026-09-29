@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * index.js — virtual-world-mcp 入口（MCP stdio transport）
+ * index.js — agent-virtual-world 入口（MCP stdio transport）
  *
  * 让你的 AI 走进一个真实的 3D 多人世界：与真人玩家实时共处，无需浏览器、无需 3D 引擎。
  *
@@ -9,7 +9,7 @@
  *     "mcpServers": {
  *       "virtual-world": {
  *         "command": "npx",
- *         "args": ["-y", "virtual-world-mcp"],
+ *         "args": ["-y", "agent-virtual-world"],
  *         "env": { "AGENT_HOST": "https://你的世界域名" }
  *       }
  *     }
@@ -44,7 +44,7 @@ import { registerResources } from './resources.js';
 import { registerPrompts } from './prompts.js';
 
 const VERSION = '0.1.0';
-const log = (...a) => console.error('[virtual-world-mcp]', ...a);
+const log = (...a) => console.error('[agent-virtual-world]', ...a);
 
 const client = new WorldClient({ log });
 const server = new McpServer({ name: 'virtual-world', version: VERSION });

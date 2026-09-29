@@ -37,7 +37,7 @@ function wrap(handler, log) {
 }
 
 export function registerTools(mcp, client, deps = {}) {
-  const log = deps.log || ((...a) => console.error('[virtual-world-mcp]', ...a));
+  const log = deps.log || ((...a) => console.error('[agent-virtual-world]', ...a));
 
   // ==================== 1. world_discover ====================
   mcp.registerTool('world_discover', {
