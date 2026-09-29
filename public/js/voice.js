@@ -98,6 +98,8 @@ class VoiceManager {
     }
 
     // 最后降级：API远程匹配
+    // 安全修复 D2：游客只读，不触发技能写请求（否则会收到 401 并弹出登录框）
+    if (typeof GAME_STATE !== 'undefined' && GAME_STATE && GAME_STATE.isGuest) return;
     try {
       const result = await API.triggerSkill(this.player.characterId, text);
       if (result.effect) {

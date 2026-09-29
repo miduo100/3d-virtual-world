@@ -296,7 +296,27 @@ router.delete('/:monsterId', async (req, res) => {
 router.post('/:monsterId/take-damage', async (req, res) => {
   try {
     const { monsterId } = req.params;
-    const { damage, characterId, userId } = req.body;
+    const { damage, characterId: bodyCharacterId } = req.body;
+
+    // 安全修复 D2（审计 S2-05）：身份只从 token 派生——请求体传入的 userId 一律忽略，
+    // characterId 必须属于本人（此前可给任意角色刷经验、把掉落塞进任意 userId 的背包）。
+    // 上下文无身份时（SECURITY_GUARD_OFF=1 紧急放行）保持修复前行为，确保保险丝可完整回退。
+    const actorUserId = (req.user && req.user.userId) || null;
+    let characterId = bodyCharacterId || null;
+    let userId = actorUserId;
+    if (actorUserId) {
+      if (bodyCharacterId) {
+        const own = await query(
+          'SELECT id FROM characters WHERE id = $1 AND user_id = $2',
+          [bodyCharacterId, actorUserId]
+        );
+        if (!own.rows.length) return res.status(403).json({ error: '无权操作该角色' });
+        characterId = own.rows[0].id;
+      } else {
+        const own = await query('SELECT id FROM characters WHERE user_id = $1 LIMIT 1', [actorUserId]);
+        characterId = own.rows.length ? own.rows[0].id : null;
+      }
+    }
 
     const monsterResult = await query(
       'SELECT * FROM monsters WHERE id = $1',
@@ -421,6 +441,16 @@ router.post('/character/:characterId/take-damage', async (req, res) => {
   try {
     const { characterId } = req.params;
     const { damage } = req.body;
+
+    // 安全修复 D2：只能对本人角色结算受击（上下文无身份时保持修复前行为，便于保险丝回退）
+    const actorUserId = (req.user && req.user.userId) || null;
+    if (actorUserId) {
+      const own = await query(
+        'SELECT id FROM characters WHERE id = $1 AND user_id = $2',
+        [characterId, actorUserId]
+      );
+      if (!own.rows.length) return res.status(403).json({ error: '无权操作该角色' });
+    }
 
     const charResult = await query(
       'SELECT health, max_health, respawn_point FROM characters WHERE id = $1',

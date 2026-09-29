@@ -5,11 +5,58 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
+const jwt = require('jsonwebtoken');
 const { query } = require('../database/db');
 const { authenticateToken } = require('../middleware/auth');
 
+// 通过该接口可写入的列白名单（安全修复 D2/S2-01）：
+// 此前 handler 把请求体的**键名直接拼进 SET 子句**，攻击者可借列名注入读写任意表数据。
+const APPEARANCE_COLS = new Set([
+  'face_brows', 'face_glasses', 'face_nose', 'face_skin', 'face_ears', 'face_mouth',
+  'face_beard', 'face_jaw', 'hair', 'top_wear', 'bottom_wear', 'shoes',
+]);
+
+/**
+ * 可选身份：GET 保持公开（世界加载/游客浏览依赖公开读），但带 token 时解析出
+ * 属主，用于隐藏他人隐私字段（审计 S2-08）。
+ */
+function optionalAuth(req, res, next) {
+  const header = req.headers['authorization'];
+  const token = header && header.split(' ')[1];
+  if (!token) return next();
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (!err && user) req.user = user;
+    next();
+  });
+}
+
+/**
+ * 属主校验（安全修复 D2）：身份只从 token 派生。
+ *
+ * 返回 `{ ok, actorUserId }`：
+ *   - 请求上下文里**有**已认证身份（生产常态：挂载层 `apiWriteGuard` 要求玩家 JWT）
+ *     → 校验 `characters.user_id` 是否等于该身份，不等则 403、角色不存在则 404；
+ *   - 上下文里**没有**身份（例如设了 `SECURITY_GUARD_OFF=1` 紧急放行，或该路由被
+ *     单独摘掉守卫）→ 保持修复前行为继续执行，**这样保险丝才能完整回退**。
+ */
+async function checkCharacterOwner(req, res, characterId) {
+  const actorUserId = (req.user && req.user.userId) || null;
+  if (!actorUserId) return { ok: true, actorUserId: null };
+
+  const result = await query('SELECT user_id FROM characters WHERE id = $1', [characterId]);
+  if (result.rows.length === 0) {
+    res.status(404).json({ error: 'Character not found' });
+    return { ok: false, actorUserId: null };
+  }
+  if (String(result.rows[0].user_id) !== String(actorUserId)) {
+    res.status(403).json({ error: '无权操作该角色' });
+    return { ok: false, actorUserId: null };
+  }
+  return { ok: true, actorUserId };
+}
+
 // Get user character
-router.get('/character/:characterId', async (req, res) => {
+router.get('/character/:characterId', optionalAuth, async (req, res) => {
   try {
     const { characterId } = req.params;
 
@@ -26,6 +73,12 @@ router.get('/character/:characterId', async (req, res) => {
     }
 
     const character = charResult.rows[0];
+
+    // 隐私保护（审计 S2-08）：账号邮箱仅对角色属主返回
+    const viewerId = (req.user && req.user.userId) || null;
+    if (!viewerId || String(character.user_id) !== String(viewerId)) {
+      delete character.user_email;
+    }
 
     // Get appearance
     const appearanceResult = await query(
@@ -63,11 +116,17 @@ router.post('/character/:characterId/appearance', async (req, res) => {
     const { characterId } = req.params;
     const appearanceData = req.body;
 
+    // 安全修复 D2：属主校验（此前匿名可改任意角色外观）
+    const owner = await checkCharacterOwner(req, res, characterId);
+    if (!owner.ok) return;
+
     const updateFields = [];
     const updateValues = [];
     let paramCount = 1;
 
     for (const [key, value] of Object.entries(appearanceData)) {
+      // 安全修复 S2-01：列名白名单——非白名单键直接忽略，彻底消除标识符注入
+      if (!APPEARANCE_COLS.has(key)) continue;
       updateFields.push(`${key} = $${paramCount}`);
       updateValues.push(value);
       paramCount++;
@@ -101,6 +160,10 @@ router.post('/character/:characterId/position', async (req, res) => {
   try {
     const { characterId } = req.params;
     const { position } = req.body;
+
+    // 安全修复 D2：属主校验（此前匿名可改任意角色位置）
+    const owner = await checkCharacterOwner(req, res, characterId);
+    if (!owner.ok) return;
 
     await query(
       'UPDATE characters SET position = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
@@ -163,6 +226,10 @@ router.post('/character/:characterId/respawn-point', async (req, res) => {
   try {
     const { characterId } = req.params;
     const { respawnPoint } = req.body;
+
+    // 安全修复 D2：属主校验（此前匿名可改任意角色重生点）
+    const owner = await checkCharacterOwner(req, res, characterId);
+    if (!owner.ok) return;
 
     await query(
       'UPDATE characters SET respawn_point = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',

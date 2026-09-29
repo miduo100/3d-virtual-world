@@ -148,7 +148,10 @@ router.get('/drops', async (req, res) => {
 router.post('/drops/:dropId/pick', async (req, res) => {
   try {
     const { dropId } = req.params;
-    const { userId } = req.body;
+    const { userId: bodyUserId } = req.body;
+    // 安全修复 D2：身份只从 token 派生（此前可传任意 userId 盗领他人掉落；
+    // 上下文无身份时保持修复前行为，保证 SECURITY_GUARD_OFF=1 保险丝可完整回退）
+    const userId = (req.user && req.user.userId) || bodyUserId;
     if (!userId) return res.status(400).json({ error: 'userId 必填' });
 
     // 查询掉落物
@@ -204,7 +207,9 @@ router.post('/drops/:dropId/pick', async (req, res) => {
 router.post('/drops/:dropId/mark-picked', async (req, res) => {
   try {
     const { dropId } = req.params;
-    const { userId } = req.body;
+    const { userId: bodyUserId } = req.body;
+    // 安全修复 D2：身份只从 token 派生（上下文无身份时保持修复前行为，便于保险丝回退）
+    const userId = (req.user && req.user.userId) || bodyUserId;
     if (!userId) return res.status(400).json({ error: 'userId 必填' });
 
     // 查询掉落物
@@ -358,7 +363,9 @@ router.get('/bag/:userId', async (req, res) => {
 router.post('/bag/:itemId/use', async (req, res) => {
   try {
     const { itemId } = req.params;
-    const { userId } = req.body;
+    const { userId: bodyUserId } = req.body;
+    // 安全修复 D2：身份只从 token 派生（上下文无身份时保持修复前行为，便于保险丝回退）
+    const userId = (req.user && req.user.userId) || bodyUserId;
     await query(
       `UPDATE player_inventory SET is_used=TRUE, used_at=NOW()
        WHERE id=$1 AND user_id=$2`,

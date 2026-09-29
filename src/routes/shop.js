@@ -252,7 +252,10 @@ router.get('/', async (req, res) => {
 // Purchase item
 router.post('/purchase', async (req, res) => {
   try {
-    const { buyerId, shopItemId, quantity } = req.body;
+    const { buyerId: bodyBuyerId, shopItemId, quantity } = req.body;
+    // 安全修复 D2：身份只从 token 派生（此前可传任意 buyerId 以他人身份下单；
+    // 上下文无身份时保持修复前行为，保证 SECURITY_GUARD_OFF=1 保险丝可完整回退）
+    const buyerId = (req.user && req.user.userId) || bodyBuyerId;
     const itemResult = await query('SELECT price, quantity FROM shop_items WHERE id = $1', [shopItemId]);
     if (itemResult.rows.length === 0) return res.status(404).json({ error: 'Item not found' });
     const item = itemResult.rows[0];

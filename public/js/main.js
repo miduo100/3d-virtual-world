@@ -923,6 +923,9 @@ function setupKeyboardShortcuts() {
     _mousedownX = e2.clientX; _mousedownY = e2.clientY;
   }, true);
   canvas.addEventListener('click', (e) => {
+    // 安全修复 D2：游客是只读观察者（无背包/不能打怪），点怪不发 take-damage 请求，
+    // 否则会收到 401 并被 api.js 判定为 token 失效、弹出全屏登录框
+    if (GAME_STATE && GAME_STATE.isGuest) return;
     // 如果鼠标移动超过5px认为是拖拽，不触发选怪
     if (Math.abs(e.clientX - _mousedownX) > 5 || Math.abs(e.clientY - _mousedownY) > 5) return;
     if (!player || !window.gameWorld || !window.gameWorld.camera) return;
@@ -1168,12 +1171,17 @@ function setupKeyboardShortcuts() {
 
     // P key to set respawn point
     if (e.key === 'p' || e.key === 'P') {
-      API.setRespawnPoint(GAME_STATE.characterId, {
-        x: player.position.x,
-        y: player.position.y,
-        z: player.position.z,
-      });
-      UI.addChatMessage('系统', '重生点已设置');
+      // 安全修复 D2：游客只读，不发注定 401 的写请求（否则会被 api.js 弹出全屏登录框）
+      if (GAME_STATE.isGuest) {
+        UI.addChatMessage('系统', '游客模式下无法设置重生点，请先登录');
+      } else {
+        API.setRespawnPoint(GAME_STATE.characterId, {
+          x: player.position.x,
+          y: player.position.y,
+          z: player.position.z,
+        });
+        UI.addChatMessage('系统', '重生点已设置');
+      }
     }
 
     // I key to interact with nearby shops (changed from E since E is now rotation)
