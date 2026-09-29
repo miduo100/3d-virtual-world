@@ -7,7 +7,13 @@
 const { query } = require('../database/db');
 
 const CONFIG_KEY = 'federation_config';
-const DEFAULT_SETTINGS = { trustRequiresApproval: false };
+// 安全修复 D5②（审计 S2-02a）：默认**要求管理员审批**再建立信任。
+// 原默认 false = 任何匿名 `/api/federation/handshake` 只要"回拨自洽"就会被自动信任
+// （攻击者自建一台公网服务器即可拿到受信身份，进而污染 trusted_worlds / 联邦面板 XSS）。
+// ⚠️ 注意：`world_config.federation_config` 里若已**显式**存有 trustRequiresApproval=false，
+// 仍以该显式值为准（本默认值只在配置缺失/读取失败时生效）→ 存量部署需在
+// 管理后台「联邦与传送 → 信任设置」把开关打开（或 PUT /api/federation/trust-settings）。
+const DEFAULT_SETTINGS = { trustRequiresApproval: true };
 
 /**
  * 获取当前世界的信任审批设置

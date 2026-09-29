@@ -37,7 +37,8 @@ function warnUnregistered(connectionId, type) {
 function setupWebSocketServer(httpServer) {
   try {
     // noServer 模式：upgrade 由 upgradeRouter 分发（/ws/agent→agent，其余→人类兜底）
-    wss = new WebSocket.Server({ noServer: true });
+    // E3 修复 D5④：4MB 单帧上限（ws 默认 100MB）；4MB = 语音 base64 上限 2MB + JSON 余量
+    wss = new WebSocket.Server({ noServer: true, maxPayload: 4 * 1024 * 1024 });
 
     wss.on('connection', (ws) => {
       const connectionId = uuidv4();
@@ -49,7 +50,13 @@ function setupWebSocketServer(httpServer) {
 
       console.log(`Client connected: ${connectionId}`);
 
+      // E3 修复 D5④：单连接 30 条/秒上限（此前人类 WS 无限频，可刷屏放大扇出 DoS）
+      ws._msgWindow = { start: Date.now(), count: 0 };
+
       ws.on('message', (message) => {
+        const _w = ws._msgWindow; const _now = Date.now();
+        if (_now - _w.start >= 1000) { _w.start = _now; _w.count = 0; }
+        if (++_w.count > 30) return;   // 超频消息直接丢弃（不解析、不广播）
         try {
           const data = JSON.parse(message);
           handleMessage(connectionId, ws, data);
@@ -121,6 +128,8 @@ function setupWebSocketServer(httpServer) {
     const hbTimer = setInterval(() => {
       wss.clients.forEach((client) => {
         if (client.isAlive === false) { client.terminate(); return; }
+        // 【安全修复 D5④/E3】背压保护：慢消费者积压超 4MB 即断开（Agent WS 侧已有同款保护）
+        if (client.bufferedAmount > 4 * 1024 * 1024) { client.terminate(); return; }
         client.isAlive = false;
         try { client.ping(); } catch (e) {}
       });
@@ -184,6 +193,9 @@ function handleMessage(connectionId, ws, data) {
     case 'CHAT': {
       // 附近聊天：30m 内玩家可见，带服务端权威 characterId 供头顶气泡定位
       const sender = playerPositions.get(connectionId);
+      // 【安全修复 D5④/E3】未登记连接（未发 PLAYER_JOIN）不允许发言：
+      // 此前它无 position 会走 broadcastToAll，等于可用任意 sender 向全服伪造发言
+      if (!sender) { warnUnregistered(connectionId, 'CHAT'); break; }
       const text = String(payload.message || '').slice(0, 200).trim();
       if (!text) break;
       const chatMessage = {

@@ -187,6 +187,13 @@ router.post('/upload-model-bundle', uploadBundle.array('files', MAX_FILES), asyn
     await fsp.mkdir(bundleDir, { recursive: true });
     for (let i = 0; i < files.length; i++) {
       tmpFiles.push(files[i].path);
+      // 安全修复 S2-04c：落盘前按扩展名白名单过滤。
+      // 此前只做 sanitizeRel（防 zip-slip），.html/.js/.svg 会被写进同源可达的
+      // public/models/uploaded/bundle-<ts>/ → 直接构成存储型 XSS。
+      if (!ALLOWED_EXTS.has(path.extname(cleaned[i]).toLowerCase())) {
+        await fsp.unlink(files[i].path).catch(() => {});
+        continue;
+      }
       const dest = path.join(bundleDir, cleaned[i]);
       await fsp.mkdir(path.dirname(dest), { recursive: true });
       await fsp.copyFile(files[i].path, dest);
@@ -225,6 +232,8 @@ router.post('/upload-model-zip', uploadBundle.single('file'), async (req, res) =
         const rel = sanitizeRel(entry.entryName);
         if (!rel) continue; // 非法路径（zip-slip / 绝对路径）→ 跳过
         if (rel.split('/').some((s) => s === '__MACOSX' || s.startsWith('.'))) continue; // macOS 垃圾/隐藏文件
+        // 安全修复 S2-04c：扩展名白名单（.html/.js/.svg 等脚本类文件绝不落盘到同源目录）
+        if (!ALLOWED_EXTS.has(path.extname(rel).toLowerCase())) continue;
         total += entry.header.size;
         if (total > MAX_TOTAL_BYTES) throw new Error('解压后总量超过 500MB 上限');
         if (++count > MAX_FILES) throw new Error(`文件数超过 ${MAX_FILES} 上限`);
