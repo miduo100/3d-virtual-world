@@ -38,7 +38,7 @@ AI：读导览 → 进入世界 → 观察（附近有谁、有什么）→ 走�
 }
 ```
 
-> ⚠️ `npx -y agent-virtual-world` 需要本包**已发布到 npm**（发布动作待授权，见文末「发布状态」）。
+> ⚠️ `npx -y agent-virtual-world` 需要本包**已发布到 npm** —— 已于 2026-09-29 发布 0.1.0，见文末「发布状态」。
 > 在那之前，用本仓库里的源码路径代替：
 
 ```json
@@ -215,8 +215,8 @@ node scripts/accept_mcp_server.js
 | 线上发现层（第 1、2 步欠账） | ✅ **已补齐**：`/.well-known`、`llms.txt`、`robots.txt`、`sitemap.xml`、`/agents/`、`/agent-samples/` 全部 200，端点广播 `https` / `wss` |
 | 包元数据（去 `private`、仓库、关键词） | ✅ 已补齐，见 `package.json` |
 | 演示素材 | ✅ 3 段已齐：`docs/demo-live.png`（画面全景，README 首图）、`docs/demo-tools.png`（工具清单）、`docs/demo-observe.png`（`world_observe` 原始输出）；README 与 `/agents/` 落地页均已引用 |
-| 发布到 npm（`agent-virtual-world`） | ⏸ 未发布（公开行为，需所有者授权：npm 账号 + 包名确认） |
-| 独立 GitHub 仓库 | 🟡 已创建 `miduo100/agent-virtual-world`，但**仍是空仓库（未 push）** —— 必须先 push，否则本文档与 npm 页面引用的 `docs/*.png` 会是坏图 |
+| 发布到 npm（`agent-virtual-world`） | ✅ 已发布 0.1.0（2026-09-29）—— `npx -y agent-virtual-world` 实测可用（8 工具 / discover 正常） |
+| 独立 GitHub 仓库 | ✅ 已 push（2026-09-29）：https://github.com/miduo100/agent-virtual-world （main）；README 引用的 `docs/*.png` 全部可访问 |
 | MCP 目录站提交 | ⏸ 未提交（渠道清单、提交文案、帖子草稿、执行步骤见对外发布工作台 `L:\AI Agent 引流`） |
 
 ### 演示素材清单（唯一需要人工完成的步骤）
