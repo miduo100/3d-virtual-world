@@ -33,7 +33,11 @@ const GUEST_SESSION_TTL_SECONDS = 30 * 60;        // 游客临时票 30min
 const GUEST_OBSERVE_MAX_RADIUS = 30;              // 红线：游客永不获得 30m 以上观察半径
 const KEY_OBSERVE_MAX_RADIUS = 200;               // Key Agent 硬上限（P2 既定）
 const GUEST_TICKET_PER_IP_PER_HOUR = 10;          // 每 IP 签票限流
-const GUEST_MAX_CONNECTIONS_PER_IP = 1;           // 每 IP 并发连接上限（游客）
+// 2026-09-30：1 → 10。Remote MCP 端点（/mcp）上线后，Smithery / Coze / Dify 这类平台是
+// **代所有用户转发请求**的，从服务端看它们共用同一个出口 IP —— 卡 1 个会让平台上只有
+// 1 个用户能用、其余全收 429（GUEST_IP_CONCURRENCY）。放宽到 10 后仍有两道闸：
+// 签票限流（每 IP 10 次/小时）与 remoteBridge 的全局 MAX_SESSIONS=200。
+const GUEST_MAX_CONNECTIONS_PER_IP = 10;          // 每 IP 并发连接上限（游客）
 // 游客会话在 agent_transient_sessions 表中的来源标记（复用无外键的 transient 表）
 const GUEST_SOURCE_WORLD_MARK = 'guest-pull';
 

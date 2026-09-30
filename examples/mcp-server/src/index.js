@@ -35,6 +35,8 @@
  * 本进程所有日志一律走 console.error（stderr），否则会破坏协议、宿主直接报解析错误。
  */
 
+import { createRequire } from 'node:module';
+
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
@@ -43,11 +45,12 @@ import { registerTools } from './tools.js';
 import { registerResources } from './resources.js';
 import { registerPrompts } from './prompts.js';
 
-const VERSION = '0.1.0';
+/** 版本号从 package.json 读，避免与手工维护的常量不同步（0.1.1 就漏改过一次） */
+const VERSION = createRequire(import.meta.url)('../package.json').version;
 const log = (...a) => console.error('[agent-virtual-world]', ...a);
 
 const client = new WorldClient({ log });
-const server = new McpServer({ name: 'virtual-world', version: VERSION });
+const server = new McpServer({ name: 'agent-virtual-world', version: VERSION });
 
 registerTools(server, client, { log });
 registerResources(server, client, { log });

@@ -201,7 +201,11 @@ app.use('/api/threejs-issues', require('./routes/threejsIssues'));  // Three.js 
 app.use('/api/threejs-blocks', apiWriteGuard.forMount('/api/threejs-blocks'), threejsImportRoutes);    // Three.js URL导入路由（管理员）
 app.use('/api/subscription', subscriptionRoutes);  // 订阅管理路由
 app.use('/api/sky', skyRoutes.router);  // 天空库路由（列表公开读，上传/删除需管理员）
-app.use('/api/agent/v1', agentApiRoutes);  // AI Agent 接入 API（独立 JWT 体系）
+app.use('/api/agent/v1', agentApiRoutes);
+// Remote MCP 端点（Streamable HTTP，挂在 /mcp）：让"零安装、只填 URL"的 AI 也能进场，
+// 并解锁 Smithery / Coze / Dify / 千帆 / 元器 等只收 Remote (HTTP) 的目录站。
+// 工具直调本地服务层，限流维度是经 nginx 透传的真实访客 IP（详见 src/agent/mcp/remoteBridge.js）。
+app.use(require('./routes/mcp'));  // AI Agent 接入 API（独立 JWT 体系）
 app.use('/api/agent/federation', require('./routes/agentFederation'));  // P5: Agent 联邦传送接收端（公开端点，handoffToken 鉴权）
 
 // P6: AI Agent 自动发现入口（公开无鉴权，RFC 8615 风格 .well-known）

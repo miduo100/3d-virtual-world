@@ -494,5 +494,8 @@ module.exports = {
   clampRadius,
   clampLimit,
   resolvePosition,
-  pickLiveEntry
+  pickLiveEntry,
+  // remote MCP 端点（/mcp）的 world_discover 要报同一个世界名 —— 与 observe / well-known 同源，
+  // 否则同一个世界在 discover 与 observe 里会显示两个不同的名字。
+  getWorldInfo
 };
