@@ -15,10 +15,16 @@ const NEGATIVE = [/no servers match/i, /0 results/i, /no plugins found/i, /no re
 
 const PAGES = [
   ['mcp.so', 'https://mcp.so/search?q=agent-virtual-world'],
-  ['glama', 'https://glama.ai/mcp/servers?query=agent-virtual-world'],
   ['smithery', 'https://smithery.ai/servers?q=agent-virtual-world'],
   ['cursor.directory', 'https://cursor.directory/mcp?q=agent-virtual-world'],
   ['pulsemcp', 'https://www.pulsemcp.com/servers?q=agent-virtual-world'],
+];
+
+// 目录站的「条目直探」：比搜索页可靠得多 —— Glama 的搜索不认 URL 查询参数，
+// 但它的条目页是 /mcp/servers/<owner>/<repo>，直接探这个 URL 才是权威口径。
+const ENTRY_PROBES = [
+  ['glama (条目直探)', 'https://glama.ai/mcp/servers/miduo100/agent-virtual-world', /by miduo100/i],
+  ['glama (候选2)', 'https://glama.ai/mcp/servers/miduo100/miduo', /by miduo100/i],
 ];
 
 (async () => {
@@ -52,6 +58,20 @@ const PAGES = [
     }
     console.log('■ ' + name.padEnd(18) + verdict + '   ' + detail);
     await p.close();
+  }
+
+  // 条目直探（权威口径）
+  for (const [name, url, marker] of ENTRY_PROBES) {
+    const p3 = await b.newPage();
+    try {
+      await p3.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await p3.waitForTimeout(6000);
+      const t = await p3.evaluate(() => document.body.innerText || '');
+      console.log('■ ' + name.padEnd(20) + (marker.test(t) ? '✅ 已收录' : '❌ 未收录') + '   ' + url);
+    } catch (e) {
+      console.log('■ ' + name.padEnd(20) + '⚠️ 访问失败   ' + String(e.message).slice(0, 80));
+    }
+    await p3.close();
   }
 
   // awesome-mcp-servers：直接查 README（无 JS、无回显问题）
