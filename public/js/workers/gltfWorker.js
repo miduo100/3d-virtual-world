@@ -46,10 +46,13 @@ function buildLoader(dracoPath) {
   return loader;
 }
 
-function parseAsync(loader, buffer) {
+function parseAsync(loader, buffer, resourcePath) {
   return new Promise(function (resolve, reject) {
     try {
-      loader.parse(buffer, '', resolve, reject);
+      // ⚠ resourcePath 必须传：Kenney 等素材的 GLB 是「几何内嵌 + 贴图外置」
+      //   （images[].uri = "Textures/colormap.png"）。传 '' 会让相对 uri 解析到
+      //   **worker 自身目录** → 404 /js/workers/Textures/colormap.png → 白模。
+      loader.parse(buffer, resourcePath || '', resolve, reject);
     } catch (e) { reject(e); }
   });
 }
@@ -407,7 +410,7 @@ self.addEventListener('message', function (e) {
     .then(function (dec) {
       var loader = buildLoader(msg.dracoPath);
       if (dec) loader.setMeshoptDecoder(dec);
-      return parseAsync(loader, msg.buffer);
+      return parseAsync(loader, msg.buffer, msg.resourcePath);
     })
     .then(function (gltf) {
       return downscaleGltfTextures(gltf, msg.maxTexSize).then(function () { return gltf; });

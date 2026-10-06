@@ -90,8 +90,25 @@ function checkGltfRefs(absGltfPath) {
   return missing;
 }
 
-/** 公共入库：扫描 bundleDir → 逐主文件入库 → 纹理压缩 + 变体生成 */
-async function ingestBundle(bundleName) {
+/**
+ * 公共入库：扫描 bundleDir → 逐主文件入库 → 纹理压缩 + 变体生成
+ *
+ * @param {string} bundleName  bundle 目录名（相对 UPLOAD_ROOT）
+ * @param {object} [opts]
+ *   target            'model'（默认，进 3D 资产库） | 'part'（进零件库）
+ *                     'part' 时写 part_category='part'，pack_id 由调用方在
+ *                     归类阶段（partLibraryRegistrar）回填。
+ *   compressTextures  是否压缩外置纹理（默认 true）。Kenney 的 colormap 是共享
+ *                     图集，palette 量化会出色带 → 零件库通常传 false。
+ *   variants          是否生成 LOD 变体（默认 true）。零件面数普遍低于
+ *                     modelLod.MIN_SOURCE_TRIS=5000，本来也会跳过 → 可传 false 省时间。
+ *   libraryName       target='part' 时的库名（用于派生 pack_key）
+ * @returns {Promise<object>} 入库结果
+ */
+async function ingestBundle(bundleName, opts = {}) {
+  const target = opts.target === 'part' ? 'part' : 'model';
+  const doCompress = opts.compressTextures !== false;
+  const doVariants = opts.variants !== false;
   const bundleDir = path.join(UPLOAD_ROOT, bundleName);
   const rels = await listFilesRecursive(bundleDir);
   const allowed = [];
@@ -114,11 +131,12 @@ async function ingestBundle(bundleName) {
     const displayName = path.basename(rel).replace(/\.[^.]+$/, '');
     const warnings = ext === 'gltf' ? checkGltfRefs(abs) : [];
 
+    // 落库（target='part' 时标记为零件，pack_id 稍后由归类阶段回填）
     const insert = await pool.query(
       `INSERT INTO uploaded_models
-       (file_name, saved_file_name, path, file_type, file_size, display_name, description, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING id`,
-      [path.basename(rel), rel, `/models/uploaded/${bundleName}/${rel}`, ext, fileSize, displayName, null]
+       (file_name, saved_file_name, path, file_type, file_size, display_name, description, part_category, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) RETURNING id`,
+      [path.basename(rel), rel, `/models/uploaded/${bundleName}/${rel}`, ext, fileSize, displayName, null, target]
     );
 
     const rec = {
@@ -132,32 +150,98 @@ async function ingestBundle(bundleName) {
     };
 
     // 变体生成（失败自动跳过，绝不阻断入库）
-    try {
-      if (ext === 'gltf') {
-        rec.variants = await generateGltfVariants(abs);
+    if (doVariants) {
+      try {
+        if (ext === 'gltf') {
+          rec.variants = await generateGltfVariants(abs);
       } else if (ext === 'glb') {
         const r = await generateLodVariants(abs);
         rec.variants = r && r.variants ? { mid: r.variants.mid, low: r.variants.low, sourceTris: r.sourceTris } : r;
       } else if (ext === 'obj') {
         rec.variants = { ok: false, skipped: true, reason: 'obj-phase2' };
       }
-    } catch (e) {
-      rec.variants = { ok: false, skipped: true, reason: 'error', error: String(e.message || e).slice(0, 120) };
+      } catch (e) {
+        rec.variants = { ok: false, skipped: true, reason: 'error', error: String(e.message || e).slice(0, 120) };
+      }
     }
     models.push(rec);
   }
 
-  // 外置纹理压缩（整目录级；失败不阻断）
+  // 外置纹理压缩（整目录级；失败不阻断；doCompress=false 时跳过）
   let textureCompression = null;
-  try { textureCompression = await compressExternalTextures(bundleDir); }
-  catch (e) { textureCompression = { error: String(e.message || e).slice(0, 120) }; }
+  if (doCompress) {
+    try { textureCompression = await compressExternalTextures(bundleDir); }
+    catch (e) { textureCompression = { error: String(e.message || e).slice(0, 120) }; }
+  } else {
+    textureCompression = { skipped: true, reason: 'disabled-by-caller' };
+  }
 
-  return { bundleName, modelCount: models.length, models, skippedOther, textureCompression };
+  return {
+    bundleName, target, modelCount: models.length, models,
+    skippedOther, textureCompression,
+  };
+}
+
+/**
+ * 落盘后的统一收尾：入库（ingestBundle）+ target='part' 时再建库归类。
+ *
+ * 上传通道与扫描通道都调它，保证「交互与流程完全一致，唯一区别是数据流向」：
+ *   target='model' → 只入库（3D 资产库）
+ *   target='part'  → 入库 + 建 part_libraries + 归类 part_library_items（零件库）
+ *
+ * @param {string} bundleName
+ * @param {'model'|'part'} target
+ * @param {object} opts  { sourceRef, libraryName, compressTextures, variants, status, licenseInfo }
+ */
+async function finalizeBundle(bundleName, target, opts = {}) {
+  const ingestOpts = {
+    target,
+    compressTextures: opts.compressTextures,
+    variants: opts.variants,
+  };
+  const ing = await ingestBundle(bundleName, ingestOpts);
+  if (target !== 'part') {
+    return { ...ing, library: null };
+  }
+  // 懒 require：仅零件库通道才加载归类器，避免默认通道的额外开销
+  const { registerBundle } = require('../services/partLibraryRegistrar');
+  const library = await registerBundle({
+    bundleName,
+    uploadRoot: UPLOAD_ROOT,
+    sourceRef: opts.sourceRef || opts.libraryName || bundleName,
+    licenseInfo: opts.licenseInfo || null,
+    styleFamily: opts.styleFamily || null,
+    sourceType: 'external_kit',
+    status: opts.status || 'active',
+  });
+  return { ...ing, library };
+}
+
+/** 从请求体解析 target（缺省 model，保证既有前端行为不变） */
+function readTarget(req) {
+  const t = String((req.body && req.body.target) || '').toLowerCase();
+  return t === 'part' ? 'part' : 'model';
+}
+
+/** 从请求体解析归类/入库选项 */
+function readIngestOpts(req) {
+  const b = req.body || {};
+  const bool = (v, dft) => (v === undefined || v === '' ? dft : (v === true || v === 'true' || v === 1 || v === '1'));
+  return {
+    sourceRef: b.sourceRef || b.libraryName || null,
+    libraryName: b.libraryName || null,
+    styleFamily: b.styleFamily || null,
+    licenseInfo: b.license ? (() => { try { return JSON.parse(b.license); } catch (e) { return null; } })() : null,
+    compressTextures: bool(b.compressTextures, true),
+    variants: bool(b.variants, true),
+    status: b.status === 'pending_review' ? 'pending_review' : 'active',
+  };
 }
 
 /**
  * POST /api/upload-model-bundle —— 文件夹上传
  * form-data: files[]（多文件）+ relPaths（JSON 字符串数组，与 files 顺序一一对应）
+ *          + target（'model' 默认 | 'part' 零件库）
  */
 router.post('/upload-model-bundle', uploadBundle.array('files', MAX_FILES), async (req, res) => {
   const tmpFiles = [];
@@ -199,8 +283,17 @@ router.post('/upload-model-bundle', uploadBundle.array('files', MAX_FILES), asyn
       await fsp.copyFile(files[i].path, dest);
       await fsp.unlink(files[i].path).catch(() => {});
     }
-    const result = await ingestBundle(bundleName);
-    res.json({ success: true, message: `已导入 ${result.modelCount} 个模型`, ...result });
+    const target = readTarget(req);
+    const ingestOpts = readIngestOpts(req);
+    const result = await finalizeBundle(bundleName, target, ingestOpts);
+    res.json({
+      success: true,
+      target,
+      message: target === 'part'
+        ? `已导入 ${result.modelCount} 个零件到零件库`
+        : `已导入 ${result.modelCount} 个模型`,
+      ...result,
+    });
   } catch (error) {
     for (const p of tmpFiles) await fsp.unlink(p).catch(() => {});
     console.error('❌ bundle 上传失败:', error);
@@ -255,8 +348,17 @@ router.post('/upload-model-zip', uploadBundle.single('file'), async (req, res) =
     }
 
     await fsp.unlink(f.path).catch(() => {});
-    const result = await ingestBundle(bundleName);
-    res.json({ success: true, message: `已导入 ${result.modelCount} 个模型`, ...result });
+    const target = readTarget(req);
+    const ingestOpts = readIngestOpts(req);
+    const result = await finalizeBundle(bundleName, target, ingestOpts);
+    res.json({
+      success: true,
+      target,
+      message: target === 'part'
+        ? `已导入 ${result.modelCount} 个零件到零件库`
+        : `已导入 ${result.modelCount} 个模型`,
+      ...result,
+    });
   } catch (error) {
     if (req.file) await fsp.unlink(req.file.path).catch(() => {});
     console.error('❌ zip 上传失败:', error);
@@ -265,3 +367,11 @@ router.post('/upload-model-zip', uploadBundle.single('file'), async (req, res) =
 });
 
 module.exports = router;
+
+// 供服务器目录扫描通道（src/routes/assetLibrary.js）复用：
+// 扫描 = 复制落盘 → finalizeBundle，与浏览器上传走完全相同的入库路径。
+module.exports.ingestBundle = ingestBundle;
+module.exports.finalizeBundle = finalizeBundle;
+module.exports.UPLOAD_ROOT = UPLOAD_ROOT;
+module.exports.MAX_FILES = MAX_FILES;
+module.exports.MAX_TOTAL_BYTES = MAX_TOTAL_BYTES;

@@ -40,6 +40,11 @@ const logger = require('./services/logger');
 logger.start();
 app.use(logger.httpMiddleware());
 
+// ==================== 路径重复斜杠折叠（联邦心跳「双斜杠 404」修复）====================
+// 对端（含本世界自己）存的 worldUrl 带尾斜杠 → 拼出 `//api/federation/info` → 兜底 404。
+// 此处只折叠 path（不动 query、不改 originalUrl），放在所有路由/静态之前。详见该文件头部说明。
+app.use(require('./middleware/normalizeSlashes'));
+
 // Middleware
 app.use(cors({
   origin: '*',
@@ -129,6 +134,8 @@ const aiSceneGeneratorRoutes = require('./routes/aiSceneGenerator');
 const uploadedModelsRoutes = require('./routes/uploadedModels');
 const uploadedModelMetaRoutes = require('./routes/uploadedModelMeta');  // 🤖 上传模型 AI 描述端点
 const modelBundleRoutes = require('./routes/modelBundleUpload');  // 📦 多文件资源包上传（glTF/OBJ bundle）
+const assetLibraryRoutes = require('./routes/assetLibrary');    // 📂 服务器目录扫描通道（target 决定数据流向）
+const partLibraryRoutes = require('./routes/partLibrary');      // 📚 零件库管理 + 检索
 const aiProvidersRoutes = require('./routes/aiProviders');
 const tagsRoutes = require('./routes/tags');
 const configRoutes = require('./routes/config');
@@ -184,6 +191,8 @@ app.use('/api/ui-controls', uiControlsRouter);  // UI控件路由（包含公开
 app.use('/api', apiWriteGuard.forMount('/api'), uploadedModelsRoutes);  // 上传模型路由
 app.use('/api', apiWriteGuard.forMount('/api'), uploadedModelMetaRoutes);  // 🤖 上传模型 AI 描述端点（独立小模块）
 app.use('/api', apiWriteGuard.forMount('/api'), modelBundleRoutes);  // 📦 多文件资源包上传（glTF/OBJ bundle）
+app.use('/api/asset-library', apiWriteGuard.forMount('/api/asset-library'), assetLibraryRoutes);  // 📂 素材目录扫描（与上传同通道，target 决定去 3D 资产库 or 零件库）
+app.use('/api/part-library', apiWriteGuard.forMount('/api/part-library'), partLibraryRoutes);      // 📚 零件库管理 + 零件检索（独立主页面用）
 app.use('/api/tags', apiWriteGuard.forMount('/api/tags'), tagsRoutes);  // 标签管理路由
 app.use('/api/config', configRoutes);  // 配置管理路由
 app.use('/api/character-templates', apiWriteGuard.forMount('/api/character-templates'), characterTemplatesRoutes);  // 角色模板路由（管理员）

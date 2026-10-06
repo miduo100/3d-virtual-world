@@ -319,6 +319,9 @@
     <div class="nav-item" onclick="showPage('assets')">
       <span class="icon">🏗️</span><span>3D资产</span>
     </div>
+    <div class="nav-item" onclick="showPage('part-library')">
+      <span class="icon">📚</span><span>零件库</span>
+    </div>
     <div class="nav-item" onclick="showPage('3dgs');load3dgsScenes()">
       <span class="icon">✨</span><span>高斯场景库</span>
     </div>
@@ -1045,7 +1048,37 @@
 
     </div>
 
-    <!-- ===== 4. 3D资产 ===== -->
+    <!-- ===== 4. 零件库（Phase 1：扫描/上传归类的零件，与 3D资产 列表隔离）===== -->
+    <div id="page-part-library" class="page">
+      <div id="pl-topbar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
+        <span id="pl-summary" style="font-size:13px;color:var(--text-secondary);">加载中…</span>
+        <span style="flex:1"></span>
+        <button class="btn" id="pl-btn-upload" title="从浏览器选择文件夹上传到零件库">📁 上传文件夹 → 零件库</button>
+        <button class="btn btn-primary" id="pl-btn-scan" title="扫描服务器本地目录并导入到零件库">📂 扫描本地目录 → 零件库</button>
+        <button class="btn" id="pl-btn-refresh">🔄 刷新</button>
+      </div>
+      <div id="pl-msg" style="display:none;padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:13px;"></div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <strong style="font-size:14px;">🔍 零件检索</strong>
+          <span style="font-size:12px;color:var(--text-secondary);">（本页面唯一检索入口）</span>
+          <span style="flex:1"></span>
+          <select id="pl-f-role" class="form-input" style="width:auto;padding:6px 8px;"><option value="">全部角色</option></select>
+          <select id="pl-f-style" class="form-input" style="width:auto;padding:6px 8px;"><option value="">全部风格</option></select>
+          <input id="pl-f-gridw" class="form-input" type="number" step="0.1" placeholder="模数宽(m)" style="width:110px;padding:6px 8px;" />
+          <input id="pl-f-q" class="form-input" type="text" placeholder="名称包含…" style="width:160px;padding:6px 8px;" />
+          <button class="btn btn-primary" id="pl-btn-search">查询</button>
+        </div>
+        <div id="pl-search-info" style="margin-top:10px;font-size:12px;color:var(--text-secondary);"></div>
+        <div id="pl-results" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px;margin-top:12px;"></div>
+      </div>
+
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;">风格库（点击查看该库全部零件）</div>
+      <div id="pl-library-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:12px;"></div>
+    </div>
+
+    <!-- ===== 5. 3D资产 ===== -->
     <div id="page-assets" class="page">
       <div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:0;flex-wrap:wrap;">
         <button class="sub-tab active" onclick="switchSubTab('assets','geometry',this)" data-i18n="adminAssets.subTabGeometry">🔨 几何体建筑</button>
@@ -2593,7 +2626,7 @@
             </div>
             <div class="form-group">
               <label data-i18n="adminSystem.wsUrlLabel">世界URL（对外域名）*</label>
-              <input type="text" id="ws-world-url" data-i18n-placeholder="adminSystem.wsUrlPlaceholder" placeholder="如：https://world.example.com">
+              <input type="text" id="ws-world-url" data-i18n-placeholder="adminSystem.wsUrlPlaceholder" placeholder="如：https://world.example.com" onblur="this.value=this.value.trim().replace(/\/+$/,'')">
               <div style="font-size:11px;color:var(--muted);margin-top:4px">
                 <span data-i18n="adminSystem.wsUrlHintPre">用于联邦传送、传送门跨服等功能。绑定域名后填写域名地址，本地测试填</span> <code style="color:var(--green)">http://localhost:3002</code>
               </div>
@@ -3848,7 +3881,10 @@
 <script src="js/adminModelLod.js?v=4" defer></script>
 <script src="js/adminAgentDescBadge.js?v=1" defer></script>
 <script src="js/adminAgentSettings.js?v=4" defer></script>
-<script src="js/adminModelBundle.js?v=1" defer></script>
+<script src="js/adminModelBundle.js?v=2" defer></script>
+<!-- 📚 零件库（Phase 1）：上传文件夹 / 扫描服务器目录 / 检索 / 库详情 -->
+<script src="js/adminPartLibrary.js?v=2" defer></script>
+<script src="js/adminPartLibraryImport.js?v=2" defer></script>
 <script>
   // ===== 认证 =====
   document.addEventListener('DOMContentLoaded', function checkAdminAuth() {
@@ -3884,6 +3920,7 @@
     users:      { title: '用户与角色', subtitle: '管理所有用户账号' },
     world:      { title: '世界与场景', subtitle: '怪物、地块管理、世界规则' },
     assets:     { title: '3D资产', subtitle: 'AI建筑、几何体、上传模型、标签管理' },
+    'part-library': { title: '零件库', subtitle: '扫描/上传的模块化零件库（与 3D资产 隔离）' },
     characters: { title: '角色管理', subtitle: '角色模板、技能管理' },
     'anim-library': { title: '动作库', subtitle: 'AI动作库管理' },
     weapons:    { title: '武器库', subtitle: '管理所有武器，角色模板在装备槽中选择使用' },
@@ -3929,6 +3966,7 @@
     else if (name === 'users') { loadUsers(); }
     else if (name === 'world') loadMonsters();
     else if (name === 'assets') { loadGeometryTemplates(); refreshGeometryBuildings(); }
+    else if (name === 'part-library') { window.PartLibrary && window.PartLibrary.load && window.PartLibrary.load(); }
     else if (name === 'characters') loadTemplates();
     else if (name === 'anim-library') { AnimLibMenu && AnimLibMenu.loadPage && AnimLibMenu.loadPage(); }
     else if (name === 'weapons') loadWeapons();
@@ -5921,7 +5959,11 @@
 
   async function saveWorldSettings() {
     const name = document.getElementById('ws-world-name').value.trim();
-    const url  = document.getElementById('ws-world-url').value.trim();
+    // 世界URL：尾部多余的 `/` 自动清洗（与「联邦→添加世界」的 URL 处理口径一致，避免广播出带斜杠地址）
+    const urlEl = document.getElementById('ws-world-url');
+    const rawUrl = urlEl.value.trim();
+    const url = rawUrl.replace(/\/+$/, '');
+    if (url !== rawUrl) urlEl.value = url;
     const desc = document.getElementById('ws-world-description').value.trim();
     const msgEl = document.getElementById('ws-save-msg');
 
@@ -11199,11 +11241,12 @@ async function initBoneEditor() {
           }
         });
 
-        // 导航项（21个，顺序必须与HTML .nav-item一致）
+        // 导航项（22个，顺序必须与HTML .nav-item一致）
+        // ⚠ 新增 nav-item 时必须在本数组的对应位置插入 key，否则后续全部错位一位
         const navItems = document.querySelectorAll('.nav-item span:last-child');
         const navKeys = [
           'dashboard', 'users', 'world', 'economy',
-          'assets', '3dgsScenes', 'threejsCodeLibrary', 'characters', 'animations', 'weapons',
+          'assets', 'partLibrary', '3dgsScenes', 'threejsCodeLibrary', 'characters', 'animations', 'weapons',
           'federation', 'config', 'security-questions', 'maintenance', 'gallery',
           'uiControls', 'unifiedEditor', 'worldEditor',
           'characterEditor', 'animationEditor', 'aiMotionFactory'

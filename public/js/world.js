@@ -5998,10 +5998,14 @@ class World {
 
       // 【2026-09-26 glTF 修复】.gltf 是 JSON+外置 bin/贴图：不能进 Worker / parse('')
       // ——相对 URI 会解析到站点根（如 /TwistedTree_5.bin）而 404，模型不显示。
-      // 主线程 parse 并把 resourcePath 指到模型所在目录，外置 bin/贴图按目录解析；
-      // GLB 自包含不受影响，仍走 Worker 通道。
+      // 主线程 parse 并把 resourcePath 指到模型所在目录，外置 bin/贴图按目录解析。
+      //
+      // 【2026-10-06 AL-3 修复】GLB **也**可能是半外置（Kenney 全系：几何内嵌 BIN，
+      // 贴图外置 `Textures/colormap.png`）。此前 GLB 走 Worker 且 parse('')，相对 uri
+      // 解析到 worker 自身目录 → 404 /js/workers/Textures/colormap.png → 材质无 map 变白模。
+      // 故两条通道统一传 baseDir。
+      const baseDir = url.slice(0, url.lastIndexOf('/') + 1);
       if (url.toLowerCase().endsWith('.gltf')) {
-        const baseDir = url.slice(0, url.lastIndexOf('/') + 1);
         this.gltfLoader.parse(
           arrayBuffer.buffer,
           baseDir,
@@ -6022,7 +6026,7 @@ class World {
       if (window.GltfWorkerClient && window.GltfWorkerClient.parseBuffer) {
         window.GltfWorkerClient.parseBuffer(
           arrayBuffer.buffer,
-          { fallbackLoader: this.gltfLoader, static: true }
+          { fallbackLoader: this.gltfLoader, static: true, resourcePath: baseDir }
         ).then(
           (gltf) => {
             this._showCompleteOnPlaceholder(name);
@@ -6036,7 +6040,7 @@ class World {
       } else {
         this.gltfLoader.parse(
           arrayBuffer.buffer,
-          '',
+          baseDir,
           (gltf) => {
             this._showCompleteOnPlaceholder(name);
             if (onComplete) onComplete(gltf);

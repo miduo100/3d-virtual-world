@@ -165,7 +165,9 @@
       return client.parseBuffer(buf, {
         strict: true,
         maxTexSize: Infinity,          // 玩家模型纹理不降级（§7.3-6）
-        fallbackLoader: loaderInstance // 兜底用调用方自己的 loader（已配 Draco）
+        fallbackLoader: loaderInstance,// 兜底用调用方自己的 loader（已配 Draco）
+        // 外置贴图（images[].uri）按模型所在目录解析；不传会解析到 worker 目录 → 404 白模
+        resourcePath: url.slice(0, url.lastIndexOf('/') + 1)
       });
     });
   }

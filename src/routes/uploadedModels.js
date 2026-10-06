@@ -382,12 +382,22 @@ router.post('/upload-models-batch', upload.array('models', 20), async (req, res)
  */
 router.get('/uploaded-models', async (req, res) => {
   try {
+    // 【2026-10-06 Phase 1 · AL-16】零件库扫描入库的模型（part_category='part'）
+    // 不进「上传模型」列表 —— 否则 100+ 零件会把用户刚传的模型淹到第 2000 行。
+    // 默认只回 model；?category=part|all 可显式放宽（Phase 5 装配/编辑器取用）。
+    const cat = String((req.query && req.query.category) || 'model').toLowerCase();
+    const where = cat === 'all' ? '' : (cat === 'part' ? `WHERE part_category = 'part'` : `WHERE part_category = 'model'`);
     const query = `
-      SELECT * FROM uploaded_models 
+      SELECT * FROM uploaded_models
+      ${where}
       ORDER BY created_at DESC
     `;
-    
+
     const result = await pool.query(query);
+    const split = await pool.query(
+      `SELECT COUNT(*) FILTER (WHERE part_category = 'model')::int AS model_count,
+              COUNT(*) FILTER (WHERE part_category = 'part')::int  AS part_count
+         FROM uploaded_models`);
 
     // 补充磁盘实际大小（压缩后文件在磁盘上的真实字节数）+ 减面状态派生字段
     for (const row of result.rows) {
@@ -406,7 +416,9 @@ router.get('/uploaded-models', async (req, res) => {
 
     res.json({
       success: true,
-      models: result.rows
+      models: result.rows,
+      category: cat === 'all' ? 'all' : (cat === 'part' ? 'part' : 'model'),
+      split: split.rows[0] || { model_count: result.rows.length, part_count: 0 }
     });
 
   } catch (error) {

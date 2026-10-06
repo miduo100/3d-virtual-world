@@ -17,7 +17,7 @@
   'use strict';
   if (window.GltfWorkerClient) return;
 
-  var DEFAULT_WORKER_URL = '/js/workers/gltfWorker.js?v=2';
+  var DEFAULT_WORKER_URL = '/js/workers/gltfWorker.js?v=3';
   var PARSE_TIMEOUT_MS = 30000;
 
   /* ---------------- 客户端工厂（二期B）----------------
@@ -79,11 +79,14 @@
 
     function parseBuffer(buffer, opts) {
       opts = opts || {};
+      // ⚠ resourcePath：GLB/gltf 里外置贴图（images[].uri）按它解析。
+      //   不传则相对 uri 解析到「当前脚本/worker 所在目录」→ 404 → 白模（AL-3 实测）。
+      var resourcePath = opts.resourcePath || '';
       return new Promise(function (resolve, reject) {
         var fallbackParse = function () {
           try {
             if (!opts.fallbackLoader) { stats.failed++; reject(new Error('no fallback loader')); return; }
-            opts.fallbackLoader.parse(buffer, '', function (gltf) {
+            opts.fallbackLoader.parse(buffer, resourcePath, function (gltf) {
               stats.fallback++;
               resolve({ scene: gltf.scene, animations: gltf.animations || [], __viaWorker: false });
             }, function (err) {
@@ -112,7 +115,7 @@
 
         try {
           var copy = buffer.slice(0);      // 副本 transfer 给 worker，原 buffer 留给兜底
-          w.postMessage({ type: 'parse', id: id, buffer: copy, dracoPath: '/js/libs/draco/', static: !!opts.static, strict: !!opts.strict, maxTexSize: opts.maxTexSize }, [copy]);
+          w.postMessage({ type: 'parse', id: id, buffer: copy, dracoPath: '/js/libs/draco/', static: !!opts.static, strict: !!opts.strict, maxTexSize: opts.maxTexSize, resourcePath: resourcePath }, [copy]);
         } catch (e) {
           settled = true; clearTimeout(timer); pending.delete(id);
           fallbackParse();
