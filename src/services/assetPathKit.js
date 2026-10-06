@@ -260,14 +260,17 @@ function selectCanonicalFiles(files, opts) {
   // ③ 同目录附属（OBJ 的 .mtl / 贴图恰好与模型同级的情况）
   const keepDirs = new Set();
   for (const n of keep) keepDirs.add(path.dirname(n).toLowerCase());
-  // ④ Previews 缩略图；⑤ 其余一律丢弃并说明原因
+  // ④ 缩略图目录；⑤ 其余一律丢弃并说明原因
   for (const rel of files) {
     const n = normalizeRel(rel);
     if (!n || keep.has(n)) continue;
     const ext = path.extname(rel).toLowerCase();
     if (PRIMARY_EXTS.has(ext) && !VARIANT_RE.test(rel)) continue;   // ① 已处理
     if (keepDirs.has(path.dirname(n).toLowerCase())) { keep.add(n); rawOf.set(n, rel); keepDirs.add(path.dirname(n).toLowerCase()); continue; }
-    if (/(^|\/)Previews?\//i.test(n)) { keep.add(n); rawOf.set(n, rel); continue; }
+    // 老版 Kenney 用 Previews/，新版改用 Side/（正侧视）；两套都要收，否则 469 件零件没图。
+    // ⚠ 刻意**不收** Isometric/：图量是 Side 的 4 倍（nature-kit 1316 张 vs Side 322 张），
+    //   为 cover 少量边角料搬 4 倍图片不划算；要收需显式开关（registrar.collectThumbs 的 allowIsometric）。
+    if (/(^|\/)(Previews?|Side)\//i.test(n)) { keep.add(n); rawOf.set(n, rel); continue; }
     dropped.push({
       file: rel,
       reason: PRIMARY_EXTS.has(ext) || ext === '.mtl' ? '未被引用的模型副本'

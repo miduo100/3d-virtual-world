@@ -61,6 +61,58 @@ function thumbKey(name) {
   return String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
+/**
+ * 缩略图目录约定（**三套都要认** —— 这是 771 件零件没图的真因）：
+ *
+ *   老版 Kenney kit：  Previews/xxx.png                一件一张正视/斜视预览
+ *   新版 Kenney kit：  Side/xxx.png                    正侧视（**没有** Previews/）
+ *                     Isometric/xxx_NE.png            等距 4 视角（NE/NW/SE/SW 后缀）
+ *   优先级：Previews > Side > Isometric（同件多图时取先命中的）
+ *
+ * ⚠ 两个踩过的坑：
+ *   ① 目录名可能在**顶层**（落盘路径就是 `Side/xxx.png`），正则必须用 `(^|[\\/])`，
+ *      否则要求前面有斜杠 → 一个都匹配不到（thumbnail 全 null）。
+ *   ② Isometric 的文件名带方向后缀（`bed_floor_NE.png`），归一后是 `bedfloorne`，
+ *      与 part_key `bed_floor` 对不上 → 匹配前先剥掉方向后缀。
+ *   ③ Isometric 图量是 Side 的 4 倍（nature-kit 1316 vs 322），为cover 7 件边角料
+ *      搬 4 倍图片不值 → **默认只落盘 Previews/ 与 Side/**，Isometric 需显式开启。
+ */
+const THUMB_DIRS = [
+  { re: /(^|[\\/])Previews[\\/]/i, strip: null, name: 'Previews' },
+  { re: /(^|[\\/])Side[\\/]/i, strip: null, name: 'Side' },
+  { re: /(^|[\\/])Isometric[\\/]/i, strip: /_(ne|nw|se|sw)$/i, name: 'Isometric' },
+];
+
+/**
+ * 收集缩略图 → Map<thumbKey, 落盘后的相对 URL>
+ * @param {Array<{rel:string, ext:string}>} all  bundle 内文件清单（walkBundle 结果）
+ * @param {string} prefix  落盘 URL 前缀（如 /models/uploaded/bundle-x/）
+ * @param {object} [opts]  { allowIsometric:boolean } 默认不收 Isometric
+ */
+function collectThumbs(all, prefix, opts) {
+  const allowIso = !!(opts && opts.allowIsometric);
+  /** @type {Map<string, {url:string, rank:number}>} */
+  const best = new Map();
+  for (const f of all || []) {
+    if (f.ext !== '.png' && f.ext !== '.jpg' && f.ext !== '.jpeg') continue;
+    for (let i = 0; i < THUMB_DIRS.length; i++) {
+      const d = THUMB_DIRS[i];
+      if (d.name === 'Isometric' && !allowIso) continue;
+      if (!d.re.test(f.rel)) continue;
+      const base = path.basename(f.rel, path.extname(f.rel));
+      const key = thumbKey(d.strip ? base.replace(d.strip, '') : base);
+      const prev = best.get(key);
+      // 优先级低的目录不覆盖已命中的（THUMB_DIRS 已按优先级排序）
+      if (prev && prev.rank <= i) break;
+      best.set(key, { url: prefix + f.rel, rank: i });
+      break;
+    }
+  }
+  const out = {};
+  for (const [k, v] of best) out[k] = v.url;
+  return out;
+}
+
 /** 归类入库：逐个主文件建 part_library_items 行 + 回填 uploaded_models */
 async function classifyBundle({ bundleName, libraryId, uploadRoot, bundlePrefix }) {
   const bundleDir = path.join(uploadRoot, bundleName);
@@ -70,15 +122,7 @@ async function classifyBundle({ bundleName, libraryId, uploadRoot, bundlePrefix 
   let itemCount = 0, updatedModels = 0, totalTris = 0, skippedDup = 0, noStats = 0;
   const roleCount = {};
 
-  // Previews 目录的缩略图（按同名匹配，键需归一：building-block.png ↔ building_block）
-  // ⚠ 正则必须允许 Previews 在**顶层**（(^|/)）：落盘路径是 `Previews/xxx.png`，
-  //   原来的 /[\\/]Previews[\\/]/ 要求前面有斜杠 → 顶层目录一个都匹配不到（thumbnail 全 null）。
-  const thumbs = {};
-  for (const f of all) {
-    if (f.ext !== '.png') continue;
-    if (!/(^|[\\/])Previews[\\/]/.test(f.rel)) continue;
-    thumbs[thumbKey(path.basename(f.rel, '.png'))] = prefix + f.rel;
-  }
+  const thumbs = collectThumbs(all, prefix);
 
   const primaries = all.filter(f =>
     ['.gltf', '.glb', '.obj'].includes(f.ext) && !/_(mid|lod)\.(gltf|glb|obj)$/i.test(f.rel));
@@ -219,4 +263,4 @@ async function registerBundle({ bundleName, uploadRoot, sourceRef, licenseInfo, 
   };
 }
 
-module.exports = { inferStyleFamily, ensureLibrary, classifyBundle, refreshLibraryStats, pruneOrphanModels, registerBundle, thumbKey };
+module.exports = { inferStyleFamily, ensureLibrary, classifyBundle, refreshLibraryStats, pruneOrphanModels, registerBundle, thumbKey, collectThumbs, THUMB_DIRS };

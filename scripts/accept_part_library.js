@@ -172,7 +172,11 @@ async function groupScan(browser, token) {
   const card = await page.evaluate((el) => (el ? el.closest('.card').textContent.replace(/\s+/g, ' ').trim().slice(0, 140) : ''), openBtn);
   log(/part pack demo/i.test(card), 'C4 库卡片已出现', card);
 
-  await page.fill('#pl-f-q', 'Demo');
+  // ⚠ 关键字必须用**精确件名**，不能用 'Demo'：
+  //   ILIKE '%Demo%' 在真库已导入 19 个 Kenney kit 后会连带命中 castle-kit 的
+  //   siege_ballista_demolished / siege_catapult_demolished …（5 件，忽略大小写含 'demo'），
+  //   使「命中 1 个」的断言恒假。测试断言必须对真实数据鲁棒。
+  await page.fill('#pl-f-q', SCAN_FILE.replace(/\.gltf$/, ''));   // DemoCube
   await page.click('#pl-btn-search');
   await page.waitForFunction(() => /命中/.test(document.getElementById('pl-search-info').textContent), null, { timeout: 15000 });
   const si = await page.evaluate(() => document.getElementById('pl-search-info').textContent.trim()

@@ -48,22 +48,57 @@ async function api(p, { method = 'GET', token, body } = {}) {
   return { status: r.status, j };
 }
 
-/** 删除一个库及其零件行 + uploaded_models 行 + 磁盘 bundle 目录（幂等） */
+/**
+ * 删除**一个**库及其零件行 + 它的 uploaded_models 行 + 它的磁盘 bundle 目录（幂等）。
+ *
+ * ⚠⚠ 事故记录（2026-10-06，必须保留这段注释）：
+ *   原实现是 `DELETE FROM uploaded_models WHERE part_category = 'part'`（**没有库条件**），
+ *   并且收集了**全库**的 bundle 目录名去删磁盘。跑一次不带 --keep 的验收，
+ *   就把 19 个库里 17 个的 2,035 行 uploaded_models 记录全删了 → part_library_items.model_id
+ *   全部悬空 → search / 库详情 / 说明书 的 `JOIN uploaded_models` 丢行 →
+ *   表现为「只有刚重扫的那个库能搜到，其它库全部搜不到」。
+ *   教训：**清理函数的作用域必须与它的名字一致**；验收脚本里的清理代码同样会伤生产数据。
+ *   现在严格限定 packKey，并额外要求：目标 bundle 目录必须含该库的文件名，否则不删。
+ */
 async function purgePack(packKey) {
   const libs = await pool.query('SELECT id FROM part_libraries WHERE pack_key = $1', [packKey]);
-  for (const l of libs.rows) await pool.query('DELETE FROM part_library_items WHERE library_id = $1', [l.id]);
+  const libIds = libs.rows.map(l => l.id);
+  if (!libIds.length) return { libs: 0, models: 0, dirs: 0, skipped: 0 };
+
+  // ① 先记下该库零件的文件名（用来验证目录归属，避免误删同名目录）
+  const files = await pool.query(
+    `SELECT u.path FROM part_library_items i JOIN uploaded_models u ON u.id = i.model_id
+      WHERE i.library_id = ANY($1::int[])`, [libIds]);
+  const names = new Set(files.rows.map(r => path.basename(String(r.path)).toLowerCase()));
+
+  for (const id of libIds) await pool.query('DELETE FROM part_library_items WHERE library_id = $1', [id]);
   await pool.query('DELETE FROM part_libraries WHERE pack_key = $1', [packKey]);
-  const models = await pool.query(`SELECT path FROM uploaded_models WHERE part_category = 'part'`);
+
+  // ② 只删属于该库的 uploaded_models 行（pack_id 指向刚删掉的库）
+  const models = await pool.query(
+    `SELECT path FROM uploaded_models WHERE part_category = 'part' AND pack_id = ANY($1::int[])`, [libIds]);
+  await pool.query(
+    `DELETE FROM uploaded_models WHERE part_category = 'part' AND pack_id = ANY($1::int[])`, [libIds]);
+
+  // ③ 只删「含该库文件名」的 bundle 目录
+  let dirs = 0, skipped = 0;
   const bundles = [...new Set(models.rows.map(r => {
     const m = String(r.path).match(/^\/models\/uploaded\/([^/]+)\//); return m ? m[1] : null;
   }).filter(Boolean))];
-  await pool.query(`DELETE FROM uploaded_models WHERE part_category = 'part'`);
-  let dirs = 0;
   for (const b of bundles) {
     const d = path.join(UPLOAD_ROOT, b);
-    if (fs.existsSync(d) && (b.startsWith('bundle-') || /kenney/i.test(b))) { fs.rmSync(d, { recursive: true, force: true }); dirs++; }
+    if (!fs.existsSync(d)) continue;
+    let hit = false;
+    try {
+      hit = fs.readdirSync(d).some(n => names.has(n.toLowerCase()))
+        || fs.readdirSync(d).some(sub => {
+          const p2 = path.join(d, sub);
+          return fs.statSync(p2).isDirectory() && fs.readdirSync(p2).some(n => names.has(n.toLowerCase()));
+        });
+    } catch (e) { /* ignore */ }
+    if (hit) { fs.rmSync(d, { recursive: true, force: true }); dirs++; } else skipped++;
   }
-  return { libs: libs.rowCount, bundles: bundles.length, dirs };
+  return { libs: libIds.length, models: models.rowCount, dirs, skipped };
 }
 
 (async () => {
@@ -128,6 +163,17 @@ async function purgePack(packKey) {
 
   // ── 模式一：单包验收 ───────────────────────────────────────────
   if (!fs.existsSync(SAMPLE_DIR)) { console.log('样本目录不存在：' + SAMPLE_DIR + '（用 --sample 指定）'); process.exit(1); }
+
+  // 保险：库里还有**别的**零件库时，单包验收的清理动作会牵连它们 → 拒绝执行并要求显式 --keep。
+  // （曾因清理函数作用域不匹配，一次不带 --keep 的验收把 17 个库的 uploaded_models 行删光，
+  //   导致它们的 model_id 悬空、检索全部失效。见 purgePack 的注释。）
+  const libCount = (await pool.query(`SELECT COUNT(*)::int n FROM part_libraries`)).rows[0].n;
+  if (!KEEP && libCount > 1) {
+    console.log(`\n⚠ 拒绝执行：库里有 ${libCount} 个零件库，单包验收的清理会牵连其它库。`);
+    console.log('   二选一： a) 只验收不清理 → 加 --keep   b) 先删掉其它库再重扫');
+    console.log('VERDICT: SKIPPED（未做任何改动）');
+    process.exit(2);
+  }
   await purgePack(SAMPLE_PACK);
 
   // K1 预检
@@ -204,8 +250,14 @@ async function purgePack(packKey) {
     log(r.status === 200, 'K20 缩略图静态可达', `HTTP ${r.status} ${t0.thumbnail.split('/').pop()}`);
   }
   // K21 检索（Bug3 回归 + AL-6）
-  const se = await api('/api/part-library/search?role=wall', { token });
-  log(se.j.count === wall.length, 'K21 ★search?role=wall 命中数正确（过滤参数不再失效）', `count=${se.j.count} expect=${wall.length}`);
+  // ⚠ 口径：库里可能有多个 kit（Phase 1 交付时是 19 个），所以不能拿"本 kit 的 wall 数"当期望值，
+  //   改为「API 返回数 == SQL 口径的全库 wall 数」，既能抓过滤失效、又不依赖库数量。
+  const wallTotal = (await pool.query(`SELECT COUNT(*)::int n FROM part_library_items WHERE part_role='wall'`)).rows[0].n;
+  const se = await api('/api/part-library/search?role=wall&limit=200', { token });
+  // 接口 limit 上限 200（parseInt(limit)||60，min(…,200)）
+  const expect = Math.min(wallTotal, 200);
+  log(se.j.count === expect && se.j.count > 0, 'K21 ★search?role=wall 命中数正确（过滤参数不再失效）',
+    `count=${se.j.count} 期望=${expect}（全库 wall=${wallTotal}，接口上限 200）`);
   const se2 = await api('/api/part-library/search?q=window', { token });
   log(se2.j.count > 0, 'K22 关键字检索命中', 'count=' + se2.j.count);
   const se3 = await api('/api/part-library/search?role=wall&gridW=1', { token });
@@ -243,8 +295,58 @@ async function purgePack(packKey) {
   const sp = await api('/api/part-library/split', { token });
   const md = await api('/api/uploaded-models', { token });
   const mdPart = await api('/api/uploaded-models?category=part', { token });
+  const mdAll = await api('/api/uploaded-models?category=all', { token });
   log(!(md.j.models || []).some(m => m.part_category === 'part'), 'K29a 上传模型列表不含零件（AL-16）', '默认=' + (md.j.models || []).length);
-  log((mdPart.j.models || []).length === 108 && sp.j.part_count === 108, 'K29b 零件仅在零件库侧可见', `part=${(mdPart.j.models || []).length}`);
+  // 口径同上：零件数取 split（库里可能已有多个 kit），不写死 108
+  log((mdPart.j.models || []).length === sp.j.part_count && sp.j.part_count > 0,
+    'K29b 零件仅在零件库侧可见', `part=${(mdPart.j.models || []).length} split=${sp.j.part_count}`);
+  log((mdAll.j.models || []).length === (md.j.models || []).length + (mdPart.j.models || []).length,
+    'K29c category=all = model + part', `${(mdAll.j.models || []).length} = ${(md.j.models || []).length} + ${(mdPart.j.models || []).length}`);
+
+  // K32 数据完整性：零件行的 model_id 不得悬空（2026-10-06 事故判据）
+  //    曾因验收脚本的清理函数写了无库条件的全表 DELETE，2,035 行 uploaded_models 被删 →
+  //    零件行 model_id 悬空 → search/详情/说明书 的 JOIN 丢行 → 表现为"只有刚扫的那个库能搜到"。
+  //    这条判据就是为了让那种事故当场暴露。
+  {
+    const d = await pool.query(`
+      SELECT COUNT(*)::int total,
+             COUNT(*) FILTER (WHERE u.id IS NULL)::int dangling
+        FROM part_library_items i LEFT JOIN uploaded_models u ON u.id = i.model_id`);
+    const um = await pool.query(`SELECT COUNT(*)::int n FROM uploaded_models WHERE part_category='part'`);
+    const thumbs = await pool.query(`SELECT COUNT(*)::int n FROM part_library_items WHERE thumbnail IS NOT NULL`);
+    log(d.rows[0].dangling === 0, 'K32a ★零件行无悬空 model_id（悬空会让检索/详情 JOIN 丢行）',
+      `零件 ${d.rows[0].total}，悬空 ${d.rows[0].dangling}`);
+    log(um.rows[0].n === d.rows[0].total, 'K32b part 模型行数 = 零件行数（无 OBJ 副本、无孤儿）',
+      `${um.rows[0].n} vs ${d.rows[0].total}`);
+    log(thumbs.rows[0].n > 0, 'K32c 缩略图有数据（Previews/ 或 Side/ 目录被认得）',
+      `有图 ${thumbs.rows[0].n}/${d.rows[0].total}`);
+  }
+
+  // K31 缩略图目录约定（回归：曾只认 Previews/，导致 771 件零件没图）
+  {
+    const reg = require(path.join(__dirname, '..', 'src', 'services', 'partLibraryRegistrar'));
+    const fake = [
+      { rel: 'Previews/building-block.png', ext: '.png' },
+      { rel: 'Side/tree_oak.png', ext: '.png' },
+      { rel: 'Side/rock.png', ext: '.png' },
+      { rel: 'Isometric/tree_oak_SE.png', ext: '.png' },        // 与 Side 同名 → Side 应赢
+      { rel: 'Isometric/ground_grass_SE.png', ext: '.png' },    // 只有 Isometric 有 → 兜底
+      { rel: 'Models/GLB_format/whatever.png', ext: '.png' },  // 不是缩略图目录
+    ];
+    const m = reg.collectThumbs(fake, '/models/uploaded/b-1/');
+    log(!!m.buildingblock && /\/Previews\//.test(m.buildingblock), 'K31a Previews/ 认得（老版 kit）', m.buildingblock);
+    log(!!m.treeoak && /\/Side\//.test(m.treeoak), 'K31b ★Side/ 也认（新版 kit，这就是 469 件没图的真因）', m.treeoak);
+    log(m.rock && /rock\.png$/.test(m.rock), 'K31c Side/ 多件都能收', m.rock);
+    log(!Object.values(m).some(v => /Isometric/.test(v)), 'K31d Isometric/ 默认不收（4 倍冗余，需显式开关）');
+    log(/tree_oak\.png$/.test(m.treeoak), 'K31e 优先级 Previews > Side > Isometric（同名时 Side 赢）', m.treeoak);
+    const iso = reg.collectThumbs(fake, '/b/', { allowIsometric: true });
+    // 方向后缀只影响**匹配键**（ground_grass_SE → 键 groundgrass），
+    // URL 保留原文件名 —— 扫描器只引用不复制改名，没必要生成不存在的路径。
+    log(!!iso.groundgrass && /Isometric\/ground_grass_SE\.png$/.test(iso.groundgrass),
+      'K31f ★allowIsometric 开启后兜底 Side 没有的件（键已剥方向后缀，URL 保留原名）', iso.groundgrass);
+    log(/Side/.test(iso.treeoak), 'K31g 开启 Isometric 也不夺走 Side 的优先级', iso.treeoak);
+    log(!Object.values(m).some(v => /GLB_format/.test(v)), 'K31h 非缩略图目录的 png 不误收');
+  }
 
   // 清理
   if (!KEEP) {
