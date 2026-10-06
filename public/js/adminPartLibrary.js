@@ -239,7 +239,12 @@
       const j = await kit.apiGet(PL_API + '/search?' + p.toString());
       renderResults(j.items || []);
       if (info) {
-        info.textContent = `命中 ${kit.fmtNum(j.count)} 个零件`
+        // ⚠ 用 total（真实命中数），不是 count（本次返回条数，被 limit 截断）。
+        //   此前写成「命中 120 个」，实际库里 2,143 件 —— 数字看着对、含义错。
+        const total = typeof j.total === 'number' ? j.total : j.count;
+        const shown = j.items ? j.items.length : 0;
+        info.textContent = `命中 ${kit.fmtNum(total)} 个零件`
+          + (total > shown ? `（显示前 ${kit.fmtNum(shown)} 件，可加筛选缩小范围）` : '')
           + (role ? ` · 角色=${kit.ROLE_CN[role] || role}` : '')
           + (style ? ` · 风格=${style}` : '')
           + (gw ? ` · 模数宽≈${gw}m` : '')
@@ -356,7 +361,21 @@
 
   function bind() {
     if ($('pl-btn-refresh')) {
-      $('pl-btn-refresh').onclick = () => { loadFacets(); loadLibraries(); doSearch(); };
+      // 「刷新」= 重新拉库卡片与统计。**空条件时不跑检索** ——
+      //   此前刷新会触发一次无筛选检索，把结果区刷成 120 条（按库名字母序全是地砖），
+      //   用户会以为页面坏了。有筛选条件时才顺带刷新检索结果。
+      $('pl-btn-refresh').onclick = () => {
+        loadFacets(); loadLibraries();
+        const hasFilter = !!(
+          ($('pl-f-role') && $('pl-f-role').value) ||
+          ($('pl-f-style') && $('pl-f-style').value) ||
+          ($('pl-f-gridw') && $('pl-f-gridw').value) ||
+          ($('pl-f-q') && $('pl-f-q').value.trim())
+        );
+        const hadResults = !!($('pl-results') && $('pl-results').children.length);
+        if (hasFilter || hadResults) doSearch();
+        else kit.say('已刷新库卡片与统计（无筛选条件，未重跑零件检索）', 'ok');
+      };
     }
     if ($('pl-btn-search')) $('pl-btn-search').onclick = doSearch;
     if ($('pl-f-q')) $('pl-f-q').onkeydown = (e) => { if (e.key === 'Enter') doSearch(); };

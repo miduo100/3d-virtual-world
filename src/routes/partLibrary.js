@@ -166,6 +166,21 @@ router.get('/search', async (req, res) => {
       const p = ph(); params.push('%' + String(q.q).slice(0, 80) + '%');
       where.push(`(i.part_key ILIKE ${p} OR i.part_subtype ILIKE ${p})`);
     }
+
+    // 排序：
+    //  · 有筛选条件 → 按库名 + 角色 + 键名（可预期）
+    //  · 无筛选条件 → **结构件优先**。此前纯按库名字母序，`kenney 3d road tiles` 永远第一
+    //    → 点「刷新」后首屏 120 张全是地砖（roadTile_001…），用户会以为页面坏了。
+    //    这里只调顺序，不隐藏任何零件；road/ground 仍在结果里（排在后面）。
+    const filtered = !!(q.role || q.style || q.packKey || q.q || Number.isFinite(gw));
+    const roleRank = `CASE i.part_role
+      WHEN 'wall' THEN 1 WHEN 'window' THEN 2 WHEN 'door' THEN 3 WHEN 'column' THEN 4
+      WHEN 'roof' THEN 5 WHEN 'cornice' THEN 6 WHEN 'awning' THEN 7 WHEN 'stairs' THEN 8
+      WHEN 'railing' THEN 9 WHEN 'floor' THEN 10 WHEN 'prop' THEN 11 WHEN 'nature' THEN 12
+      WHEN 'ground' THEN 13 WHEN 'road' THEN 14 ELSE 20 END`;
+    const orderBy = filtered
+      ? 'l.display_name, i.part_role, i.part_key'
+      : `${roleRank}, l.display_name, i.part_key`;
     params.push(limit);
     const r = await pool.query(
       `SELECT i.id, i.library_id, i.model_id, i.part_key, i.part_role, i.part_subtype,
@@ -174,16 +189,20 @@ router.get('/search', async (req, res) => {
               i.metadata->>'tris' AS tris, i.metadata->>'mats' AS mats,
               i.metadata->>'externalTextures' AS external_textures,
               l.pack_key, l.display_name AS library_name, l.style_family,
-              l.status AS library_status, u.file_name, u.path AS model_path
+              l.status AS library_status, u.file_name, u.path AS model_path,
+              COUNT(*) OVER() AS total          -- ★真实命中总数（不受 limit 影响）
          FROM part_library_items i
          JOIN part_libraries l ON l.id = i.library_id
          JOIN uploaded_models u ON u.id = i.model_id
         WHERE ${where.join(' AND ')}
-        ORDER BY l.display_name, i.part_role, i.part_key
+        ORDER BY ${orderBy}
         LIMIT $${params.length}`,
       params
     );
-    res.json({ success: true, count: r.rows.length, items: r.rows });
+    // ⚠ count = 本次返回条数（被 limit 截断）；total = 真实命中数。
+    //   此前把 count 当"命中数"报给前端，空条件时页面显示「命中 120 个」，实际有 2,143 件。
+    const total = r.rows.length ? Number(r.rows[0].total) : 0;
+    res.json({ success: true, count: r.rows.length, total, limit, truncated: total > r.rows.length, items: r.rows });
   } catch (error) {
     console.error('❌ 零件检索失败:', error);
     res.status(500).json({ success: false, error: String(error.message || error).slice(0, 200) });

@@ -212,12 +212,44 @@ async function groupScan(browser, token) {
 
   const real = errs.filter((e) => !/favicon|404 \(Not Found\)/i.test(e));
   log(real.length === 0, 'C10 无 console/page 错误', real.slice(0, 2).join(' | '));
+
+  // ── C12 组：检索 count 语义 + 「刷新」行为 + 首屏排序 ──
+  // 现象（2026-10-06）：点「刷新」后标题写「命中 120 个零件」（实际 2,143 件），
+  //   且排序按库名字母序 → kenney 3d road tiles 永远第一 → 首屏全是 roadTile。
+  // ⚠ 放在 A 组末尾：这三条会往结果区塞 120 张卡片，不能影响 C6~C11 的元素可见性。
+  {
+    // 空条件点「刷新」→ 不应重跑那趟没意义的检索
+    //（先清空筛选框：有筛选条件时「刷新」本就该顺带刷新检索，那是设计行为）
+    const afterRefresh = await page.evaluate(async () => {
+      document.getElementById('pl-f-q').value = '';
+      document.getElementById('pl-f-role').value = '';
+      const box = document.getElementById('pl-results');
+      box.innerHTML = '';
+      document.getElementById('pl-btn-refresh').click();
+      await new Promise(r => setTimeout(r, 2500));
+      return { n: box.querySelectorAll('.card').length, msg: (document.getElementById('pl-msg') || {}).innerText || '' };
+    });
+    log(afterRefresh.n === 0, 'C12a ★空条件下点「刷新」不重跑零件检索', `结果区卡片=${afterRefresh.n} 提示="${afterRefresh.msg}"`);
+
+    await page.evaluate(() => { document.getElementById('pl-f-q').value = ''; document.getElementById('pl-btn-search').click(); });
+    await page.waitForFunction(() => /命中/.test(document.getElementById('pl-search-info').textContent), null, { timeout: 15000 });
+    await page.waitForTimeout(1200);
+    const infoAll = await page.evaluate(() => document.getElementById('pl-search-info').textContent.trim());
+    const shown = (infoAll.match(/显示前\s*([\d,]+)\s*件/) || [])[1] || '0';
+    log(/命中\s*[\d,]+\s*个零件/.test(infoAll) && shown.replace(/,/g, '') === '120',
+      'C12b ★无筛选文案 = 真实总数 + 「显示前 120 件」', infoAll.slice(0, 90));
+    const firstCard = await page.evaluate(() => {
+      const c = document.querySelector('#pl-results .card');
+      return c ? (c.innerText || '').replace(/\s+/g, ' ').slice(0, 60) : '';
+    });
+    log(!!firstCard && !/roadTile/i.test(firstCard), 'C12c ★无筛选首屏不是地砖（结构件优先）', firstCard);
+  }
   await page.close();
   fs.rmSync(SAMPLE_DIR, { recursive: true, force: true });
   const left = await cleanup(SCAN_PACK, SCAN_FILE);
   log(left === 0, 'C11 清理后无残留');
-}
 
+}
 // ───────────────────────── B 组：上传通道 ─────────────────────────
 async function groupUpload(browser, token) {
   const errs = [];

@@ -322,6 +322,25 @@ async function purgePack(packKey) {
       `有图 ${thumbs.rows[0].n}/${d.rows[0].total}`);
   }
 
+  // K33 检索 count 语义 + 默认排序（回归：曾把被 limit 截断的 count 当"命中数"）
+  //     现象：零件库页点「刷新」后标题写「命中 120 个零件」，实际全库 2,143 件；
+  //     且排序按库名字母序 → kenney 3d road tiles 永远第一 → 首屏全是地砖。
+  {
+    const noFilter = await api('/api/part-library/search?limit=120', { token });
+    log(typeof noFilter.j.total === 'number', 'K33a 后端返回 total（真实命中数）',
+      `count=${noFilter.j.count} total=${noFilter.j.total} truncated=${noFilter.j.truncated}`);
+    const allParts = (await pool.query('SELECT COUNT(*)::int n FROM part_library_items')).rows[0].n;
+    log(noFilter.j.total === allParts && noFilter.j.count === 120 && noFilter.j.truncated === true,
+      'K33b ★无筛选 total = 全库件数，count = 本次返回条数', `total=${noFilter.j.total} 期望=${allParts}`);
+    const top = await api('/api/part-library/search?limit=10', { token });
+    const topRoles = (top.j.items || []).map(x => x.part_role);
+    log(topRoles.indexOf('road') === -1 || topRoles.indexOf('wall') < topRoles.indexOf('road'),
+      'K33c ★无筛选首屏结构件优先（不再被地砖占满）', topRoles.join(','));
+    const filtered = await api('/api/part-library/search?role=wall&limit=200', { token });
+    const wallTotal = (await pool.query(`SELECT COUNT(*)::int n FROM part_library_items WHERE part_role='wall'`)).rows[0].n;
+    log(filtered.j.total === wallTotal, 'K33d 有筛选时 total 也是真实值', `total=${filtered.j.total} 期望=${wallTotal}`);
+  }
+
   // K31 缩略图目录约定（回归：曾只认 Previews/，导致 771 件零件没图）
   {
     const reg = require(path.join(__dirname, '..', 'src', 'services', 'partLibraryRegistrar'));
