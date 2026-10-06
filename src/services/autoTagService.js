@@ -3,7 +3,9 @@
  * 如需获取软件授权请联系：888@miduo100.com / 15660440944
  */
 const { pool } = require('../database/db');
-const axios = require('axios');
+// Phase 0：LLM 调用已统一到 llmClient（裸 axios 调用点从 6 处降到 5 处，
+// 其余 5 处按主文档 §J「Phase 0」留到 Phase 2 一起换，避免一次性大改引入回归）
+const llmClient = require('./llmClient');
 
 /**
  * AI自动标签生成服务
@@ -179,71 +181,52 @@ ${JSON.stringify(this.tagLibrary, null, 2)}
 
   /**
    * 调用豆包生成标签
+   *
+   * Phase 0 试点改用统一 LLM 客户端（llmClient）：
+   *   原来这里是裸 axios + 手拼 endpoint + 自己解析 choices[0].message.content，
+   *   全库 6 处这种写法。改成 llmClient 后：端点补全/模型名/usage/重试/账本都归客户端管。
+   * ⚠ 行为保持不变：仍优先用环境变量（.env），没有才走后台配置的 provider；
+   *   密钥不再由本模块自己持有。
    */
   async callDoubaoForTags(prompt) {
-    try {
-      const response = await axios.post(
-        'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
-        {
-          model: process.env.DOUBAO_ENDPOINT_ID || 'doubao-pro-32k',
-          messages: [
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.3,
-          max_tokens: 500
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${process.env.DOUBAO_API_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      const content = response.data.choices[0].message.content;
-      return this.parseTagsFromAI(content);
-
-    } catch (error) {
-      console.error('豆包标签生成失败:', error.message);
-      throw error;
-    }
+    const r = await llmClient.chat({
+      purpose: 'tag',
+      caller: 'autoTagService.generateAITags/doubao',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,
+      maxTokens: 500,
+      jsonSchema: 'tag_array',
+      // 显式给 provider 时才走这条；resolver 只在没指定 provider 时生效
+      ...(process.env.DOUBAO_API_KEY
+        ? { provider: { id: null, provider_name: 'bytedance_doubao', display_name: '豆包(env)', is_enabled: true, configs: [
+            { key: 'base_url', value: 'https://ark.cn-beijing.volces.com/api/v3', is_sensitive: false },
+            { key: 'api_key', value: process.env.DOUBAO_API_KEY, is_sensitive: true },
+            { key: 'model', value: process.env.DOUBAO_ENDPOINT_ID || 'doubao-pro-32k', is_sensitive: false },
+          ] } }
+        : {}),
+    });
+    return this.parseTagsFromAI(r.content);
   }
 
   /**
-   * 调用通义千问生成标签
+   * 调用通义千问生成标签（DashScope 原生 API，走 llmClient 的 dashscope-legacy adapter）
    */
   async callQwenForTags(prompt) {
-    try {
-      const response = await axios.post(
-        'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation',
-        {
-          model: 'qwen-max',
-          input: {
-            messages: [
-              { role: 'user', content: prompt }
-            ]
-          },
-          parameters: {
-            result_format: 'message',
-            temperature: 0.3,
-            max_tokens: 500
-          }
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${process.env.QWEN_API_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      const content = response.data.output.choices[0].message.content;
-      return this.parseTagsFromAI(content);
-
-    } catch (error) {
-      console.error('通义千问标签生成失败:', error.message);
-      throw error;
-    }
+    const r = await llmClient.chat({
+      purpose: 'tag',
+      caller: 'autoTagService.generateAITags/qwen',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,
+      maxTokens: 500,
+      ...(process.env.QWEN_API_KEY
+        ? { provider: { id: null, provider_name: 'aliyun_qianwen', display_name: '通义千问(env)', is_enabled: true, provider_type: 'chat', configs: [
+            { key: 'base_url', value: 'https://dashscope.aliyuncs.com', is_sensitive: false },
+            { key: 'api_key', value: process.env.QWEN_API_KEY, is_sensitive: true },
+            { key: 'model', value: process.env.QWEN_MODEL || 'qwen-max', is_sensitive: false },
+          ] } }
+        : {}),
+    });
+    return this.parseTagsFromAI(r.content);
   }
 
   /**

@@ -11,10 +11,23 @@
  *
  * 注入条件（三条同时满足）：
  *   1. 方法**不是** GET / HEAD / OPTIONS；
+ *      ⚠️ 例外：命中「敏感读白名单」的 GET 也会注入（见下 SENTITIVE_GET_RULES）。
  *   2. URL 是**本站同源**且路径含 `/api/`；
  *      ⚠️ 同源限制是本实现的必要收紧：联邦传送/家园世界会向**其他世界**发起
  *      `/api/inventory/remote-add` 等请求，把管理员凭证发给别的世界等于凭证外泄。
  *   3. `localStorage.adminToken` 存在。
+ *
+ * ★敏感读白名单（Phase 0 新增，2026-10-06）：
+ *   背景：给 `GET /api/ai-providers/providers/:id` 加了 `authenticateAdminToken`
+ *   （该端点 `?include_sensitive=true` 会返回 **API Key 明文**，原来是匿名可读的）。
+ *   但后台「AI 服务商」页恰好用 **GET** 调它（`adminAIProviders.js:226` 拉密钥做编辑回填），
+ *   而本模块原本对 GET 一律不注入 → 加门禁后后台自己 401，功能反而被打断。
+ *   规则：只有**显式列出**的敏感读才注入，且必须同源 + 有 token；
+ *   绝不扩大到"所有 /api/ GET"（那等于把管理员凭证发去所有读接口）。
+ *   新增敏感读端点时，同步在这里加一条规则。
+ *
+ * 注入的判定口 `window.__adminAuthFetch.shouldInject(url, method)` 已含白名单逻辑，
+ * 验收脚本直接断言它，不依赖真实网络。
  *
  * 不注入的情况：
  *   - 登录/注册类端点（`/api/auth/*`、`/api/admin-auth/*`）——它们本就不需要凭证，
@@ -32,7 +45,36 @@
   if (window.__adminAuthFetch && window.__adminAuthFetch.installed) return;
 
   var LOGIN_PREFIXES = ['/api/auth/', '/api/admin-auth/'];
-  var stats = { injected: 0, skippedLogin: 0, skippedNoToken: 0, skippedCrossOrigin: 0 };
+
+  /**
+   * 敏感读白名单（GET 也需要管理员凭证的端点）
+   * 每条 = { test(pathname, search): bool, why: 说明 }
+   * 刻意用函数而不是前缀数组：这些端点都是 /api/xxx/<id> 形态，
+   * 用前缀会把同层的无关端点（如 /providers/5/toggle 的 GET 变体）一起捞进来。
+   */
+  var SENTITIVE_GET_RULES = [
+    {
+      why: 'AI 服务商详情（?include_sensitive=true 返回 API Key 明文）',
+      test: function (p, search) {
+        return /^\/api\/ai-providers\/providers\/\d+$/.test(p) && /include_sensitive=true/.test(search || '');
+      }
+    },
+    {
+      why: 'AI 服务商审计日志（暴露谁改了哪个键）',
+      test: function (p) {
+        return /^\/api\/ai-providers\/(providers\/\d+\/audit-logs|audit-logs)$/.test(p);
+      }
+    },
+  ];
+
+  function isSensitiveGet(pathname, search) {
+    for (var i = 0; i < SENTITIVE_GET_RULES.length; i++) {
+      try { if (SENTITIVE_GET_RULES[i].test(pathname, search)) return SENTITIVE_GET_RULES[i].why; } catch (e) { /* 规则异常不阻断 */ }
+    }
+    return null;
+  }
+
+  var stats = { injected: 0, skippedLogin: 0, skippedNoToken: 0, skippedCrossOrigin: 0, injectedSensitiveGet: 0 };
 
   function token() {
     try { return localStorage.getItem('adminToken') || ''; } catch (e) { return ''; }
@@ -44,16 +86,20 @@
 
   function shouldInject(url, method) {
     var m = String(method || 'GET').toUpperCase();
-    if (m === 'GET' || m === 'HEAD' || m === 'OPTIONS') return false;
-    if (!token()) { stats.skippedNoToken++; return false; }
-
     var abs = toAbsolute(url);
+    if (!token()) { stats.skippedNoToken++; return false; }
     if (!abs) return false;
     if (abs.origin !== window.location.origin) { stats.skippedCrossOrigin++; return false; }
     if (abs.pathname.indexOf('/api/') === -1) return false;
 
     for (var i = 0; i < LOGIN_PREFIXES.length; i++) {
       if (abs.pathname.indexOf(LOGIN_PREFIXES[i]) === 0) { stats.skippedLogin++; return false; }
+    }
+
+    if (m === 'GET' || m === 'HEAD' || m === 'OPTIONS') {
+      // 只有白名单里的敏感读才注入（Phase 0）
+      if (m === 'GET' && isSensitiveGet(abs.pathname, abs.search)) { stats.injectedSensitiveGet++; return true; }
+      return false;
     }
     return true;
   }
@@ -147,9 +193,11 @@
 
   window.__adminAuthFetch = {
     installed: true,
-    version: 1,
+    version: 2,
     stats: stats,
     shouldInject: shouldInject,
+    isSensitiveGet: isSensitiveGet,
+    sensitiveGetRules: SENTITIVE_GET_RULES.map(function (r) { return r.why; }),
     tokenPresent: function () { return !!token(); },
   };
 })();

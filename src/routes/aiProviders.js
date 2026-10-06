@@ -5,6 +5,16 @@
 const express = require('express');
 const router = express.Router();
 const aiProviderService = require('../services/aiProviderService');
+const { authenticateAdminToken } = require('../middleware/adminAuth');
+
+/**
+ * 公开/鉴权清单（防止再加漏）：
+ *   公开读：GET /providers                —— 列表里敏感值恒为 '********'（SQL 内 CASE）
+ *   管理读：GET /providers/:id            —— ★Phase 0 修复：原来匿名可读 include_sensitive=true
+ *                                       → 直接拿到所有 API Key 明文
+ *   管理读：GET /providers/:id/audit-logs、GET /audit-logs
+ *   写：    其余 POST（写权限另由 apiWriteGuard 的策略表按 'admin' 兜住）
+ */
 
 /**
  * 获取所有AI提供商
@@ -28,9 +38,9 @@ router.get('/providers', async (req, res) => {
 });
 
 /**
- * 获取单个提供商详情
+ * 获取单个提供商详情（★需管理员：include_sensitive=true 会返回 API Key 明文）
  */
-router.get('/providers/:id', async (req, res) => {
+router.get('/providers/:id', authenticateAdminToken, async (req, res) => {
   try {
     const providerId = parseInt(req.params.id);
     const includeSensitive = req.query.include_sensitive === 'true';
@@ -169,9 +179,9 @@ router.post('/providers/:id/test', async (req, res) => {
 });
 
 /**
- * 获取审计日志
+ * 获取审计日志（Phase 0：需管理员 —— 会暴露"谁改了哪个 provider 的哪个键"）
  */
-router.get('/providers/:id/audit-logs', async (req, res) => {
+router.get('/providers/:id/audit-logs', authenticateAdminToken, async (req, res) => {
   try {
     const providerId = parseInt(req.params.id);
     const limit = parseInt(req.query.limit) || 50;
@@ -192,9 +202,9 @@ router.get('/providers/:id/audit-logs', async (req, res) => {
 });
 
 /**
- * 获取所有审计日志
+ * 获取所有审计日志（Phase 0：需管理员）
  */
-router.get('/audit-logs', async (req, res) => {
+router.get('/audit-logs', authenticateAdminToken, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
     

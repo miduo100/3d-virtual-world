@@ -5,6 +5,28 @@
 const crypto = require('crypto');
 
 /**
+ * 密文格式版本前缀。
+ * g1 = 新格式：AES-256-GCM + **随机 IV** + 认证标签 → `g1:<ivHex>:<tagHex>:<cipherHex>`
+ * 旧格式：aes-256-cbc + **固定 IV(全 0)** + 无前缀 → 16 进制串
+ *
+ * ⚠ 必须双格式兼容：库里存量 12 条密钥都是旧格式加密的（Phase 0 之前），
+ *   若只认新格式，升级后所有 provider 立刻失效且密钥**无法找回**（不可逆）。
+ *   所以 decrypt 按前缀分流，encrypt 一律写新格式（下次保存时自动升级）。
+ */
+const CIPHER_PREFIX = 'g1';
+const LEGACY_SALT = 'salt';
+const SALT = 'virtual-world-ai-provider-salt-v1';
+
+/** 解密失败只告警一次（避免每次读库刷屏），但绝不静默返回明文 */
+const warned = new Set();
+function decryptWarned(kind, key, err) {
+  const tag = `${kind}:${key}`;
+  if (warned.has(tag)) return;
+  warned.add(tag);
+  console.error(`[aiProviderService] ${tag} 解密失败：${err && err.message}`);
+}
+
+/**
  * AI提供商配置管理服务
  * 支持多个AI提供商的动态配置
  */
@@ -13,40 +35,50 @@ class AIProviderService {
     this.encryptionKey = process.env.CONFIG_ENCRYPTION_KEY || 'default-key-change-in-production';
   }
 
-  /**
-   * 加密敏感配置值
-   */
-  encrypt(text) {
-    try {
-      const algorithm = 'aes-256-cbc';
-      const key = crypto.scryptSync(this.encryptionKey, 'salt', 32);
-      const iv = Buffer.alloc(16, 0);
-      
-      const cipher = crypto.createCipheriv(algorithm, key, iv);
-      let encrypted = cipher.update(text, 'utf8', 'hex');
-      encrypted += cipher.final('hex');
-      return encrypted;
-    } catch (error) {
-      console.error('Encryption error:', error);
-      return text;
-    }
+  /** 派生加密密钥（keyId 用于将来轮换密钥时区分） */
+  _deriveKey(salt) {
+    return crypto.scryptSync(this.encryptionKey, salt, 32);
   }
 
   /**
-   * 解密敏感配置值
+   * 加密敏感配置值（新格式：随机 IV + GCM 认证）
+   * 失败**抛错**（旧实现静默返回明文 = 密钥明文入库）
+   */
+  encrypt(text) {
+    if (text === undefined || text === null) return text;
+    const plain = String(text);
+    const iv = crypto.randomBytes(12);                      // GCM 建议 12 字节 IV
+    const cipher = crypto.createCipheriv('aes-256-gcm', this._deriveKey(SALT), iv);
+    const enc = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    return [CIPHER_PREFIX, iv.toString('hex'), tag.toString('hex'), enc.toString('hex')].join(':');
+  }
+
+  /**
+   * 解密敏感配置值。
+   * 兼容两种格式；**解密失败抛错**（旧实现返回密文原文，调用方会把 hex 当 API Key 发出去）
    */
   decrypt(encryptedText) {
+    if (encryptedText === undefined || encryptedText === null) return encryptedText;
+    const raw = String(encryptedText);
+    if (!raw) return raw;
+
+    // 新格式
+    if (raw.startsWith(CIPHER_PREFIX + ':')) {
+      const parts = raw.split(':');
+      if (parts.length !== 4) throw new Error('密文格式损坏（g1 需要 4 段）');
+      const [, ivHex, tagHex, dataHex] = parts;
+      const decipher = crypto.createDecipheriv('aes-256-gcm', this._deriveKey(SALT), Buffer.from(ivHex, 'hex'));
+      decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
+      return Buffer.concat([decipher.update(Buffer.from(dataHex, 'hex')), decipher.final()]).toString('utf8');
+    }
+
+    // 旧格式（aes-256-cbc + 固定 IV），保留仅为读存量数据
     try {
-      const algorithm = 'aes-256-cbc';
-      const key = crypto.scryptSync(this.encryptionKey, 'salt', 32);
-      const iv = Buffer.alloc(16, 0);
-      
-      const decipher = crypto.createDecipheriv(algorithm, key, iv);
-      let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-      decrypted += decipher.final('utf8');
-      return decrypted;
-    } catch (error) {
-      return encryptedText;
+      const decipher = crypto.createDecipheriv('aes-256-cbc', this._deriveKey(LEGACY_SALT), Buffer.alloc(16, 0));
+      return Buffer.concat([decipher.update(Buffer.from(raw, 'hex')), decipher.final()]).toString('utf8');
+    } catch (e) {
+      throw new Error('解密失败：值不是本系统加密的密文（可能是明文误存或密钥已变更）');
     }
   }
 
@@ -110,15 +142,20 @@ class AIProviderService {
         [providerId]
       );
       
-      provider.configs = configResult.rows.map(config => ({
-        key: config.config_key,
-        value: config.is_sensitive && !includeSensitive 
-          ? '********' 
-          : (config.is_sensitive ? this.decrypt(config.config_value) : config.config_value),
-        is_sensitive: config.is_sensitive,
-        has_value: !!config.config_value
-      }));
-      
+      provider.configs = configResult.rows.map(config => {
+        const base = { key: config.config_key, is_sensitive: config.is_sensitive, has_value: !!config.config_value };
+        if (!config.is_sensitive) return { ...base, value: config.config_value };
+        if (!includeSensitive) return { ...base, value: '********' };
+        // 逐条隔离：某条密钥解密失败不能连带整个 provider 变成「不存在」，
+        // 否则后台会误判 provider 丢失（decrypt 现在会抛错，见上）
+        try {
+          return { ...base, value: this.decrypt(config.config_value) };
+        } catch (e) {
+          decryptWarned('config', config.config_key, e);
+          return { ...base, value: '********', decrypt_error: 'DECRYPT_FAILED' };
+        }
+      });
+
       return provider;
     } catch (error) {
       console.error('Get provider error:', error);
@@ -127,23 +164,37 @@ class AIProviderService {
   }
 
   /**
-   * 根据类型获取默认提供商
+   * 根据类型获取默认提供商（Phase 0 复活：此前全库零调用者 = 死代码）
+   *
+   * `provider_type = $1` 精确匹配对 'chat,image_to_3d' 这类**逗号多值**失效
+   * （混元存 'chat,image_to_3d'，按 'chat' 查 → 0 行）→ 改为 LIKE 精确段匹配。
    */
   async getDefaultProvider(type) {
     try {
       const { pool } = require('../database/db');
-      
+
       const result = await pool.query(
-        `SELECT * FROM ai_providers 
-         WHERE provider_type = $1 AND is_enabled = true AND is_default = true
+        `SELECT * FROM ai_providers
+         WHERE (provider_type = $1 OR provider_type LIKE $1 || ',%' OR provider_type LIKE '%,' || $1 || ',%' OR provider_type LIKE '%,' || $1)
+           AND is_enabled = true AND is_default = true
+         ORDER BY id ASC
          LIMIT 1`,
         [type]
       );
-      
+
       if (result.rows.length === 0) {
-        return null;
+        // 没有 is_default 的，就取该类型第一个启用的（getDefaultProvider 语义应是"能用"）
+        const fb = await pool.query(
+          `SELECT * FROM ai_providers
+            WHERE (provider_type = $1 OR provider_type LIKE $1 || ',%' OR provider_type LIKE '%,' || $1 || ',%' OR provider_type LIKE '%,' || $1)
+              AND is_enabled = true
+            ORDER BY id ASC LIMIT 1`,
+          [type]
+        );
+        if (fb.rows.length === 0) return null;
+        return await this.getProvider(fb.rows[0].id, true);
       }
-      
+
       return await this.getProvider(result.rows[0].id, true);
     } catch (error) {
       console.error('Get default provider error:', error);
