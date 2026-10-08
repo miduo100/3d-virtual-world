@@ -105,9 +105,11 @@ router.get('/world-settings', async (req, res) => {
     const data = {};
     result.rows.forEach(r => { data[r.config_key] = r.config_value; });
     // 兜底：如果数据库还没有，返回环境变量里的值
+    // world_url 输出前统一规范化（去尾部斜杠）：库里若存的是历史脏值（如 https://miduo100.com/），
+    // 后台输入框会直接显示清洗后的地址，管理员随手保存一次即落库修正
     res.json({
       world_name:        data.world_name        || process.env.WORLD_NAME        || '',
-      world_url:         data.world_url         || process.env.WORLD_URL         || '',
+      world_url:         _normWorldUrl(data.world_url || process.env.WORLD_URL || ''),
       world_description: data.world_description || '',
       // 模型 LOD 分级渲染开关：缺省视为开启（只有显式存的 'false' 才关闭）
       lod_enabled:       data.lod_enabled !== 'false',
@@ -133,17 +135,31 @@ function _lodDist(raw, def) {
   return Number.isFinite(n) && n > 0 ? n : def;
 }
 
+/**
+ * 世界URL规范化：去首尾空白 + **去掉尾部多余的 `/`**（后台输入框里多打一个 / 会被清洗掉）
+ *   例：`https://miduo100.com/` → `https://miduo100.com`、`http://localhost:3002//` → `http://localhost:3002`
+ * 只裁尾部斜杠，不动协议/主机/端口/路径正文；合法性仍由 new URL() 校验。
+ * 为什么必须清洗：广播出去的 worldUrl 会被对端直接拼成 `${worldUrl}/api/federation/info`，
+ * 带尾斜杠就会拼出双斜杠 `//api/...` → 对端心跳永久 404（见 middleware/normalizeSlashes.js 说明）。
+ */
+function _normWorldUrl(raw) {
+  return String(raw === undefined || raw === null ? '' : raw).trim().replace(/\/+$/, '');
+}
+
 // 保存世界设置（需要管理员 token；匿名可写会导致联邦 URL 连锁污染）
 router.put('/world-settings', authenticateAdminToken, async (req, res) => {
   try {
     const { world_name, world_url, world_description } = req.body;
 
-    if (!world_name || !world_url) {
+    // 写入侧规范化（权威）：前端也会即时清洗，这里是防其他调用方（脚本/旧前端）传入脏值
+    const worldUrl = _normWorldUrl(world_url);
+
+    if (!world_name || !worldUrl) {
       return res.status(400).json({ error: '世界名称和世界URL为必填项' });
     }
 
     // 简单校验URL格式
-    try { new URL(world_url); } catch {
+    try { new URL(worldUrl); } catch {
       return res.status(400).json({ error: '世界URL格式不正确，请输入完整URL，如 https://example.com' });
     }
 
@@ -219,7 +235,7 @@ router.put('/world-settings', authenticateAdminToken, async (req, res) => {
     };
 
     await upsert('world_name',        world_name,        '世界名称');
-    await upsert('world_url',         world_url,         '世界访问URL（对外域名）');
+    await upsert('world_url',         worldUrl,          '世界访问URL（对外域名）');
     await upsert('world_description', world_description || '', '世界描述');
     if (lodEnabled !== null) {
       await upsert('lod_enabled', lodEnabled, '模型LOD分级渲染开关（true/false）');
@@ -254,7 +270,7 @@ router.put('/world-settings', authenticateAdminToken, async (req, res) => {
       if (existing.rows.length > 0) {
         const fedConfig = JSON.parse(existing.rows[0].value);
         fedConfig.worldName  = world_name;
-        fedConfig.worldUrl   = world_url;
+        fedConfig.worldUrl   = worldUrl;
         fedConfig.url_source = 'manual';  // 标记：管理员手工设置，重启时 autoFixWorldUrl 跳过覆盖
         await query(
           'UPDATE world_config SET value = $1, updated_at = NOW() WHERE key = $2',
@@ -268,7 +284,7 @@ router.put('/world-settings', authenticateAdminToken, async (req, res) => {
         const newFedConfig = {
           worldId,
           worldName: world_name,
-          worldUrl: world_url,
+          worldUrl: worldUrl,
           privateKey,
           publicKey,
           url_source: 'manual'
@@ -284,7 +300,7 @@ router.put('/world-settings', authenticateAdminToken, async (req, res) => {
       const fs = getFederationSystem();
       if (fs) {
         fs.worldName = world_name;
-        fs.worldUrl  = world_url;
+        fs.worldUrl  = worldUrl;
       }
     } catch (syncErr) {
       console.error('同步联邦配置失败（不影响保存结果）:', syncErr.message);
@@ -320,7 +336,8 @@ router.put('/world-settings', authenticateAdminToken, async (req, res) => {
       }
     }
 
-    res.json({ success: true, message: '世界设置已保存', federationWarning });
+    // 回传清洗后的地址：前端可据此把输入框同步为规范值
+    res.json({ success: true, message: '世界设置已保存', world_url: worldUrl, federationWarning });
   } catch (error) {
     console.error('保存世界设置失败:', error);
     res.status(500).json({ error: '保存世界设置失败', details: error.message });

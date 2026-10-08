@@ -50,6 +50,16 @@ const SERVER_CAPABILITIES = {
 
 const router = express.Router();
 
+/**
+ * /mcp 专属的宽容 body 解析（只影响本路由，不动全局配置）。
+ *
+ * 全局 `express.json()` 只解析 `Content-Type: application/json`，但实测发现：
+ *   - 部分 MCP 客户端 / 目录站探测器（Smithery 等）发 POST 时**不带 Content-Type**，
+ *     于是 body 不被解析 → req.body 为空 → 我们会误判成 parse error 返回 400。
+ * 这里用 `type: () => true` 接受任意 Content-Type，仍然只按 JSON 解析内容。
+ */
+router.use(express.json({ type: () => true, limit: '1mb' }));
+
 /** Mcp-Session-Id -> { ctxId } */
 const transports = new Map();
 
@@ -559,12 +569,34 @@ router.post('/mcp', async (req, res) => {
   }
 });
 
-/** GET /mcp —— SSE 长连接（只维持，不主动推） */
+/**
+ * GET /mcp
+ *
+ * 分两种情况：
+ *   - **带有效 Mcp-Session-Id**：开 SSE 长连接（只维持，不主动推 —— 我们是拉模式）。
+ *   - **没有会话**：返回一份**端点自述**。
+ *     浏览器直接访问、以及目录站（Smithery / Glama 等）做可达性探测时会走这里；
+ *     若回 JSON-RPC 错误会被误判成"端点无效"，所以这里给 200 + 可读说明。
+ */
 router.get('/mcp', (req, res) => {
   const sid = req.headers['mcp-session-id'];
   const rec = sid && transports.get(sid);
   if (!rec) {
-    sendRpcError(res, null, -32000, '无效或缺失的 Mcp-Session-Id', 400);
+    res.status(200).json({
+      ok: true,
+      server: SERVER_NAME,
+      version: SERVER_VERSION,
+      protocolVersion: PROTOCOL_VERSION,
+      transport: 'streamable-http',
+      tools: TOOLS.length,
+      resources: 1,
+      prompts: PROMPTS.length,
+      hint: '这是 MCP Streamable HTTP 端点（拉模式 / 游客档）。'
+        + '请用 MCP 客户端发起 POST + JSON-RPC 的 initialize；'
+        + '会话建立后，后续请求需带 Mcp-Session-Id 头。'
+        + '人可读的接入说明：https://miduo100.com/agents/',
+      health: '/mcp/health'
+    });
     return;
   }
   bridge.touch(rec.ctxId);
