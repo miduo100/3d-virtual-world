@@ -28,33 +28,77 @@ function inferStyleFamily(packKey) {
   return null;
 }
 
-/** 建库（pack_key 已存在则复用） */
+/**
+ * 建库。
+ *
+ * 撞名处理（2026-10-07）：扫描通道拿**路径末段**当库名，而每套素材包的模型目录
+ * 都叫 `glTF` / `GLB format` / `obj` → pack_key 全都撞成同一个，不同素材包的零件
+ * 会混进同一个库（实测已出现叫 `glTF` 的库混了 248 个零件）。
+ *
+ * 现在按用户口径处理：**保留原名，撞了就加后缀错开**（gltf → gltf_2 → gltf_3…）。
+ *
+ * 但必须同时保住「同一个包重复导入要幂等复用」的原有语义，所以复用的判据是
+ * **pack_key 相同 且 source_path 相同**（同一来源目录），而不是只看 pack_key：
+ *   · 同一目录再扫一次        → source_path 相同 → 复用原库（不会刷出 gltf_2/gltf_3）
+ *   · 另一套包的 glTF 目录    → source_path 不同 → gltf_2 独立成库（零件不再混）
+ *   · 早期数据（source_path 为 NULL）→ 视为"不同来源"，因此下次导入会新开一个 gltf_2，
+ *     旧库原样保留、不会被动到（用户可自行用回收站处理）
+ */
 async function ensureLibrary(opts) {
-  const key = String(opts.packKey || '').slice(0, 60);
-  const name = String(opts.displayName || key).slice(0, 120);
-  if (!key) throw new Error('pack_key 不能为空');
+  const baseKey = String(opts.packKey || '').slice(0, 60);
+  if (!baseKey) throw new Error('pack_key 不能为空');
+  const sourcePath = opts.sourcePath ? String(opts.sourcePath).slice(0, 500) : null;
 
-  const exist = await pool.query(
-    'SELECT * FROM part_libraries WHERE LOWER(pack_key) = LOWER($1) LIMIT 1', [key]);
-  if (exist.rows.length) {
-    return { libraryId: exist.rows[0].id, created: false, library: exist.rows[0] };
+  // ① 幂等：**同一个来源目录**就是同一个包，直接复用（不论它当初落在哪个 pack_key 上）
+  //    ⚠ 不能用 `pack_key = baseKey AND source_path = ...` 来查：撞名后实际落库的是
+  //      gltf_2 / gltf_3，这样查会漏掉它们 → 同一目录重复导入会不断刷出新库。
+  if (sourcePath) {
+    const same = await pool.query(
+      'SELECT * FROM part_libraries WHERE source_path = $1 LIMIT 1', [sourcePath]);
+    if (same.rows.length) {
+      return { libraryId: same.rows[0].id, created: false, library: same.rows[0], reused: true };
+    }
+  } else {
+    const exist = await pool.query(
+      'SELECT * FROM part_libraries WHERE LOWER(pack_key) = LOWER($1) LIMIT 1', [baseKey]);
+    if (exist.rows.length) {
+      return { libraryId: exist.rows[0].id, created: false, library: exist.rows[0] };
+    }
   }
+
+  // ② 撞名 → 加 _2 / _3 错开
+  let key = baseKey, seq = 1, name = String(opts.displayName || baseKey).slice(0, 120);
+  for (let guard = 0; guard < 200; guard++) {
+    const hit = await pool.query(
+      'SELECT id FROM part_libraries WHERE LOWER(pack_key) = LOWER($1) LIMIT 1', [key]);
+    if (!hit.rows.length) break;
+    seq += 1;
+    key = baseKey.slice(0, Math.max(8, 60 - String(seq).length - 1)) + '_' + seq;
+    // 库名同步加后缀，避免出现"两个都叫 glTF、只有 pack_key 不同"的歧义
+    name = (String(opts.displayName || baseKey).slice(0, 110)) + '_' + seq;
+  }
+
   const ins = await pool.query(
     `INSERT INTO part_libraries
-       (world_id, pack_key, display_name, style_family, source_type, source_ref,
+       (world_id, pack_key, display_name, style_family, source_type, source_ref, source_path,
         license_info, status, stats, created_at, updated_at)
-     VALUES ('default',$1,$2,$3,$4,$5,$6,$7,$8, NOW(), NOW()) RETURNING *`,
+     VALUES ('default',$1,$2,$3,$4,$5,$6,$7,$8,$9, NOW(), NOW()) RETURNING *`,
     [
       key, name, opts.styleFamily || null,
       opts.sourceType || 'external_kit',
       opts.sourceRef ? String(opts.sourceRef).slice(0, 500) : null,
+      sourcePath,
       opts.licenseInfo ? JSON.stringify(opts.licenseInfo) : null,
       opts.status || 'active',
       JSON.stringify(opts.stats || {}),
     ]
   );
-  return { libraryId: ins.rows[0].id, created: true, library: ins.rows[0] };
+  return {
+    libraryId: ins.rows[0].id, created: true, library: ins.rows[0],
+    renamed: seq > 1, packKey: key, displayName: name,
+  };
 }
+
 
 /** 缩略图/零件名归一：只留字母数字小写。part_key 里 `-` 被转成 `_`，Previews 用的是 `-` */
 function thumbKey(name) {
@@ -236,7 +280,7 @@ async function refreshLibraryStats(libraryId, extra) {
 }
 
 /** 完整流程：建库 + 归类 + 刷统计。上传与扫描两个入口都调它。 */
-async function registerBundle({ bundleName, uploadRoot, sourceRef, licenseInfo, styleFamily, sourceType, status }) {
+async function registerBundle({ bundleName, uploadRoot, sourceRef, sourcePath, licenseInfo, styleFamily, sourceType, status }) {
   const bundleDir = path.join(uploadRoot, bundleName);
   const rawName = path.basename(String(sourceRef || '').replace(/[\\/]+$/, '')) || bundleName;
   const packKey = assetPathKit.derivePackKey(rawName, bundleName);
@@ -247,7 +291,7 @@ async function registerBundle({ bundleName, uploadRoot, sourceRef, licenseInfo, 
     packKey, displayName,
     styleFamily: styleFamily || inferStyleFamily(packKey),
     sourceType: sourceType || 'external_kit',
-    sourceRef, licenseInfo,
+    sourceRef, sourcePath, licenseInfo,
     status: status || 'active',
     stats: { partCount: pre.modelCount, totalTris: pre.totalTris, textureCount: pre.textureCount, bytes: pre.bytes },
   });
@@ -258,7 +302,12 @@ async function registerBundle({ bundleName, uploadRoot, sourceRef, licenseInfo, 
     textureCount: pre.textureCount, bytes: pre.bytes, fileCount: pre.fileCount,
   });
   return {
-    libraryId: lib.libraryId, packKey, displayName, created: lib.created,
+    libraryId: lib.libraryId,
+    // 撞名错开时以**最终落库**的 key/name 为准（gltf_2 / glTF_2），否则界面会显示一个不存在的库名
+    packKey: lib.packKey || packKey,
+    displayName: lib.displayName || displayName,
+    renamed: !!lib.renamed,
+    created: lib.created,
     roleCount: res.roleCount, ...res, orphans, stats,
   };
 }

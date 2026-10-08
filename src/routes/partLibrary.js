@@ -7,6 +7,11 @@
  *   GET  /api/part-library/libraries/:id/spec   零件说明书 JSON（F.6.6，World AI 的装配输入）
  *   PUT  /api/part-library/libraries/:id        编辑元信息
  *   POST /api/part-library/libraries/:id/status 归档 / 恢复 / 核验
+ *   DELETE /api/part-library/libraries/:id     移入回收站（软删除，数据与磁盘都保留，可恢复）
+ *   POST   /api/part-library/libraries/:id/restore   从回收站恢复
+ *   GET    /api/part-library/libraries/trash   回收站清单（含零件数与磁盘占用）
+ *   POST   /api/part-library/libraries/purge   清空回收站（真删 + 删磁盘，不可恢复）
+ *   DELETE /api/part-library/libraries/:id/purge     彻底删除单个库（不经过回收站）
  *   GET  /api/part-library/search               零件检索（页内唯一入口，人机共用逻辑）
  *   GET  /api/part-library/facets              筛选选项（角色 / 风格）
  *   GET  /api/part-library/split               资产拆分（上传模型页顶部提示用）
@@ -14,6 +19,8 @@
 const express = require('express');
 const { pool } = require('../database/db');
 const { authenticateAdminToken } = require('../middleware/adminAuth');
+const partLibraryDeleter = require('../services/partLibraryDeleter');
+const partLibraryTrash = require('../services/partLibraryTrash');
 
 const router = express.Router();
 router.use(authenticateAdminToken);
@@ -28,30 +35,63 @@ const r4 = n => Math.round(Number(n || 0) * 10000) / 10000;
 router.get('/libraries', async (req, res) => {
   try {
     const includeArchived = String(req.query.includeArchived || '') === '1';
+    // 回收站（deleted）默认不返回；勾选「显示已删除」才带出来
+    const includeDeleted = String(req.query.includeDeleted || '') === '1';
     const r = await pool.query(
       `SELECT l.id, l.pack_key, l.display_name, l.style_family, l.description,
               l.source_type, l.source_ref, l.license_info, l.cover_image, l.status,
-              l.priority, l.stats, l.created_at, l.updated_at, l.reviewed_at,
+              l.priority, l.stats, l.created_at, l.updated_at, l.reviewed_at, l.deleted_at,
               a.username AS reviewed_by_name,
               (SELECT COUNT(*)::int FROM part_library_items i WHERE i.library_id = l.id) AS item_count,
               (SELECT COUNT(*)::int FROM part_library_items i
-                WHERE i.library_id = l.id AND i.thumbnail IS NOT NULL) AS thumb_count
+                WHERE i.library_id = l.id AND i.thumbnail IS NOT NULL) AS thumb_count,
+              (SELECT COALESCE(SUM(u.file_size),0) FROM uploaded_models u
+                WHERE u.pack_id = l.id AND u.part_category='part') AS bytes
          FROM part_libraries l
          LEFT JOIN admin_users a ON a.id = l.reviewed_by
         WHERE ($1::boolean OR l.status <> 'archived')
+          AND ($2::boolean OR l.status <> 'deleted')
         ORDER BY l.status ASC, l.priority ASC, l.display_name ASC`,
-      [includeArchived]
+      [includeArchived, includeDeleted]
     );
     const totals = await pool.query(
       `SELECT (SELECT COUNT(*)::int FROM part_libraries WHERE status='active') AS active_libs,
               (SELECT COUNT(*)::int FROM part_libraries WHERE status='pending_review') AS pending_libs,
               (SELECT COUNT(*)::int FROM part_libraries WHERE status='archived') AS archived_libs,
+              (SELECT COUNT(*)::int FROM part_libraries WHERE status='deleted') AS trash_libs,
+              (SELECT COALESCE(SUM(u.file_size),0) FROM uploaded_models u
+                JOIN part_libraries l2 ON l2.id = u.pack_id
+               WHERE u.part_category='part' AND l2.status='deleted') AS trash_bytes,
               (SELECT COUNT(*)::int FROM part_library_items) AS total_items,
               (SELECT COALESCE(SUM((metadata->>'tris')::bigint),0) FROM part_library_items) AS total_tris`
     );
     res.json({ success: true, libraries: r.rows, totals: totals.rows[0] });
   } catch (error) {
     console.error('❌ 零件库列表失败:', error);
+    res.status(500).json({ success: false, error: String(error.message || error).slice(0, 200) });
+  }
+});
+
+// ── 回收站：清单 / 清空 ────────────────────────────────────────────
+// ⚠⚠ 必须注册在下面 /libraries/:id **之前**：段数相同，:id 会把 "trash"/"purge" 当 id 吃掉
+//   （此前就踩过一次：清空按钮显示正常、POST purge 也通，唯独清单永远 404/400 ——
+//     因为 GET trash 排在 GET :id 之后，被先匹配走了。）
+router.get('/libraries/trash', async (req, res) => {
+  try {
+    res.json({ success: true, ...(await partLibraryTrash.trashList(pool)) });
+  } catch (error) {
+    console.error('❌ 回收站清单失败:', error);
+    res.status(500).json({ success: false, error: String(error.message || error).slice(0, 200) });
+  }
+});
+
+router.post('/libraries/purge', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const r = await partLibraryTrash.purgeTrash(pool, { dropDisk: b.dropDisk !== false });
+    res.json({ success: true, ...r });
+  } catch (error) {
+    console.error('❌ 清空回收站失败:', error);
     res.status(500).json({ success: false, error: String(error.message || error).slice(0, 200) });
   }
 });
@@ -142,6 +182,55 @@ router.post('/libraries/:id/status', async (req, res) => {
   }
 });
 
+// ── 移入回收站（软删除：数据与磁盘文件都保留，可恢复）───────────────
+router.delete('/libraries/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ success: false, error: 'id 非法' });
+    const r = await partLibraryTrash.softDelete(pool, id);
+    if (r.notFound) return res.status(404).json({ success: false, error: '库不存在' });
+    res.json({ success: true, trashed: true, ...r });
+  } catch (error) {
+    console.error('❌ 移入回收站失败:', error);
+    res.status(500).json({ success: false, error: String(error.message || error).slice(0, 200) });
+  }
+});
+
+// ── 从回收站恢复 ────────────────────────────────────────────────────
+router.post('/libraries/:id/restore', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ success: false, error: 'id 非法' });
+    const r = await partLibraryTrash.restore(pool, id);
+    if (r.notFoundOrNotTrashed) return res.status(404).json({ success: false, error: '库不存在或不在回收站' });
+    res.json({ success: true, ...r });
+  } catch (error) {
+    console.error('❌ 恢复库失败:', error);
+    res.status(500).json({ success: false, error: String(error.message || error).slice(0, 200) });
+  }
+});
+
+// ── 彻底删除单个库（不经过回收站；清空回收站走 POST /libraries/purge）──
+router.delete('/libraries/:id/purge', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ success: false, error: 'id 非法' });
+    const dropDisk = String((req.query || {}).dropDisk || '') !== '0';
+    const r = await partLibraryDeleter.deleteLibrary({ pool }, id, { dropDisk });
+    if (r.notFound) return res.status(404).json({ success: false, error: '库不存在' });
+    if (r.blocked) {
+      return res.status(409).json({
+        success: false, error: '该库的零件已被摆进世界，请先在世界编辑器里删除这些对象',
+        reason: r.reason, library: r.library, usedByWorld: r.usedByWorld,
+      });
+    }
+    res.json({ success: true, ...r });
+  } catch (error) {
+    console.error('❌ 彻底删除库失败:', error);
+    res.status(500).json({ success: false, error: String(error.message || error).slice(0, 200) });
+  }
+});
+
 // ── 零件检索（页内唯一入口；与 World AI 的 partSearch 同一套逻辑）──
 router.get('/search', async (req, res) => {
   try {
@@ -153,6 +242,9 @@ router.get('/search', async (req, res) => {
     // 此前各过滤条件把 SQL 片段 push 进了 params（值从未入列），导致 $1 被 limit 顶替：
     // 关键字永远匹配不到（ILIKE '60'），role/style/gridW 也一并失效。
     const ph = () => `$${params.length + 1}`;
+    // 回收站（deleted）的零件永不参与检索 —— 哪怕开了 includeInactive 也一样：
+    // 用户点「删除」的语义是"这个库我不要了"，它的零件不该再出现在零件检索结果里。
+    where.push("l.status <> 'deleted'");
     if (String(q.includeInactive || '') !== '1') where.push("l.status = 'active'");
     if (q.role) { const p = ph(); params.push(String(q.role).slice(0, 40)); where.push(`i.part_role = ${p}`); }
     if (q.style) { const p = ph(); params.push(String(q.style).slice(0, 60)); where.push(`l.style_family = ${p}`); }

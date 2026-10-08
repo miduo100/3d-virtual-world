@@ -209,12 +209,14 @@ async function finalizeBundle(bundleName, target, opts = {}) {
     bundleName,
     uploadRoot: UPLOAD_ROOT,
     sourceRef: opts.sourceRef || opts.libraryName || bundleName,
+    // 扫描通道会传来源目录绝对路径；上传通道没有（同一文件夹重传靠 bundleName 兜底幂等）
+    sourcePath: opts.sourcePath || null,
     licenseInfo: opts.licenseInfo || null,
     styleFamily: opts.styleFamily || null,
     sourceType: 'external_kit',
     status: opts.status || 'active',
   });
-  return { ...ing, library };
+  return { ...ing, library, renamed: !!library.renamed };
 }
 
 /** 从请求体解析 target（缺省 model，保证既有前端行为不变） */

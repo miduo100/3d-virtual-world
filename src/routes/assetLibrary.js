@@ -279,6 +279,9 @@ router.post('/scan', async (req, res) => {
       const r = await finalizeBundle(bundleName, target, {
         sourceRef: p.dirName,
         libraryName: p.dirName,
+        // ★来源目录绝对路径：建库时用它区分"同一个包重复导入（该复用）"与
+        //   "不同包但末段同名（该加后缀错开）"。缺了它，所有叫 glTF 的模型目录会混成一个库。
+        sourcePath: p.abs,
         compressTextures,
         variants,
         licenseInfo: assetPathKit.readLicenseInfo(p.abs),
@@ -288,6 +291,9 @@ router.post('/scan', async (req, res) => {
         dirName: p.dirName, bundleName, fileCount: copied.length,
         droppedDuplicates: canon.dropped.length,
         modelCount: r.modelCount, target, library: r.library,
+        // 撞名错开时把最终库名回报给前端，界面上不要显示一个不存在的名字
+        finalName: (r.library && (r.library.displayName || r.library.pack_key)) || p.dirName,
+        renamed: !!r.renamed,
         warnings: (r.models || []).flatMap(m => m.warnings || []).slice(0, 15),
       });
     }

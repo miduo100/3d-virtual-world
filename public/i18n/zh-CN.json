@@ -49,6 +49,8 @@
     "uiControls": "UI控件管理 ↗",
     "3dgsScene": "3DGS 场景",
     "partLibrary": "零件库",
+    "pgPart-library": "零件库",
+    "pgPart-librarySub": "零件库",
     "3dgsScenes": "高斯场景库",
     "threejsCodeLibrary": "Three.js 代码库",
     "editorTools": "编辑器工具",

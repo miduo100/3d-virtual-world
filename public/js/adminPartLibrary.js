@@ -14,6 +14,11 @@
  *   本文件        —— 库列表卡片 + 汇总、零件检索、库详情（200 零件网格）、归档/恢复
  *   adminPartLibraryImport.js —— 「上传文件夹 / 扫描本地目录」两个导入弹窗
  *
+ * 库的三种"消失"语义（别混）：
+ *   归档 archived  —— 只是隐藏，检索里 includeInactive 才可见，数据全留
+ *   删除 deleted  —— 进回收站：列表/检索都看不见，但**零件与磁盘文件都保留**可恢复
+ *   清空回收站     —— 真正删 DB + 删磁盘，释放空间，不可恢复
+ *
  * 鉴权：GET 不会被 adminAuthFetch.js 注入凭证（它只处理非读方法），而
  *      /api/part-library 与 /api/asset-library 整段都挂了 authenticateAdminToken
  *      → 因此**所有请求（含 GET）都显式带 Authorization**。
@@ -73,6 +78,12 @@
       if (!r.ok || !j || j.success === false) throw new Error((j && (j.error || j.details)) || ('HTTP ' + r.status));
       return j;
     },
+    async apiDelete(path) {
+      const r = await fetch(path, { method: 'DELETE', headers: kit.authHeaders() });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || j.success === false) throw new Error((j && (j.error || j.details)) || ('HTTP ' + r.status));
+      return j;
+    },
     say(text, kind) {
       const box = kit.$('pl-msg');
       if (!box) return;
@@ -123,25 +134,77 @@
    * 后端 GET /libraries 默认过滤掉 archived 库，而归档是本页面唯一的状态操作
    * → 不给开关的话「归档」按钮等于单程票（归档后卡片消失、无法恢复）。
    * 这里动态插入一个开关（不改编排版 HTML）：同时影响列表与检索的 inactive 过滤。
+   * 回收站（deleted）同理需要「显示已删除」开关，否则恢复按钮永远看不到。
    */
   function ensureArchiveToggle() {
-    if ($('pl-show-archived') || !$('pl-topbar')) return;
-    const lab = document.createElement('label');
-    lab.style.cssText = 'display:flex;gap:5px;align-items:center;font-size:12px;color:var(--text-secondary);cursor:pointer';
-    lab.innerHTML = '<input type="checkbox" id="pl-show-archived" style="vertical-align:-1px"> 显示已归档';
-    lab.querySelector('input').addEventListener('change', () => { loadLibraries(); doSearch(); });
-    $('pl-topbar').insertBefore(lab, $('pl-topbar').firstChild);
+    if ($('pl-show-trash')) return;
+    const bar = $('pl-topbar');
+    if (!bar) return;
+
+    if (!$('pl-show-archived')) {
+      const lab = document.createElement('label');
+      lab.style.cssText = 'display:flex;gap:5px;align-items:center;font-size:12px;color:var(--text-secondary);cursor:pointer';
+      lab.innerHTML = '<input type="checkbox" id="pl-show-archived" style="vertical-align:-1px"> 显示已归档';
+      lab.querySelector('input').addEventListener('change', () => { loadLibraries(); doSearch(); });
+      bar.insertBefore(lab, bar.firstChild);
+    }
+
+    // 回收站开关
+    const lab2 = document.createElement('label');
+    lab2.style.cssText = 'display:flex;gap:5px;align-items:center;font-size:12px;color:#fca5a5;cursor:pointer';
+    lab2.innerHTML = '<input type="checkbox" id="pl-show-trash" style="vertical-align:-1px"> ♻️ 显示已删除（回收站）';
+    lab2.querySelector('input').addEventListener('change', () => { loadLibraries(); renderTrashBtn(); });
+    bar.insertBefore(lab2, bar.firstChild);
+
+    // 清空回收站按钮（紧挨「🔄 刷新」；无内容时禁用并说明）
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-sm';
+    btn.id = 'pl-btn-purge';
+    btn.style.cssText = 'color:#fca5a5;border-color:rgba(239,68,68,.45)';
+    btn.textContent = '♻️ 清空回收站';
+    btn.title = '彻底删除回收站里的所有库及其磁盘模型文件，释放空间；清空后无法恢复';
+    btn.onclick = purgeTrash;
+    const refresh = $('pl-btn-refresh');
+    if (refresh && refresh.parentNode) refresh.parentNode.insertBefore(btn, refresh.nextSibling);
+    else bar.appendChild(btn);
   }
+
   function showArchived() { const el = $('pl-show-archived'); return !!(el && el.checked); }
+  function showTrash() { const el = $('pl-show-trash'); return !!(el && el.checked); }
+
+  /** 回收站摘要（来自库列表 totals，不额外请求）→ 决定清空按钮的可用性与文案 */
+  let lastTotals = {};
+  function renderTrashBtn() {
+    const btn = $('pl-btn-purge');
+    if (!btn) return;
+    const t = lastTotals || {};
+    const n = t.trash_libs || 0;
+    if (!showTrash() && n === 0) {
+      btn.disabled = true;
+      btn.textContent = '♻️ 清空回收站（空）';
+      btn.title = '回收站是空的';
+      return;
+    }
+    btn.disabled = n === 0;
+    btn.textContent = n ? `♻️ 清空回收站（${n} 个库 · ${kit.fmtSize(t.trash_bytes || 0)}）` : '♻️ 清空回收站';
+    btn.title = n
+      ? `将彻底删除 ${n} 个库、${kit.fmtNum(t.trash_bytes || 0)} 字节的磁盘模型文件；清空后无法恢复`
+      : '回收站是空的';
+  }
 
   async function loadLibraries() {
     const grid = $('pl-library-grid');
     if (grid) grid.innerHTML = '<div class="loading">加载中…</div>';
     try {
-      const j = await kit.apiGet(PL_API + '/libraries' + (showArchived() ? '?includeArchived=1' : ''));
+      const q = [];
+      if (showArchived()) q.push('includeArchived=1');
+      if (showTrash()) q.push('includeDeleted=1');
+      const j = await kit.apiGet(PL_API + '/libraries' + (q.length ? '?' + q.join('&') : ''));
       lastLibraries = j.libraries || [];
-      renderSummary(j.totals || {});
+      lastTotals = j.totals || {};
+      renderSummary(lastTotals);
       renderLibraries();
+      renderTrashBtn();
     } catch (e) {
       if (grid) grid.innerHTML = `<div class="empty">加载失败：${kit.esc(e.message)}</div>`;
       kit.say('加载库列表失败：' + e.message, 'error');
@@ -151,8 +214,11 @@
   function renderSummary(t) {
     const el = $('pl-summary');
     if (!el) return;
-    el.textContent = `启用中 ${t.active_libs || 0} 个库 · 待审核 ${t.pending_libs || 0} · 已归档 ${t.archived_libs || 0}`
-      + ` · 零件总数 ${kit.fmtNum(t.total_items)} 个 · 合计 ${kit.fmtNum(t.total_tris)} 面`;
+    el.innerHTML = `启用中 ${t.active_libs || 0} 个库 · 待审核 ${t.pending_libs || 0} · 已归档 ${t.archived_libs || 0}`
+      + ` · 零件总数 ${kit.fmtNum(t.total_items)} 个 · 合计 ${kit.fmtNum(t.total_tris)} 面`
+      + (t.trash_libs
+        ? ` · <span style="color:#fca5a5">♻️ 回收站 ${t.trash_libs} 个库（占盘 ${kit.fmtSize(t.trash_bytes || 0)}，清空后不可恢复）</span>`
+        : '');
   }
 
   function renderLibraries() {
@@ -164,28 +230,39 @@
     }
     grid.innerHTML = lastLibraries.map((l) => {
       const st = l.stats || {};
+      const trashed = l.status === 'deleted';
       const cover = l.cover_image
         ? `<img src="${kit.esc(l.cover_image)}" style="width:100%;height:104px;object-fit:cover;border-radius:8px;background:#111827" onerror="this.style.display='none'">`
         : `<div style="width:100%;height:104px;border-radius:8px;display:flex;align-items:center;justify-content:center;
              font-size:30px;background:linear-gradient(135deg,rgba(99,102,241,.25),rgba(34,197,94,.18))">📦</div>`;
-      return `<div class="card" style="padding:12px">
+      // 回收站里的卡片：只给「恢复」和「彻底删除」，不再提供归档/删除
+      const actions = trashed
+        ? `<button class="btn btn-sm btn-primary" data-pl-restore="${l.id}" data-name="${kit.esc(l.display_name)}">♻️ 恢复此库</button>
+           <button class="btn btn-sm" data-pl-purge1="${l.id}" data-name="${kit.esc(l.display_name)}"
+             title="跳过回收站，直接彻底删除（不可恢复）"
+             style="color:#fca5a5;border-color:rgba(239,68,68,.45)">🗑 彻底删除</button>`
+        : `<button class="btn btn-sm btn-primary" data-pl-open="${l.id}">查看零件</button>
+           <button class="btn btn-sm" data-pl-status="${l.id}" data-st="${kit.esc(l.status)}">
+             ${l.status === 'archived' ? '恢复启用' : '归档'}</button>
+           <button class="btn btn-sm" data-pl-del="${l.id}" data-name="${kit.esc(l.display_name)}"
+             data-n="${kit.fmtNum(l.item_count)}" title="移入回收站（可恢复；磁盘文件暂不删除）"
+             style="color:#fbbf24;border-color:rgba(245,158,11,.45)">🗑 删除</button>`;
+      return `<div class="card" style="padding:12px${trashed ? ';opacity:.72;border-color:rgba(239,68,68,.35)' : ''}"
+        ${trashed ? 'title="在回收站中：清空回收站后不可恢复"' : ''}>
         ${cover}
         <div style="display:flex;align-items:center;gap:6px;margin-top:9px">
           <strong style="font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${kit.esc(l.display_name)}">${kit.esc(l.display_name)}</strong>
-          ${kit.badge(l.status)}
+          ${trashed ? '<span class="badge" style="font-size:11px;padding:1px 7px;border-radius:999px;background:rgba(239,68,68,.16);color:#fca5a5">♻️ 回收站</span>' : kit.badge(l.status)}
         </div>
         <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">
           ${kit.esc(l.pack_key)}${l.style_family ? ' · ' + kit.esc(l.style_family) : ''}</div>
         <div style="font-size:12px;margin-top:7px">
           零件 ${kit.fmtNum(l.item_count)} 个${l.thumb_count ? ` · 缩略图 ${kit.fmtNum(l.thumb_count)}` : ''}
-          ${st.totalTris ? ` · ${kit.fmtNum(st.totalTris)} 面` : ''}${st.bytes ? ` · ${kit.fmtSize(st.bytes)}` : ''}</div>
+          ${st.totalTris ? ` · ${kit.fmtNum(st.totalTris)} 面` : ''}${st.bytes ? ` · ${kit.fmtSize(st.bytes)}` : ''}
+          ${trashed && l.bytes ? ` · <span style="color:#fca5a5">占盘 ${kit.fmtSize(l.bytes)}</span>` : ''}</div>
         ${l.description ? `<div style="font-size:11px;color:var(--text-secondary);margin-top:5px;overflow:hidden;
           display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${kit.esc(l.description)}</div>` : ''}
-        <div style="display:flex;gap:6px;margin-top:10px">
-          <button class="btn btn-sm btn-primary" data-pl-open="${l.id}">查看零件</button>
-          <button class="btn btn-sm" data-pl-status="${l.id}" data-st="${kit.esc(l.status)}">
-            ${l.status === 'archived' ? '恢复启用' : '归档'}</button>
-        </div>
+        <div style="display:flex;gap:6px;margin-top:10px">${actions}</div>
       </div>`;
     }).join('');
   }
@@ -198,6 +275,83 @@
       kit.say(next === 'archived' ? '已归档该库' : '已恢复该库', 'ok');
       loadLibraries();
     } catch (e) { kit.say('操作失败：' + e.message, 'error'); }
+  }
+
+  /**
+   * 移入回收站（软删除）：零件与磁盘文件都保留，可随时「恢复」。
+   * 真正占空间的磁盘文件由顶栏「♻️ 清空回收站」统一释放（可反悔，所以分两步）。
+   */
+  async function removeLibrary(id, name, n) {
+    if (!confirm(`确定把库「${name}」移入回收站？\n\n`
+      + `该库及其 ${n || 0} 个零件会从列表与检索中消失，但**数据与模型文件都还在**，随时可以恢复。\n`
+      + '磁盘空间要等你在顶栏点「♻️ 清空回收站」时才真正释放（那时才不可恢复）。')) return;
+    try {
+      const j = await kit.apiDelete(`${PL_API}/libraries/${id}`);
+      kit.say(`已移入回收站：${name}（${j.partCount || 0} 个零件，可恢复；`
+        + '要释放磁盘空间请点顶栏「♻️ 清空回收站」）', 'ok');
+      loadLibraries();
+    } catch (e) {
+      kit.say('删除失败：' + e.message, 'error');
+    }
+  }
+
+  /** 从回收站恢复（状态回到删除前；原本是归档的仍回到归档） */
+  async function restoreLibrary(id, name) {
+    try {
+      const j = await kit.apiPost(`${PL_API}/libraries/${id}/restore`, {});
+      kit.say(`已恢复库「${name}」${j.library && j.library.status === 'archived' ? '（回到"已归档"状态）' : ''}`, 'ok');
+      loadLibraries();
+    } catch (e) {
+      kit.say('恢复失败：' + e.message, 'error');
+    }
+  }
+
+  /** 回收站内单库彻底删除（跳过"清空"，用于只清一个库） */
+  async function purgeOne(id, name) {
+    if (!confirm(`彻底删除库「${name}」？\n\n会同时删除服务器磁盘上的模型文件，释放空间。\n此操作不可恢复。`)) return;
+    try {
+      const j = await kit.apiDelete(`${PL_API}/libraries/${id}/purge`);
+      const d = j.disk || {};
+      kit.say(`已彻底删除「${name}」：零件 ${(j.counts || {}).parts || 0} · 模型 ${(j.counts || {}).models || 0}`
+        + `${d.removedDirs && d.removedDirs.length ? ' · 磁盘目录 ' + d.removedDirs.length + ' 个已释放' : ''}`, 'ok');
+      loadLibraries();
+    } catch (e) {
+      kit.say('彻底删除失败：' + e.message, 'error');
+    }
+  }
+
+  /** 清空回收站：真删全部已删除库 + 释放磁盘空间（不可恢复） */
+  async function purgeTrash() {
+    let t;
+    try { t = await kit.apiGet(PL_API + '/libraries/trash'); }
+    catch (e) { kit.say('读取回收站失败：' + e.message, 'error'); return; }
+    const tot = t.totals || {};
+    if (!tot.libs) { kit.say('回收站是空的，无需清理', 'info'); return; }
+
+    if (!confirm(
+      `清空回收站？\n\n`
+      + `将**彻底删除** ${tot.libs} 个库、${kit.fmtNum(tot.parts)} 个零件，`
+      + `并删除服务器磁盘上的模型文件，释放约 ${kit.fmtSize(tot.bytes)}。\n\n`
+      + '⚠️ 清空后**无法恢复**。若只是想隐藏列表，请改用「归档」。')) return;
+
+    const keepDisk = confirm(
+      '第二步：磁盘文件怎么处理？\n\n'
+      + '· 选「确定」：一并删除磁盘文件，**空间立即释放**（推荐，回收站的意义就在这）\n'
+      + '· 选「取消」：只删数据库记录，磁盘文件保留（空间不会释放）');
+    try {
+      const j = await kit.apiPost(PL_API + '/libraries/purge', { dropDisk: !keepDisk });
+      const p = j.purged || [], b = j.blocked || [], fl = j.failed || [];
+      let msg = `回收站已清空：删除 ${p.length} 个库`
+        + `${keepDisk ? `，释放 ${j.diskFreed || 0} 个磁盘目录` : '（磁盘文件已保留）'}`;
+      if (b.length) msg += `；⚠️ ${b.length} 个库被跳过（零件已被摆进世界，请先在世界编辑器删除对应对象）：`
+        + b.map((x) => x.name).join('、');
+      if (fl.length) msg += `；${fl.length} 个库删除失败`;
+      kit.say(msg, b.length || fl.length ? 'error' : 'ok');
+      loadLibraries();
+      if (facetsLoaded) { facetsLoaded = false; loadFacets(); }
+    } catch (e) {
+      kit.say('清空回收站失败：' + e.message, 'error');
+    }
   }
 
   // ───────────────────── 检索 ─────────────────────
@@ -387,11 +541,18 @@
     if (!bind._done) {
       bind._done = true;
       document.addEventListener('click', (e) => {
-        const t = e.target.closest ? e.target.closest('[data-pl-close],[data-pl-open],[data-pl-status]') : null;
+        const t = e.target.closest
+          ? e.target.closest('[data-pl-close],[data-pl-open],[data-pl-status],[data-pl-del],[data-pl-restore],[data-pl-purge1]') : null;
         if (!t) return;
         if (t.hasAttribute('data-pl-close')) kit.hideModal(t.getAttribute('data-pl-close'));
         else if (t.hasAttribute('data-pl-open')) openLibrary(t.getAttribute('data-pl-open'));
-        else if (t.hasAttribute('data-pl-status')) {
+        else if (t.hasAttribute('data-pl-del')) {
+          removeLibrary(t.getAttribute('data-pl-del'), t.getAttribute('data-name'), t.getAttribute('data-n'));
+        } else if (t.hasAttribute('data-pl-restore')) {
+          restoreLibrary(t.getAttribute('data-pl-restore'), t.getAttribute('data-name'));
+        } else if (t.hasAttribute('data-pl-purge1')) {
+          purgeOne(t.getAttribute('data-pl-purge1'), t.getAttribute('data-name'));
+        } else if (t.hasAttribute('data-pl-status')) {
           toggleStatus(t.getAttribute('data-pl-status'), t.getAttribute('data-st'));
         }
       });

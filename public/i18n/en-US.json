@@ -49,6 +49,8 @@
     "uiControls": "UI Controls ↗",
     "3dgsScene": "3DGS Scenes",
     "partLibrary": "Part Library",
+    "pgPart-library": "Part Library",
+    "pgPart-librarySub": "Part Library",
     "3dgsScenes": "Gaussian Scenes",
     "threejsCodeLibrary": "Three.js Code Library",
     "editorTools": "Editor Tools",

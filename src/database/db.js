@@ -59,6 +59,8 @@ async function initializeDatabase() {
     'migrations/add_agent_push_tier.sql',   // P8 后续: 每个 Key Agent 独立推送档 + 删除能力
     'migrations/add_world_objects_agent_description.sql',  // 🤖 AI 物体描述（observe 下发给 Agent）
     'migrations/add_part_libraries.sql',  // Phase 1: 零件库（part_libraries / part_library_items / uploaded_models+pack_id,part_category）
+    'migrations/add_part_libraries_trash.sql',  // 零件库回收站（prev_status / deleted_at：软删除→恢复/清空）
+    'migrations/add_part_libraries_source_path.sql',  // 撞名错开（source_path：同名不同包不混库）
     'migrations/add_ai_call_log.sql',     // Phase 0: LLM 调用账本（成本/token 限流/熔断依据）
     'migrations/add_threejs_code_blocks_meta.sql'  // Phase 0: 补 source_type/auto_fixes/import_status（原先只存在于现库，新环境会缺列）
   ];

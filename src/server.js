@@ -556,7 +556,9 @@ async function start() {
       console.log(`Server running on http://localhost:${PORT}`);
       logger.ops('服务器已启动', { port: PORT, pid: process.pid });
       // 上传/保存请求可能较慢，避免服务端提前断开导致前端 "Failed to fetch"
-      server.setTimeout(5 * 60 * 1000); // 5 分钟
+      // 15 分钟：实测 380 文件 / 153 零件（含 LOD 变体 + 贴图压缩）服务端处理 107s；
+      // 整棵 Kenney 素材树（19 kit）走扫描通道可达数分钟，5 分钟上限会中途掐断。
+      server.setTimeout(15 * 60 * 1000);
       server.keepAliveTimeout = 65000;    // 略大于常见负载均衡 60s
       server.headersTimeout = 66000;
       
