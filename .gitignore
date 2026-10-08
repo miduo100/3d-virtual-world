@@ -111,6 +111,28 @@ AI描述待填清单.md
 
 # AI 面向访客的审计报告（本地留档，2026-09-25 移出版本控制）
 docs/ai-audit/
+# 安全审计报告同样为本地留档（2026-10-08：docs/ 下均为报告类产物）
+docs/security/
+
+# 2026-10-08 补漏：几类项目文档 / 临时数据此前未被上面的模式匹配挡住
+# 提示词类（与已有的 *实现提示词-*.md 同性质）
+安全修复提示词-*.md
+# AI World Brain / 自主世界规划文档（项目约定：开发文档不进版本控制）
+AI-World-Brain-*.md
+AI自主世界-*.md
+# AI 描述补全的待办清单与一次性生成/导入脚本（Phase 1 引流任务的临时产物）
+scripts/desc_todo.json
+scripts/desc_todo.md
+scripts/gen_desc_todo.js
+scripts/import_desc_todo.js
+
+# 验收脚本与维护工具（2026-10-08 起不再入库）
+# 理由：它们只在本地复现验证用，不随代码分发，也不该在 clone 后的仓库里占位。
+# 说明：此前已入库的 93 个 accept_*.js 保持不动（规则只影响未跟踪的新文件）。
+scripts/accept_*.js
+scripts/audit_*.js
+scripts/cleanup_*.js
+scripts/_agent_desc_audit.md
 
 # Agent 联测运行时产物（events.jsonl / state.json / follow.log / inbox / done）
 # 每个驻场客户端用独立目录：live/、live-deepseek/、live-miduo/ ...
