@@ -266,6 +266,9 @@ router.post('/objects', async (req, res) => {
 
     console.log('✅ 世界对象已创建:', result.rows[0]);
 
+    // Phase 4 埋点：AI 来源对象创建（origin='ai' 才记；失败绝不阻断创建）
+    try { if (req.body && req.body.origin === 'ai') require('../worldai/perception/eventLog').log({ type: 'object_created', actorType: 'ai', worldObjectId: result.rows[0].id, payload: { name: String(name || '').slice(0, 60), type: String(type || '').slice(0, 40) } }); } catch (e) { /* 静默 */ }
+
     res.json({
       success: true,
       message: 'Object created successfully',

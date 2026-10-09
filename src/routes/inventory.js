@@ -186,6 +186,8 @@ router.post('/drops/:dropId/pick', async (req, res) => {
       [invId, userId, drop.code_id]
     );
 
+    // Phase 4 埋点：交互事件（拾取；失败绝不阻断拾取）
+    try { require('../worldai/perception/eventLog').log({ type: 'object_interact', actorType: 'human', actorId: String(userId || ''), targetId: String(dropId), payload: { action: 'pick', rewardName: String(drop.reward_name || '').slice(0, 40) } }); } catch (e) { /* 静默 */ }
     res.json({
       message: '拾取成功',
       item: {

@@ -59,6 +59,9 @@ worldAiRuntime.init();
 // ── Planning（Phase 3 · P2-1~P2-9）：目标 / 规划 / 审批 ──
 router.use('/', require('./worldAiPlan'));
 
+// ── Ops（Phase 4 · P3-1~P3-14）：工具账本 / tool 审批 / 感知（快照·事件·分析·记忆）──
+router.use('/', require('./worldAiOps'));
+
 // GET /api/world-ai/config
 router.get('/config', async (req, res) => {
   try {

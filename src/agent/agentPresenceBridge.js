@@ -173,6 +173,8 @@ function updatePosition(connectionId, position, animMode, rotation, baseY) {
       baseY: Number.isFinite(p.baseY) ? p.baseY : null
     }
   });
+  // Phase 4 埋点：区域进出事件（内部 3s 节流，失败绝不阻断广播）
+  try { require('../worldai/perception/eventLog').trackRegionPresence(null, connectionId, p.characterId, position); } catch (e) { /* 静默 */ }
 }
 
 function resolveSpawnPosition(session) {

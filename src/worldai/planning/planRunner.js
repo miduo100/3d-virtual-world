@@ -15,6 +15,7 @@
 
 const { query } = require('../../database/db');
 const memoryService = require('../memory/memoryService');
+const executor = require('../runtime/executor');
 const logger = require('../../services/logger');
 
 /**
@@ -67,9 +68,28 @@ async function attemptApprovedPlan(worldId) {
     return { ok: true, action: 'awaiting_approval', planId: String(active.id), stepId: String(step.id), risk: step.risk_tier };
   }
 
-  // P2-7：低风险才尝试执行；Phase 3 工具注册表为空 → 明确失败 + 记忆（不静默）
+  // P2-7 / Phase 4：低风险 step 走统一执行器（注册表/校验/预算/守卫/风险闸/账本全在 executor）
   await query(`UPDATE world_plan_steps SET status='executing', started_at=NOW(), updated_at=NOW() WHERE id=$1`, [step.id]);
-  const reason = 'TOOL_NOT_REGISTERED: ' + step.tool_name + '（World Tool 注册表属 Phase 4，本阶段无任何已注册工具）';
+  const ex = await executor.execute(step.tool_name, step.params, {
+    worldId: String(worldId), planId: String(active.id), planStepId: String(step.id),
+    actor: 'world_ai:runtime', reason: step.rationale || null,
+  });
+  if (ex.ok) {
+    await query(
+      `UPDATE world_plan_steps SET status='done', execution_id=$2, result=$3::jsonb, error=NULL, finished_at=NOW(), updated_at=NOW() WHERE id=$1`,
+      [step.id, ex.executionId, JSON.stringify(ex.result || {})]
+    );
+    const prOk = await query(`SELECT progress FROM world_plans WHERE id = $1`, [active.id]);
+    const progOk = prOk.rows[0].progress || {};
+    progOk.totalSteps = progOk.totalSteps || 0;
+    progOk.doneSteps = (progOk.doneSteps || 0) + 1;
+    progOk.currentStepId = String(step.id);
+    await query(`UPDATE world_plans SET progress = $2::jsonb, updated_at=NOW() WHERE id=$1`, [active.id, JSON.stringify(progOk)]);
+    logger.audit('world_ai_step_executed', { planId: String(active.id), stepId: String(step.id), tool: step.tool_name, executionId: ex.executionId });
+    return { ok: true, action: 'executed', planId: String(active.id), stepId: String(step.id), executionId: ex.executionId };
+  }
+  // 失败（TOOL_NOT_REGISTERED / ToolValidation / 预算 / 守卫拒绝）→ 明确失败 + 记忆（不静默，P2-7）
+  const reason = (ex.code || 'TOOL_FAILED') + ': ' + (ex.reason || '');
   await query(
     `UPDATE world_plan_steps SET status='failed', error=$2, finished_at=NOW(), updated_at=NOW() WHERE id=$1`,
     [step.id, reason]

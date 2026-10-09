@@ -422,6 +422,9 @@ router.post('/:monsterId/take-damage', async (req, res) => {
       [newHealth, monsterId]
     );
 
+    // Phase 4 埋点：交互事件（怪物受击；失败绝不阻断战斗）
+    try { require('../worldai/perception/eventLog').log({ type: 'object_interact', actorType: 'human', actorId: req.user && req.user.userId ? String(req.user.userId) : null, targetId: String(monsterId), payload: { action: 'take_damage', damage: Number(effectiveDamage) || 0, health: Number(newHealth) || 0 } }); } catch (e) { /* 静默 */ }
+
     res.json({
       message: 'Damage applied',
       effectiveDamage,

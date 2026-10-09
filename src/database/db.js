@@ -75,7 +75,10 @@ async function initializeDatabase() {
     'migrations/add_world_goals.sql',             // Phase 3: 世界目标与愿景（hard_rules/soft_prefs）
     'migrations/add_world_plans.sql',             // Phase 3: World Plan 审批主体 + 执行步骤（draft→review→approved）
     'migrations/add_world_approvals.sql',         // Phase 3: 人工审批（Plan 级，Tool 级 Phase 4 共用）
-    'migrations/add_world_memories.sql'           // Phase 3: World AI 持久记忆（P2-8；压缩/遗忘定时属 Phase 4）
+    'migrations/add_world_memories.sql',          // Phase 3: World AI 持久记忆（P2-8；压缩/遗忘定时属 Phase 4）
+    'migrations/add_world_events.sql',            // Phase 4: 全站唯一事件流（唯一写入器 perception/eventLog.js）
+    'migrations/add_world_tool_executions.sql',   // Phase 4: 工具执行账本（before/after/undo + 每日预算查表口径）
+    'migrations/add_world_metrics_daily.sql'      // Phase 4: 日聚合表（区域热度/参与率 6 指标）
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);

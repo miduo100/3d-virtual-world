@@ -268,6 +268,8 @@ router.post('/purchase', async (req, res) => {
       [orderId, buyerId, shopItemId, quantity, totalPrice, 'completed']
     );
     await query('UPDATE shop_items SET quantity = quantity - $1 WHERE id = $2', [quantity, shopItemId]);
+    // Phase 4 埋点：经济事件（金额/数量，不含个人信息；失败绝不阻断购买）
+    try { require('../worldai/perception/eventLog').log({ type: 'economy', actorType: 'human', actorId: String(buyerId || ''), targetId: String(shopItemId), payload: { totalPrice, quantity: Number(quantity) || 0, orderId: String(orderId).slice(0, 40) } }); } catch (e) { /* 静默 */ }
     res.json({ message: 'Purchase successful', orderId, totalPrice });
   } catch (error) {
     console.error(error);

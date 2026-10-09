@@ -19,6 +19,9 @@ const agentConfigService = require('./agentConfigService');
  * chat_log_enabled=false 时直接跳过
  */
 async function insertLog({ senderType, senderId, senderName, message, position }) {
+  // Phase 4 埋点：事件流 chat 事件（payload 只存 {len,kw} 不存全文，P3-12；
+  // 置于 chat_log_enabled 开关之前——事件分析不依赖聊天是否落库；失败绝不阻断）
+  try { require('../worldai/perception/eventLog').chatEvent({ senderType, senderId, message, position }); } catch (e2) { /* 静默 */ }
   try {
     const cfg = await agentConfigService.getConfig();
     if (!cfg.chatLogEnabled) return;
