@@ -19,10 +19,10 @@
   const API = '/api/world-ai';
   const PAGE_ID = 'page-ai-world-brain';
   const AUTONOMY = ['managed', 'semi_autonomous', 'autonomous'];
-  const AUTONOMY_LABEL = {
-    managed: '① managed — 只按我下的指令干活',
-    semi_autonomous: '② semi_autonomous — 建完可自己补细节，不许拆东西',
-    autonomous: '③ autonomous — 可自己提改动提案（须谨慎）',
+  const AUTONOMY_DESC = {
+    managed: '只按我下的指令干活（委托需手动执行）',
+    semi_autonomous: '建完可自己补细节（绿化/路灯），不许拆东西',
+    autonomous: '可自己提改动提案（high 风险仍要审批，须谨慎）',
   };
   const SCOPES = ['world:observe', 'world:plan', 'world:build', 'world:gameplay', 'world:analyze', 'world:rollback', 'world:configure'];
   const PURPOSES = ['plan', 'tool_select', 'summary'];
@@ -56,89 +56,130 @@
     if (ok) setTimeout(() => { el.style.display = 'none'; }, 3500);
   }
 
-  // ==================== DOM 注入 ====================
+  // ==================== DOM 注入（版式 = admin_world_brain_preview.html p6「设置」页签：
+  //                      顶部运行状态条 + 两栏（大模型 | 权限与风险）+ System Prompt + 凭证） ====================
   function buildDom() {
     const page = $(PAGE_ID);
     if (!page || page.dataset.awbBuilt === '1') return;
     page.dataset.awbBuilt = '1';
+
+    const style = document.createElement('style');
+    style.textContent = [
+      '#page-ai-world-brain .awb-topbar{display:flex;align-items:center;gap:14px;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:10px 16px;margin-bottom:16px;flex-wrap:wrap}',
+      '#page-ai-world-brain .awb-dot{width:9px;height:9px;border-radius:50%;background:var(--red);box-shadow:0 0 8px var(--red);display:inline-block}',
+      '#page-ai-world-brain .awb-dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}',
+      '#page-ai-world-brain .awb-topbar .sp{flex:1}',
+      '#page-ai-world-brain .awb-cols{display:grid;grid-template-columns:1.6fr 1fr;gap:12px;margin-bottom:12px}',
+      '@media(max-width:1100px){#page-ai-world-brain .awb-cols{grid-template-columns:1fr}}',
+      '#page-ai-world-brain .awb-panel{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:16px}',
+      '#page-ai-world-brain .awb-panel h3{font-size:14px;margin-bottom:12px;color:var(--text)}',
+      '#page-ai-world-brain .awb-field{margin-bottom:14px}',
+      '#page-ai-world-brain .awb-field>label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}',
+      '#page-ai-world-brain .awb-inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}',
+      '#page-ai-world-brain .awb-panel input[type=text],#page-ai-world-brain .awb-panel input[type=number],#page-ai-world-brain .awb-panel select{background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:7px 10px;font:inherit}',
+      '#page-ai-world-brain .awb-panel input[type=number]{width:96px}',
+      '#page-ai-world-brain .awb-panel textarea{width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:10px;color:var(--text);font:inherit;padding:12px;resize:vertical;min-height:84px}',
+      '#page-ai-world-brain .awb-tag{font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(0,0,0,0.3);color:var(--muted);display:inline-block}',
+      '#page-ai-world-brain .awb-tag.g{background:var(--green-dim);color:var(--green)}',
+      '#page-ai-world-brain .awb-tag.a{background:rgba(255,140,0,.12);color:var(--orange)}',
+      '#page-ai-world-brain .awb-radio{display:flex;flex-direction:column;gap:8px}',
+      '#page-ai-world-brain .awb-radio label{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--border);border-radius:10px;cursor:pointer;margin:0}',
+      '#page-ai-world-brain .awb-radio label:has(input:checked){border-color:var(--green);background:var(--green-dim)}',
+      '#page-ai-world-brain .awb-radio .d{color:var(--muted);font-size:12px}',
+      '#page-ai-world-brain .awb-redline{color:var(--muted);font-size:12px;margin-top:10px;line-height:1.7}',
+      '#page-ai-world-brain .awb-scope{display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;border:1px solid var(--border);border-radius:10px;padding:3px 9px}',
+      '#page-ai-world-brain .awb-msg{padding:6px 12px;border-radius:5px;font-size:12px;display:none}',
+      '#page-ai-world-brain details.awb-adv{margin:4px 0 10px}',
+      '#page-ai-world-brain details.awb-adv summary{cursor:pointer;color:var(--muted);font-size:12px;margin-bottom:8px}',
+    ].join('');
+    document.head.appendChild(style);
 
     const bar = document.createElement('div');
     bar.style.cssText = 'display:flex;gap:8px;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:0;';
     bar.innerHTML = '<button class="sub-tab active" onclick="switchSubTab(\'ai-world-brain\',\'awb-settings\',this)">⚙️ 设置</button>';
     page.appendChild(bar);
 
+    // ── 顶部运行状态条（原型 topbar）──
+    const topbar = document.createElement('div');
+    topbar.className = 'awb-topbar';
+    topbar.innerHTML =
+      '<span class="awb-dot" id="awb-dot"></span><b id="awb-run-txt">World AI 已关闭</b>' +
+      '<span class="sp"></span>' +
+      '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">' +
+      '<input type="checkbox" id="awb-enabled" style="accent-color:var(--green)"> 启用总闸（enabled）</label>' +
+      '<button id="awb-save-btn" style="background:var(--green);color:#08130c;font-weight:600;border:none;border-radius:8px;padding:7px 14px;cursor:pointer;">💾 保存设置</button>' +
+      '<div id="awb-save-msg" class="awb-msg"></div>';
+    page.appendChild(topbar);
+
     const wrap = document.createElement('div');
     wrap.id = 'ai-world-brain-sub-awb-settings';
     wrap.className = 'sub-page';
-    wrap.innerHTML = [
-      card('awb-基础', '🧠 基础开关', [
-        '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">',
-        '  <input type="checkbox" id="awb-enabled"> <b>World AI 总闸（enabled）</b>',
-        '</label>',
-        '<small style="color:var(--muted);display:block;margin:6px 0 14px;">总闸只做读写与展示；调度/状态机属 Phase 2b。</small>',
-        '<div class="form-group"><label>世界级自主度（上限；区域级可更严，实际取两者较严）</label>',
-        AUTONOMY.map((a, i) =>
-          '<label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer;">' +
-          '<input type="radio" name="awb-autonomy" value="' + a + '"' + (i === 0 ? '' : '') + '> ' + AUTONOMY_LABEL[a] + '</label>').join(''),
-        '</div>',
-        '<div class="form-row">',
-        '  <div class="form-group"><label>默认模型（model，可空=跟随所选厂商默认）</label><input type="text" id="awb-model" maxlength="150" placeholder="如 doubao-pro-32k"></div>',
-        '  <div class="form-group"><label>温度 temperature（0~2）</label><input type="number" id="awb-temperature" step="0.1" min="0" max="2"></div>',
-        '  <div class="form-group"><label>单轮最大输出 max_tokens</label><input type="number" id="awb-max-tokens" step="100" min="100" max="128000"></div>',
-        '</div>',
-      ].join('')),
-      card('awb-providers', '🔌 用途级厂商选择（provider_map）', [
-        '<small style="color:var(--muted);display:block;margin-bottom:10px;">厂商与 API Key 只在 <b>系统配置 → 🤖 AI提供商</b> 维护；本页只选择「哪个用途用哪一家」。留空 = 自动（候选链兜底）。规划与工具选择必须同一家（P1-14，队列项 2 起强校验）。</small>',
-        '<div class="form-row" id="awb-provider-row"></div>',
-      ].join('')),
-      card('awb-prompt', '📝 System Prompt（世界大脑的人设与硬规则）', [
-        '<textarea id="awb-system-prompt" rows="5" style="width:100%;" maxlength="20000" placeholder="示例：你是创世虚拟世界的管理员 AI，负责按区域规划与建设…"></textarea>',
-      ].join('')),
-      card('awb-risk', '🛡️ 风险策略与预算', [
-        '<div class="form-row">',
-        '  <div class="form-group"><label>低风险动作</label><select id="awb-risk-low"><option value="auto">自动执行</option><option value="approve">需审批</option></select></div>',
-        '  <div class="form-group"><label>中风险动作</label><select id="awb-risk-medium"><option value="auto">自动执行</option><option value="approve">需审批</option></select></div>',
-        '  <div class="form-group"><label>高风险动作</label><select id="awb-risk-high"><option value="approve" selected>需审批</option><option value="auto">自动执行</option></select></div>',
-        '</div>',
-        '<div class="form-row">',
-        '  <div class="form-group"><label>单轮工具上限 toolsPerRun</label><input type="number" id="awb-tools-per-run" min="1"></div>',
-        '  <div class="form-group"><label>单轮新建物体上限 newObjectsPerRun</label><input type="number" id="awb-new-objects" min="1"></div>',
-        '  <div class="form-group"><label>每日 LLM 调用上限 llmCallsPerDay</label><input type="number" id="awb-llm-per-day" min="1"></div>',
-        '  <div class="form-group"><label>每日 token 上限 tokensPerDay</label><input type="number" id="awb-tokens-per-day" min="1000" step="1000"></div>',
-        '</div>',
-        '<div class="form-row">',
-        '  <div class="form-group"><label>观察间隔 observeMin（分钟）</label><input type="number" id="awb-observe-min" min="1"></div>',
-        '  <div class="form-group"><label>规划间隔 planHours（小时）</label><input type="number" id="awb-plan-hours" min="1"></div>',
-        '  <div class="form-group"><label>优化间隔 optimizeHours（小时）</label><input type="number" id="awb-optimize-hours" min="1"></div>',
-        '  <div class="form-group"><label>上下文窗口 tokens（可空，队列项2 实测回填）</label><input type="number" id="awb-context-window" min="1024" placeholder="留空=按 16k 保守计"></div>',
-        '</div>',
-      ].join('')),
-      '<div style="display:flex;gap:12px;align-items:center;margin:14px 0 4px;">',
-      '  <button class="btn btn-primary" id="awb-save-btn" onclick="window.adminWorldBrain.save()">💾 保存设置</button>',
-      '  <div id="awb-save-msg" style="display:none;padding:6px 12px;border-radius:5px;font-size:12px;"></div>',
-      '</div>',
-      card('awb-cred', '🔑 World AI 凭证（与 Agent Key 分离）', [
-        '<small style="color:var(--muted);display:block;margin-bottom:10px;">这是「世界大脑自己」的服务端凭证（world:* scope），不是外部 AI 进场的 Agent Key。明文 Key 只在创建/轮换时显示一次。</small>',
-        '<div class="form-row">',
-        '  <div class="form-group"><label>凭证名称</label><input type="text" id="awb-cred-name" maxlength="120" placeholder="如 runtime-primary"></div>',
-        '  <div class="form-group" style="flex:2;"><label>scope（默认 world:observe + world:rollback）</label>',
-        '    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">' +
-        SCOPES.map((s) => '<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;"><input type="checkbox" class="awb-cred-scope" value="' + s + '"' + (s === 'world:observe' || s === 'world:rollback' ? ' checked' : '') + '> ' + s + '</label>').join('') +
-        '  </div></div>',
-        '</div>',
-        '<button class="btn btn-primary" id="awb-cred-create" onclick="window.adminWorldBrain.createCredential()">＋ 创建凭证</button>',
-        '<div id="awb-cred-keybox" style="display:none;margin:12px 0;padding:10px;border:1px solid var(--yellow, #eab308);border-radius:5px;background:rgba(234,179,8,0.06);"></div>',
-        '<div id="awb-cred-list" style="margin-top:14px;"></div>',
-      ].join('')),
-    ].join('');
+    wrap.innerHTML =
+      // ── 两栏：大模型 | 权限与风险（原型 .cols）──
+      '<div class="awb-cols">' +
+        '<div class="awb-panel"><h3>🤖 大模型</h3>' +
+          '<div class="awb-field"><label>Provider（复用现有「系统配置 → 🤖 AI提供商」，本页不存任何 Key）</label>' +
+            '<select id="awb-pm-plan" style="width:100%;"></select></div>' +
+          '<div class="awb-field"><label>摘要 / 工具选择用哪家（默认跟随规划；规划与工具选择必须同一家）</label>' +
+            '<div class="awb-inline"><span class="awb-tag">摘要</span><select id="awb-pm-summary"></select>' +
+            '<span class="awb-tag">工具选择</span><select id="awb-pm-tool_select"></select></div></div>' +
+          '<div class="awb-field"><label>默认模型（可空 = 跟随所选厂商默认）· 温度 · 单轮最大输出</label>' +
+            '<div class="awb-inline"><input type="text" id="awb-model" maxlength="150" placeholder="如 doubao-pro-32k" style="flex:1;min-width:150px;">' +
+            '<input type="number" id="awb-temperature" step="0.1" min="0" max="2" title="温度">' +
+            '<input type="number" id="awb-max-tokens" step="100" min="100" max="128000" title="单轮最大输出"></div></div>' +
+          '<div class="awb-field"><label>每日预算</label>' +
+            '<div class="awb-inline">token ≤ <input type="number" id="awb-tokens-per-day" min="1000" step="1000">' +
+            'LLM 调用 ≤ <input type="number" id="awb-llm-per-day" min="1"> 次/天</div></div>' +
+          '<details class="awb-adv"><summary>▸ 高级参数（单轮工具/物体上限 · 调度间隔 · 上下文窗口）</summary>' +
+            '<div class="awb-inline" style="margin-bottom:8px;">单轮工具 ≤ <input type="number" id="awb-tools-per-run" min="1">' +
+            ' 单轮物体 ≤ <input type="number" id="awb-new-objects" min="1"></div>' +
+            '<div class="awb-inline">观察 <input type="number" id="awb-observe-min" min="1"> 分 · 规划 <input type="number" id="awb-plan-hours" min="1"> 时 · 优化 <input type="number" id="awb-optimize-hours" min="1"> 时 · 上下文窗口 <input type="number" id="awb-context-window" min="1024" placeholder="留空=16k"></div>' +
+          '</details>' +
+          '<div class="awb-field" style="margin-bottom:0;"><label>熔断</label>' +
+            '<span class="awb-tag a">连续 3 次失败自动暂停 + 通知（Phase 2b 生效）</span></div>' +
+        '</div>' +
+        '<div class="awb-panel"><h3>🛡️ 权限与风险</h3>' +
+          '<div class="awb-field"><label>世界级自主度基调（区域可调严，不可调松；实际生效取两者较严）</label>' +
+            '<div class="awb-radio">' +
+            AUTONOMY.map((a) =>
+              '<label><input type="radio" name="awb-autonomy" value="' + a + '">' +
+              '<span><b>' + a + '</b><br><span class="d">' + AUTONOMY_DESC[a] + '</span></span></label>').join('') +
+            '</div></div>' +
+          '<div class="awb-field"><label>风险动作策略（low / medium / high）</label>' +
+            '<div class="awb-inline">低 <select id="awb-risk-low"><option value="auto">自动执行</option><option value="approve">需审批</option></select>' +
+            ' 中 <select id="awb-risk-medium"><option value="auto">自动执行</option><option value="approve">需审批</option></select>' +
+            ' 高 <select id="awb-risk-high"><option value="approve">需审批</option><option value="auto">自动执行</option></select></div></div>' +
+          '<div class="awb-field"><label>保护区（代码级硬护栏）</label>' +
+            '<div class="awb-inline"><span class="awb-tag g">出生点半径禁建</span><span class="awb-tag g">人工资产只读</span><span class="awb-tag g">传送门/广告位禁删</span></div></div>' +
+          '<div class="awb-redline">红线（代码级，不可配置）：AI 不能删改你建的任何东西 · 不能覆盖式搭建 · 不能写代码块 · 不能上传模型 · 不能给自己升自主度。</div>' +
+        '</div>' +
+      '</div>' +
+      // ── System Prompt（全宽）──
+      '<div class="awb-panel" style="margin-bottom:12px;"><h3>📝 System Prompt（世界大脑的人设与硬规则）</h3>' +
+        '<textarea id="awb-system-prompt" rows="4" maxlength="20000" placeholder="示例：你是创世虚拟世界的管理员 AI，负责按区域规划与建设…"></textarea></div>' +
+      // ── 凭证（全宽）──
+      '<div class="awb-panel" style="margin-bottom:12px;"><h3>🔑 World AI 凭证 <span class="awb-tag">与 Agent Key 分离 · 明文只显示一次</span></h3>' +
+        '<div class="awb-field"><div class="awb-inline">名称 <input type="text" id="awb-cred-name" maxlength="120" placeholder="如 runtime-primary" style="width:180px;">' +
+        '<span id="awb-cred-scopes" style="display:flex;gap:6px;flex-wrap:wrap;">' +
+        SCOPES.map((s) => '<label class="awb-scope"><input type="checkbox" class="awb-cred-scope" value="' + s + '"' + (s === 'world:observe' || s === 'world:rollback' ? ' checked' : '') + '> ' + s + '</label>').join('') +
+        '</span></div></div>' +
+        '<button id="awb-cred-create" style="background:var(--green);color:#08130c;font-weight:600;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;">＋ 创建凭证</button>' +
+        '<div id="awb-cred-keybox" style="display:none;margin:12px 0;padding:10px;border:1px solid var(--orange);border-radius:10px;background:rgba(255,140,0,0.06);"></div>' +
+        '<div id="awb-cred-list" style="margin-top:12px;"></div>' +
+      '</div>';
     page.appendChild(wrap);
 
-    $('awb-save-btn') && ($('awb-save-btn').onclick = save);
+    $('awb-save-btn').onclick = save;
     $('awb-cred-create').addEventListener('click', () => createCredential());
+    $('awb-enabled').addEventListener('change', updateRunDot);
   }
 
-  function card(id, title, inner) {
-    return '<div class="card" style="margin-bottom:16px;"><div class="card-header"><div class="card-title">' + title + '</div></div>' + inner + '</div>';
+  function updateRunDot() {
+    const on = $('awb-enabled') && $('awb-enabled').checked;
+    const dot = $('awb-dot');
+    if (dot) dot.classList.toggle('on', !!on);
+    const txt = $('awb-run-txt');
+    if (txt) txt.textContent = on ? 'World AI 已启用' : 'World AI 已关闭';
   }
 
   // ==================== 数据加载 ====================
@@ -161,14 +202,14 @@
   }
 
   function fillProviderRow(cfg) {
-    const row = $('awb-provider-row');
-    if (!row) return;
     const map = cfg.providerMap || {};
-    row.innerHTML = PURPOSES.map((p) => {
+    PURPOSES.forEach((p) => {
+      const sel = $('awb-pm-' + p);
+      if (!sel) return;
       const opts = ['<option value="">自动（候选链兜底）</option>']
         .concat(providers.map((pv) => '<option value="' + pv.id + '"' + (Number(map[p]) === Number(pv.id) ? ' selected' : '') + '>' + esc(pv.display_name || pv.provider_name || ('#' + pv.id)) + '</option>'));
-      return '<div class="form-group"><label>' + PURPOSE_LABEL[p] + '（' + p + '）</label><select id="awb-pm-' + p + '">' + opts.join('') + '</select></div>';
-    }).join('');
+      sel.innerHTML = opts.join('');
+    });
   }
 
   function fillConfig(c) {
@@ -193,6 +234,7 @@
     $('awb-plan-hours').value = s.planHours != null ? s.planHours : 6;
     $('awb-optimize-hours').value = s.optimizeHours != null ? s.optimizeHours : 24;
     $('awb-context-window').value = c.contextWindowTokens != null ? c.contextWindowTokens : '';
+    updateRunDot();
   }
 
   async function save() {
