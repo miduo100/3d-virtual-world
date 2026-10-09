@@ -136,11 +136,14 @@ async function runWindow(provider, model, ladder) {
     } catch (e) {
       const d = diagnose(e);
       tried.push({ tokens: step, ok: false, code: d.code, status: d.status });
-      // 账户/权限/端点类问题：换更大的输入也一定失败，直接停并给诊断
-      if (d.accountIssue || d.status === 401 || d.status === 403) {
+      // ★ 只有"换更小输入也一定失败"的错误才终止阶梯（鉴权/权限/欠费/端点关闭）。
+      //   400/413 多半是"这一档输入太长"（context length exceeded）—— 必须继续下探更小的档，
+      //   否则上下文小的厂商（实测 qwen-flash-character 在 16k 档直接 400）会被误判成探活失败。
+      const fatal = d.status === 401 || d.status === 403
+        || /OVERDUE|FORBIDDEN|BAD_KEY|NO_PROVIDER/.test(String(d.code || ''));
+      if (fatal) {
         return { ok: false, contextWindowTokens: null, tried, diagnosis: d };
       }
-      // 其它（429/5xx/超时/网络）：不算"窗口不够"，继续下一档但不再多试
     }
   }
   return {
@@ -259,9 +262,18 @@ async function probe(o) {
         result.contextWindowTokens = w.contextWindowTokens;
         try {
           const cur = await worldAiConfig.getConfig();
-          if (!cur || Number(cur.context_window_tokens) !== Number(w.contextWindowTokens)) {
+          const curVal = Number(cur && cur.context_window_tokens) || 0;
+          // ★ 回填策略（防"小窗口厂商压垮世界级预算"）：
+          //   context_window_tokens 是**世界级单值**，多家厂商窗口不同时只保留"已知最大窗口"。
+          //   若让 4k 的厂商把 16k 覆盖掉，装配预算 = 窗口 − 输出预留(8k) 会变负 → 规划彻底不可用。
+          //   按厂商精确控预算的做法：3.5 路由层解析出 provider 后，把该厂商窗口经
+          //   promptBuilder 的 ctx.contextWindowTokens 覆盖传入（本层已支持）。
+          if (curVal === 0 || w.contextWindowTokens > curVal) {
             await worldAiConfig.updateConfig({ context_window_tokens: w.contextWindowTokens });
             result.wroteBack = true;
+            result.wroteBackReason = curVal === 0 ? '首次回填' : `上调（${curVal} → ${w.contextWindowTokens}）`;
+          } else {
+            result.wroteBackReason = `不覆盖（世界级已有 ${curVal}，本厂商实测 ${w.contextWindowTokens} 更小；按已知最大窗口装配，超窗会在上游显式报错）`;
           }
         } catch (e) {
           result.stages.window.writeBackError = e.message;
