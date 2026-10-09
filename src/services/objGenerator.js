@@ -49,7 +49,7 @@ class OBJGenerator {
         return this.generateTowerOBJ(radius, height, segments);
       
       case 'tree':
-        return this.generateTreeOBJ(height, radius);
+        return this.generateTreeOBJ(height, radius, properties.maxFaces);
       
       case 'chick':
       case 'chicken':
@@ -407,34 +407,50 @@ f 8 9 10
 
   /**
    * 生成树OBJ
+   * Phase 5 修复（§A.2）：原面索引 f 6 10 7… 与实际顶点数不对应（产出的 OBJ 不可解析）。
+   * 顶点布局：v1=原点；树干环 generateCylinderVertices(8) → 18 个顶点 v2..v19（bottom_i=v(2+2i), top_i=v(3+2i)）；
+   * 树冠 generateConeVertices(8) → 10 个顶点 v20..v29（v20=顶点，v21..v29=底环）。
    */
-  generateTreeOBJ(height, radius) {
+  generateTreeOBJ(height, radius, maxFaces) {
     const trunkH = height * 0.3;
     const trunkR = radius * 0.2;
     const crownH = height * 0.7;
     const crownR = radius;
+    // 面数上限（Phase 5：接面数预算）：树的面数 ≈ 2×SEG（树干 quad + 树冠 tri），按上限收缩分段
+    const segByCap = Number.isFinite(Number(maxFaces)) && Number(maxFaces) > 0
+      ? Math.max(3, Math.min(12, Math.floor(Number(maxFaces) / 2)))
+      : 8;
+    const SEG = segByCap;
+
+    const trunkFaces = [];
+    for (let i = 0; i < SEG; i++) {
+      const j = i + 1;                               // 末组(i=7)顶点与首组重复 → 直接用 i+1 闭合，无退化面
+      const b1 = 2 + 2 * i, t1 = 3 + 2 * i;
+      const b2 = 2 + 2 * j, t2 = 3 + 2 * j;
+      trunkFaces.push(`f ${b1} ${b2} ${t2} ${t1}`);
+    }
+    const crownFaces = [];
+    for (let i = 0; i < SEG; i++) {
+      const c1 = 21 + i;
+      const c2 = 21 + i + 1;                         // 同理：底环末点与首点重复，直接顺序闭合
+      crownFaces.push(`f 20 ${c1} ${c2}`);
+    }
 
     return `# Tree Model
 o Tree
 
 # Trunk (cylinder)
 v 0 0 0
-${this.generateCylinderVertices(trunkR, trunkH, 8).map(v => `v ${v}`).join('\n')}
+${this.generateCylinderVertices(trunkR, trunkH, SEG).map(v => `v ${v}`).join('\n')}
 
 # Crown (cone)
-${this.generateConeVertices(crownR, crownH, trunkH, 8).map(v => `v ${v}`).join('\n')}
+${this.generateConeVertices(crownR, crownH, trunkH, SEG).map(v => `v ${v}`).join('\n')}
 
 # Trunk faces
-f 1 2 3
-f 1 3 4
-f 1 4 5
-f 1 5 2
+${trunkFaces.join('\n')}
 
 # Crown faces
-f 6 7 8
-f 6 8 9
-f 6 9 10
-f 6 10 7
+${crownFaces.join('\n')}
 `;
   }
 
@@ -555,9 +571,10 @@ f 13 10 9
 # Beak (triangle)
 f 15 16 17
 
-# Legs
-f 18 19 9
-f 20 21 9
+# Legs（Phase 5 修复：原 f 18 19 9 / f 20 21 9 引用不存在的顶点（实际共 22 个：
+#        喙 16-18、左脚 19-20、右脚 21-22），修正为左右脚各自的三角形）
+f 19 20 9
+f 21 22 9
 `;
   }
 }

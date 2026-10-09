@@ -1356,6 +1356,157 @@ class GeometryBuilder {
       ]
     };
   }
+  // ==================== Phase 5：SpecCompiler 后端（只增不改，2026-10-09）====================
+
+  /**
+   * seed 派生 PRNG（mulberry32）。确定性铁律：随机项一律走它，禁 Math.random（P4-1/P4-2）。
+   */
+  seededRandom(seed) {
+    let a = (Math.floor(Number(seed) || 0) || 1) >>> 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /**
+   * getTemplateSchema —— 22 模板的可调参数清单（供 LLM 生成 spec.parts.templateId+params 用）。
+   */
+  getTemplateSchema() {
+    const P = {
+      scale: 'number 等比缩放(默认1)', color: 'number 主体色', roofColor: 'number 屋顶色',
+      width: 'number 宽', height: 'number 高', depth: 'number 深', length: 'number 长',
+      floors: 'number 层数', radius: 'number 半径', segments: 'number 分段',
+    };
+    const schema = {};
+    for (const id of Object.keys(this.templates)) { schema[id] = { name: this.templates[id].name, params: {} }; }
+    const set = (id, keys) => { keys.forEach((k) => { schema[id].params[k] = P[k]; }); };
+    set('simple_house', ['color', 'roofColor', 'scale']);
+    set('cottage', ['scale', 'color']);
+    set('tower', ['radius', 'height', 'color', 'scale']);
+    set('barn', ['width', 'height', 'depth', 'color', 'scale']);
+    set('shop', ['width', 'height', 'depth', 'color', 'scale']);
+    set('market', ['width', 'height', 'color', 'scale']);
+    set('well', ['scale']);
+    set('fence', ['length', 'height', 'color', 'scale']);
+    set('bridge', ['length', 'width', 'color', 'scale']);
+    set('tree', ['height', 'radius', 'scale']);
+    set('rock', ['radius', 'scale']);
+    set('lamp', ['height', 'color', 'scale']);
+    set('castle_wall', ['length', 'height', 'color', 'scale']);
+    set('watch_tower', ['radius', 'height', 'color', 'scale']);
+    set('apartment', ['width', 'depth', 'floors', 'color', 'scale']);
+    set('office', ['width', 'depth', 'floors', 'color', 'scale']);
+    set('modern_house', ['width', 'depth', 'color', 'scale']);
+    set('futuristic_tower', ['radius', 'height', 'floors', 'color', 'scale']);
+    set('medieval_castle', ['scale', 'color']);
+    set('forest', ['radius', 'scale']);
+    set('lake', ['radius', 'scale']);
+    set('box_primitive', ['width', 'height', 'depth', 'color', 'scale']);
+    return schema;
+  }
+
+  /**
+   * buildFromSpec —— Building Spec（withDefaults 产物）→ { name, components[] }。
+   * ★ 确定性：同 seed 两次输出逐字节相同（P4-1）；seed 变 → 结果变（P4-2）。
+   * 预算（maxComponents/maxTriangles）由 assetValidator 在调用侧把关，本函数只保证结构与确定性。
+   */
+  buildFromSpec(spec) {
+    const s = spec && typeof spec === 'object' ? spec : {};
+    const rnd = this.seededRandom(s.seed);
+    const fp = s.footprint || { width: 6, depth: 6 };
+    const style = s.style || {};
+    const pal = style.palette || {};
+    const op = s.openings || {};
+    const comps = [];
+    const push = (c) => comps.push(c);
+
+    // ── 主体：levels 逐层逐层 box（每层 1 个 box，层间留 0.2 楼板缝）──
+    let y = 0;
+    const levels = Array.isArray(s.levels) && s.levels.length ? s.levels : [{ floors: 1, heightPerFloor: 3.2 }];
+    const windowSpecs = [];
+    for (const lv of levels) {
+      const floors = Math.max(1, Math.floor(Number(lv.floors) || 1));
+      const fh = Number(lv.heightPerFloor) || 3.2;
+      for (let f = 0; f < floors; f++) {
+        push({
+          type: 'box',
+          width: fp.width, height: fh - 0.2, depth: fp.depth,
+          color: pal.wall,
+          position: { x: 0, y: round2(y + (fh - 0.2) / 2), z: 0 },
+        });
+        // 窗：每层 windowsPerFloor 个，沿 +Z 面均布（ribbed=细长条）
+        const winN = Math.max(0, Math.floor(Number(op.windowsPerFloor) || 0));
+        for (let w = 0; w < winN; w++) {
+          const step = fp.width / (winN + 1);
+          const wx = -fp.width / 2 + step * (w + 1);
+          const rib = String(style.glazing) === 'ribbed';
+          windowSpecs.push({
+            type: 'box',
+            width: rib ? Number(op.windowWidth) * 0.4 : Number(op.windowWidth) || 1.2,
+            height: rib ? 1.6 : (Number(op.windowWidth) || 1.2) * 0.9,
+            depth: 0.15,
+            color: pal.accent,
+            emissive: pal.accent,
+            emissiveIntensity: round2(0.25 + rnd() * 0.35),
+            position: { x: round2(wx), y: round2(y + (Number(op.sillHeight) || 1.0) + 0.6), z: round2(fp.depth / 2 + 0.08) },
+          });
+        }
+        y += fh;
+      }
+    }
+    for (const w of windowSpecs) push(w);
+
+    // ── 门：entrances 个，沿 +Z 面均布 ──
+    const doorN = Math.max(1, Math.floor(Number(op.entrances) || 1));
+    const doorStep = fp.width / (doorN + 1);
+    const doorW = Number(op.doorWidth) || 1.2;
+    for (let d = 0; d < doorN; d++) {
+      push({
+        type: 'box', width: doorW, height: 2.2, depth: 0.2,
+        color: 0x654321,
+        position: { x: round2(-fp.width / 2 + doorStep * (d + 1)), y: 1.1, z: round2(fp.depth / 2 + 0.1) },
+      });
+    }
+
+    // ── 屋顶：roofStyle 决定形态（seed 只影响 overhang 微差）──
+    const overhang = round2(0.3 + rnd() * 0.3);
+    const roofStyle = String(style.roofStyle) === 'flat' ? 'flat' : String(style.roofStyle || 'pyramid');
+    if (roofStyle === 'flat') {
+      push({ type: 'box', width: fp.width + overhang, height: 0.4, depth: fp.depth + overhang, color: pal.roof, position: { x: 0, y: round2(y + 0.2), z: 0 } });
+    } else if (roofStyle === 'dome') {
+      push({ type: 'sphere', radius: Math.min(fp.width, fp.depth) / 2 + overhang, widthSegments: 16, heightSegments: 8, color: pal.roof, position: { x: 0, y: round2(y), z: 0 } });
+    } else if (roofStyle === 'gable') {
+      push({
+        type: 'cone', radiusBottom: Math.max(fp.width, fp.depth) / 2 + overhang, radiusTop: 0.2,
+        height: Math.min(fp.width, fp.depth) * 0.5, radialSegments: 4,
+        color: pal.roof, position: { x: 0, y: round2(y + Math.min(fp.width, fp.depth) * 0.25), z: 0 },
+        rotation: { x: 0, y: Math.PI / 4, z: 0 },
+      });
+    } else { // pyramid（默认）
+      push({
+        type: 'cone', radiusBottom: Math.max(fp.width, fp.depth) / 2 + overhang, radiusTop: 0.1,
+        height: Math.min(fp.width, fp.depth) * 0.45, radialSegments: 4,
+        color: pal.roof, position: { x: 0, y: round2(y + Math.min(fp.width, fp.depth) * 0.22), z: 0 },
+        rotation: { x: 0, y: Math.PI / 4, z: 0 },
+      });
+    }
+
+    // ── 线脚：footprint 顶边一圈薄 box（4 条，seed 交替深浅）──
+    const trimH = 0.18;
+    const trimAlt = rnd() > 0.5;
+    const trimColor = trimAlt ? 0xf5f5f5 : 0xdddddd;
+    push({ type: 'box', width: fp.width + 0.3, height: trimH, depth: 0.15, color: trimColor, position: { x: 0, y: round2(y - trimH), z: round2(fp.depth / 2) } });
+    push({ type: 'box', width: fp.width + 0.3, height: trimH, depth: 0.15, color: trimColor, position: { x: 0, y: round2(y - trimH), z: round2(-fp.depth / 2) } });
+    push({ type: 'box', width: 0.15, height: trimH, depth: fp.depth + 0.3, color: trimColor, position: { x: round2(fp.width / 2), y: round2(y - trimH), z: 0 } });
+    push({ type: 'box', width: 0.15, height: trimH, depth: fp.depth + 0.3, color: trimColor, position: { x: round2(-fp.width / 2), y: round2(y - trimH), z: 0 } });
+
+    return { name: s.name || String(s.buildingType || '建筑'), components: comps };
+  }
 }
+
+function round2(v) { return Math.round(Number(v) * 100) / 100; }
 
 module.exports = new GeometryBuilder();

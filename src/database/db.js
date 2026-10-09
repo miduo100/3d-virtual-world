@@ -78,7 +78,8 @@ async function initializeDatabase() {
     'migrations/add_world_memories.sql',          // Phase 3: World AI 持久记忆（P2-8；压缩/遗忘定时属 Phase 4）
     'migrations/add_world_events.sql',            // Phase 4: 全站唯一事件流（唯一写入器 perception/eventLog.js）
     'migrations/add_world_tool_executions.sql',   // Phase 4: 工具执行账本（before/after/undo + 每日预算查表口径）
-    'migrations/add_world_metrics_daily.sql'      // Phase 4: 日聚合表（区域热度/参与率 6 指标）
+    'migrations/add_world_metrics_daily.sql',      // Phase 4: 日聚合表（区域热度/参与率 6 指标）
+    'migrations/add_world_entities.sql'            // Phase 5: world_entities + world_entity_parts（完整实体 = N 个 world_object + 1 Entity 索引）
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);

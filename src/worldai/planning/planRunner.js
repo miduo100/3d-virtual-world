@@ -51,21 +51,30 @@ async function attemptApprovedPlan(worldId) {
   }
   const step = stepR.rows[0];
 
-  // P2-6：非 low（含被人工锁定为 high/medium 的）一律不自动执行 → 审批闸
+  // P2-6 + §G.4（Phase 5 放开）：非 low 走审批闸；例外 = medium 且未被人工锁定
+  // 且 risk_policy.medium='auto'（riskGate 裁决）→ 直接执行。
+  // human_risk_locked 的 step 永不放开（P2-6：AI 不得降级人工设定的风险等级）。
   if (step.risk_tier !== 'low') {
-    await query(
-      `UPDATE world_plan_steps SET status='awaiting_approval',
-          error = $2, finished_at = NULL, updated_at = NOW() WHERE id = $1`,
-      [step.id, '风险等级 ' + step.risk_tier + (step.human_risk_locked ? '（人工设定，AI 不得降级）' : '') + ' 需人工审批（Phase 4 审批闸），不自动执行']
-    );
-    await query(
-      `INSERT INTO world_approvals (world_id, target_type, target_id, risk_tier, payload, decision, expires_at)
-       VALUES ($1,'tool',$2,$3,$4,'pending', NOW() + INTERVAL '72 hours')`,
-      [String(worldId), step.id, step.risk_tier,
-        JSON.stringify({ planId: String(active.id), tool: step.tool_name, params: step.params, phaseNo: step.phase_no, seq: step.seq })]
-    );
-    logger.audit('world_ai_step_awaiting_approval', { planId: String(active.id), stepId: String(step.id), risk: step.risk_tier, locked: step.human_risk_locked });
-    return { ok: true, action: 'awaiting_approval', planId: String(active.id), stepId: String(step.id), risk: step.risk_tier };
+    let mediumAuto = false;
+    if (step.risk_tier === 'medium' && !step.human_risk_locked) {
+      const rg = await require('../runtime/riskGate').decide(String(worldId), 'medium');
+      mediumAuto = rg.action === 'execute';
+    }
+    if (!mediumAuto) {
+      await query(
+        `UPDATE world_plan_steps SET status='awaiting_approval',
+            error = $2, finished_at = NULL, updated_at = NOW() WHERE id = $1`,
+        [step.id, '风险等级 ' + step.risk_tier + (step.human_risk_locked ? '（人工设定，AI 不得降级）' : '') + ' 需人工审批（Phase 4 审批闸），不自动执行']
+      );
+      await query(
+        `INSERT INTO world_approvals (world_id, target_type, target_id, risk_tier, payload, decision, expires_at)
+         VALUES ($1,'tool',$2,$3,$4,'pending', NOW() + INTERVAL '72 hours')`,
+        [String(worldId), step.id, step.risk_tier,
+          JSON.stringify({ planId: String(active.id), tool: step.tool_name, params: step.params, phaseNo: step.phase_no, seq: step.seq })]
+      );
+      logger.audit('world_ai_step_awaiting_approval', { planId: String(active.id), stepId: String(step.id), risk: step.risk_tier, locked: step.human_risk_locked });
+      return { ok: true, action: 'awaiting_approval', planId: String(active.id), stepId: String(step.id), risk: step.risk_tier };
+    }
   }
 
   // P2-7 / Phase 4：低风险 step 走统一执行器（注册表/校验/预算/守卫/风险闸/账本全在 executor）

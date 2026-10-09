@@ -32,6 +32,8 @@ function ensureLoaded() {
   require('../tools/observationTools').registerAll();
   require('../tools/spatialTools').registerAll();
   require('../tools/analyticsTools').registerAll();
+  require('../tools/buildingTools').registerAll();   // Phase 5：建筑 6 工具
+  require('../tools/npcTools').registerAll();        // Phase 5：NPC/玩法 4 工具
 }
 
 function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
@@ -51,10 +53,10 @@ async function buildGuardCtx(ctx, target, def) {
   };
 }
 
-/** 取守卫目标行：create_object 用预设行，其余按 objectId 查真实行 */
+/** 取守卫目标行：create 类用预设行；entity 类取实体首个部件行；其余按 objectId 查真实行 */
 async function resolveTarget(def, params, ctx) {
   if (!def.guardAction) return { target: null, gctx: await buildGuardCtx(ctx, null, def) };
-  if (def.name === 'create_object') {
+  if (def.name === 'create_object' || def.presetTarget === 'create') {
     const target = {
       origin: 'ai',
       region_id: params.regionId || null,
@@ -64,6 +66,24 @@ async function resolveTarget(def, params, ctx) {
       is_locked: false,
     };
     return { target, gctx: await buildGuardCtx(ctx, target, def) };
+  }
+  if (def.presetTarget === 'entity') {
+    const er = await query(`SELECT * FROM world_entities WHERE id = $1 AND world_id = $2`,
+      [String(params.entityId || ''), String(ctx.worldId)]);
+    const entity = er.rows[0] || null;
+    if (!entity) {
+      return { invalid: { ok: false, code: 'ENTITY_NOT_FOUND', reason: '实体不存在：' + (params.entityId || '(空)') } };
+    }
+    const pr = await query(
+      `SELECT o.* FROM world_entity_parts pa JOIN world_objects o ON o.id = pa.world_object_id
+        WHERE pa.entity_id = $1 ORDER BY pa.id ASC LIMIT 1`, [entity.id]);
+    const row = pr.rows[0] || {
+      origin: 'ai', region_id: entity.region_key, created_by: entity.created_by,
+      is_locked: false, position_x: 0, position_z: 0, type: 'building',
+    };
+    const gctx = await buildGuardCtx(ctx, row, def);
+    gctx.entityId = entity.id;
+    return { target: row, gctx, entity };
   }
   const id = Number(params.objectId);
   if (!Number.isInteger(id) || id <= 0) {
@@ -123,6 +143,18 @@ async function execute(toolName, params, ctx) {
       error: 'ToolValidation: ' + v.errors.map((e) => (e.path || '(root)') + ' ' + e.message).join('; ').slice(0, 500),
     });
     return v;
+  }
+  // ②b Phase 5 预算闸（assetValidator 等）：参数合法但超出结构/面数预算 → DENY + 结构化错误
+  if (typeof def.preValidate === 'function') {
+    const pv = await def.preValidate(p);
+    if (!pv || pv.ok !== true) {
+      await toolJournal.markDenied({
+        worldId: c.worldId, planId: c.planId, planStepId: c.planStepId, toolName: def.name,
+        params: p, riskTier: def.risk, actor: c.actor, reason: c.reason,
+        error: (pv && (pv.hint || pv.code)) || 'PreValidate DENY',
+      });
+      return pv && pv.ok === false ? pv : { ok: false, code: 'PRE_VALIDATE', reason: '预校验未通过' };
+    }
   }
   // ③ 预算（查表不查内存，P3-9）
   const b = await budget.check(c.worldId, c.runUsed);
@@ -196,7 +228,7 @@ async function resume(executionId, opts) {
   };
   const t = await resolveTarget(def, params, ctx);
   if (t.invalid) return t.invalid;
-  if (def.guardAction && ['modify_object', 'move_object', 'rotate_object', 'scale_object', 'delete_object', 'create_object'].indexOf(def.name) >= 0) {
+  if (def.guardAction && def.presetTarget !== 'create') {
     const verdict = guard.check(def.guardAction, t.target, t.gctx);
     if (!verdict.allow) {
       await toolJournal.finishFail(exec.id, '审批后守卫仍拒绝：' + verdict.code + ' ' + verdict.reason, 0);

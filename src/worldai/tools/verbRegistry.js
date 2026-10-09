@@ -42,6 +42,8 @@ function register(def) {
     summary: d.summary || '',
     params: d.params || { type: 'object', properties: {}, required: [] },
     guardAction: d.guardAction || null,   // 需过 ownershipGuard 的动词（null = 不碰 world_objects）
+    presetTarget: d.presetTarget || null, // Phase 5：'create'=按 x/z 预设 AI 行；'entity'=按 entityId 取部件行作守卫目标
+    preValidate: typeof d.preValidate === 'function' ? d.preValidate : null, // Phase 5：executor 校验层之后、impl 之前的预算闸（assetValidator）
     impl: typeof d.impl === 'function' ? d.impl : null,
   });
 }

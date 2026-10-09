@@ -184,10 +184,24 @@ class GeometryRenderer {
           );
           break;
         case 'cone':
-          geometry = new THREE.ConeGeometry(
+          // Phase 5（P4-11）：模板写 radiusBottom/radiusTop，旧实现只读 radius → 屋顶退化为默认小锥
+          {
+            const rBottom = comp.radiusBottom !== undefined ? comp.radiusBottom : (comp.radius || 1);
+            const rTop = comp.radiusTop !== undefined ? comp.radiusTop : 0;
+            if (rTop > 0) {
+              geometry = new THREE.CylinderGeometry(rTop, rBottom, comp.height || 2, comp.radialSegments || 8);
+            } else {
+              geometry = new THREE.ConeGeometry(rBottom, comp.height || 2, comp.radialSegments || 8);
+            }
+          }
+          break;
+        case 'torus':
+          // Phase 5（P4-12）：well 模板的井口（旧实现静默丢弃）
+          geometry = new THREE.TorusGeometry(
             comp.radius || 1,
-            comp.height || 2,
-            comp.radialSegments || 8
+            comp.tube || 0.4,
+            comp.radialSegments || 16,
+            comp.tubularSegments || 32
           );
           break;
         default:

@@ -270,6 +270,7 @@ function init() {
   if (_inited) return;
   _inited = true;
   recover().catch((e) => console.warn('[worldAiRuntime] 启动恢复失败（不影响服务器启动）:', e.message));
+  require('../memory/memoryMaintenance').startLoop();   // Phase 5：world_memories 压缩/遗忘定时（Phase 4 遗留②）
 }
 
 function getDiag() {

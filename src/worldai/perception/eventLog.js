@@ -28,6 +28,7 @@ const TYPES = [
   'entity_enter_region', 'entity_exit_region', 'chat', 'object_interact',
   'object_created', 'object_removed', 'task_progress', 'task_completed',
   'activity_participant', 'economy', 'npc_talk',
+  'entity_created', 'entity_removed',   // Phase 5：完整实体（P4 判据走 eventLog 唯一写入器）
 ];
 
 let warned = false;

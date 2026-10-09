@@ -62,6 +62,9 @@ router.use('/', require('./worldAiPlan'));
 // ── Ops（Phase 4 · P3-1~P3-14）：工具账本 / tool 审批 / 感知（快照·事件·分析·记忆）──
 router.use('/', require('./worldAiOps'));
 
+// ── Build（Phase 5 · P4-1~P4-17）：spec 预览 / 实体六段 / Steward ──
+router.use('/', require('./worldAiBuild'));
+
 // GET /api/world-ai/config
 router.get('/config', async (req, res) => {
   try {

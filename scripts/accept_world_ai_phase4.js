@@ -93,9 +93,10 @@ async function restoreConfig() {
   const execOne = async (tool, params, extraCtx) => executor.execute(tool, params, E(extraCtx));
 
   // ── A. 注册表（前置事实）────────────────────────────────────────
+  // Phase 5 起注册表扩到 33（23 + 建筑6 + NPC4）；本判据的不变量 = never 类不存在 + Phase 4 工具在位
   executor.ensureLoaded();
-  log('A1 注册表 23 工具且 never 类不存在',
-    verbRegistry.size() === 23 && !verbRegistry.has('eval') && !verbRegistry.has('raw_sql')
+  log('A1 注册表 ≥33 工具（23+Phase5 10）且 never 类不存在',
+    verbRegistry.size() >= 33 && !verbRegistry.has('eval') && !verbRegistry.has('raw_sql')
       && !verbRegistry.has('upload_model') && !verbRegistry.has('threejs_code.create')
       && verbRegistry.has('create_object') && verbRegistry.has('delete_object') && verbRegistry.has('observe_world'),
     'size=' + verbRegistry.size());
