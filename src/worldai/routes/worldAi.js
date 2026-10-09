@@ -50,6 +50,12 @@ router.post('/auth/exchange', async (req, res) => {
 // ── 以下全部管理员 ──────────────────────────────────────────────────────
 router.use(authenticateAdminToken);
 
+// ── Runtime（Phase 2b · P1-7/8/9）：子路由继承本层管理员鉴权；init() 做崩溃恢复（幂等）──
+const worldAiRuntimeRoutes = require('./worldAiRuntime');
+const worldAiRuntime = require('../runtime/worldAiRuntime');
+router.use('/runtime', worldAiRuntimeRoutes);
+worldAiRuntime.init();
+
 // GET /api/world-ai/config
 router.get('/config', async (req, res) => {
   try {

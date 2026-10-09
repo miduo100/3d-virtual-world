@@ -154,6 +154,24 @@ router.post('/missions/:id/rollback', async (req, res) => {
   }
 });
 
+// 排队：把委托交给 Runtime 自动执行（Phase 2b 调度最小闭环）。
+// queued = 管理员显式批准自动执行；每次 tick 取最旧一条 queued 跑。
+router.post('/missions/:id/queue', async (req, res) => {
+  try {
+    const m = await missionService.getMission(req.params.id);
+    if (!m) return res.status(404).json({ success: false, error: '委托不存在' });
+    if (['completed', 'rolled_back', 'queued'].indexOf(m.status) >= 0) {
+      return res.status(400).json({ success: false, code: 'QUEUE_NOT_ALLOWED', error: '当前状态 ' + m.status + ' 不能排队（completed/rolled_back 不可再跑；已在排队则无需重复）' });
+    }
+    const r = await missionService.setStatus(m.id, 'queued');
+    if (!r.ok) return res.status(400).json({ success: false, error: r.reason, code: r.code });
+    await logAdminAction(req.adminUser.id, 'world_ai_mission_queue', 'world_build_missions', m.id, JSON.stringify({ from: m.status }), req.ip);
+    res.json({ success: true, mission: r.mission });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // 预览：生成布局但不落库（后台「生成方案」按钮；人工可编辑后再执行）
 router.post('/missions/:id/plan', async (req, res) => {
   try {
