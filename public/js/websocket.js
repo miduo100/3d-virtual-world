@@ -112,6 +112,14 @@ class WSClient {
         this.handleChat(payload);
         break;
 
+      // 服务端限流回执（2026-10-09）：此前超频消息被服务端静默丢弃，
+      // 玩家看到的是"点了发送毫无反应"，这里给出可读提示
+      case 'RATE_LIMITED':
+        if (typeof UI !== 'undefined' && UI.addChatMessage) {
+          UI.addChatMessage('系统', (payload && payload.message) || '操作过于频繁，请稍后再试');
+        }
+        break;
+
       case 'WEATHER_CHANGE':
         this.handleWeatherChange(payload);
         break;

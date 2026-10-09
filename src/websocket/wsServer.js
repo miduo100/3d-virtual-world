@@ -17,6 +17,32 @@ const activeConnections = new Map();
 const ghostWarnAt = new Map();
 
 /**
+ * 单连接消息限频（2026-09-29 安全修复 E3 引入，2026-10-09 分桶）
+ *
+ * 【必须分桶的原因】客户端 `player.update()` 每帧上报 POSITION_UPDATE（60fps → 60 条/秒，
+ * 144Hz 屏 → 144 条/秒）。若与业务消息共用 30 条/秒总闸，位置流会把额度吃光，玩家点击
+ * 发送的 CHAT 落在第 31 条之后就被静默丢弃 —— 现象："点了发送，自己头上不显示气泡、
+ * 对方也收不到，没有任何提示，过一会儿再发又能发出去"。实测复现：无位置流 40/40 送达，
+ * 有 60Hz 位置流仅 26/40（65%）。
+ * 因此：位置流单独一桶（额度覆盖高刷屏，仅防滥用），业务消息保留 30/秒。
+ */
+const BIZ_MSG_LIMIT = 30;    // 业务消息（CHAT/VOICE/技能/模型更新…）条/秒
+const POS_MSG_LIMIT = 150;   // 位置流条/秒（覆盖 144Hz 逐帧上报）
+const POS_TYPE_MARKER = Buffer.from('"type":"POSITION_UPDATE"');
+const POS_TYPE_MARKER_STR = '"type":"POSITION_UPDATE"';
+
+/** 轻量识别位置流：只扫消息头（前端 JSON.stringify 的 type 在最前），不做完整解析 */
+function isPositionUpdate(message) {
+  try {
+    if (typeof message === 'string') return message.slice(0, 256).indexOf(POS_TYPE_MARKER_STR) !== -1;
+    if (Buffer.isBuffer(message)) return message.subarray(0, 256).indexOf(POS_TYPE_MARKER) !== -1;
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
  * 连接已建立但服务器没有它的玩家登记（playerPositions）时的提示。
  * 这类连接发来的位置/模型更新会被静默忽略，对方就"永远看不到它移动"，
  * 排查时极难发现，因此每 30s 打一次日志（前端 wsPresenceGuard 会自动重发
@@ -50,13 +76,30 @@ function setupWebSocketServer(httpServer) {
 
       console.log(`Client connected: ${connectionId}`);
 
-      // E3 修复 D5④：单连接 30 条/秒上限（此前人类 WS 无限频，可刷屏放大扇出 DoS）
-      ws._msgWindow = { start: Date.now(), count: 0 };
+      // E3 修复 D5④：单连接限频（此前人类 WS 无限频，可刷屏放大扇出 DoS）。
+      // 2026-10-09：位置流与业务消息分桶计数 —— 逐帧上报的位置流不再挤占聊天额度
+      ws._msgWindow = { start: Date.now(), count: 0, warnedAt: 0 };  // 业务消息桶
+      ws._posWindow = { start: Date.now(), count: 0 };               // 位置流桶
 
       ws.on('message', (message) => {
-        const _w = ws._msgWindow; const _now = Date.now();
+        const _now = Date.now();
+        const _isPos = isPositionUpdate(message);
+        const _w = _isPos ? ws._posWindow : ws._msgWindow;
         if (_now - _w.start >= 1000) { _w.start = _now; _w.count = 0; }
-        if (++_w.count > 30) return;   // 超频消息直接丢弃（不解析、不广播）
+        if (++_w.count > (_isPos ? POS_MSG_LIMIT : BIZ_MSG_LIMIT)) {
+          // 业务消息超频：此前完全静默（前端表现为"点了发送没反应、头上也不显示"），
+          // 这里回一条可读提示（每条连接 2s 最多一次，避免自身变成放大器）
+          if (!_isPos && _now - _w.warnedAt > 2000) {
+            _w.warnedAt = _now;
+            try {
+              ws.send(JSON.stringify({
+                type: 'RATE_LIMITED',
+                payload: { message: '操作过于频繁，消息未发送，请稍后再试' },
+              }));
+            } catch (e) { /* 连接已断，忽略 */ }
+          }
+          return;   // 超频消息直接丢弃（不解析、不广播）
+        }
         try {
           const data = JSON.parse(message);
           handleMessage(connectionId, ws, data);
