@@ -26,6 +26,7 @@
 const { query } = require('../../database/db');
 const worldAiConfig = require('../config');
 const missionRunner = require('../missions/missionRunner');
+const planRunner = require('../planning/planRunner'); // Phase 3：approved Plan 的步骤尝试（P2-6/7）
 const logger = require('../../services/logger');
 
 const STATES = ['stopped', 'running', 'paused', 'error'];
@@ -119,7 +120,14 @@ async function tick(source, opts) {
         WHERE world_id = $1 AND status = 'queued' ORDER BY created_at ASC LIMIT 1`,
       [String(cfg.world_id)]
     );
-    if (!q.rows.length) return { ok: true, action: 'idle', reason: '没有排队中的建设委托' };
+    if (!q.rows.length) {
+      // 无排队委托 → 尝试推进已批准 Plan 的下一步（Phase 3；工具未注册会明确失败并记 memory，
+      // 这是预期路径不计熔断——熔断是 LLM 委托轮次的闸，Phase 4 工具执行再纳入轮预算）
+      const pa = await planRunner.attemptApprovedPlan(cfg.world_id)
+        .catch((e) => ({ ok: false, action: 'plan_error', reason: String(e && e.message).slice(0, 200) }));
+      if (pa.action && pa.action !== 'none') return { ok: true, action: pa.action, plan: pa };
+      return { ok: true, action: 'idle', reason: '没有排队中的建设委托，也没有待执行的已批准规划' };
+    }
     const m = q.rows[0];
 
     let r;

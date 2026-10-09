@@ -71,7 +71,11 @@ async function initializeDatabase() {
     'migrations/add_world_interactions.sql',     // Phase 3.5-1: 可交互点（极简玩法 reward_grant）
     'migrations/add_world_tasks_mini.sql',       // Phase 3.5-1: 极简引导任务 + 进度
     'migrations/add_ai_call_log_refs.sql',        // Phase 3.5-1: ai_call_log 加mission_id/region_key/context_meta（委托级预算查表计数）
-    'migrations/add_world_reward_grants.sql'     // Phase 3.5-2: Agent 领取记录（Agent 无 users 行 → 无法写 player_inventory，见迁移文件头）
+    'migrations/add_world_reward_grants.sql',     // Phase 3.5-2: Agent 领取记录（Agent 无 users 行 → 无法写 player_inventory，见迁移文件头）
+    'migrations/add_world_goals.sql',             // Phase 3: 世界目标与愿景（hard_rules/soft_prefs）
+    'migrations/add_world_plans.sql',             // Phase 3: World Plan 审批主体 + 执行步骤（draft→review→approved）
+    'migrations/add_world_approvals.sql',         // Phase 3: 人工审批（Plan 级，Tool 级 Phase 4 共用）
+    'migrations/add_world_memories.sql'           // Phase 3: World AI 持久记忆（P2-8；压缩/遗忘定时属 Phase 4）
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);

@@ -64,7 +64,7 @@ function sanitizeUntrusted(text) {
   let s = String(text == null ? '' : text);
   s = s.replace(/\[\[?\s*\/?\s*UNTRUSTED[^\]\n]*\]\]?/gi, '[已剥离伪造标记]');
   s = s.replace(/ignore\s+(?:all\s+)?(?:previous|above|prior|earlier)\s+(?:instructions?|prompts?|rules?)/gi, '[已过滤注入语句]');
-  s = s.replace(/忽略(?:上面|以上|之前|前面)(?:的)?(?:所有)?(?:指令|提示|要求|规则)/g, '[已过滤注入语句]');
+  s = s.replace(/忽略(?:上面|以上|之前|前面)?的?(?:所有|全部)?(?:指令|提示词|提示|要求|规则)/g, '[已过滤注入语句]');
   s = s.replace(/(?:disregard|forget)\s+(?:everything|all)\s+(?:above|before)/gi, '[已过滤注入语句]');
   return s.trim();
 }

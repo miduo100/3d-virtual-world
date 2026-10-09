@@ -56,6 +56,9 @@ const worldAiRuntime = require('../runtime/worldAiRuntime');
 router.use('/runtime', worldAiRuntimeRoutes);
 worldAiRuntime.init();
 
+// ── Planning（Phase 3 · P2-1~P2-9）：目标 / 规划 / 审批 ──
+router.use('/', require('./worldAiPlan'));
+
 // GET /api/world-ai/config
 router.get('/config', async (req, res) => {
   try {
