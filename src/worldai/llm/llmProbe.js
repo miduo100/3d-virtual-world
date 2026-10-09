@@ -273,7 +273,9 @@ async function probe(o) {
             result.wroteBack = true;
             result.wroteBackReason = curVal === 0 ? '首次回填' : `上调（${curVal} → ${w.contextWindowTokens}）`;
           } else {
-            result.wroteBackReason = `不覆盖（世界级已有 ${curVal}，本厂商实测 ${w.contextWindowTokens} 更小；按已知最大窗口装配，超窗会在上游显式报错）`;
+            result.wroteBackReason = w.contextWindowTokens === curVal
+              ? `无需回填（世界级已是 ${curVal}）`
+              : `不覆盖（世界级已有 ${curVal}，本厂商实测 ${w.contextWindowTokens} 更小；按已知最大窗口装配，超窗会在上游显式报错）`;
           }
         } catch (e) {
           result.stages.window.writeBackError = e.message;
