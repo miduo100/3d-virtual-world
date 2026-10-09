@@ -91,6 +91,26 @@ async function api(p, { method = 'GET', token, body } = {}) {
   const credVisible = await page.locator('#awb-cred-list').isVisible();
   log(credVisible, 'U7 凭证管理区可见', '');
 
+  // U9 队列项 2a-2 追加：用量与健康度面板真实渲染（读GET /usage）
+  await page.waitForFunction(() => {
+    const el = document.getElementById('awb-usage-box');
+    return el && el.textContent && el.textContent.indexOf('加载中') < 0;
+  }, null, { timeout: 8000 }).catch(() => {});
+  const usageText = await page.evaluate(() => {
+    const el = document.getElementById('awb-usage-box');
+    return el ? el.textContent : '';
+  });
+  log(usageText.indexOf('今日调用') >= 0 && usageText.indexOf('加载中') < 0,
+    'U9 「用量与健康度」面板渲染出今日统计（读 GET /usage）', usageText.slice(0, 60));
+
+  // U10 队列项 2a-2 追加：探活下拉已按已启用厂商填充
+  const probeOpts = await page.evaluate(() => {
+    const el = document.getElementById('awb-probe-provider');
+    return el ? Array.from(el.options).map((o) => o.textContent.trim()) : [];
+  });
+  log(probeOpts.length >= 2 && probeOpts[0].indexOf('自动') >= 0,
+    'U10 探活下拉存在且首项是「按用途自动选」（不硬编码厂商）', JSON.stringify(probeOpts));
+
   // U8 恢复现场 + 0 console error
   await api('/api/world-ai/config', {
     token: T, method: 'PUT',

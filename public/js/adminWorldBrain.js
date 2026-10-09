@@ -6,7 +6,8 @@
  *
  * 范围（队列项 1）：总闸/世界级自主度/模型参数/用途级 provider_map 选择器/System Prompt/
  *                   预算与风险策略/凭证管理（创建·轮换·暂停·恢复·吊销）。
- * 不在本项：config/test-llm 探活、GET /usage 健康度（队列项 2）；区域与建设（3.5）。
+ * 队列项 2 追加：厂商探活（POST config/test-llm 三档，队列项 2）+ 「📊 用量与健康度」面板（GET /usage）。
+ * 不在本项：Runtime 状态机与熔断执行（2b）；区域与建设（3.5）。
  *
  * 铁律（§H.10.1）：厂商与 API Key 只在「系统配置 → 🤖 AI提供商」维护；
  * 本页只写 provider 引用（provider_map），绝不出现 Key 输入框。
@@ -137,6 +138,10 @@
           '</details>' +
           '<div class="awb-field" style="margin-bottom:0;"><label>熔断</label>' +
             '<span class="awb-tag a">连续 3 次失败自动暂停 + 通知（Phase 2b 生效）</span></div>' +
+          '<div class="awb-field" style="margin-top:14px;margin-bottom:0;"><label>厂商探活（三档：连通 / 窗口实测 / 能力）</label>' +
+            '<div class="awb-inline"><select id="awb-probe-provider" style="max-width:190px;"></select>' +
+            '<button id="awb-probe-btn" style="background:var(--card-bg);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 12px;cursor:pointer;">🩺 探活</button>' +
+            '<span id="awb-probe-out" class="awb-tag">未探活</span></div></div>' +
         '</div>' +
         '<div class="awb-panel"><h3>🛡️ 权限与风险</h3>' +
           '<div class="awb-field"><label>世界级自主度基调（区域可调严，不可调松；实际生效取两者较严）</label>' +
@@ -157,6 +162,9 @@
       // ── System Prompt（全宽）──
       '<div class="awb-panel" style="margin-bottom:12px;"><h3>📝 System Prompt（世界大脑的人设与硬规则）</h3>' +
         '<textarea id="awb-system-prompt" rows="4" maxlength="20000" placeholder="示例：你是创世虚拟世界的管理员 AI，负责按区域规划与建设…"></textarea></div>' +
+      // ── 用量与健康度（全宽，读 ai_call_log 聚合）──
+      '<div class="awb-panel" style="margin-bottom:12px;"><h3>📊 用量与健康度 <span class="awb-tag">数据源 ai_call_log · 按 Asia/Shanghai 切日</span></h3>' +
+        '<div id="awb-usage-box"><small style="color:var(--muted);">加载中…</small></div></div>' +
       // ── 凭证（全宽）──
       '<div class="awb-panel" style="margin-bottom:12px;"><h3>🔑 World AI 凭证 <span class="awb-tag">与 Agent Key 分离 · 明文只显示一次</span></h3>' +
         '<div class="awb-field"><div class="awb-inline">名称 <input type="text" id="awb-cred-name" maxlength="120" placeholder="如 runtime-primary" style="width:180px;">' +
@@ -172,6 +180,74 @@
     $('awb-save-btn').onclick = save;
     $('awb-cred-create').addEventListener('click', () => createCredential());
     $('awb-enabled').addEventListener('change', updateRunDot);
+    const probeBtn = $('awb-probe-btn');
+    if (probeBtn) probeBtn.addEventListener('click', () => runProbe());
+  }
+
+  // ==================== 用量与健康度（只读聚合）====================
+  async function loadUsage() {
+    const box = $('awb-usage-box');
+    if (!box) return;
+    try {
+      const res = await jreq('GET', API + '/usage?days=7');
+      const u = res.usage || {};
+      const t = u.today || {};
+      const hl = u.health || {};
+      const b = u.budgets || {};
+      const pct = (a, c) => (c > 0 ? Math.min(100, Math.round((a / c) * 100)) + '%（' + a + '/' + c + '）' : String(a));
+      const hlTag = hl.status === 'ok' ? '<span class="awb-tag g">正常</span>'
+        : (hl.status === 'idle' ? '<span class="awb-tag">今日无调用</span>' : '<span class="awb-tag a">降级（失败率 ' + (hl.todayFailRate || 0) + '%）</span>');
+      const rows = (u.byProvider || []).slice(0, 5).map(p =>
+        '<tr><td style="padding:4px 8px;">' + esc(p.provider_name) + '</td>' +
+        '<td style="padding:4px 8px;">' + p.calls + ' 次</td>' +
+        '<td style="padding:4px 8px;color:' + (p.failed ? 'var(--red)' : 'inherit') + ';">失败 ' + p.failed + '</td>' +
+        '<td style="padding:4px 8px;">' + Number(p.tokens || 0) + ' token</td></tr>').join('');
+      const errs = (u.recentErrors || []).slice(0, 3).map(e =>
+        '<li>' + esc(new Date(e.created_at).toLocaleString()) + ' · ' + esc(e.provider_name || '-') + ' · ' +
+        esc(e.error_code || '-') + '：' + esc((e.error_message || '').slice(0, 80)) + '</li>').join('');
+      box.innerHTML =
+        '<div class="awb-inline" style="margin-bottom:10px;">' + hlTag +
+        '<span class="awb-tag">今日调用 ' + (t.calls || 0) + ' 次</span>' +
+        '<span class="awb-tag">今日 token ' + (t.tokens || 0) + '</span>' +
+        '<span class="awb-tag">今日失败 ' + (t.failed || 0) + '</span>' +
+        '<span class="awb-tag">平均耗时 ' + (t.avgLatencyMs || 0) + 'ms</span></div>' +
+        '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">预算占用：调用 ' + pct(t.calls || 0, b.llmCallsPerDay) + ' · token ' + pct(t.tokens || 0, b.tokensPerDay) + '</div>' +
+        (rows ? '<table style="width:100%;border-collapse:collapse;font-size:12px;"><tr style="color:var(--muted);text-align:left;">' +
+          '<th style="padding:4px 8px;">厂商（近 7 天）</th><th style="padding:4px 8px;">调用</th><th style="padding:4px 8px;">失败</th><th style="padding:4px 8px;">token</th></tr>' + rows + '</table>' : '') +
+        (errs ? '<ul style="font-size:12px;color:var(--muted);margin:10px 0 0;padding-left:18px;">' + errs + '</ul>' : '');
+    } catch (e) {
+      box.innerHTML = '<small style="color:var(--muted);">用量读取失败：' + esc(e.message) + '</small>';
+    }
+  }
+
+  // ==================== 厂商探活（手动触发，成本可控）====================
+  async function runProbe() {
+    const sel = $('awb-probe-provider');
+    const out = $('awb-probe-out');
+    if (!out) return;
+    const pid = sel && sel.value ? Number(sel.value) : null;
+    out.textContent = '探活中…（窗口档最多 4 次小请求）';
+    try {
+      const res = await jreq('POST', API + '/config/test-llm', { provider_id: pid, purpose: 'plan' });
+      const r = res.result || {};
+      const c = r.stages && r.stages.connect;
+      const w = r.stages && r.stages.window;
+      const cap = r.stages && r.stages.capability;
+      const bits = [];
+      bits.push(c ? (c.ok ? '连通✅' : '连通❌') : '');
+      bits.push(w ? (w.ok ? '窗口 ' + w.contextWindowTokens : '窗口未测') : '');
+      if (cap) bits.push('tools ' + (cap.tools && cap.tools.supported ? '✅' : '❌') + ' / json ' + (cap.jsonSchema && cap.jsonSchema.supported ? '✅' : '❌'));
+      out.textContent = bits.filter(Boolean).join(' · ');
+      if (!r.ok && r.diagnosis) {
+        showMsg('探活未通过：' + (r.diagnosis.diagnosis || r.diagnosis.code) + (r.diagnosis.hint ? '（' + r.diagnosis.hint + '）' : ''), false);
+      } else {
+        showMsg('✅ 探活完成' + (r.wroteBack ? '，上下文窗口已回填 ' + r.contextWindowTokens : ''), true);
+      }
+      await loadUsage();
+    } catch (e) {
+      out.textContent = '探活失败';
+      showMsg('探活失败: ' + e.message, false);
+    }
   }
 
   function updateRunDot() {
@@ -196,6 +272,7 @@
       fillProviderRow(cfgRes.config || {});
       fillConfig(cfgRes.config || {});
       await loadCredentials();
+      loadUsage();
     } catch (e) {
       showMsg('加载失败: ' + e.message, false);
     }
@@ -210,6 +287,13 @@
         .concat(providers.map((pv) => '<option value="' + pv.id + '"' + (Number(map[p]) === Number(pv.id) ? ' selected' : '') + '>' + esc(pv.display_name || pv.provider_name || ('#' + pv.id)) + '</option>'));
       sel.innerHTML = opts.join('');
     });
+    // 探活下拉：只列已启用厂商（§H.10.1：不提供"禁用厂商"开关，停用请去 AI 提供商页）
+    const ps = $('awb-probe-provider');
+    if (ps) {
+      ps.innerHTML = ['<option value="">按用途自动选（provider_map → 候选链）</option>']
+        .concat(providers.filter((pv) => pv.is_enabled !== false)
+          .map((pv) => '<option value="' + pv.id + '">' + esc(pv.display_name || pv.provider_name) + '</option>')).join('');
+    }
   }
 
   function fillConfig(c) {
@@ -367,6 +451,8 @@
     rotateCredential,
     setCredential,
     revokeCredential,
+    loadUsage,
+    runProbe,
   };
 
   buildDom();

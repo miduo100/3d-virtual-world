@@ -25,7 +25,9 @@ const UPDATABLE_FIELDS = [
   'context_window_tokens', 'budget', 'schedule',
 ];
 
-/** world_id 解析：federationSystem（内存权威）→ system_config('world_id') → 'default' */
+/** world_id 解析：federationSystem（内存权威）→ system_config('world_id') → 'default'
+ *  ★ 进程内调用（非server 进程，如验收脚本）拿不到 federationSystem 内存态，会回落到
+ *    system_config('world_id') 的**初始化占位 UUID**；这类调用必须显式传 worldId 参数。 */
 async function getWorldId() {
   try {
     const fed = require('../routes/federation');
@@ -60,6 +62,18 @@ async function updateConfig(patch, worldId) {
     const err = new Error('参数校验失败: ' + clean.errors.join('; '));
     err.statusCode = 400;
     throw err;
+  }
+  // P1-14（§H.10.3 硬约束）：plan 与 tool_select 都配且不同 → 拒绝保存
+  // 放在 sanitizePatch 之后：只有通过白名单与类型校验的 provider_map 才参与跨字段校验。
+  // 只配一个 = 继承（合法），两者都不配 = 全走候选链（合法）。
+  if (clean.sets.some((s) => s.col === 'provider_map')) {
+    const { validateProviderMap } = require('./llm/providerRouter');
+    const check = validateProviderMap(patch ? patch.provider_map : {});
+    if (!check.ok) {
+      const err = new Error(check.error);
+      err.statusCode = 400;
+      throw err;
+    }
   }
   if (!clean.sets.length) {
     const r = await query(`SELECT * FROM world_ai_configs WHERE world_id = $1`, [wid]);
