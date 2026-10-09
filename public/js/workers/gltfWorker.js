@@ -101,6 +101,48 @@ async function downscaleGltfTextures(gltf, maxTexSize) {
   }
 }
 
+/* ---------------- 纹理丢失守卫（v4）----------------
+ * 触发场景：iOS Safari(<17)/Firefox(<98) 的 UA 会让 GLTFLoader 选 TextureLoader
+ * （依赖 document/<img>），Worker 里没有 document → 内嵌贴图全部加载失败
+ * （GLTFLoader.loadTextureImage 的 catch 把失败吞成 null，parse 仍"成功"）→ 白模。
+ * 判定：以 glTF JSON 的**原始声明**为口径（materials 里的 *Texture 字段数），
+ * 声明了贴图但场景内一张带位图的纹理都没有 → 主动 fb 回退主线程 parse
+ *（主线程 TextureLoader 可用，贴图恢复）。注意不能用"场景槽位 !== undefined"数
+ * 声明——解析后失败槽位是 null（defined），Kipfel_Mobile（唯一贴图在
+ * emissiveTexture）实测就是被这个坑骗过首版守卫。
+ * 部分丢失不触发（宁可局部白也不整体回退大文件）。 */
+function texturesLost(gltf) {
+  try {
+    var json = gltf.parser && gltf.parser.json;
+    if (!json || !json.images || !json.images.length) return false;
+    var declared = 0;
+    (json.materials || []).forEach(function (m) {
+      if (!m) return;
+      var pbr = m.pbrMetallicRoughness || {};
+      if (pbr.baseColorTexture !== undefined) declared++;
+      if (pbr.metallicRoughnessTexture !== undefined) declared++;
+      if (m.normalTexture !== undefined) declared++;
+      if (m.occlusionTexture !== undefined) declared++;
+      if (m.emissiveTexture !== undefined) declared++;
+    });
+    if (declared === 0) return false;
+    var filled = 0;
+    gltf.scene.traverse(function (o) {
+      if (filled || !o.isMesh || !o.material) return;
+      var mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (var i = 0; i < mats.length; i++) {
+        var m = mats[i];
+        if (!m) continue;
+        for (var s = 0; s < TEX_SLOTS.length; s++) {
+          var t = m[TEX_SLOTS[s]];
+          if (t && t.image && t.image.width) { filled++; return; }
+        }
+      }
+    });
+    return filled === 0;
+  } catch (e) { return false; }
+}
+
 /* ---------------- 序列化（仅可安全重建的子集，其余回退） ---------------- */
 
 function serializeGltf(gltf, staticMode, strictMode) {
@@ -413,9 +455,15 @@ self.addEventListener('message', function (e) {
       return parseAsync(loader, msg.buffer, msg.resourcePath);
     })
     .then(function (gltf) {
+      if (texturesLost(gltf)) {
+        try { console.warn('[GltfWorker] 纹理全部丢失（Worker 无 document 的 TextureLoader 路径），回退主线程解析'); } catch (e) {}
+        self.postMessage({ type: 'fb', id: msg.id, reason: 'textures-lost' });
+        return null;   // 已回退，终止链路（后续阶段跳过）
+      }
       return downscaleGltfTextures(gltf, msg.maxTexSize).then(function () { return gltf; });
     })
     .then(function (gltf) {
+      if (!gltf) return;   // textures-lost 已回退
       try {
         var payload = serializeGltf(gltf, !!msg.static, !!msg.strict);
         self.postMessage({ type: 'ok', id: msg.id, payload: payload, transfer: payload.transfer }, payload.transfer);

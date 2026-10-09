@@ -17,7 +17,7 @@
   'use strict';
   if (window.GltfWorkerClient) return;
 
-  var DEFAULT_WORKER_URL = '/js/workers/gltfWorker.js?v=3';
+  var DEFAULT_WORKER_URL = '/js/workers/gltfWorker.js?v=4';
   var PARSE_TIMEOUT_MS = 30000;
 
   /* ---------------- 客户端工厂（二期B）----------------

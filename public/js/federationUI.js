@@ -649,47 +649,77 @@ class FederationUI {
       try { calibrationConfig = JSON.parse(localStorage.getItem('selectedTemplateCalibration') || 'null'); } catch(e) {}
 
       // 生成传送Token
-      const response = await fetch('/api/federation/teleport/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          targetWorldId,
-          context: {
-            position: playerPosition,
-            // ── 角色配置（目标世界用绝对URL远程加载）──
-            characterConfig: {
-              glbUrl,
-              animUrls,
-              weaponConfig,
-              boneMapConfig,
-              weaponSocketConfig,
-              calibrationConfig,
-              templateName:   localStorage.getItem('selectedTemplateName') || '',
-              modelHeight:    localStorage.getItem('selectedTemplateHeight') || '1.8',
-              sourceWorldUrl: window.location.origin,
-              ...(window.SelfContainedChar ? window.SelfContainedChar.buildSendExtra() : {})
-            },
-            // ── 背包信息（家园世界模式：奖励始终回写到玩家注册的家园世界）──
-            inventoryInfo: {
-              apiBaseUrl: window.location.origin,
-              userId:     localStorage.getItem('userId'),
-              token:      token,
-              // 家园世界信息：若当前世界本身就是家园世界则用当前值；
-              // 若已是多跳（本世界已有 homeWorld 记录），则透传家园世界信息
-              homeWorldApiUrl:  localStorage.getItem('homeWorldApiUrl')  || window.location.origin,
-              homeWorldUserId:  localStorage.getItem('homeWorldUserId')  || localStorage.getItem('userId'),
-              homeWorldToken:   localStorage.getItem('homeWorldToken')   || token
-            }
+      // ⚠️ 本方法走的是裸 fetch（不是 api.js 的 request），必须自带 token 失效兜底：
+      // 世界内浏览/移动/聊天全是免鉴权接口、不触发服务端滑动续期，
+      // 账号长时间不重新登录后 token 一到期，点传送就会直接 403「无效的token」。
+      const buildBody = (tk) => ({
+        targetWorldId,
+        context: {
+          position: playerPosition,
+          // ── 角色配置（目标世界用绝对URL远程加载）──
+          characterConfig: {
+            glbUrl,
+            animUrls,
+            weaponConfig,
+            boneMapConfig,
+            weaponSocketConfig,
+            calibrationConfig,
+            templateName:   localStorage.getItem('selectedTemplateName') || '',
+            modelHeight:    localStorage.getItem('selectedTemplateHeight') || '1.8',
+            sourceWorldUrl: window.location.origin,
+            ...(window.SelfContainedChar ? window.SelfContainedChar.buildSendExtra() : {})
+          },
+          // ── 背包信息（家园世界模式：奖励始终回写到玩家注册的家园世界）──
+          inventoryInfo: {
+            apiBaseUrl: window.location.origin,
+            userId:     localStorage.getItem('userId'),
+            token:      tk,
+            // 家园世界信息：若当前世界本身就是家园世界则用当前值；
+            // 若已是多跳（本世界已有 homeWorld 记录），则透传家园世界信息
+            homeWorldApiUrl:  localStorage.getItem('homeWorldApiUrl')  || window.location.origin,
+            homeWorldUserId:  localStorage.getItem('homeWorldUserId')  || localStorage.getItem('userId'),
+            homeWorldToken:   localStorage.getItem('homeWorldToken')   || tk
           }
-        })
+        }
       });
 
-      const data = await response.json();
+      // 始终用 localStorage 里的最新 token（页面内重登后自动生效）
+      const postGenerate = async (tk) => {
+        const response = await fetch('/api/federation/teleport/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${tk}`
+          },
+          body: JSON.stringify(buildBody(tk))
+        });
+        // 滑动续期：服务端随响应头下发的新 token 必须落盘
+        const renewed = response.headers.get('X-Renewed-Token');
+        if (renewed) localStorage.setItem('token', renewed);
+        const body = await response.json().catch(() => ({}));
+        return { ok: response.ok, status: response.status, body: body };
+      };
 
-      if (data.success) {
+      let res = await postGenerate(localStorage.getItem('token') || token);
+
+      // token 失效兜底：弹出登录框，重登成功后用新 token 重试一次（与 api.js 同口径）
+      if (!res.ok) {
+        const msg = (res.body && res.body.error) || ('传送请求失败 (' + res.status + ')');
+        const tokenInvalid = (res.status === 403 && msg.indexOf('无效的token') !== -1)
+          || (res.status === 401 && /token/i.test(msg));
+        if (tokenInvalid && window.AuthPrompt) {
+          try {
+            await window.AuthPrompt.prompt();
+          } catch (e) {
+            throw new Error(msg);   // 用户取消登录：维持原始错误提示
+          }
+          res = await postGenerate(localStorage.getItem('token') || token);
+        }
+      }
+
+      const data = res.body || {};
+
+      if (res.ok && data.success) {
         // 通过URL参数传递传送Token（sessionStorage不跨域）
         const targetUrl = data.targetUrl.replace(/\/+$/, '');
         window.location.href = `${targetUrl}?teleport=true&token=${encodeURIComponent(data.teleportToken)}`;

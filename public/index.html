@@ -726,6 +726,9 @@
 </head>
 <body>
   <canvas id="canvas"></canvas>
+  <!-- 首屏加载遮罩「光之门户」：CSS/DOM 全部由该模块自注入（本文件已超 500 行，不在此加代码）。
+       位置必须在旧 #loadingScreen 之前解析，首帧才直接是门户、不闪黑屏。 -->
+  <script src="js/loadingMask.js?v=2"></script>
   <div id="ui-overlay">
     <!-- Health Bar -->
     <div class="health-bar" id="health-bar">
@@ -1476,7 +1479,7 @@
   <!-- 资产地址协议修正（只做 http:// → https:// 的前缀替换，规避 Mixed Content） -->
   <script src="js/assetProtocolFix.js?v=1"></script>
   <!-- 登录过期弹窗（token 失效时页面内重登，api.js 自动重试原请求） -->
-  <script src="js/authPrompt.js?v=1"></script>
+  <script src="js/authPrompt.js?v=3"></script>
   <script src="js/api.js?v=2"></script>
   <script src="js/geometryTemplates.js"></script>
   <script src="js/geometryRenderer.js"></script>
@@ -1554,7 +1557,7 @@
   <script src="js/buildingCopyLoader.js?v=1"></script>
   <script src="js/buildingCollisionToggle.js?v=2"></script>
   <script src="js/buildingManager.js?v=5"></script>
-  <script src="js/federationUI.js"></script>
+  <script src="js/federationUI.js?v=2"></script>
 
   <script src="js/soundManager.js"></script>
   <script src="js/skillManager.js"></script>

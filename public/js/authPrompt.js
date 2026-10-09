@@ -74,17 +74,14 @@
     const $ok = overlay.querySelector('.ap-ok');
     const $cancel = overlay.querySelector('.ap-cancel');
 
-    $cancel.addEventListener('click', () => close());
+    // 取消按钮必须走 cancel()：它同时「关掉弹窗」+「结束 Promise」
+    $cancel.addEventListener('click', () => cancel());
     overlay.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !$ok.disabled) $ok.click();
-      if (e.key === 'Escape') close();
+      if (e.key === 'Escape') cancel();   // 与取消按钮同一路径：关弹窗 + 结束 Promise
       // 阻止游戏快捷键（WASD/空格等）落到世界页
       e.stopPropagation();
     });
-
-    function close() {
-      if (_overlay) { _overlay.remove(); _overlay = null; }
-    }
 
     function setBusy(busy) {
       $ok.disabled = busy;
@@ -120,7 +117,7 @@
           GAME_STATE.userId = data.userId || GAME_STATE.userId;
           GAME_STATE.characterId = data.characterId || GAME_STATE.characterId;
         }
-        close();
+        closeOverlay();
         _resolvePending({ token: data.token, userId: data.userId, characterId: data.characterId });
       } catch (e) {
         setError('网络错误，请稍后重试');
@@ -168,8 +165,21 @@
     return _pendingPromise;
   }
 
-  /** 用户取消时由 api.js 调用，拒绝所有等待中的请求 */
-  function cancel() { _rejectPending(new Error('用户取消登录')); }
+  /** 关闭弹窗 DOM（只做 DOM 清理，不 settle Promise） */
+  function closeOverlay() {
+    if (_overlay) { _overlay.remove(); _overlay = null; }
+  }
+
+  /**
+   * 用户取消 / 按 Esc：必须「关掉弹窗」+「拒掉 Promise」两件一起做。
+   * 少做任一半都会出事：
+   *   - 只拒 Promise 不关 DOM → 登录框一直挂在屏幕上（看着像卡死）
+   *   - 只关 DOM 不拒 Promise → 等待方永久挂起，整页重登兜底永久失效
+   */
+  function cancel() {
+    closeOverlay();
+    _rejectPending(new Error('用户取消登录'));
+  }
 
   window.AuthPrompt = {
     prompt,
