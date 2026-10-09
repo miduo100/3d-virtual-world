@@ -59,6 +59,7 @@
     "characterEditor": "Character Editor ↗",
     "animationEditor": "Animation Editor ↗",
     "aiMotionFactory": "AI Motion Factory ↗",
+    "aiWorldBrain": "AI World Brain",
     "pgDashboard": "Dashboard",
     "pgDashboardSub": "System overview & real-time status",
     "statTotalUsers": "Total Users",

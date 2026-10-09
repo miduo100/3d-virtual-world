@@ -62,7 +62,9 @@ async function initializeDatabase() {
     'migrations/add_part_libraries_trash.sql',  // 零件库回收站（prev_status / deleted_at：软删除→恢复/清空）
     'migrations/add_part_libraries_source_path.sql',  // 撞名错开（source_path：同名不同包不混库）
     'migrations/add_ai_call_log.sql',     // Phase 0: LLM 调用账本（成本/token 限流/熔断依据）
-    'migrations/add_threejs_code_blocks_meta.sql'  // Phase 0: 补 source_type/auto_fixes/import_status（原先只存在于现库，新环境会缺列）
+    'migrations/add_threejs_code_blocks_meta.sql',  // Phase 0: 补 source_type/auto_fixes/import_status（原先只存在于现库，新环境会缺列）
+    'migrations/add_world_ai_configs.sql',       // Phase 2a: World AI 配置（每世界一行，含 autonomy/provider_map）
+    'migrations/add_world_ai_credentials.sql'    // Phase 2a: World AI 专用凭证（bcrypt + world:* scope）
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);

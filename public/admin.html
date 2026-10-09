@@ -379,6 +379,12 @@
     <div class="nav-item" onclick="window.open('/ai_motion_factory.html','_blank')">
       <span class="icon">🤖</span><span>AI生成动作 ↗</span>
     </div>
+    <!-- 🧠 AI World Brain（Phase 2a）：只能加在末尾，绝不在中间插入 nav-item（navKeys 按 DOM 顺序硬对齐） -->
+    <div class="nav-divider"></div>
+    <div class="nav-section-label">AI</div>
+    <div class="nav-item" onclick="showPage('ai-world-brain');switchSubTab('ai-world-brain','awb-settings',document.querySelector('#page-ai-world-brain .sub-tab'))">
+      <span class="icon">🧠</span><span>AI 世界大脑</span>
+    </div>
   </nav>
   <div class="sidebar-footer">
     <div class="admin-name" id="adminName">管理员</div>
@@ -2789,6 +2795,9 @@
     ===== -->
     <div id="page-gallery" class="page"></div>
 
+    <!-- ===== 🧠 AI World Brain（Phase 2a）：容器为空，sub-tab 与卡片由 adminWorldBrain.js 注入 ===== -->
+    <div id="page-ai-world-brain" class="page"></div>
+
     <!-- ===== 账户设置 ===== -->
     <div id="page-profile" class="page">
       <h2 style="color:var(--green);margin-bottom:18px;">⚙️ 账户设置</h2>
@@ -3881,6 +3890,7 @@
 <script src="js/adminModelLod.js?v=4" defer></script>
 <script src="js/adminAgentDescBadge.js?v=1" defer></script>
 <script src="js/adminAgentSettings.js?v=4" defer></script>
+<script src="js/adminWorldBrain.js?v=1" defer></script>
 <script src="js/adminModelBundle.js?v=2" defer></script>
 <!-- 📚 零件库（Phase 1）：上传文件夹 / 扫描服务器目录 / 检索 / 库详情 -->
 <script src="js/adminPartLibrary.js?v=3" defer></script>
@@ -4033,6 +4043,9 @@
     } else if (sub === 'chat-archive') {
       // P4：聊天归档设置子页签
       if (window.adminAgentSettings && adminAgentSettings.loadAgentConfig) adminAgentSettings.loadAgentConfig();
+    } else if (sub === 'awb-settings') {
+      // 🧠 AI World Brain（Phase 2a）：设置子页签
+      if (window.adminWorldBrain && adminWorldBrain.loadSettings) adminWorldBrain.loadSettings();
     }
   }
 
@@ -11249,7 +11262,8 @@ async function initBoneEditor() {
           'assets', 'partLibrary', '3dgsScenes', 'threejsCodeLibrary', 'characters', 'animations', 'weapons',
           'federation', 'config', 'security-questions', 'maintenance', 'gallery',
           'uiControls', 'unifiedEditor', 'worldEditor',
-          'characterEditor', 'animationEditor', 'aiMotionFactory'
+          'characterEditor', 'animationEditor', 'aiMotionFactory',
+          'aiWorldBrain'  // 🧠 AI World Brain（末尾追加，与上方末尾 nav-item 对齐）
         ];
         navItems.forEach((el, i) => {
           if (navKeys[i]) {

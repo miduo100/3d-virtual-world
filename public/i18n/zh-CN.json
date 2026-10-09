@@ -59,6 +59,7 @@
     "characterEditor": "角色编辑器 ↗",
     "animationEditor": "动画编辑器 ↗",
     "aiMotionFactory": "AI生成动作 ↗",
+    "aiWorldBrain": "AI 世界大脑",
     "pgDashboard": "控制台",
     "pgDashboardSub": "系统总览与实时状态",
     "statTotalUsers": "总用户数",
