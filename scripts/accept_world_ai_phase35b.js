@@ -157,8 +157,10 @@ const BOUNDS = { kind: 'rect', x: 3200, z: 3200, width: 80, depth: 80 };
     Array.isArray(it3.quest && it3.quest.progressed) && it3.quest.progressed.length >= 1,
     JSON.stringify(it3.quest && it3.quest.progressed && it3.quest.progressed[0] && it3.quest.progressed[0].state));
   const human = await interactionService.interact({ worldId: WORLD, actorType: 'human', actorId: '11111111-1111-1111-1111-111111111111', position: { x: BOUNDS.x + 5, z: BOUNDS.z + 5 }, regionKey: KEY });
-  log('P35-16 真人玩家 interact → 服务端不响应（一期仅 Agent，附可读说明）',
-    human.ok === false && human.code === 'HUMAN_INTERACT_NOT_SUPPORTED' && /Phase 6/.test(human.reason), human.code);
+  // ★ Phase 6 用户拍板②（2026-10-09）：真人交互前端 worldInteractions.js 上线，
+  //   真人路径开放，服务端判定口径与 Agent 完全一致 —— 原 3.5 判据"真人不响应"被本决策取代。
+  log('P35-16 真人 interact → 服务端响应（Phase 6 决策②开放，判定口径与 Agent 一致）',
+    human.ok === true, human.ok ? 'ok' : (human.code || human.reason));
   const uiText = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'adminWorldRegions.js'), 'utf8');
   log('P35-16b 后台 UI 写明"真人交互属Phase 6，不是故障"', uiText.indexOf('Phase 6') >= 0, '');
 

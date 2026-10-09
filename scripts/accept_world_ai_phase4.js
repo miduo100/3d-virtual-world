@@ -293,7 +293,7 @@ async function restoreConfig() {
     const r2 = await eventLog.tail(W, c1, 10);
     const r3 = await eventLog.tail(W, r2.cursor, 10);
     log('P3-13 events.tail(seq) 游标增量正确',
-      r2.events.length >= 2 && r2.events.every((e2) => e2.seq > c1)
+      r2.events.length >= 2 && r2.events.every((e2) => Number(e2.seq) > Number(c1))
         && r2.events.some((e2) => e2.target_id === 'accept_p4_ev1')
         && r2.events.some((e2) => e2.target_id === 'accept_p4_ev2')
         && r3.events.filter((e2) => (e2.target_id || '').indexOf('accept_p4_ev') === 0).length === 0,

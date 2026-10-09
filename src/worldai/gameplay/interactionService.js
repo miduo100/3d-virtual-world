@@ -55,12 +55,11 @@ async function findNearby(position, opts) {
  */
 async function interact(o) {
   const p = o || {};
-  if (p.actorType !== 'agent') {
-    return {
-      ok: false, code: 'HUMAN_INTERACT_NOT_SUPPORTED',
-      reason: '一期仅 AI 游客（Agent）可完成交互；真人交互 UI 属 Phase 6，服务端对真人一律不响应（不是故障）',
-    };
+  if (p.actorType !== 'agent' && p.actorType !== 'human') {
+    return { ok: false, code: 'ACTOR_TYPE_INVALID', reason: 'actorType 必须是 agent 或 human' };
   }
+  // Phase 6（用户拍板②）：真人交互前端 worldInteractions.js 已上线，真人路径开放；
+  // 服务端判定口径与 Agent 完全一致（同一 findNearby + reachable 判定），无任何放水。
   if (!p.actorId) return { ok: false, code: 'ACTOR_REQUIRED', reason: '缺少 actorId' };
   const near = await findNearby(p.position || { x: 0, z: 0 }, { regionKey: p.regionKey });
   const target = p.interactionKey
@@ -80,15 +79,16 @@ async function interact(o) {
     const pl = it.payload || {};
     reward = await rewardService.grantToActor({
       worldId: p.worldId || it.world_id,
-      actorType: 'agent', actorId: p.actorId,
+      actorType: p.actorType, actorId: p.actorId,
       interactionId: it.id, interactionKey: it.interaction_type + ':' + it.key,
       regionKey: it.region_key, code: pl.code || null, codeId: pl.codeId || null,
+      poolKey: pl.poolKey || null,
       count: Number(pl.count) || 1,
     });
   }
 
   const quest = await microQuestService.advanceObjectInteract({
-    worldId: p.worldId || it.world_id, actorType: 'agent', actorId: p.actorId,
+    worldId: p.worldId || it.world_id, actorType: p.actorType, actorId: p.actorId,
     regionKey: it.region_key, interactionKey: it.interaction_type + ':' + it.key,
   });
 

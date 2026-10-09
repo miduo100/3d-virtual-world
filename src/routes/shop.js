@@ -249,28 +249,18 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Purchase item
+// Purchase item（Phase 6 改造：正整数校验 + 单事务 + 钱包原子扣款 —— 逻辑在 services/purchaseService.js）
 router.post('/purchase', async (req, res) => {
   try {
     const { buyerId: bodyBuyerId, shopItemId, quantity } = req.body;
     // 安全修复 D2：身份只从 token 派生（此前可传任意 buyerId 以他人身份下单；
     // 上下文无身份时保持修复前行为，保证 SECURITY_GUARD_OFF=1 保险丝可完整回退）
     const buyerId = (req.user && req.user.userId) || bodyBuyerId;
-    const itemResult = await query('SELECT price, quantity FROM shop_items WHERE id = $1', [shopItemId]);
-    if (itemResult.rows.length === 0) return res.status(404).json({ error: 'Item not found' });
-    const item = itemResult.rows[0];
-    if (item.quantity < quantity) return res.status(400).json({ error: 'Not enough quantity' });
-    const totalPrice = item.price * quantity;
-    const orderId = uuidv4();
-    await query(
-      `INSERT INTO orders (id, buyer_id, shop_item_id, quantity, total_price, status)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [orderId, buyerId, shopItemId, quantity, totalPrice, 'completed']
-    );
-    await query('UPDATE shop_items SET quantity = quantity - $1 WHERE id = $2', [quantity, shopItemId]);
+    const r = await require('../services/purchaseService').buy({ buyerId, shopItemId, quantity });
+    if (!r.ok) return res.status(r.status || 400).json({ error: r.error });
     // Phase 4 埋点：经济事件（金额/数量，不含个人信息；失败绝不阻断购买）
-    try { require('../worldai/perception/eventLog').log({ type: 'economy', actorType: 'human', actorId: String(buyerId || ''), targetId: String(shopItemId), payload: { totalPrice, quantity: Number(quantity) || 0, orderId: String(orderId).slice(0, 40) } }); } catch (e) { /* 静默 */ }
-    res.json({ message: 'Purchase successful', orderId, totalPrice });
+    try { require('../worldai/perception/eventLog').log({ type: 'economy', actorType: 'human', actorId: String(buyerId || ''), targetId: String(shopItemId), payload: { totalPrice: r.totalPrice, quantity: Number(quantity) || 0, orderId: String(r.orderId).slice(0, 40) } }); } catch (e) { /* 静默 */ }
+    res.json({ message: 'Purchase successful', orderId: r.orderId, totalPrice: r.totalPrice });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Purchase failed' });

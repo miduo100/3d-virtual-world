@@ -1,25 +1,20 @@
 /**
- * microQuestService —— 极简引导任务（Phase 3.5-2 · 只有 2 种 objective）
+ * microQuestService —— 极简引导任务（Phase 3.5-2 建立；Phase 6 起为 taskService 的兼容门面）
  * 济宁米多信息科技有限公司 版权所有 · 888@miduo100.com / 15660440944
  * ------------------------------------------------------------------
- * 规格来源：§Phase 3.5 文件清单「引导任务：2 种 objective（reach_region / object_interact）」
- * + §C.3 ⑪⑫。一期刻意只做 2 种：多了就得配条件系统，那是 Phase 6 的 taskService。
- *
- * objectives 形状（简化到能一眼看懂）：
- *   [{ type:'reach_region', regionKey:'east_cafe_block', count:1 },
- *    { type:'object_interact', key:'reward_grant:mint', count:3 }]
- *
- * 幂等：world_task_progress UNIQUE(task_id, actor_id) —— 一人一任务一条进行中记录。
+ * ★ Phase 6：任务系统收敛到 taskService（6 种 objective + 状态机 + 幂等结算）。
+ *   本文件保留 3.5 的函数签名与返回形状（progressed[]），内部全部委托 taskService
+ *   —— **不允许两套任务系统**（§F 冲突清单红线）。createForRegion 的任务形状不变
+ *   （agent_only + reach_region/object_interact），但推进/结算走 Phase 6 引擎。
  */
 'use strict';
 
 const { query } = require('../../database/db');
-
-const OBJECTIVES = ['reach_region', 'object_interact'];
+const taskService = require('./taskService');
 
 function bad(code, reason) { return { ok: false, code, reason }; }
 
-/** 为区域建一条引导任务（幂等：同 region+title 已有则直接返回） */
+/** 为区域建一条引导任务（幂等：同 region+title 已有则直接返回）—— 3.5 原样保留 */
 async function createForRegion(o) {
   const p = o || {};
   if (!p.regionKey) return bad('REGION_REQUIRED', '必须给 regionKey');
@@ -40,61 +35,46 @@ async function createForRegion(o) {
   return { ok: true, task: res.rows[0], existed: false };
 }
 
-/** 推进某Actor 的任务进度（两种 objective 统一入口） */
+/** 把 taskService 的 results 映射回 3.5 的 progressed 形状（Agent 回复形状零变化） */
+function toProgressed(results, fallbackType) {
+  return (results || []).map((r) => ({
+    taskId: r.taskId, title: r.title, type: fallbackType, done: !!r.done, state: r.state,
+  }));
+}
+
+/** 推进某Actor 的任务进度（3.5 签名；委托 Phase 6 事件驱动引擎） */
 async function advance(o) {
   const p = o || {};
   if (!p.actorId) return bad('ACTOR_REQUIRED', '缺少 actorId');
-  const actorType = p.actorType === 'human' ? 'human' : 'agent';
-  const tasks = await query(
-    `SELECT * FROM world_tasks
-      WHERE status = 'active' AND visibility = 'agent_only'
-        AND ($1::text IS NULL OR region_key = $1)
-      ORDER BY created_at DESC LIMIT 10`,
-    [p.regionKey || null]
-  );
-  const progressed = [];
-  for (const t of tasks.rows) {
-    const objectives = Array.isArray(t.objectives) ? t.objectives : [];
-    const pr = await query(
-      `INSERT INTO world_task_progress (task_id, actor_type, actor_id, state, status)
-       VALUES ($1,$2,$3,$4,'active')
-       ON CONFLICT (task_id, actor_id) DO UPDATE SET state = EXCLUDED.state
-       RETURNING *`,
-      [t.id, actorType, String(p.actorId), JSON.stringify({ steps: {}, hits: 0 })]
-    );
-    const row = pr.rows[0];
-    const state = Object.assign({ steps: {}, hits: 0 }, row.state || {});
-    const type = p.event === 'reach_region' ? 'reach_region' : 'object_interact';
-    const want = objectives.find((x) => x.type === type
-      && (type === 'reach_region' || !x.key || x.key === p.interactionKey));
-    if (!want) continue;
-    const key = type === 'reach_region' ? 'reach_region' : ('object_interact:' + (p.interactionKey || ''));
-    state.hits = (state.hits || 0) + 1;
-    state.steps[key] = Math.min(Number(want.count) || 1, (state.steps[key] || 0) + 1);
-    const done = objectives.every((x) => {
-      const k = x.type === 'reach_region' ? 'reach_region' : ('object_interact:' + (x.key || ''));
-      return (state.steps[k] || 0) >= (Number(x.count) || 1);
-    });
-    await query(
-      `UPDATE world_task_progress SET state = $2, status = $3, completed_at = $4 WHERE id = $1`,
-      [row.id, JSON.stringify(state), done ? 'completed' : 'active', done ? new Date() : null]
-    );
-    if (done) {
-      await query(`UPDATE world_tasks SET completion_count = completion_count + 1 WHERE id = $1`, [t.id]);
-    }
-    progressed.push({ taskId: t.id, title: t.title, type, done, state });
-  }
-  return { ok: true, progressed };
+  const r = await taskService.onInteract({ actorType: p.actorType, actorId: p.actorId });
+  if (!r.ok) return r;
+  return { ok: true, progressed: toProgressed(r.results, p.event === 'reach_region' ? 'reach_region' : 'object_interact') };
 }
 
-/** object_interact 事件入口（interactionService 调用） */
+/** object_interact 事件入口（interactionService 调用）—— 先落 object_interact 事件再评估 */
 async function advanceObjectInteract(o) {
-  return advance(Object.assign({}, o, { event: 'object_interact' }));
+  const p = o || {};
+  if (!p.actorId) return bad('ACTOR_REQUIRED', '缺少 actorId');
+  try {
+    // ★ 必须 await：评估按事件游标读库，事件未落库评估就读不到（首跑实测踩到）
+    await require('../perception/eventLog').log({
+      type: 'object_interact', actorType: p.actorType === 'human' ? 'human' : 'agent',
+      actorId: String(p.actorId), targetId: p.interactionKey ? String(p.interactionKey) : null,
+      payload: { interactionKey: String(p.interactionKey || '').slice(0, 60) },
+    });
+  } catch (e) { /* 埋点静默 */ }
+  const r = await taskService.onInteract({ actorType: p.actorType, actorId: p.actorId });
+  if (!r.ok) return r;
+  return { ok: true, progressed: toProgressed(r.results, 'object_interact') };
 }
 
-/** reach_region 事件入口（Agent 进入区域时调用；Phase 4 的 runtime 触发） */
+/** reach_region 事件入口（保留 3.5 签名；Agent 区域事件已由 eventLog 埋点，这里直接评估） */
 async function advanceReachRegion(o) {
-  return advance(Object.assign({}, o, { event: 'reach_region' }));
+  const p = o || {};
+  if (!p.actorId) return bad('ACTOR_REQUIRED', '缺少 actorId');
+  const r = await taskService.notifyRegionEnter({ actorType: p.actorType, actorId: p.actorId });
+  if (!r.ok) return r;
+  return { ok: true, progressed: toProgressed(r.results, 'reach_region') };
 }
 
 async function listTasks(worldId, regionKey) {
@@ -106,4 +86,4 @@ async function listTasks(worldId, regionKey) {
   return res.rows || [];
 }
 
-module.exports = { OBJECTIVES, createForRegion, advance, advanceObjectInteract, advanceReachRegion, listTasks };
+module.exports = { OBJECTIVES: taskService.OBJECTIVE_TYPES, createForRegion, advance, advanceObjectInteract, advanceReachRegion, listTasks };

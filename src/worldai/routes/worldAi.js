@@ -65,6 +65,9 @@ router.use('/', require('./worldAiOps'));
 // ── Build（Phase 5 · P4-1~P4-17）：spec 预览 / 实体六段 / Steward ──
 router.use('/', require('./worldAiBuild'));
 
+// ── Gameplay（Phase 6 · P5-1~P5-14）：任务领取/评估 + 活动生命周期 + 钱包管理面 ──
+router.use('/gameplay', require('./worldAiGameplay'));
+
 // GET /api/world-ai/config
 router.get('/config', async (req, res) => {
   try {

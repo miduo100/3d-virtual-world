@@ -47,6 +47,7 @@ const MOUNT_DEFAULT = {
   '/api/ai-providers': 'admin',
   '/api/character-templates': 'admin',  // 修 S2-04d：templates 子路由此前挂在鉴权之前
   '/api/threejs-blocks': 'admin',       // 仅挂在 threejsImport 那一行（import-url 的 SSRF 面）
+  '/api/gameplay': 'user',              // Phase 6：真人玩法（interact/claim/join；GET 公开读不拦）
   '/api': 'admin',                      // uploadedModels / uploadedModelMeta / modelBundleUpload 三个挂载
   '/api/ai-scene': 'quota',             // 生成类=花钱；写库类见 PATH_RULES
   '/api/ai-factory': 'quota',
@@ -90,6 +91,7 @@ const PATH_RULES = [
   { method: 'POST', path: '/api/inventory/drops/:dropId/pick', policy: 'user' },
   { method: 'POST', path: '/api/inventory/drops/:dropId/mark-picked', policy: 'user' },
   { method: 'POST', path: '/api/inventory/bag/:itemId/use', policy: 'user' },
+  { method: 'POST', path: '/api/inventory/redeem', policy: 'user' },   // Phase 6：真人凭码兑换（方案 A）
   { method: 'POST', path: '/api/shop/purchase', policy: 'user' },
 
   // ── 写库类入口收 admin（S2-05b，绕开 worldWriteGuard 匿名写 world_objects 的那批）──

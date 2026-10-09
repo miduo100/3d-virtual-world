@@ -150,7 +150,7 @@ function registerAll() {
         : [{ type: 'object_interact', key: 'reward_grant:' + String(p.entityId || 'main').slice(0, 8), count: 1 }];
       const ins = await query(
         `INSERT INTO world_tasks (world_id, title, description, type, objectives, region_key, entity_id, status, visibility, reward, origin, expires_at)
-         VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,'active','agent_only',$8::jsonb,'ai',$9) RETURNING id`,
+         VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,'published','agent_only',$8::jsonb,'ai',$9) RETURNING id`,
         [String(ctx.worldId), String(p.title), p.description ? String(p.description) : null,
           p.questType === 'main' ? 'main' : 'side', JSON.stringify(objectives),
           p.regionKey ? String(p.regionKey) : (ent.entity ? ent.entity.region_key : null),

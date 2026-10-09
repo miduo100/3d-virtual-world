@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
-const { query } = require('../database/db');
+const { query, pool } = require('../database/db');
 
 let _wsModule = null;
 function getWs() {
@@ -44,25 +44,32 @@ async function tryDropReward(monster, killerUserId) {
     }
 
     // 从奖励池取一条未领取且未过期的码（静默：无码则不掉）
-    const codeRes = await query(
-      `SELECT * FROM reward_codes
-       WHERE pool_id = $1 AND is_claimed = FALSE
-         AND (expires_at IS NULL OR expires_at > NOW())
-       ORDER BY created_at ASC LIMIT 1`,
-      [drop_pool_id]
-    );
-    if (!codeRes.rows.length) return null;
-
-    const code = codeRes.rows[0];
-    const expireSeconds = drop_expire_seconds || 120;
-    const expiresAt = new Date(Date.now() + expireSeconds * 1000);
-
+    // Phase 6（§H.8-6）：事务 + FOR UPDATE —— 防两次击杀并发选中同一条码产出双掉落
     const dropId = uuidv4();
-    await query(
-      `INSERT INTO world_drops (id, code_id, monster_id, position, expires_at)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [dropId, code.id, monsterId, JSON.stringify(spawn_position || { x: 0, y: 0, z: 0 }), expiresAt]
-    );
+    const cli = await pool.connect();
+    let code = null;
+    try {
+      await cli.query('BEGIN');
+      const codeRes = await cli.query(
+        `SELECT * FROM reward_codes WHERE pool_id = $1 AND is_claimed = FALSE
+           AND (expires_at IS NULL OR expires_at > NOW())
+         ORDER BY created_at ASC LIMIT 1 FOR UPDATE`, [drop_pool_id]);
+      if (codeRes.rows.length) {
+        code = codeRes.rows[0];
+        await cli.query(
+          `INSERT INTO world_drops (id, code_id, monster_id, position, expires_at) VALUES ($1,$2,$3,$4,$5)`,
+          [dropId, code.id, monsterId, JSON.stringify(spawn_position || { x: 0, y: 0, z: 0 }),
+            new Date(Date.now() + (drop_expire_seconds || 120) * 1000)]);
+      }
+      await cli.query('COMMIT');
+    } catch (txErr) {
+      try { await cli.query('ROLLBACK'); } catch (e2) { /* 已回滚 */ }
+      cli.release();
+      throw txErr;
+    }
+    cli.release();
+    if (!code) return null;
+    const expireSeconds = drop_expire_seconds || 120;
 
     return {
       dropId,

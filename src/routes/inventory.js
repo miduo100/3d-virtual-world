@@ -164,34 +164,21 @@ router.post('/drops/:dropId/pick', async (req, res) => {
     );
     if (!dropRes.rows.length) return res.status(404).json({ error: '掉落物不存在' });
 
-    const drop = dropRes.rows[0];
-    if (drop.is_picked) return res.status(400).json({ error: '该物品已被拾取' });
-    if (new Date(drop.expires_at) < new Date()) return res.status(400).json({ error: '掉落物已过期消失' });
-
-    // 标记掉落物已被拾取
-    await query(
-      'UPDATE world_drops SET is_picked=TRUE, picked_by=$1, picked_at=NOW() WHERE id=$2',
-      [userId, dropId]
-    );
-    // 标记兑换码已领取
-    await query(
-      'UPDATE reward_codes SET is_claimed=TRUE, claimed_by=$1, claimed_at=NOW() WHERE id=$2',
-      [userId, drop.code_id]
-    );
-    // 加入背包
-    const invId = uuidv4();
-    await query(
-      `INSERT INTO player_inventory (id, user_id, code_id) VALUES ($1,$2,$3)
-       ON CONFLICT (user_id, code_id) DO NOTHING`,
-      [invId, userId, drop.code_id]
-    );
+    // Phase 6：原子拾取（事务化合并进 rewardService.pickDrop，修 §H.8-6 并发双领）
+    const picked = await require('../worldai/gameplay/rewardService').pickDrop(dropId, userId, { writeInventory: true });
+    if (!picked.ok) {
+      const map = { DROP_NOT_FOUND: [404, '掉落物不存在'], ALREADY_PICKED: [400, '该物品已被拾取'], EXPIRED: [400, '掉落物已过期消失'] };
+      const m = map[picked.code] || [500, picked.reason || '拾取失败'];
+      return res.status(m[0]).json({ error: m[1] });
+    }
+    const drop = picked.drop;
 
     // Phase 4 埋点：交互事件（拾取；失败绝不阻断拾取）
     try { require('../worldai/perception/eventLog').log({ type: 'object_interact', actorType: 'human', actorId: String(userId || ''), targetId: String(dropId), payload: { action: 'pick', rewardName: String(drop.reward_name || '').slice(0, 40) } }); } catch (e) { /* 静默 */ }
     res.json({
       message: '拾取成功',
       item: {
-        id: invId,
+        id: picked.inventoryId,
         rewardName: drop.reward_name,
         rewardDesc: drop.reward_desc,
         code: drop.code,
@@ -224,20 +211,14 @@ router.post('/drops/:dropId/mark-picked', async (req, res) => {
     );
     if (!dropRes.rows.length) return res.status(404).json({ error: '掉落物不存在' });
 
-    const drop = dropRes.rows[0];
-    if (drop.is_picked) return res.status(400).json({ error: '该物品已被拾取' });
-    if (new Date(drop.expires_at) < new Date()) return res.status(400).json({ error: '掉落物已过期消失' });
-
-    // 标记掉落物已被拾取
-    await query(
-      'UPDATE world_drops SET is_picked=TRUE, picked_by=$1, picked_at=NOW() WHERE id=$2',
-      [userId, dropId]
-    );
-    // 标记兑换码已领取（claimed_by 记录本地userId，仅供当前世界统计）
-    await query(
-      'UPDATE reward_codes SET is_claimed=TRUE, claimed_by=$1, claimed_at=NOW() WHERE id=$2',
-      [userId, drop.code_id]
-    );
+    // Phase 6：原子拾取（只标记不进背包，供家园世界模式使用；合并进 rewardService.pickDrop）
+    const picked = await require('../worldai/gameplay/rewardService').pickDrop(dropId, userId, { writeInventory: false });
+    if (!picked.ok) {
+      const map = { DROP_NOT_FOUND: [404, '掉落物不存在'], ALREADY_PICKED: [400, '该物品已被拾取'], EXPIRED: [400, '掉落物已过期消失'] };
+      const m = map[picked.code] || [500, picked.reason || '标记失败'];
+      return res.status(m[0]).json({ error: m[1] });
+    }
+    const drop = picked.drop;
 
     res.json({
       message: '标记成功',
@@ -403,6 +384,23 @@ router.get('/admin/issued', async (req, res) => {
   } catch (e) {
     console.error('[admin issued]', e);
     res.status(500).json({ error: '获取发放记录失败' });
+  }
+});
+
+// POST /api/inventory/redeem  真人凭码兑换入背包（AI World Brain Phase 6 · 方案 A：Agent 发码→真人兑换）
+// body: { code }；身份从玩家 JWT 派生（无 token 401）
+router.post('/redeem', async (req, res) => {
+  try {
+    if (!req.user || !req.user.userId) return res.status(401).json({ error: '未授权：缺少玩家token' });
+    const r = await require('../services/rewardRedeem').redeemByCode(req.user.userId, req.body && req.body.code);
+    if (!r.ok) {
+      const map = { CODE_REQUIRED: 400, CODE_INVALID: 400, CODE_NOT_FOUND: 404, CODE_EXPIRED: 400, CODE_ALREADY_CLAIMED: 400 };
+      return res.status(map[r.code] || 500).json({ error: r.reason });
+    }
+    res.json({ message: r.deduped ? '该兑换码已在你的背包中' : '兑换成功', item: r.item, inventoryId: r.inventoryId, deduped: !!r.deduped });
+  } catch (e) {
+    console.error('[redeem]', e);
+    res.status(500).json({ error: '兑换失败' });
   }
 });
 

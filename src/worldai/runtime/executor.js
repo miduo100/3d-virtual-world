@@ -34,6 +34,7 @@ function ensureLoaded() {
   require('../tools/analyticsTools').registerAll();
   require('../tools/buildingTools').registerAll();   // Phase 5：建筑 6 工具
   require('../tools/npcTools').registerAll();        // Phase 5：NPC/玩法 4 工具
+  require('../tools/gameplayTools').registerAll();   // Phase 6：玩法 9 + 世界系统 2 工具
 }
 
 function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }

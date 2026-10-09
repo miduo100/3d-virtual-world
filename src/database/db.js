@@ -79,7 +79,10 @@ async function initializeDatabase() {
     'migrations/add_world_events.sql',            // Phase 4: 全站唯一事件流（唯一写入器 perception/eventLog.js）
     'migrations/add_world_tool_executions.sql',   // Phase 4: 工具执行账本（before/after/undo + 每日预算查表口径）
     'migrations/add_world_metrics_daily.sql',      // Phase 4: 日聚合表（区域热度/参与率 6 指标）
-    'migrations/add_world_entities.sql'            // Phase 5: world_entities + world_entity_parts（完整实体 = N 个 world_object + 1 Entity 索引）
+    'migrations/add_world_entities.sql',           // Phase 5: world_entities + world_entity_parts（完整实体 = N 个 world_object + 1 Entity 索引）
+    'migrations/add_world_tasks_p6.sql',           // Phase 6: world_tasks/progress 差量补列（giver/objective_index/事件游标）
+    'migrations/add_world_activities.sql',         // Phase 6: 活动 + 参与者（生命周期/排名/幂等结算）
+    'migrations/add_wallets.sql'                   // Phase 6: 钱包 + 流水（原子扣减 + 幂等键）+ shops.merchant_id 放宽
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);

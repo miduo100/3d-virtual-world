@@ -380,8 +380,11 @@ router.post('/test-prompt', async (req, res) => {
 // POST /api/npc/:id/chat  — 与NPC对话
 router.post('/:id/chat', async (req, res) => {
   try {
-    const { message, player_id = 'anonymous', player_name = '旅行者' } = req.body;
+    const { message, player_name = '旅行者' } = req.body;
     if (!message) return res.status(400).json({ success: false, error: '消息不能为空' });
+    // Phase 6（§H.8-7）：登录玩家的 player_id 只从 token 派生（防读/写他人对话历史）；
+    // 上下文无身份（游客）时保持修复前行为
+    const player_id = (req.user && req.user.userId) || (req.body.player_id || 'anonymous');
 
     // 获取NPC配置
     const npcResult = await query('SELECT * FROM npcs WHERE id = $1 AND is_active = TRUE', [req.params.id]);
@@ -430,7 +433,9 @@ router.post('/:id/chat', async (req, res) => {
 // POST /api/npc/:id/greet  — NPC主动问候（玩家靠近时触发）
 router.post('/:id/greet', async (req, res) => {
   try {
-    const { player_id = 'anonymous', player_name = '旅行者' } = req.body;
+    const { player_name = '旅行者' } = req.body;
+    // Phase 6（§H.8-7）：同 chat 口径，登录玩家身份只从 token 派生
+    const player_id = (req.user && req.user.userId) || (req.body.player_id || 'anonymous');
 
     const npcResult = await query('SELECT * FROM npcs WHERE id = $1 AND is_active = TRUE', [req.params.id]);
     if (!npcResult.rows.length) return res.status(404).json({ success: false, error: 'NPC不存在' });
@@ -467,7 +472,9 @@ router.post('/:id/greet', async (req, res) => {
 // GET /api/npc/:id/history  — 获取对话历史
 router.get('/:id/history', async (req, res) => {
   try {
-    const { player_id = 'anonymous', limit = 20 } = req.query;
+    const { limit = 20 } = req.query;
+    // Phase 6（§H.8-7）：登录玩家的 player_id 只从 token 派生（防越权读他人历史）
+    const player_id = (req.user && req.user.userId) || (req.query.player_id || 'anonymous');
     const result = await query(`
       SELECT role, content, player_name, created_at FROM npc_chat_history
       WHERE npc_id = $1 AND player_id = $2
@@ -482,7 +489,8 @@ router.get('/:id/history', async (req, res) => {
 // DELETE /api/npc/:id/history  — 清空对话历史
 router.delete('/:id/history', async (req, res) => {
   try {
-    const { player_id } = req.query;
+    // Phase 6（§H.8-7）：登录玩家的 player_id 只从 token 派生（防越权删他人历史）
+    const player_id = (req.user && req.user.userId) || (req.query.player_id || null);
     if (player_id) {
       await query('DELETE FROM npc_chat_history WHERE npc_id = $1 AND player_id = $2', [req.params.id, player_id]);
     } else {

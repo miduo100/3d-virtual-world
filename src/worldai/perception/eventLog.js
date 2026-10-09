@@ -29,6 +29,7 @@ const TYPES = [
   'object_created', 'object_removed', 'task_progress', 'task_completed',
   'activity_participant', 'economy', 'npc_talk',
   'entity_created', 'entity_removed',   // Phase 5：完整实体（P4 判据走 eventLog 唯一写入器）
+  'task_claimed', 'activity_started', 'activity_finished', // Phase 6：任务领取 / 活动生命周期
 ];
 
 let warned = false;
@@ -100,15 +101,22 @@ function chatEvent(o) {
   const text = String((o && o.message) || '');
   if (!text) return Promise.resolve({ ok: false });
   const kw = shortHash(text);
+  const senderType = o.senderType === 'agent' ? 'agent' : 'human';
   return log({
     worldId: o.worldId,
     type: 'chat',
-    actorType: o.senderType === 'agent' ? 'agent' : 'human',
+    actorType: senderType,
     actorId: o.senderId,
     x: o.position && Number.isFinite(Number(o.position.x)) ? Number(o.position.x) : null,
     y: o.position && Number.isFinite(Number(o.position.y)) ? Number(o.position.y) : null,
     z: o.position && Number.isFinite(Number(o.position.z)) ? Number(o.position.z) : null,
     payload: { len: text.length, kw },
+  }).then((r) => {
+    // Phase 6：聊天事件驱动任务推进（talk_to / chat_contains；fire-and-forget 静默）
+    if (r && r.ok && o.senderId) {
+      setImmediate(() => { try { require('../gameplay/taskService').notifyChat({ actorType: senderType, actorId: o.senderId }); } catch (e) { /* 静默 */ } });
+    }
+    return r;
   });
 }
 
@@ -164,6 +172,8 @@ async function trackRegionPresence(worldId, connectionId, characterId, position)
     }
     if (rk) {
       await log({ worldId, type: 'entity_enter_region', actorType: 'agent', actorId: characterId, targetId: rk, x, z, payload: { regionKey: rk } });
+      // Phase 6：事件驱动任务推进（fire-and-forget，失败静默，绝不影响广播）
+      setImmediate(() => { try { require('../gameplay/taskService').notifyRegionEnter({ actorType: 'agent', actorId: characterId }); } catch (e) { /* 静默 */ } });
     }
   } catch (e) { /* 静默：埋点失败绝不影响广播 */ }
 }

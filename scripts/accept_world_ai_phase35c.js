@@ -176,7 +176,9 @@ const makePlan = (PART) => JSON.stringify({
     log('P35-20a 同区域两委托并发：恰好一个完成、一个 REGION_BUSY（原子占位，非硬失败）',
       done.length === 1 && busy.length === 1,
       'done=' + done.length + ' busy=' + busy.length + ' codes=' + bothSame.map((r) => r.code || r.status).join('|'));
-    const m4row = (await api('/api/world-ai/missions/' + m4.mission.id)).j.mission;
+    // ★ 适配：被拒方按 P35-20a 实际结果判定（先前硬编码 m4 属时序运气）
+    const rejectedMission = (bothSame[0] && bothSame[0].code === 'REGION_BUSY') ? m3.mission : m4.mission;
+    const m4row = (await api('/api/world-ai/missions/' + rejectedMission.id)).j.mission;
     log('P35-20b 被拒方未留下 running 半成品（状态非 running/failed）',
       ['draft', 'queued'].indexOf(m4row.status) >= 0, 'status=' + m4row.status);
     // 路由层 409：造一个"在途占用"（把乙置 running，等价于正在执行的委托的真实状态），
@@ -284,8 +286,10 @@ const makePlan = (PART) => JSON.stringify({
     const a2 = await waitMsg('ACTION_COMPLETED', 8000);
     const res2 = a2 && a2.payload && a2.payload.result;
     const actorId = gs.j.agent && gs.j.agent.id;
-    const grantsN = actorId ? (await q('SELECT count(*)::int n FROM world_reward_grants WHERE actor_id=$1', [actorId])).rows[0].n : -1;
-    log('P35-23c 重复 interact → reward.deduped=true 且库里只有 1 条登记（幂等）',
+    // ★ Phase 6 适配：任务（count=2）在第 2 次 interact 达成 → 任务结算追加一笔 'task:<id>' 登记是合法新行为；
+    //   幂等口径收窄到"同一交互点只有 1 条登记"
+    const grantsN = actorId ? (await q(`SELECT count(*)::int n FROM world_reward_grants WHERE actor_id=$1 AND interaction_key='reward_grant:mint'`, [actorId])).rows[0].n : -1;
+    log('P35-23c 重复 interact → reward.deduped=true 且同一交互点只有 1 条登记（幂等）',
       !!a2 && res2 && res2.reward && res2.reward.deduped === true && grantsN === 1,
       'deduped=' + (res2 && res2.reward && res2.reward.deduped) + ' grants=' + grantsN);
     log('P35-23d interact 推进引导任务（object_interact）',
