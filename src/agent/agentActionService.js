@@ -31,6 +31,8 @@ const presenceBridge = require('./agentPresenceBridge');
 const wsServer = require('../websocket/wsServer');
 const chatLogService = require('./chatLogService');
 const agentConfigService = require('./agentConfigService');
+// 3.5-3 P35-23：世界交互点（采集/奖励登记/引导任务）——一期仅 Agent（真人 Phase 6）
+const interactionService = require('../worldai/gameplay/interactionService');
 
 const SAY_MAX_LEN = 200;
 const INTERACT_MAX_DISTANCE = 5;             // 互动距离上限 5m
@@ -106,7 +108,7 @@ async function dispatch(ctx, payload) {
     case 'rotate':     return handleRotate(ctx, payload);
     case 'jump':       return handleJump(ctx, payload);
     case 'say':        return handleSay(ctx, payload);
-    case 'interact':   return handleInteract(ctx, payload);
+    case 'interact':   return await handleInteract(ctx, payload);
     default:
       return reject(requestId, 'unknown_action', `未知动作: ${action}`);
   }
@@ -259,32 +261,77 @@ async function handleSay(ctx, payload) {
   return { completed: true, requestId: payload.requestId, result: { delivered: recipients > 0, recipients } };
 }
 
-function handleInteract(ctx, payload) {
-  const { connectionId, agent, session } = ctx;
-  const targetId = payload.targetId;
-  if (!targetId) return rejectTarget(payload.requestId, ctx, 'interact', 'missing_targetId', null);
-
-  // 距离校验：target 必须在 5m 内（用 playerPositions 找 target 的当前位置）
+/**
+ * 3.5-3 P35-23：interact 接到 3.5 的世界交互点（interactionService，一期仅 Agent）。
+ *
+ * 两层语义（不互斥，按参数分流）：
+ *   A) 主路径 —— 世界交互点（world_interactions 表：采集点/奖励登记/引导任务）：
+ *      不需要 targetId，按 Agent 实时位置找可交互点（判定半径 ≤ min(点配置,30m)）。
+ *      reward 只登记不发放（Phase 6 之前），重复 interact 靠唯一键幂等（deduped:true）。
+ *   B) 回落 —— P4 的实体互动：payload.targetId 指向附近的玩家/实体（playerPositions），
+ *      5m 内返回互动接受；主路径明确报"附近没有交互点"时才回落，两条信号不混。
+ */
+async function handleInteract(ctx, payload) {
+  const { connectionId, agent } = ctx;
   const playerPositions = wsServer.getPlayerPositions();
   const myEntry = playerPositions.get(connectionId);
   if (!myEntry || !myEntry.position) {
     return reject(payload.requestId, 'no_position', '无法获取当前位置');
   }
-  // 在 playerPositions 中查找 target
+  const pos = { x: myEntry.position.x, z: myEntry.position.z };
+
+  // A) 世界交互点
+  const r = await interactionService.interact({
+    actorType: 'agent',
+    actorId: agent.id,
+    position: pos,
+    interactionKey: payload.interactionKey || null,
+    regionKey: payload.regionKey || null,
+  });
+  if (r.ok) {
+    return {
+      completed: true,
+      requestId: payload.requestId,
+      result: {
+        interaction: {
+          key: r.interaction.key, label: r.interaction.label, type: r.interaction.type,
+          distance: r.interaction.distance,
+        },
+        // reward 只登记不发放（Phase 6）；deduped=true 表示重复 interact 未重复发
+        reward: r.reward ? { granted: !!r.reward.granted, deduped: !!r.reward.deduped } : null,
+        quest: r.quest ? { progressed: r.quest.progressed || [] } : null,
+        notice: r.notice || '',
+      }
+    };
+  }
+  // B) 附近没有交互点 → 回落实体互动（P4 语义）
+  if (r.code === 'NO_INTERACTION_IN_RANGE' || r.code === 'TOO_FAR') {
+    if (payload.targetId) {
+      const entityResult = interactWithEntity(payload, ctx, playerPositions, myEntry);
+      if (entityResult) return entityResult;
+    }
+    const nearby = Array.isArray(r.nearby)
+      ? r.nearby.slice(0, 5).map((i) => ({ key: i.key, label: i.label, distance: i.distance, reachable: i.reachable }))
+      : [];
+    return reject(payload.requestId, r.code, r.reason, { nearby });
+  }
+  // 其它（理论上仅 HUMAN_INTERACT_NOT_SUPPORTED，Agent 侧不可达）照实回
+  return reject(payload.requestId, r.code || 'interact_failed', r.reason || '互动失败');
+}
+
+/** P4 实体互动（targetId = 附近玩家/实体，5m 内）：命中返回回执对象，未命中返回 null */
+function interactWithEntity(payload, ctx, playerPositions, myEntry) {
+  const targetId = payload.targetId;
   let targetPos = null;
   playerPositions.forEach(p => {
     if (p.characterId === targetId) targetPos = p.position;
   });
-  // TODO: 也可扩展到 objects 表的距离查询（worldSpatial /around 同口径）
-  if (!targetPos) {
-    return rejectTarget(payload.requestId, ctx, 'interact', 'target_not_found', targetId);
-  }
+  if (!targetPos) return rejectTarget(payload.requestId, ctx, 'interact', 'target_not_found', targetId);
   const dist = calcDist(myEntry.position, targetPos);
   if (dist > INTERACT_MAX_DISTANCE) {
     return reject(payload.requestId, 'too_far', `目标距离 ${dist.toFixed(1)}m，超出互动上限 ${INTERACT_MAX_DISTANCE}m`);
   }
-
-  // 第一版：仅返回互动接受（具体互动语义由 P6 SDK 与具体场景定义）
+  // 实体互动仍是"接受"语义（具体互动场景属后续阶段）
   return { completed: true, requestId: payload.requestId, result: { targetId, distance: dist } };
 }
 

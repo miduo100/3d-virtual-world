@@ -17,6 +17,7 @@
  */
 'use strict';
 
+const { query, pool } = require('../../database/db');
 const missionService = require('./missionService');
 const missionPlanner = require('./missionPlanner');
 const missionTools = require('../tools/missionTools');
@@ -25,6 +26,53 @@ const gridsnap = require('../regions/gridsnap');
 const regionService = require('../regions/regionService');
 
 function num(v, def) { const n = Number(v); return isFinite(n) ? n : def; }
+
+/**
+ * 3.5-3 P35-20：同区域并发写闸门（写在 runner 自己文件里，不进 missionTools）。
+ *
+ * ★ 为什么不能只用"单条 UPDATE + NOT EXISTS"：两条并发 claim 的目标行**不同**（各自改自己的
+ *   委托行），NOT EXISTS 子查询读对方的行却不加锁 —— READ COMMITTED 下两个事务的快照都
+ *   可能取在对方提交之前 → 双双看到 draft → 双双成功（实测复现：首跑过、复跑双双 completed）。
+ *   所以必须先拿**区域级 advisory 事务锁**串行化两个 claim，再做检查 + 占位。
+ *
+ * 被拒方保持原状态（draft），返回 code='REGION_BUSY' 由路由映射 409 —— 不是硬失败。
+ */
+async function claimRegionForRun(mission) {
+  const lockKey = String(mission.world_id) + ':' + String(mission.region_key);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey]);
+    const busy = await client.query(
+      `SELECT id, status FROM world_build_missions
+        WHERE world_id = $1 AND region_key = $2 AND id <> $3 AND status IN ('running','queued')
+        LIMIT 1`,
+      [String(mission.world_id), String(mission.region_key), String(mission.id)]
+    );
+    if (busy.rows.length) {
+      await client.query('ROLLBACK');
+      const b = busy.rows[0];
+      return {
+        ok: false, code: 'REGION_BUSY', busyMissionId: String(b.id),
+        reason: '同一区域已有正在执行/排队的建设委托（#' + b.id + ' ' + b.status + '）'
+          + '；并发写同一区域会产生重叠资产，先等它完成或回滚后再执行本委托',
+      };
+    }
+    const upd = await client.query(
+      `UPDATE world_build_missions SET status = 'running', started_at = COALESCE(started_at, NOW())
+        WHERE id = $1 RETURNING id`,
+      [String(mission.id)]
+    );
+    await client.query('COMMIT');
+    if (upd.rows.length) return { ok: true };
+    return { ok: false, code: 'MISSION_NOT_FOUND', reason: '委托不存在：' + mission.id };
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (e2) { /* 已回滚 */ }
+    throw e;
+  } finally {
+    client.release();
+  }
+}
 
 /** 相对偏移 → 绝对坐标（吸附后） */
 function absoluteOf(region, block, part) {
@@ -57,7 +105,9 @@ async function run(missionId, opts) {
     notes.push('区域自主度已从 ' + snapshot + ' 调整为 ' + region.autonomy + '；本批仍按建委托时的快照 ' + snapshot + ' 跑完（§C.3⑑ 故意冗余）');
   }
 
-  await missionService.setStatus(mission.id, 'running');
+  // 3.5-3 P35-20：原子占位（取代原先无条件 setStatus('running')——并发下两个都会过）
+  const claim = await claimRegionForRun(mission);
+  if (!claim.ok) return { ok: false, code: claim.code, reason: claim.reason, busyMissionId: claim.busyMissionId };
   const started = Date.now();
 
   // 1) 布局提案（预算闸门在 planner 内，查 ai_call_log 表）
@@ -77,6 +127,8 @@ async function run(missionId, opts) {
   if (planned.truncated) {
     notes.push('零件数超过 constraints.max_objects，已截断到预算内（不报错，判据 P35-9）：' + JSON.stringify(planned.stats.dropped));
   }
+  // 3.5-3 P35-22：换家原因并入 executed_stats.notes（可追溯）
+  if (Array.isArray(planned.fallbackNotes) && planned.fallbackNotes.length) notes.push(...planned.fallbackNotes);
 
   // 2) 预演模式：只算不写（后台"预览"用）
   if (o.dryRun) {

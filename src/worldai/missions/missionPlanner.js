@@ -19,6 +19,7 @@ const { query } = require('../../database/db');
 const llmClient = require('../../services/llmClient');
 const promptBuilder = require('../llm/promptBuilder');
 const providerRouter = require('../llm/providerRouter');
+const providerFallback = require('../llm/providerFallback'); // 3.5-3 P35-22：跨厂商兜底
 const assetSearch = require('../tools/assetSearch');
 const boundsGuard = require('../regions/boundsGuard');
 
@@ -180,6 +181,7 @@ async function plan(mission, region, opts) {
   let rounds = 0;
   let lastStats = null;
   let lastPlan = null;
+  const fallbackNotes = []; // 3.5-3 P35-22：换家原因（runner 会并入 executed_stats.notes）
 
   for (let round = 1; round <= maxRounds; round++) {
     const used = await countLlmCalls(mission.id);
@@ -211,8 +213,8 @@ async function plan(mission, region, opts) {
       },
     });
 
-    const chat = await llmClient.chat({
-      provider,
+    // 3.5-3 P35-22：失败后取候选链下一家重试一次；两次调用 llmClient 都会落 ai_call_log
+    const chat = await providerFallback.chatWithFallback({
       messages: built.messages,
       jsonSchema: PLAN_SCHEMA,
       temperature: 0.2,
@@ -223,6 +225,13 @@ async function plan(mission, region, opts) {
       regionKey: String(mission.region_key),
       contextMeta: { tokensPerSection: built.meta.tokensPerSection, dropped: built.meta.dropped, round },
       retries: 1,
+    }, {
+      primary: provider,
+      onFallback: (info) => fallbackNotes.push(
+        'P35-22 LLM 调用失败已切换厂商：' + (info.from ? (info.from.display_name || info.from.provider_name) + '#' + info.from.id : '?')
+        + ' → ' + (info.to ? (info.to.display_name || info.to.provider_name) + '#' + info.to.id : '?')
+        + '（原因：' + info.error + '）；两次调用均已记入 ai_call_log（同一委托不跨家第二次）'
+      ),
     });
 
     const raw = parseJson(chat.content);
@@ -241,6 +250,7 @@ async function plan(mission, region, opts) {
     llmCalls: await countLlmCalls(mission.id),
     truncated: !!(lastStats && lastStats.dropped && lastStats.dropped.overBudget),
     candidates: candidates.items.length,
+    fallbackNotes,
   };
 }
 
