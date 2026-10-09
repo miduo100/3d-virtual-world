@@ -162,6 +162,18 @@ scripts/diag_*.js
 # 运行日志目录（access/ops/audit 分流日志与服务器 stdout/stderr）
 logs/
 
+# 2026-10-09 补漏：AI World Brain 文档的变体命名与本地留档产物
+# 原规则 AI-World-Brain-*.md 带连字符，挡不住「启动消息 / 提示词」这类无连字符命名，
+# 也挡不住 .bak_latest 备份后缀，故改为前缀通配
+AI-World-Brain*
+# 世界大脑界面原型草稿（本地评审用，全项目 0 处引用）
+public/admin_world_brain_preview.html
+# 一次性部署覆盖清单与部署校验脚本（与 accept_*/audit_* 同性质：本地留档，不随代码分发）
+_deploy_readme.txt
+scripts/verify_deploy_*.mjs
+# node_modules 的本地备份副本（约 370MB / 2.9 万文件，仅本机留档，不是依赖）
+node_modules改过的/
+
 # 验收与调试截图产物：整目录忽略，仅白名单保留文档实际引用的图片
 Screenshot/*
 !Screenshot/shipin.gif
