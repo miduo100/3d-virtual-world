@@ -82,7 +82,8 @@ async function initializeDatabase() {
     'migrations/add_world_entities.sql',           // Phase 5: world_entities + world_entity_parts（完整实体 = N 个 world_object + 1 Entity 索引）
     'migrations/add_world_tasks_p6.sql',           // Phase 6: world_tasks/progress 差量补列（giver/objective_index/事件游标）
     'migrations/add_world_activities.sql',         // Phase 6: 活动 + 参与者（生命周期/排名/幂等结算）
-    'migrations/add_wallets.sql'                   // Phase 6: 钱包 + 流水（原子扣减 + 幂等键）+ shops.merchant_id 放宽
+    'migrations/add_wallets.sql',                  // Phase 6: 钱包 + 流水（原子扣减 + 幂等键）+ shops.merchant_id 放宽
+    'migrations/add_ai_experiments.sql'            // Phase 7: A/B 实验（baseline 7d/实验 3d/同区域冷却 7d，自动回滚靠重放 change_steps）
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);

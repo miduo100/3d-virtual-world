@@ -143,12 +143,17 @@ function renderParts(parts) {
   return lines.join('\n');
 }
 
-/** MEMORY 段：Top-K 摘要（K 由降级步骤缩减） */
-function renderMemory(memories) {
-  if (!memories.length) return '（无召回记忆）';
+/** MEMORY 段：昨日摘要（可选，置顶）+ Top-K 记忆
+ *  ★ Phase 7（P6-11/P6-12）：记忆行与摘要**都过 sanitizeUntrusted** —— 真人反馈、聊天衍生的
+ *    内容属玩家输入（不可信），进 prompt 前必须剥离伪造标记与提示注入句式（双保险：写入侧已剥一次）。 */
+function renderMemory(memories, yesterdaySummary) {
   const lines = [];
+  if (yesterdaySummary) {
+    lines.push('- [yesterday_digest] ' + sanitizeUntrusted(String(yesterdaySummary)).slice(0, 600));
+  }
+  if (!memories.length) return lines.length ? lines.join('\n') : '（无召回记忆）';
   for (const m of memories) {
-    lines.push(`- [${m.kind || 'memory'}] ${String(m.summary || '').slice(0, 240)}`);
+    lines.push(`- [${m.kind || 'memory'}] ` + sanitizeUntrusted(String(m.summary || '')).slice(0, 240));
   }
   return lines.join('\n');
 }
@@ -245,7 +250,7 @@ function build(o) {
       nearDist, midDist,
     }),
     PARTS: renderParts(allParts.slice(0, st.partCount)),
-    MEMORY: renderMemory(allMemories.slice(0, st.memCount)),
+    MEMORY: renderMemory(allMemories.slice(0, st.memCount), ctx.yesterdaySummary),
     TOOLS: renderTools(allTools),
     HISTORY: renderHistory(allHistory.slice(0, st.hisCount)),
   });

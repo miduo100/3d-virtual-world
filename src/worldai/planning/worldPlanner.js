@@ -74,11 +74,17 @@ async function generate(o) {
           constraints: { phases: planValidator.PHASE_COUNT, purposeVocabulary: purposePrimitives.KEYS },
         },
         parts: purposePrimitives.PRIMITIVES.map((x) => ({ partKey: x.key, role: x.title, name: x.key, description: x.desc + '；依赖：' + (x.dependsOn.join('/') || '无') })),
-        memories: (await memoryService.recall({ worldId: p.worldId, scope: 'world', limit: 10 })).items.map((m) => ({ content: m.content, kind: m.kind })),
+        // Phase 7（P6-12）：world + **feedback** 两档一起召回 —— 真人反馈必须能进下轮规划的 prompt；
+        // 反馈属玩家输入，渲染时由 promptBuilder 的 [MEMORY] 行统一过 sanitizeUntrusted。
+        memories: (await memoryService.recall({ worldId: p.worldId, scope: 'world', limit: 10 }))
+          .items
+          .concat((await memoryService.recall({ worldId: p.worldId, scope: 'feedback', limit: 5 })).items)
+          .map((m) => ({ content: m.content, kind: m.kind })),
         tools: [],
         allowedTools: [],
         history: [],
         untrusted: await recentChatUntrusted(),
+        yesterdaySummary: await require('../memory/dailyDigest').buildYesterdayDigest(p.worldId), // Phase 7 P6-11
         contextWindowTokens: null,
         nearDist: 0, midDist: 0,
       },

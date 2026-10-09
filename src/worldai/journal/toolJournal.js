@@ -139,17 +139,26 @@ async function countToday(worldId) {
 }
 
 /**
- * 回滚一条执行（判据 P3-4）。事务：undo 应用与账本状态同生共死。
- * undo_payload 结构（本阶段 4 种）：
- *   {kind:'delete_world_object', id}
+ * 回滚一条执行（判据 P3-4 / Phase 7 P6-5）。事务：undo 应用与账本状态同生共死。
+ * undo_payload 结构：
+ *   {kind:'delete_world_object', id} Phase 4
  *   {kind:'delete_region', worldId, regionKey}
- *   {kind:'restore_world_object', id, cols:{position_x,...}}   —— 改动类恢复前置值
- *   {kind:'restore_region', id, cols:{name,...}}
+ *   {kind:'restore_world_object'|'restore_region', id, cols:{...}}
+ *   Phase 5/6 声明但此前未实现的 5 类（★latent 缺陷：动词标undoable=true 却回滚报「未知 kind」，
+ *   Phase 7 的 A/B 自动回滚强依赖它们，故在此补齐；见 §J.3 记录）：
+ *   {kind:'remove_entity', worldId, entityId} | {kind:'cancel_task'|'delete_quest', worldId, taskId}
+ *   {kind:'cancel_event', worldId, activityId} | {kind:'delete_npc', worldId, npcId}
+ *   {kind:'delete_interaction', worldId, interactionId} | {kind:'delete_shop', worldId, shopId}
+ *   {kind:'delete_code', worldId, codeId} | {kind:'restore_task', worldId, taskId, cols:{...}}
  */
-async function rollback(id, admin) {
+async function rollback(id, admin, opts) {
   const exec = await findById(id);
   if (!exec) return { ok: false, code: 'EXECUTION_NOT_FOUND', reason: '账本行不存在：' + id };
-  if (exec.status !== 'succeeded') {
+  // Phase 7 崩溃恢复：允许回滚 status='executing' 的行（§I.2「execution 若 executing → 回滚」）。
+  // 默认仍只收 succeeded —— 崩溃恢复是唯一例外，且必须显式传 allowExecuting。
+  const allowExecuting = !!(opts && opts.allowExecuting);
+  const rollbackable = exec.status === 'succeeded' || (allowExecuting && exec.status === 'executing');
+  if (!rollbackable) {
     return { ok: false, code: 'NOT_ROLLBACKABLE', reason: '只有 succeeded 的执行可回滚，当前 status=' + exec.status };
   }
   if (exec.undoable === false || !exec.undo_payload) {
@@ -167,19 +176,51 @@ async function rollback(id, admin) {
         `DELETE FROM world_regions WHERE world_id = $1 AND region_key = $2 RETURNING region_key`,
         [String(undo.worldId), String(undo.regionKey)]);
       if (!del.rows.length) throw new Error('undo 目标区域已不存在：' + undo.regionKey);
-    } else if (undo.kind === 'restore_world_object' || undo.kind === 'restore_region') {
+    } else if (undo.kind === 'restore_world_object' || undo.kind === 'restore_region' || undo.kind === 'restore_task') {
       const cols = undo.cols || {};
       const keys = Object.keys(cols);
       if (!keys.length) throw new Error('undo restore 缺少 cols');
       const sets = [];
       const params = [];
       keys.forEach((k) => { params.push(cols[k]); sets.push(k + ' = $' + params.length); });
-      params.push(Number(undo.id));
-      const table = undo.kind === 'restore_region' ? 'world_regions' : 'world_objects';
+      params.push(undo.kind === 'restore_task' ? String(undo.taskId) : Number(undo.id));
+      const table = undo.kind === 'restore_region' ? 'world_regions' : (undo.kind === 'restore_task' ? 'world_tasks' : 'world_objects');
       const upd = await client.query(
         `UPDATE ` + table + ` SET ` + sets.join(', ') + ` WHERE id = $` + params.length + ` RETURNING id`,
         params);
-      if (!upd.rows.length) throw new Error('undo 目标行已不存在：#' + undo.id);
+      if (!upd.rows.length) throw new Error('undo 目标行已不存在：' + (undo.taskId || undo.id));
+    } else if (undo.kind === 'cancel_task' || undo.kind === 'delete_quest') {
+      const u = await client.query(
+        `UPDATE world_tasks SET status='cancelled', updated_at=NOW() WHERE id=$1 AND status IN ('published','active') RETURNING id`,
+        [String(undo.taskId)]);
+      if (!u.rows.length) throw new Error('undo 目标任务不可取消或已不存在：' + undo.taskId);
+    } else if (undo.kind === 'cancel_event') {
+      const u = await client.query(
+        `UPDATE world_activities SET status='cancelled', updated_at=NOW() WHERE id=$1 AND status <> 'finished' RETURNING id`,
+        [String(undo.activityId)]);
+      if (!u.rows.length) throw new Error('undo 目标活动不可取消或已结束：' + undo.activityId);
+    } else if (undo.kind === 'delete_npc') {
+      const d = await client.query(`DELETE FROM npcs WHERE id = $1 RETURNING id`, [String(undo.npcId)]);
+      if (!d.rows.length) throw new Error('undo 目标 NPC 已不存在：' + undo.npcId);
+    } else if (undo.kind === 'delete_interaction') {
+      const d = await client.query(`DELETE FROM world_interactions WHERE id = $1 RETURNING id`, [String(undo.interactionId)]);
+      if (!d.rows.length) throw new Error('undo 目标交互点已不存在：' + undo.interactionId);
+    } else if (undo.kind === 'delete_shop') {
+      await client.query(`DELETE FROM shop_items WHERE shop_id = $1`, [String(undo.shopId)]);
+      const d = await client.query(`DELETE FROM shops WHERE id = $1 RETURNING id`, [String(undo.shopId)]);
+      if (!d.rows.length) throw new Error('undo 目标商店已不存在：' + undo.shopId);
+    } else if (undo.kind === 'delete_code') {
+      const d = await client.query(`DELETE FROM reward_codes WHERE id = $1 RETURNING id`, [String(undo.codeId)]);
+      if (!d.rows.length) throw new Error('undo 目标兑换码已不存在：' + undo.codeId);
+    } else if (undo.kind === 'remove_entity') {
+      const ent = await client.query(`SELECT id FROM world_entities WHERE id = $1 AND world_id = $2`,
+        [String(undo.entityId), String(undo.worldId)]);
+      if (!ent.rows.length) throw new Error('undo 目标实体已不存在：' + undo.entityId);
+      const ids = (await client.query(`SELECT world_object_id FROM world_entity_parts WHERE entity_id = $1`, [String(undo.entityId)])).rows
+        .map((r) => r.world_object_id).filter((v) => v !== null && v !== undefined);
+      if (ids.length) await client.query(`DELETE FROM world_objects WHERE id = ANY($1::int[])`, [ids]);
+      await client.query(`DELETE FROM world_interactions WHERE entity_id = $1`, [String(undo.entityId)]);
+      await client.query(`DELETE FROM world_entities WHERE id = $1`, [String(undo.entityId)]);
     } else {
       throw new Error('未知 undo_payload.kind：' + undo.kind);
     }

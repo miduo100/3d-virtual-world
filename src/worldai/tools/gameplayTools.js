@@ -68,7 +68,12 @@ function registerAll() {
       reward: { type: 'object' },
       expiresAt: { type: 'string', maxLength: 40 },
     } },
-    impl: async (p) => {
+    impl: async (p, ctx) => {
+      // Phase 7（P6-5）：改前取前置值 → 产出 restore_task undo 载荷，A/B 恶化时才能自动回滚
+      const before = (await query(`SELECT title, description, reward, expires_at FROM world_tasks WHERE id=$1`,
+        [String(p.taskId)])).rows[0];
+      if (!before) return { ok: false, code: 'TASK_NOT_FOUND', reason: '任务不存在' };
+      const cols = { title: before.title, description: before.description, reward: before.reward, expires_at: before.expires_at };
       const sets = []; const args = [];
       const push = (col, val) => { args.push(val); sets.push(col + '=$' + args.length); };
       if (p.title !== undefined) push('title', String(p.title).slice(0, 200));
@@ -79,7 +84,11 @@ function registerAll() {
       args.push(String(p.taskId));
       const r = await query(`UPDATE world_tasks SET ` + sets.join(',') + `, updated_at=NOW() WHERE id=$` + args.length + ` RETURNING id`, args);
       if (!r.rows.length) return { ok: false, code: 'TASK_NOT_FOUND', reason: '任务不存在' };
-      return { ok: true, result: { taskId: r.rows[0].id }, afterState: { taskId: r.rows[0].id }, undoable: false };
+      return {
+        ok: true, result: { taskId: r.rows[0].id }, afterState: { taskId: r.rows[0].id },
+        undo: { kind: 'restore_task', worldId: String(ctx && ctx.worldId), taskId: r.rows[0].id, cols },
+        undoable: true,
+      };
     },
   });
 

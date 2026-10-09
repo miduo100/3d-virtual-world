@@ -41,7 +41,7 @@ async function recomputeDaily(worldId, day) {
   };
   await upsert(worldId, d, GLOBAL_REGION, globalVals);
 
-  // 区域行（enter_region 事件 target_id = regionKey）
+  // 区域行（enter_region 事件 target_id = regionKey → 必须映射成 world_regions.id 的 UUID）
   const rr = await query(
     `SELECT target_id AS region_key,
             count(*) FILTER (WHERE type = 'entity_enter_region')::int AS visits,
@@ -54,8 +54,16 @@ async function recomputeDaily(worldId, day) {
       GROUP BY 1`,
     params
   );
+  // ★ Phase 7 修：region_id 列是 UUID，直接塞 region_key 会整轮抛错（"invalid input syntax for uuid"）；
+  //   这里一次查全量映射表，未登记的 key 归全局哨兵行（不丢数据也不炸整轮）。
+  const keyList = (rr.rows || []).map((r) => String(r.region_key));
+  const idMap = {};
+  if (keyList.length) {
+    const ir = await query(`SELECT region_key, id FROM world_regions WHERE region_key = ANY($1::varchar[])`, [keyList]);
+    for (const row of ir.rows || []) idMap[String(row.region_key)] = row.id;
+  }
   for (const r of rr.rows || []) {
-    await upsert(worldId, d, r.region_key, {
+    await upsert(worldId, d, idMap[String(r.region_key)] || GLOBAL_REGION, {
       visits: r.visits || 0, dwell_sec: 0, interactions: r.interactions || 0,
       chat_count: r.chat_count || 0, economy: 0, task_completion: 0,
     });
@@ -65,14 +73,33 @@ async function recomputeDaily(worldId, day) {
 
 async function upsert(worldId, day, regionId, vals) {
   for (const k of METRIC_KEYS) {
+    //dwell_sec 由 presenceEmitter 增量累加（Phase 7）；这里取 GREATEST 防重算把它抹成 0
+    const onConflict = k === 'dwell_sec'
+      ? 'DO UPDATE SET metric_value = GREATEST(EXCLUDED.metric_value, world_metrics_daily.metric_value), computed_at = NOW()'
+      : 'DO UPDATE SET metric_value = EXCLUDED.metric_value, computed_at = NOW()';
     await query(
       `INSERT INTO world_metrics_daily (day, world_id, region_id, metric_key, metric_value)
        VALUES ($1::date, $2, $3::uuid, $4, $5)
        ON CONFLICT (day, world_id, region_id, metric_key)
-       DO UPDATE SET metric_value = EXCLUDED.metric_value, computed_at = NOW()`,
+       ` + onConflict,
       [day, String(worldId), regionId, k, vals[k]]
     );
   }
+}
+
+/** 增量写日聚合（Phase 7 presenceEmitter 用：dwell_sec / visits 都是累加口径） */
+async function bumpMetrics(worldId, day, regionId, metricKey, delta) {
+  const add = Number(delta) || 0;
+  if (!add) return { ok: true, skipped: true };
+  const d = normalizeDay(day);
+  await query(
+    `INSERT INTO world_metrics_daily (day, world_id, region_id, metric_key, metric_value)
+     VALUES ($1::date, $2, $3::uuid, $4, $5)
+     ON CONFLICT (day, world_id, region_id, metric_key)
+     DO UPDATE SET metric_value = world_metrics_daily.metric_value + EXCLUDED.metric_value, computed_at = NOW()`,
+    [d, String(worldId), regionId || GLOBAL_REGION, String(metricKey), add]
+  );
+  return { ok: true, added: add };
 }
 
 /** 读某日区域统计（analyticsTools.get_area_statistics 用） */
@@ -111,4 +138,4 @@ function normalizeDay(day) {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : new Date().toISOString().slice(0, 10);
 }
 
-module.exports = { recomputeDaily, regionStats, behavior, METRIC_KEYS, GLOBAL_REGION };
+module.exports = { recomputeDaily, regionStats, behavior, bumpMetrics, METRIC_KEYS, GLOBAL_REGION };

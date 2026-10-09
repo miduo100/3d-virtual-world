@@ -19,12 +19,19 @@ const DEFAULT_INTERVAL_MS = 6 * 60 * 60 * 1000;
 let _timer = null;
 let _running = false;
 
-/** 单轮维护；返回 {ok, expired, deduped, capped} */
+/** 单轮维护；返回 {ok, expired, deduped, capped, compressed} */
 async function runOnce() {
   if (_running) return { ok: false, code: 'RUN_IN_PROGRESS' };
   _running = true;
   try {
     const exp = await query(`DELETE FROM world_memories WHERE expires_at IS NOT NULL AND expires_at < NOW()`);
+    // ★ Phase 7：7 天低重要度合并摘要必须**排在去重之前** —— 既有去重会先删掉同 kind 的旧行，
+    //   顺序反了待合并的低重要度记忆已经被删掉，P6-9 永远观察不到（接线时踩过的顺序坑）。
+    let compressed = null;
+    try {
+      const cfg = await require('../config').getConfig();
+      if (cfg) compressed = await require('./memoryCompressor').runOnce(cfg.world_id);
+    } catch (e2) { compressed = { ok: false, code: 'COMPRESS_FAILED', reason: String(e2 && e2.message).slice(0, 120) }; }
     const dedup = await query(
       `DELETE FROM world_memories m
          USING world_memories newer
@@ -37,13 +44,14 @@ async function runOnce() {
     const total = cnt.rows[0].n;
     if (total > CAP) {
       const del = await query(
+        // ★ Phase 7 口径修正：保留「最重要 + 最新」的 N 条，淘汰最不重要的（升序会反着来）
         `DELETE FROM world_memories WHERE id IN (
-            SELECT id FROM world_memories ORDER BY importance ASC, created_at ASC OFFSET $1)`,
+            SELECT id FROM world_memories ORDER BY importance DESC, created_at DESC OFFSET $1)`,
         [CAP]
       );
       capped = del.rowCount || 0;
     }
-    const out = { ok: true, expired: exp.rowCount || 0, deduped: dedup.rowCount || 0, capped, total: total - capped };
+    const out = { ok: true, expired: exp.rowCount || 0, deduped: dedup.rowCount || 0, capped, compressed, total: total - capped };
     try { require('../../services/logger').audit('world_ai_memory_maintenance', out); } catch (e) { /* logger 不在也不阻断 */ }
     return out;
   } catch (e) {

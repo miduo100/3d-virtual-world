@@ -92,6 +92,7 @@ const PATH_RULES = [
   { method: 'POST', path: '/api/inventory/drops/:dropId/mark-picked', policy: 'user' },
   { method: 'POST', path: '/api/inventory/bag/:itemId/use', policy: 'user' },
   { method: 'POST', path: '/api/inventory/redeem', policy: 'user' },   // Phase 6：真人凭码兑换（方案 A）
+  { method: 'POST', path: '/api/world-feedback', policy: 'user' },      // Phase 7：真人反馈（玩家 JWT；内容按不可信处理）
   { method: 'POST', path: '/api/shop/purchase', policy: 'user' },
 
   // ── 写库类入口收 admin（S2-05b，绕开 worldWriteGuard 匿名写 world_objects 的那批）──

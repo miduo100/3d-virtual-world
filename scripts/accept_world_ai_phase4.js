@@ -286,8 +286,11 @@ async function restoreConfig() {
 
   // ── P3-13 events.tail(seq) 游标增量 ──────────────────────────────
   {
-    const r1 = await eventLog.tail(W, 0, 5);
-    const c1 = r1.cursor;
+    // ★ 口径修正（Phase 7 暴露的历史测试缺陷）：游标基线必须取当前 max(seq)，
+    //   不能用 tail(W,0,5).cursor —— 事件表被历轮验收清理过后seq 有大量空洞，
+    //   「最老的 5 行」的seq 会退回到很小的值，后续 tail 会把整张表当增量返回。
+    const maxRow = (await query(`SELECT COALESCE(max(seq),0)::bigint AS m FROM world_events`)).rows[0];
+    const c1 = Number(maxRow.m);
     await eventLog.log({ worldId: W, type: 'object_interact', actorType: 'human', actorId: 'accept_p4_cur', targetId: 'accept_p4_ev1', payload: { n: 1 } });
     await eventLog.log({ worldId: W, type: 'object_interact', actorType: 'human', actorId: 'accept_p4_cur', targetId: 'accept_p4_ev2', payload: { n: 2 } });
     const r2 = await eventLog.tail(W, c1, 10);

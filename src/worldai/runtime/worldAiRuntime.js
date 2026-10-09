@@ -27,10 +27,12 @@ const { query } = require('../../database/db');
 const worldAiConfig = require('../config');
 const missionRunner = require('../missions/missionRunner');
 const planRunner = require('../planning/planRunner'); // Phase 3：approved Plan 的步骤尝试（P2-6/7）
+const scheduler = require('./scheduler');          // Phase 7：四类 tick 定时器链（P6-1）
+const circuitBreaker = require('./circuitBreaker');  // Phase 7：熔断（委托轮 + 优化轮共用计数）+ 崩溃恢复全量口径
 const logger = require('../../services/logger');
 
 const STATES = ['stopped', 'running', 'paused', 'error'];
-const BREAKER_THRESHOLD = 3;                                   // §H.7：连续 3 轮异常
+const BREAKER_THRESHOLD = circuitBreaker.BREAKER_THRESHOLD;   // §H.7：连续 3 轮异常（计数已含优化轮）
 const DEFAULT_INTERVAL_MS = 60 * 1000;
 const MIN_INTERVAL_MS = 10 * 1000;
 const MAX_INTERVAL_MS = 30 * 60 * 1000;
@@ -138,39 +140,29 @@ async function tick(source, opts) {
     }
 
     if (r && r.ok) {
-      _consecutiveFailures = 0;
+      await circuitBreaker.record(cfg.world_id, { ok: true, kind: 'mission' });
       return { ok: true, action: 'ran', missionId: String(m.id), result: { status: r.status, stats: r.stats } };
     }
 
-    _consecutiveFailures++;
+    // Phase 7：熔断计数收敛到 circuitBreaker（委托轮与优化轮共用，成功一轮清零 / 连续 3 轮熔断）
     const reason = (r && (r.reason || r.code)) || 'unknown';
-    logger.audit('world_ai_runtime_round_failed', {
-      missionId: String(m.id), region: m.region_key, consecutive: _consecutiveFailures, reason: String(reason).slice(0, 200),
-    });
-    if (_consecutiveFailures >= BREAKER_THRESHOLD) {
-      await trip(cfg.world_id, reason);
+    const rec = await circuitBreaker.record(cfg.world_id, { ok: false, kind: 'mission', reason });
+    if (rec.tripped) {
+      scheduler.stop();
       return { ok: false, action: 'ran', missionId: String(m.id), code: 'BREAKER_TRIPPED',
-        reason: '连续 ' + _consecutiveFailures + ' 轮异常，已熔断：runtime_state=error + enabled=false（§H.7）' };
+        reason: '连续 ' + rec.consecutive + ' 轮异常，已熔断：runtime_state=error + enabled=false（§H.7）' };
     }
     return { ok: false, action: 'ran', missionId: String(m.id), code: (r && r.code) || 'ROUND_FAILED',
-      reason: String(reason).slice(0, 300), consecutiveFailures: _consecutiveFailures };
+      reason: String(reason).slice(0, 300), consecutiveFailures: rec.consecutive };
   } finally {
     _inFlight = false;
   }
 }
 
-/** 熔断（§H.7）：error + 关总闸 + 审计。状态与"关闸"都落 DB，重启不会悄悄复活 */
+/** 熔断（§H.7）：委托给 circuitBreaker（状态与"关闸"都落 DB，重启不会悄悄复活） */
 async function trip(worldId, reason) {
-  await query(
-    `UPDATE world_ai_configs
-        SET runtime_state = 'error', enabled = false,
-            last_error = $2, updated_at = now()
-      WHERE world_id = $1`,
-    [String(worldId), ('连续 ' + BREAKER_THRESHOLD + ' 轮异常，已熔断：' + String(reason).slice(0, 260)).slice(0, 500)]
-  );
-  clearTimer();
-  logger.audit('world_ai_runtime_breaker_tripped', { worldId: String(worldId), consecutive: _consecutiveFailures, reason: String(reason).slice(0, 200) });
-  console.warn('[worldAiRuntime] 熔断触发：', String(reason).slice(0, 120));
+  await circuitBreaker.trip(worldId, reason);
+  scheduler.stop();
 }
 
 // ==================== 状态机（P1-7 / P1-8）====================
@@ -191,6 +183,7 @@ async function start(opts) {
   if (!now) return { ok: false, code: 'TRANSITION_FAILED', reason: '状态写入失败（当前=' + prev + '）' };
   await query(`UPDATE world_ai_configs SET last_heartbeat_at = now() WHERE world_id = $1`, [String(cfg.world_id)]);
   startTimer();
+  scheduler.start();     // Phase 7：四类 tick 链随 Start 一起起
   logger.audit('world_ai_runtime_started', { worldId: String(cfg.world_id), from: prev, intervalMs: _intervalMs });
   return { ok: true, state: 'running', from: prev, intervalMs: _intervalMs };
 }
@@ -209,6 +202,7 @@ async function resume() {
   const now = await setState(cfg.world_id, 'running', ['paused']);
   if (!now) return { ok: false, code: 'INVALID_TRANSITION', reason: '只有 paused 可以 resume（当前=' + (cfg && cfg.runtime_state) + '）' };
   startTimer();
+  scheduler.start();     // Phase 7：resume 同样把四类 tick 链续上
   logger.audit('world_ai_runtime_resumed', { worldId: String(cfg.world_id) });
   return { ok: true, state: 'running' };
 }
@@ -217,6 +211,7 @@ async function stop() {
   const cfg = await readConfig();
   const now = await setState(cfg.world_id, 'stopped', ['running', 'paused', 'error']);
   clearTimer();
+  scheduler.stop();     // Phase 7：四类 tick 链一起停
   if (now) logger.audit('world_ai_runtime_stopped', { worldId: String(cfg.world_id), from: now });
   return { ok: true, state: 'stopped', from: now || (cfg && cfg.runtime_state) };
 }
@@ -224,7 +219,7 @@ async function stop() {
 /** Restart = Stop + 清内存态（熔断计数）+ Start（Start 闸门照走：enabled=false 时仍拒，P1-8） */
 async function restart(opts) {
   await stop();
-  _consecutiveFailures = 0; // 清熔断计数（§I.2 Restart 原文）
+  circuitBreaker.reset(); // 清熔断计数（§I.2 Restart 原文）
   return start(opts);
 }
 
@@ -252,6 +247,9 @@ async function recover() {
   if (cfg.runtime_state !== 'running') {
     return { ok: true, action: 'none', reason: 'runtime_state=' + cfg.runtime_state + '（无需恢复）' };
   }
+  // Phase 7（P6-2）：plan step / execution 的全量恢复先做（与委托恢复互不影响）
+  const plans = await circuitBreaker.recoverPlans(cfg.world_id)
+    .catch((e) => ({ ok: false, steps: [], rolledBack: [], failedExecutions: [], error: String(e && e.message).slice(0, 200) }));
   const orphan = await query(
     `UPDATE world_build_missions
         SET status = 'failed',
@@ -261,8 +259,18 @@ async function recover() {
     [String(cfg.world_id)]
   );
   startTimer();
-  logger.audit('world_ai_runtime_recovered', { worldId: String(cfg.world_id), interruptedMissions: orphan.rows.map((r) => String(r.id)) });
-  return { ok: true, action: 'recovered', interruptedMissions: orphan.rows.map((r) => String(r.id)), state: 'running' };
+  scheduler.start();          // Phase 7：四类 tick 链随恢复一起续跑
+  logger.audit('world_ai_runtime_recovered', {
+    worldId: String(cfg.world_id),
+    interruptedMissions: orphan.rows.map((r) => String(r.id)),
+    interruptedSteps: plans.steps || [], rolledBackExecutions: plans.rolledBack || [],
+  });
+  return {
+    ok: true, action: 'recovered',
+    interruptedMissions: orphan.rows.map((r) => String(r.id)),
+    interruptedSteps: plans.steps || [], rolledBack: plans.rolledBack || [], failedExecutions: plans.failedExecutions || [],
+    state: 'running',
+  };
 }
 
 /** 进程启动初始化（由 worldAi.js 挂载点调用，server 路径专属）：崩溃恢复 + 幂等 */
@@ -278,12 +286,13 @@ function getDiag() {
     timerActive: !!_timer,
     tickIntervalMs: _intervalMs,
     inFlight: _inFlight,
-    consecutiveFailures: _consecutiveFailures,
+    consecutiveFailures: circuitBreaker.peek(),
     breakerThreshold: BREAKER_THRESHOLD,
+    schedulerKinds: scheduler.KINDS,
   };
 }
 
-/** 完整状态（路由 GET /runtime 用） */
+/** 完整状态（路由 GET /runtime 用；Phase 7 起附四类 tick 的调度快照，供后台面板轮询） */
 async function getStatus() {
   const cfg = await readConfig();
   return {
@@ -293,11 +302,12 @@ async function getStatus() {
     lastHeartbeatAt: cfg ? cfg.last_heartbeat_at : null,
     lastError: cfg ? cfg.last_error : null,
     diag: getDiag(),
+    scheduler: await scheduler.getStatus().catch(() => null),
   };
 }
 
 /** 验收/诊断用：进程内直接读连续失败计数（不落库，重启即清，与"trip 状态在 DB"口径一致） */
-function peekConsecutiveFailures() { return _consecutiveFailures; }
+function peekConsecutiveFailures() { return circuitBreaker.peek(); }
 
 module.exports = {
   STATES,
@@ -315,4 +325,7 @@ module.exports = {
   getStatus,
   getDiag,
   peekConsecutiveFailures,
+  scheduler,          // Phase 7：暴露给路由/后台面板（不改变既有导出形状）
+  circuitBreaker,     // Phase 7：熔断与崩溃恢复（验收脚本直接调 recoverPlans）
+  recoverPlans: circuitBreaker.recoverPlans,
 };
