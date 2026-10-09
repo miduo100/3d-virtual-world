@@ -208,6 +208,7 @@ app.use('/api/admin/model-guard', modelGuardRoutes);  // 远程模型守卫管�
 app.use('/api/threejs-blocks', threejsCodeBlocksRoutes);  // Three.js 代码库路由（公开读，写需管理员）
 app.use('/api/threejs-issues', require('./routes/threejsIssues'));  // Three.js 问题库词条配置（公开读，写需管理员）
 app.use('/api/world-ai', require('./worldai/routes/worldAi'));  // 🧠 AI World Brain Phase 2a（config/credentials，鉴权在路由内）
+app.use('/api/world-ai', require('./worldai/routes/worldAiRegions'));  // Phase 3.5-1: 区域/建设委托/工具口（同前缀第二个 router，Express 允许）
 app.use('/api/threejs-blocks', apiWriteGuard.forMount('/api/threejs-blocks'), threejsImportRoutes);    // Three.js URL导入路由（管理员）
 app.use('/api/subscription', subscriptionRoutes);  // 订阅管理路由
 app.use('/api/sky', skyRoutes.router);  // 天空库路由（列表公开读，上传/删除需管理员）

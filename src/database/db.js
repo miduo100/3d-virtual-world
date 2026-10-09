@@ -64,7 +64,13 @@ async function initializeDatabase() {
     'migrations/add_ai_call_log.sql',     // Phase 0: LLM 调用账本（成本/token 限流/熔断依据）
     'migrations/add_threejs_code_blocks_meta.sql',  // Phase 0: 补 source_type/auto_fixes/import_status（原先只存在于现库，新环境会缺列）
     'migrations/add_world_ai_configs.sql',       // Phase 2a: World AI 配置（每世界一行，含 autonomy/provider_map）
-    'migrations/add_world_ai_credentials.sql'    // Phase 2a: World AI 专用凭证（bcrypt + world:* scope）
+    'migrations/add_world_ai_credentials.sql',    // Phase 2a: World AI 专用凭证（bcrypt + world:* scope）
+    'migrations/add_world_objects_origin.sql',   // Phase 3.5-1: world_objects 归属四列（origin 默认 human = 用户红线）
+    'migrations/add_world_regions.sql',          // Phase 3.5-1: 区域（矩形 bounds + autonomy 无默认值 + gridsnap）
+    'migrations/add_world_build_missions.sql',   // Phase 3.5-1: 建设委托（autonomy_snapshot + provider_resolution）
+    'migrations/add_world_interactions.sql',     // Phase 3.5-1: 可交互点（极简玩法 reward_grant）
+    'migrations/add_world_tasks_mini.sql',       // Phase 3.5-1: 极简引导任务 + 进度
+    'migrations/add_ai_call_log_refs.sql'        // Phase 3.5-1: ai_call_log 加mission_id/region_key/context_meta（委托级预算查表计数）
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);
