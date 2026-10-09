@@ -14,6 +14,7 @@
 
 const { query } = require('../../database/db');
 const regionService = require('../regions/regionService');
+const { normalizeConstraints } = require('../regions/constraints');
 const providerRouter = require('../llm/providerRouter');
 
 const STATUSES = ['draft', 'queued', 'running', 'completed', 'failed', 'rolled_back', 'cancelled'];
@@ -25,7 +26,8 @@ function bad(code, reason, extra) {
 
 /** constraints 白名单 + 归一（placement_policy 强制为 'avoid'） */
 function sanitizeConstraints(input) {
-  const c = Object.assign({}, input || {});
+  // ★ 键名归一：前端/表单用 camelCase，DB 与规格用 snake_case（regions/constraints.js）
+  const c = normalizeConstraints(input);
   if (c.placement_policy !== undefined && String(c.placement_policy) !== PLACEMENT_POLICY) {
     return bad('PLACEMENT_POLICY_FORBIDDEN',
       "placement_policy 一期只允许 '" + PLACEMENT_POLICY + "'；replace/overwrite 不实现、不暴露参数、不出现在 UI（§G.5 ②）");

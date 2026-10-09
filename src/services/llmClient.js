@@ -305,13 +305,15 @@ function writeCallLog(row) {
         `INSERT INTO ai_call_log
            (purpose, provider_id, provider_name, adapter, model, caller, ok,
             error_code, error_message, input_tokens, output_tokens, total_tokens,
-            latency_ms, attempts, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())`,
+            latency_ms, attempts, mission_id, region_key, context_meta, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW())`,
         [row.purpose || null, row.providerId || null, row.providerName || null, row.adapter || null,
          String(row.model || '').slice(0, 160) || null, row.caller || null, !!row.ok,
          row.errorCode || null, String(row.errorMessage || '').slice(0, MAX_ERRMSG) || null,
          row.usage ? row.usage.inputTokens : 0, row.usage ? row.usage.outputTokens : 0, row.usage ? row.usage.totalTokens : 0,
-         row.latencyMs || 0, row.attempts || 1]
+         row.latencyMs || 0, row.attempts || 1,
+         row.missionId || null, row.regionKey || null,
+         row.contextMeta ? JSON.stringify(row.contextMeta) : null]
       );
     } catch (e) {
       // 表可能还没迁移（首次启动顺序）——只告警一次，绝不影响主流程
@@ -342,6 +344,10 @@ async function chat(o) {
   const caller = o.caller || '';
   const retries = Number.isInteger(o.retries) ? o.retries : DEFAULT_RETRIES;
   const timeoutMs = Number(o.timeoutMs) > 0 ? Number(o.timeoutMs) : DEFAULT_TIMEOUT_MS;
+  // ★ v1.5委托级留痕（§H.10.5）：预算按 ai_call_log 查表计数，缺这三列就没法做重启安全的预算
+  const missionId = o.missionId || null;
+  const regionKey = o.regionKey || null;
+  const contextMeta = o.contextMeta || null;
 
   // 1) 解析 provider
   let provider = null;
@@ -414,7 +420,7 @@ async function chat(o) {
         raw: json, adapter: adapterName, attempts, latencyMs,
         providerId: provider.id, providerName: provider.provider_name, model,
       };
-      writeCallLog({ purpose, providerId: provider.id, providerName: provider.provider_name, adapter: adapterName, model, caller, ok: true, usage: parsed.usage, latencyMs, attempts });
+      writeCallLog({ purpose, providerId: provider.id, providerName: provider.provider_name, adapter: adapterName, model, caller, ok: true, usage: parsed.usage, latencyMs, attempts, missionId, regionKey, contextMeta });
       return out;
     } catch (e) {
       clearTimeout(timer);
@@ -422,7 +428,7 @@ async function chat(o) {
       if (e && (e.name === 'AbortError' || e.code === 'LLM_TIMEOUT')) {
         const te = new LlmTimeoutError(timeoutMs);
         te.provider = provider.provider_name;
-        writeCallLog({ purpose, providerId: provider.id, providerName: provider.provider_name, adapter: adapterName, model, caller, ok: false, errorCode: te.code, errorMessage: te.message, latencyMs: Date.now() - started, attempts });
+        writeCallLog({ purpose, providerId: provider.id, providerName: provider.provider_name, adapter: adapterName, model, caller, ok: false, errorCode: te.code, errorMessage: te.message, latencyMs: Date.now() - started, attempts, missionId, regionKey, contextMeta });
         throw te;
       }
       lastErr = e;
@@ -433,7 +439,7 @@ async function chat(o) {
   }
 
   const msg = lastErr && lastErr.message ? lastErr.message : '未知错误';
-  writeCallLog({ purpose, providerId: provider.id, providerName: provider.provider_name, adapter: adapterName, model, caller, ok: false, errorCode: (lastErr && lastErr.code) || 'LLM_ERROR', errorMessage: msg, latencyMs: Date.now() - started, attempts });
+  writeCallLog({ purpose, providerId: provider.id, providerName: provider.provider_name, adapter: adapterName, model, caller, ok: false, errorCode: (lastErr && lastErr.code) || 'LLM_ERROR', errorMessage: msg, latencyMs: Date.now() - started, attempts, missionId, regionKey, contextMeta });
   throw lastErr instanceof LlmError
     ? lastErr
     : new LlmError(msg, { code: 'LLM_ERROR', provider: provider.provider_name, cause: lastErr });

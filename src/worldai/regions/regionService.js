@@ -16,6 +16,7 @@
 const { query } = require('../../database/db');
 const guard = require('../tools/ownershipGuard');
 const boundsGuard = require('./boundsGuard');
+const { normalizeConstraints } = require('./constraints');
 const worldAiConfig = require('../config');
 
 const AUTONOMIES = ['managed', 'semi_autonomous', 'autonomous'];
@@ -58,7 +59,7 @@ async function createRegion(input) {
      RETURNING *`,
     [String(p.regionKey), String(p.worldId || ''), String(p.name), p.purpose || null,
       JSON.stringify(nb.bounds), String(p.autonomy),
-      JSON.stringify(p.gridsnap || {}), JSON.stringify(p.constraints || {}),
+      JSON.stringify(p.gridsnap || {}), JSON.stringify(normalizeConstraints(p.constraints)),
       JSON.stringify(p.gameplay || {}), Array.isArray(p.tags) ? p.tags : [],
       p.notes || null, p.preferredProviderId ? Number(p.preferredProviderId) : null,
       String(p.createdBy || 'admin')]

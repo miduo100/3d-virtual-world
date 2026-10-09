@@ -12,11 +12,16 @@
  */
 const express = require('express');
 const router = express.Router();
+const { query } = require('../../database/db');
 const { authenticateAdminToken, logAdminAction } = require('../../middleware/adminAuth');
 const worldAiConfig = require('../config');
 const regionService = require('../regions/regionService');
 const missionService = require('../missions/missionService');
+const missionPlanner = require('../missions/missionPlanner');
+const missionRunner = require('../missions/missionRunner');
 const missionTools = require('../tools/missionTools');
+const interactionService = require('../gameplay/interactionService');
+const microQuestService = require('../gameplay/microQuestService');
 const journal = require('../journal/batchJournal');
 
 router.use(authenticateAdminToken);
@@ -141,11 +146,103 @@ router.post('/missions/:id/rollback', async (req, res) => {
   try {
     const m = await missionService.getMission(req.params.id);
     if (!m) return res.status(404).json({ success: false, error: '委托不存在' });
-    const before = await journal.countBatchObjects(m.id);
-    const r = await journal.rollbackBatch(m.id, { regionKey: m.region_key });
-    await missionService.setStatus(m.id, 'rolled_back', { stats: Object.assign({}, m.executed_stats, { rolledBackObjects: r.deleted }) });
-    await logAdminAction(req.adminUser.id, 'world_ai_mission_rollback', 'world_build_missions', m.id, JSON.stringify({ before, deleted: r.deleted }), req.ip);
-    res.json({ success: true, before, rolledBack: r.deleted, ids: r.ids });
+    const r = await missionRunner.rollback(req.params.id);
+    await logAdminAction(req.adminUser.id, 'world_ai_mission_rollback', 'world_build_missions', req.params.id, JSON.stringify({ before: r.before, deleted: r.rolledBack }), req.ip);
+    res.json({ success: true, before: r.before, rolledBack: r.rolledBack, ids: r.ids });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// 预览：生成布局但不落库（后台「生成方案」按钮；人工可编辑后再执行）
+router.post('/missions/:id/plan', async (req, res) => {
+  try {
+    const m = await missionService.getMission(req.params.id);
+    if (!m) return res.status(404).json({ success: false, error: '委托不存在' });
+    const region = await regionService.getRegion(m.world_id, m.region_key);
+    const r = await missionPlanner.plan(m, region, req.body || {});
+    if (!r.ok) return res.status(400).json({ success: false, error: r.reason, code: r.code });
+    if (r.plan) await missionService.savePlan(m.id, r.plan);
+    res.json({ success: true, plan: r.plan, stats: r.stats, rounds: r.rounds, llmCalls: r.llmCalls });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// 执行：managed 档需显式 confirm（= 人工点执行）；②③ 档自动执行
+router.post('/missions/:id/run', async (req, res) => {
+  try {
+    const m = await missionService.getMission(req.params.id);
+    if (!m) return res.status(404).json({ success: false, error: '委托不存在' });
+    const eff = await regionService.effectiveAutonomyOf(m.world_id, m.region_key);
+    if (eff.effective === 'managed' && !(req.body || {}).confirm) {
+      return res.status(400).json({
+        success: false, code: 'CONFIRM_REQUIRED',
+        error: '当前有效自主度是 managed（只按明确下达的委托干活）→ 必须由管理员点「执行」确认；semi_autonomous / autonomous 才自动执行',
+      });
+    }
+    const r = await missionRunner.run(m.id, { injectPlan: (req.body || {}).injectPlan || null });
+    await logAdminAction(req.adminUser.id, 'world_ai_mission_run', 'world_build_missions', m.id, JSON.stringify({ status: r.status, created: r.stats && r.stats.objectsCreated }), req.ip);
+    res.json(Object.assign({}, r, { success: !!r.ok }));
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ── 极简玩法（Phase 3.5-2）────────────────────────────────────────
+// ★ 一期仅 Agent 侧：真人 interact 服务端不响应（判据 P35-16），后台 UI 需写明，避免被当成故障。
+router.post('/regions/:regionKey/interactions', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const worldId = b.worldId || (await worldAiConfig.getConfig()).world_id;
+    const key = String(b.key || '').trim();
+    if (!key) return res.status(400).json({ success: false, error: '必须给 key（同区域内唯一）' });
+    const p = b.position || {};
+    const r = await query(
+      `INSERT INTO world_interactions (world_id, region_key, interaction_type, key, label, position, radius, payload, grants, origin)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'ai')
+       ON CONFLICT (world_id, interaction_type, key) DO UPDATE
+         SET label = EXCLUDED.label, position = EXCLUDED.position, radius = EXCLUDED.radius, payload = EXCLUDED.payload
+       RETURNING *`,
+      [worldId, req.params.regionKey, String(b.interaction_type || 'reward_grant'), key, b.label || '采集点',
+        JSON.stringify({ x: Number(p.x) || 0, y: Number(p.y) || 0, z: Number(p.z) || 0 }),
+        Math.min(Number(b.radius) || 3, 30), JSON.stringify(b.payload || {}), JSON.stringify(b.grants || null)]
+    );
+    res.json({ success: true, interaction: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.post('/interactions/interact', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const r = await interactionService.interact({
+      worldId: b.worldId, actorType: b.actorType || 'agent', actorId: b.actorId,
+      position: b.position, interactionKey: b.interactionKey, regionKey: b.regionKey,
+    });
+    res.json(Object.assign({}, r, { success: !!r.ok }));
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.post('/regions/:regionKey/quests', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const worldId = b.worldId || (await worldAiConfig.getConfig()).world_id;
+    const r = await microQuestService.createForRegion(Object.assign({}, b, { worldId, regionKey: req.params.regionKey }));
+    if (!r.ok) return res.status(400).json({ success: false, error: r.reason, code: r.code });
+    res.json({ success: true, task: r.task, existed: !!r.existed });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.get('/quests', async (req, res) => {
+  try {
+    const worldId = req.query.worldId || (await worldAiConfig.getConfig()).world_id;
+    res.json({ success: true, tasks: await microQuestService.listTasks(worldId, req.query.regionKey) });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }

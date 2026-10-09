@@ -1,0 +1,87 @@
+/**
+ * assetSearch —— 零件库检索（Phase 3.5-2 · 只读工具，判据 P35-13）
+ * 济宁米多信息科技有限公司 版权所有 · 888@miduo100.com / 15660440944
+ * ------------------------------------------------------------------
+ * 规格来源：§D.3 ①（search_assets 为只读工具，不计入写权限）+ §Phase 3.5 判据 P35-13。
+ *
+ * 为什么单独成文件（§K.3 提取法）：检索口径（style_family 优先、role 过滤、pending_review 隐身）
+ * 是"事实"，planner 与后台都要用，不能各写一份 SQL 出现两种答案。
+ *
+ * ★ 硬约束：只返回 status='active' 的库 —— pending_review 对 AI **完全隐身**（§C.3⑲）。
+ */
+'use strict';
+
+const { query } = require('../../database/db');
+
+const DEFAULT_LIMIT = 12;
+
+function arr(v) {
+  if (v === undefined || v === null || v === '') return [];
+  return Array.isArray(v) ? v : [v];
+}
+
+/**
+ * 按 role / style_family / 关键字检索零件。
+ * @param {object} o { roles:[], forbidRoles:[], styleFamily, keyword, limit, worldId }
+ * @returns {Promise<{ok:boolean, items:Array, total:number, notice:string}>}
+ */
+async function searchParts(o) {
+  const opt = o || {};
+  const roles = arr(opt.roles).map(String);
+  const forbid = arr(opt.forbidRoles).map(String);
+  const limit = Math.min(50, Math.max(1, Number(opt.limit) || DEFAULT_LIMIT));
+  const params = [];
+  const where = [`l.status = 'active'`, `l.deleted_at IS NULL`];
+  if (roles.length) { params.push(roles); where.push(`i.part_role = ANY($${params.length})`); }
+  if (forbid.length) { params.push(forbid); where.push(`NOT (i.part_role = ANY($${params.length}))`); }
+  if (opt.styleFamily) { params.push(String(opt.styleFamily)); where.push(`l.style_family = $${params.length}`); }
+  if (opt.keyword) {
+    params.push('%' + String(opt.keyword) + '%');
+    where.push(`(i.part_key ILIKE $${params.length} OR i.part_subtype ILIKE $${params.length})`);
+  }
+  params.push(limit);
+  const res = await query(
+    `SELECT i.part_key, i.part_role, i.part_subtype, i.grid_w, i.grid_h, i.grid_d,
+            i.collidable, i.stack_rule, i.repeat_allowed, i.metadata,
+            l.pack_key, l.style_family, l.priority, u.path AS model_path
+       FROM part_library_items i
+       JOIN part_libraries l ON l.id = i.library_id
+       JOIN uploaded_models u ON u.id = i.model_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY l.priority ASC, l.id ASC, i.id ASC
+      LIMIT $${params.length}`,
+    params
+  );
+  const items = (res.rows || []).map((r) => ({
+    partKey: r.part_key,
+    role: r.part_role,
+    subtype: r.part_subtype,
+    grid: [r.grid_w || 1, r.grid_h || 1, r.grid_d || 1],
+    pack: r.pack_key,
+    styleFamily: r.style_family,
+    modelPath: r.model_path,
+    tris: r.metadata && r.metadata.tris ? r.metadata.tris : null,
+  }));
+  return {
+    ok: true,
+    items,
+    total: items.length,
+    notice: '只返回 status=active 的库；pending_review 对 AI 完全隐身',
+  };
+}
+
+/** 按 partKey 精确取（planner 校验产物用；不存在即视为非法引用） */
+async function getPart(partKey) {
+  const res = await query(
+    `SELECT i.part_key, i.part_role, i.grid_w, i.grid_h, i.grid_d, u.path AS model_path
+       FROM part_library_items i
+       JOIN part_libraries l ON l.id = i.library_id
+       JOIN uploaded_models u ON u.id = i.model_id
+      WHERE i.part_key = $1 AND l.status = 'active' AND l.deleted_at IS NULL
+      LIMIT 1`,
+    [String(partKey)]
+  );
+  return (res.rows && res.rows[0]) || null;
+}
+
+module.exports = { searchParts, getPart, DEFAULT_LIMIT };

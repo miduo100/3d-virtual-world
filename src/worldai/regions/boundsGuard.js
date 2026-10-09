@@ -58,9 +58,10 @@ function checkInside(bounds, x, z, footprint) {
   const f = Object.assign({}, DEFAULT_FOOTPRINT, footprint || {});
   const hw = Math.abs(num(f.w, DEFAULT_FOOTPRINT.w)) / 2;
   const hd = Math.abs(num(f.d, DEFAULT_FOOTPRINT.d)) / 2;
-  if (contains(bounds, x, z) && contains(bounds, x - hw, z - hd) && contains(bounds, x + hw, z + hd)) {
-    return { ok: true };
-  }
+  // ★ 判定口径：**整件必须落在区域内** = 中心点距边界至少半个足迹。
+  //   （不要拿"某个角点"去查 contains —— 角点天然在边界外，会把贴边放置全部误判成越界。）
+  const margin = Math.max(hw, hd);
+  if (contains(bounds, x, z, margin)) return { ok: true };
   return {
     ok: false,
     code: 'OUT_OF_BOUNDS',
