@@ -82,9 +82,12 @@ class TripoService {
       if (error.response) {
         console.error('错误详情:', error.response.data);
       }
+      // Phase 9（gen3dTripoProvider 报备小改）：错误信息带上响应体，
+      // 否则上游方言（欠费 403 code2010 / 版本弃用 400 code2015）无法被下层翻译成可读诊断
+      const respBody = error.response && error.response.data ? ' ' + JSON.stringify(error.response.data).slice(0, 240) : '';
       return {
         success: false,
-        error: `API调用失败: ${error.message}`
+        error: `API调用失败: ${error.message}${respBody}`
       };
     }
   }
@@ -159,9 +162,10 @@ class TripoService {
 
     } catch (error) {
       console.error('❌ Tripo查询任务失败:', error.message);
+      const respBody = error.response && error.response.data ? ' ' + JSON.stringify(error.response.data).slice(0, 240) : '';
       return {
         success: false,
-        error: `查询失败: ${error.message}`
+        error: `查询失败: ${error.message}${respBody}`
       };
     }
   }
@@ -245,9 +249,10 @@ class TripoService {
 
     } catch (error) {
       console.error('❌ Tripo文本转模型失败:', error.message);
+      const respBody = error.response && error.response.data ? ' ' + JSON.stringify(error.response.data).slice(0, 240) : '';
       return {
         success: false,
-        error: `API调用失败: ${error.message}`
+        error: `API调用失败: ${error.message}${respBody}`
       };
     }
   }

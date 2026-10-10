@@ -25,7 +25,8 @@ const configService = require('../../services/configService');
 const tripoService = require('../../services/tripo');
 
 const PUBLIC_MODELS_DIR = path.join(__dirname, '..', '..', '..', 'public', 'models', 'uploaded');
-const DEFAULT_MODEL_VERSION = 'v2.0-20240919';
+/** Tripo 有效版本（实测 v2.0-20240919 已弃用 code 2015；v2.5-20250123 实测合法——403 只卡余额） */
+const DEFAULT_MODEL_VERSION = 'v2.5-20250123';
 
 function bad(code, reason, extra) { return Object.assign({ ok: false, code, reason }, extra || {}); }
 
@@ -33,8 +34,11 @@ function bad(code, reason, extra) { return Object.assign({ ok: false, code, reas
 function diagnose(raw) {
   const s = String(raw || '').slice(0, 300);
   const low = s.toLowerCase();
-  if (/insufficient|balance|余额|欠费|quota|arrears/.test(low)) {
-    return { code: 'INSUFFICIENT_BALANCE', reason: 'Tripo 账户余额不足，请充值后重试（原始信息：' + s + '）' };
+  if (/insufficient|balance|credit|余额|欠费|quota|arrears/.test(low)) {
+    return { code: 'INSUFFICIENT_BALANCE', reason: 'Tripo 账户余额不足（credit 用尽），请到 platform.tripo3d.ai 充值后重试（原始信息：' + s + '）' };
+  }
+  if (/deprecated|the version has been/.test(low)) {
+    return { code: 'MODEL_VERSION_DEPRECATED', reason: 'Tripo 模型版本已弃用，请改用更高版本（原始信息：' + s + '）' };
   }
   if (/invalid.*key|unauthorized|401|authentication|api key|密钥/.test(low)) {
     return { code: 'KEY_INVALID', reason: 'Tripo API Key 无效或未生效，请到后台系统配置检查 TRIPO_API_KEY（原始信息：' + s + '）' };
