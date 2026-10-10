@@ -22,6 +22,7 @@ const providerRouter = require('../llm/providerRouter');
 const providerFallback = require('../llm/providerFallback'); // 3.5-3 P35-22：跨厂商兜底
 const assetSearch = require('../tools/assetSearch');
 const boundsGuard = require('../regions/boundsGuard');
+const scatterMod = require('./scatter'); // 队列14 C2：散点布局原语（确定性泊松盘）
 
 const MAX_ROUNDS = 2;
 
@@ -41,6 +42,9 @@ const PLAN_SCHEMA = {
             kind: { type: 'string' },
             footprint: { type: 'object', properties: { w: { type: 'number' }, d: { type: 'number' } } },
             anchor: { type: 'object', properties: { dx: { type: 'number' }, dz: { type: 'number' } } },
+            mode: { type: 'string', enum: ['scatter'] },
+            partKeys: { type: 'array', items: { type: 'string' } },
+            count: { type: 'number' },
             parts: {
               type: 'array',
               items: {
@@ -54,7 +58,7 @@ const PLAN_SCHEMA = {
               },
             },
           },
-          required: ['kind', 'parts'],
+          required: ['kind'],
         },
       },
     },
@@ -110,6 +114,36 @@ async function validatePlan(raw, constraints) {
   let placedParts = 0;
   const dropped = { unknownPart: 0, roleNotAllowed: 0, roleForbidden: 0, overBudget: 0 };
   for (const b of blocks) {
+    // ★ C2 散点块：模型只给 partKeys + count，坐标由 scatter 原语展开（确定性泊松盘）
+    if (b && b.mode === 'scatter') {
+      const keys = Array.isArray(b.partKeys) ? b.partKeys.map(String) : [];
+      const validParts = [];
+      for (const k of keys) {
+        const part = await assetSearch.getPart(k);
+        if (!part) { dropped.unknownPart++; continue; }
+        if (forbid.indexOf(String(part.part_role)) >= 0) { dropped.roleForbidden++; continue; }
+        if (allowed && allowed.indexOf(String(part.part_role)) < 0) { dropped.roleNotAllowed++; continue; }
+        validParts.push({
+          partKey: part.part_key, role: part.part_role,
+          grid: [part.grid_w || 1, part.grid_h || 1, part.grid_d || 1],
+          modelPath: part.model_path,
+        });
+      }
+      if (!validParts.length) continue;
+      let count = Math.max(1, Math.floor(Number(b.count) || validParts.length));
+      const remain = maxObjects - placedParts;
+      if (count > remain) { count = Math.max(0, remain); dropped.overBudget++; }
+      if (count <= 0) continue;
+      placedParts += count;
+      kept.push({
+        kind: String(b.kind || 'scatter'), mode: 'scatter',
+        footprint: { w: Number(b.footprint && b.footprint.w) || 0, d: Number(b.footprint && b.footprint.d) || 0 },
+        anchor: { dx: Number(b.anchor && b.anchor.dx) || 0, dz: Number(b.anchor && b.anchor.dz) || 0 },
+        scatter: { count, parts: validParts },
+        parts: [],
+      });
+      continue;
+    }
     const parts = [];
     for (const p of (Array.isArray(b.parts) ? b.parts : [])) {
       if (!p || !p.partKey) { dropped.unknownPart++; continue; }
@@ -301,6 +335,13 @@ async function plan(mission, region, opts) {
       continue;
     }
     const v = await validatePlan(raw, constraints);
+    // ★ C2：散点块展开为具体零件坐标（确定性：同委托同轮 → 同坐标 → 重跑幂等去重命中）
+    const exp = expandScatterBlocks(v.plan, region, String(mission.id) + '|r' + round);
+    if (exp.blocks > 0) {
+      v.stats.blocks = (v.plan.blocks || []).length;
+      v.stats.parts = (v.plan.blocks || []).reduce((s, b) => s + (b.parts || []).length, 0);
+      fallbackNotes.push('散点块已展开：' + exp.blocks + ' 块 / ' + exp.parts + ' 件（泊松盘确定性布点）');
+    }
     lastStats = v.stats;
     lastPlan = v.plan;
     // ★ 意图达标检查（队列14 A1/A2）：有合法零件但数量/种类不达标 → 带差距反馈重试下一轮
@@ -324,6 +365,42 @@ async function plan(mission, region, opts) {
     candidates: candidates.items.length,
     fallbackNotes,
   };
+}
+
+/** C2：把散点块展开为具体零件（确定性泊松盘，同种子同结果）。返回展开的 {blocks, parts} 数 */
+function expandScatterBlocks(plan, region, seedStr) {
+  const b = (region && region.bounds) || {};
+  const minX = Number(b.minX != null ? b.minX : b.x) || 0;
+  const minZ = Number(b.minZ != null ? b.minZ : b.z) || 0;
+  const maxX = Number(b.maxX != null ? b.maxX : minX + (Number(b.width) || 0));
+  const maxZ = Number(b.maxZ != null ? b.maxZ : minZ + (Number(b.depth) || 0));
+  const w = Math.max(2, maxX - minX - 8); // 留 4m 边界余量（契约"距边界 ≥2m"+吸附余量）
+  const d = Math.max(2, maxZ - minZ - 8);
+  let outBlocks = 0, outParts = 0;
+  for (const blk of (plan.blocks || [])) {
+    if (!blk || blk.mode !== 'scatter' || !blk.scatter || !blk.scatter.parts || !blk.scatter.parts.length) continue;
+    const s = blk.scatter;
+    const radius = scatterMod.radiusFor(s.parts.map((p) => p.grid));
+    const fpW = Number(blk.footprint && blk.footprint.w) > 0 ? Math.min(Number(blk.footprint.w), w) : w;
+    const fpD = Number(blk.footprint && blk.footprint.d) > 0 ? Math.min(Number(blk.footprint.d), d) : d;
+    const pts = scatterMod.poissonScatter({ width: fpW, depth: fpD, count: s.count, radius, seed: seedStr + '|' + blk.kind });
+    blk.parts = pts.map((p, i) => {
+      const m = s.parts[i % s.parts.length];
+      return {
+        partKey: m.partKey, role: m.role,
+        dx: Number(p.dx.toFixed(2)), dz: Number(p.dz.toFixed(2)),
+        ry: scatterMod.rotationFor(seedStr + blk.kind, i), level: 0,
+        grid: m.grid, modelPath: m.modelPath,
+      };
+    });
+    delete blk.mode; // 已展开为具体 parts，清除散点标记（scatter 元数据保留供追溯）
+    outBlocks++;
+    outParts += blk.parts.length;
+  }
+  if (outBlocks > 0) {
+    plan.blocks = (plan.blocks || []).filter((blk) => !blk || blk.mode !== 'scatter' || (blk.parts && blk.parts.length));
+  }
+  return { blocks: outBlocks, parts: outParts };
 }
 
 /** 意图差距检测（队列14 A1/A2）：返回可读差距描述；达标返回 null */
@@ -361,7 +438,7 @@ function buildPlanOutputContract(region) {
     '主体建筑的 anchor 放在区域中部（约 宽/2, 深/2 处），不要贴角。',
     '★ 数量语义（必须换算成零件件数，用户对数量敏感）：「几棵/几个」=4~6 件；「一片森林/树林/花田/草地」=20~40 件；「很多/大量/尽量多」=本次预算上限（' + (Number(constraints.max_objects) > 0 ? Number(constraints.max_objects) : 120) + ' 件）的 80%；用户写了具体数字（如「大于3棵」「20个以上」）→ parts 总件数必须 ≥ 该数字。',
     '★ 种类语义：委托含「多样/各种/不同/丰富」或主体是自然景观（森林/树林/丛林/花田/草地）→ 必须使用 ≥3 个不同的 partKey（不同树种/不同种类），只重复同一个 partKey 视为不合格。',
-    `散点类需求（森林/花田/草地/树丛）不需要建筑结构，用不同 partKey 的自然零件散开排布即可。`,
+    `散点类需求（森林/花田/草地/树丛）推荐用散点块，不必手排坐标：{"kind":"forest","mode":"scatter","partKeys":["tree_pine","tree_oak",…],"count":30}——系统会用确定性均匀布点把 count 件零件铺满整个区域；partKeys 必须来自 PARTS 清单（≥3 个不同键）。`,
     '★ 关键：同一个零件复用（如 4 面墙）时，每份的 dx/dz 必须互不相同、按尺寸错开围成一圈。带数字的示例（4 面墙围 4×4 米小屋，建筑块尺寸约 1×3×0.2）：',
     '{"kind":"house","footprint":{"w":4,"d":4},"anchor":{"dx":' + Math.round(bx + bw / 2 - 2) + ',"dz":' + Math.round(bz + bd / 2 - 2) + '},"parts":[{"partKey":"building_block","dx":0,"dz":0,"ry":0,"level":0},{"partKey":"building_block","dx":4,"dz":0,"ry":90,"level":0},{"partKey":"building_block","dx":4,"dz":4,"ry":180,"level":0},{"partKey":"building_block","dx":0,"dz":4,"ry":270,"level":0}]}',
   ].join('\n');
@@ -427,4 +504,4 @@ function repairTruncatedJson(s) {
   return null;
 }
 
-module.exports = { plan, validatePlan, countLlmCalls, parseJson, PLAN_SCHEMA, MAX_ROUNDS };
+module.exports = { plan, validatePlan, countLlmCalls, parseJson, PLAN_SCHEMA, MAX_ROUNDS, __test_expandScatterBlocks: expandScatterBlocks };
