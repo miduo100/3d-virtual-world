@@ -292,7 +292,7 @@ async function plan(mission, region, opts) {
           },
           // 输出与布局契约（TASK 永不裁）：曾实测模型不知道 dx/dz 的单位与相对关系，
           // 把全部零件写成 dx=0,dz=0 叠在区域角点 → 全部 OUT_OF_BOUNDS、0 件落地。
-          outputContract: buildPlanOutputContract(region),
+          outputContract: buildPlanOutputContract(region, Number(constraints.max_objects) > 0 ? Number(constraints.max_objects) : 120),
         },
         parts: candidates.items,
         memories: [],
@@ -425,7 +425,7 @@ function intentGap(prompt, v) {
 }
 
 /** 方案输出与布局契约（拼进 [TASK]，永不裁）：坐标语义 + 防重叠 + 区域内落点 */
-function buildPlanOutputContract(region) {
+function buildPlanOutputContract(region, maxObjectsCap) {
   const b = (region && region.bounds) || {};
   const bx = Number(b.x) || 0, bz = Number(b.z) || 0;
   const bw = Number(b.width) || 0, bd = Number(b.depth) || 0;
@@ -436,7 +436,7 @@ function buildPlanOutputContract(region) {
     '坐标语义：anchor.dx/dz = 该块相对区域左上角的偏移；parts 的 dx/dz = 该零件相对所属块 anchor 的偏移；ry = 绕 Y 轴角度（0/90/180/270）；level = 堆叠层数（0=地面层）。',
     '布局要求：按 PARTS 段标注的零件尺寸（宽×高×深，米）排布——墙围成一圈、地板铺底、家具放在屋子内部；相邻零件中心间距 ≥ 两者最大边长的一半之和，禁止把多个零件放在同一坐标；全部零件必须落在区域内且距边界 ≥ 2 米。',
     '主体建筑的 anchor 放在区域中部（约 宽/2, 深/2 处），不要贴角。',
-    '★ 数量语义（必须换算成零件件数，用户对数量敏感）：「几棵/几个」=4~6 件；「一片森林/树林/花田/草地」=20~40 件；「很多/大量/尽量多」=本次预算上限（' + (Number(constraints.max_objects) > 0 ? Number(constraints.max_objects) : 120) + ' 件）的 80%；用户写了具体数字（如「大于3棵」「20个以上」）→ parts 总件数必须 ≥ 该数字。',
+    '★ 数量语义（必须换算成零件件数，用户对数量敏感）：「几棵/几个」=4~6 件；「一片森林/树林/花田/草地」=20~40 件；「很多/大量/尽量多」=本次预算上限（' + (Number(maxObjectsCap) > 0 ? Number(maxObjectsCap) : 120) + ' 件）的 80%；用户写了具体数字（如「大于3棵」「20个以上」）→ parts 总件数必须 ≥ 该数字。',
     '★ 种类语义：委托含「多样/各种/不同/丰富」或主体是自然景观（森林/树林/丛林/花田/草地）→ 必须使用 ≥3 个不同的 partKey（不同树种/不同种类），只重复同一个 partKey 视为不合格。',
     `散点类需求（森林/花田/草地/树丛）推荐用散点块，不必手排坐标：{"kind":"forest","mode":"scatter","partKeys":["tree_pine","tree_oak",…],"count":30}——系统会用确定性均匀布点把 count 件零件铺满整个区域；partKeys 必须来自 PARTS 清单（≥3 个不同键）。`,
     '★ 关键：同一个零件复用（如 4 面墙）时，每份的 dx/dz 必须互不相同、按尺寸错开围成一圈。带数字的示例（4 面墙围 4×4 米小屋，建筑块尺寸约 1×3×0.2）：',

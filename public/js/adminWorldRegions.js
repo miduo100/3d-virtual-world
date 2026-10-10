@@ -40,7 +40,7 @@
     const res = await fetch(url, opt);
     let j = null; try { j = await res.json(); } catch (e) { j = {}; }
     const bad = !res.ok || j.success === false;
-    if (bad) throw new Error((j && (j.error || j.message)) || ('HTTP ' + res.status));
+    if (bad) throw new Error((j && (j.error || j.reason || j.message || j.code)) || ('HTTP ' + res.status));
     return j;
   }
 

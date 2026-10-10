@@ -257,7 +257,7 @@ router.post('/missions/:id/run', async (req, res) => {
     // 3.5-3 P35-20：同区域并发被闸门拒绝 → 409（非硬失败；被拒方保持原状态可重跑）
     if (r.code === 'REGION_BUSY') return res.status(409).json(Object.assign({}, r, { success: false }));
     await logAdminAction(req.adminUser.id, 'world_ai_mission_run', 'world_build_missions', m.id, JSON.stringify({ status: r.status, created: r.stats && r.stats.objectsCreated }), req.ip);
-    res.json(Object.assign({}, r, { success: !!r.ok }));
+    res.json(Object.assign({}, r, { success: !!r.ok, error: r.ok ? undefined : (r.reason || r.code) }));
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
