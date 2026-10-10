@@ -157,6 +157,7 @@
         '<button class="awr-btn" data-act="plan" data-region="' + esc(g.region_key) + '" data-mission="' + esc(m.id) + '">🧭 生成方案</button>' +
         '<button class="awr-btn" data-act="run" data-region="' + esc(g.region_key) + '" data-mission="' + esc(m.id) + '">▶️ 执行</button>' +
         '<button class="awr-btn" data-act="rollback" data-region="' + esc(g.region_key) + '" data-mission="' + esc(m.id) + '">↩️ 一键回滚</button>' +
+        (st === 'completed' ? '<button class="awr-btn" data-act="followup" data-region="' + esc(g.region_key) + '" data-mission="' + esc(m.id) + '">➕ 再来一批</button>' : '') +
         '<span class="awr-out" data-for="' + esc(m.id) + '"></span>' +
         '</div>';
     }).join('');
@@ -260,6 +261,14 @@
             const r = await jreq('POST', API + '/missions/' + mission + '/run', { confirm: true, useSavedPlan: true });
             const s = r.stats || {};
             outOf(mission, (r.status === 'completed' ? '✅ 完成' : '⚠ ' + r.status) + '：建 ' + (s.objectsCreated || 0) + ' 件 · 换位 ' + (s.skippedByCollision || 0) + ' · 拒绝 ' + (s.denied || 0) + ' · LLM ' + (s.llmCalls || 0) + ' 次', r.status === 'completed');
+            load();
+          } else if (act === 'followup') {
+            const addendum = prompt('补充要求（AI 会读取区域内已有资产，只补差距不重复）\n例：再加 20 棵、增加几种不同的树、靠北面补一排围栏');
+            if (!addendum || !addendum.trim()) return;
+            outOf(mission, '创建补充委托…', true);
+            const r = await jreq('POST', API + '/missions/' + mission + '/followup', { prompt: addendum.trim() });
+            const ea = (r.existingAssets || []).map((x) => x.name + '×' + x.n).join('、');
+            outOf(mission, '✅ 补充委托已建（已注入现有资产清单：' + (ea || '无') + '）。对新委托点「生成方案」→「执行」', true);
             load();
           } else if (act === 'rollback') {
             if (!confirm('回滚本批 AI 产物？人工资产零影响。')) return;

@@ -135,6 +135,47 @@ router.post('/missions', async (req, res) => {
   }
 });
 
+// B2 增量补充（队列14）：基于既有委托追加"再来一批"——新委托 prompt 自动注入
+// 区域内已有 AI 资产清单（按零件名计数），AI 只补差距（数量/种类），不重复已有组合。
+router.post('/missions/:id/followup', async (req, res) => {
+  try {
+    const m = await missionService.getMission(req.params.id);
+    if (!m) return res.status(404).json({ success: false, error: '委托不存在' });
+    const addendum = String((req.body || {}).prompt || '').trim();
+    if (!addendum) return res.status(400).json({ success: false, error: '必须写补充要求（如：再加 20 棵、增加几种树）', code: 'PROMPT_REQUIRED' });
+    const region = await regionService.getRegion(m.world_id, m.region_key);
+    if (!region) return res.status(404).json({ success: false, error: '区域不存在', code: 'REGION_NOT_FOUND' });
+    const b = region.bounds || {};
+    const minX = Number(b.minX != null ? b.minX : b.x) || 0;
+    const minZ = Number(b.minZ != null ? b.minZ : b.z) || 0;
+    const maxX = Number(b.maxX != null ? b.maxX : minX + (Number(b.width) || 0));
+    const maxZ = Number(b.maxZ != null ? b.maxZ : minZ + (Number(b.depth) || 0));
+    const exist = await query(
+      `SELECT name, count(*)::int AS n FROM world_objects
+        WHERE origin='ai' AND position_x BETWEEN $1 AND $2 AND position_z BETWEEN $3 AND $4 AND name IS NOT NULL
+        GROUP BY name ORDER BY n DESC LIMIT 20`,
+      [minX, maxX, minZ, maxZ]
+    );
+    const existTxt = exist.rows.map((r) => r.name + '×' + r.n).join('、') || '（区域内暂无 AI 资产）';
+    const composed = '【增量补充】' + addendum
+      + '\n【最初需求】' + String(m.prompt || '')
+      + '\n【区域内已有 AI 资产】' + existTxt
+      + '\n【补充纪律】只补差距：数量不足补数量、种类单一补种类；已有组合（同零件同位置）绝不重复；若已完全满足就输出空 blocks 数组。';
+    const r = await missionService.createMission({
+      worldId: m.world_id, regionKey: m.region_key,
+      title: ('补充：' + addendum).slice(0, 30),
+      prompt: composed,
+      constraints: m.constraints || {}, budget: m.budget || {},
+      createdBy: req.adminUser.username,
+    });
+    if (!r.ok) return res.status(400).json({ success: false, error: r.reason, code: r.code });
+    await logAdminAction(req.adminUser.id, 'world_ai_mission_followup', 'world_build_missions', r.mission.id, JSON.stringify({ from: m.id }), req.ip);
+    res.json({ success: true, mission: r.mission, autonomySnapshot: r.autonomySnapshot, existingAssets: exist.rows });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 router.get('/missions', async (req, res) => {
   try {
     const worldId = req.query.worldId || (await worldAiConfig.getConfig()).world_id;
