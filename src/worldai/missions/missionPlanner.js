@@ -218,7 +218,9 @@ async function plan(mission, region, opts) {
       messages: built.messages,
       jsonSchema: PLAN_SCHEMA,
       temperature: 0.2,
-      maxTokens: 2000,
+      maxTokens: 4000,
+      // 规划输出大（实测千问 2000 token 需 ~44s），默认 60s 必超时；超时仍不重试（§口径），给足 3 分钟
+      timeoutMs: 180000,
       purpose: 'plan',
       caller: 'world_ai_mission_planner',
       missionId: String(mission.id),
@@ -236,13 +238,19 @@ async function plan(mission, region, opts) {
 
     const raw = parseJson(chat.content);
     if (!raw) {
-      return { ok: false, code: 'PLAN_PARSE_FAILED', rounds, llmCalls: await countLlmCalls(mission.id), reason: 'LLM 产物不是可解析的 JSON（前 200 字：' + String(chat.content || '').slice(0, 200) + '）' };
+      // 截断修复后仍不可解析：不硬失败，记原因进下一轮重试（预算由循环内 countLlmCalls + maxRounds 双闸守着）
+      fallbackNotes.push('第 ' + round + ' 轮 LLM 产物解析失败（截断修复后仍不可解析），重试下一轮');
+      continue;
     }
     const v = await validatePlan(raw, constraints);
     lastStats = v.stats;
     lastPlan = v.plan;
     // 还有合法零件就不必再来一轮（省调用成本）
     if (v.stats.parts > 0) break;
+  }
+
+  if (!lastPlan) {
+    return { ok: false, code: 'PLAN_PARSE_FAILED', rounds, llmCalls: await countLlmCalls(mission.id), reason: '全部 ' + rounds + ' 轮 LLM 产物均无法解析为方案 JSON（含截断修复），请缩小委托体量或稍后重试' };
   }
 
   return {
@@ -262,7 +270,56 @@ function parseJson(text) {
   const i = s.indexOf('{');
   const j = s.lastIndexOf('}');
   if (i < 0 || j <= i) return null;
-  try { return JSON.parse(s.slice(i, j + 1)); } catch (e) { return null; }
+  try { return JSON.parse(s.slice(i, j + 1)); } catch (e) { /* 落到截断修复 */ }
+  // 截断修复（输出撞 maxTokens 被切）：截到最后一个完整元素边界，去掉悬挂逗号，按栈补齐闭合符。
+  // 修复产物里可能混入不完整零件，validatePlan 会按既有规则剔除（dropped），与设计一致。
+  return repairTruncatedJson(s.slice(i));
+}
+
+function repairTruncatedJson(s) {
+  // 收集候选截断点：} ] , 以及"闭合引号且其后一个非空白字符是 , } ]"的引号位置
+  // （key 的闭合引号后面是冒号，截在那里会得到 {"key"} 这种残废，必须排除）
+  const candidates = [];
+  let stack = [], inStr = false, esc = false;
+  for (let k = 0; k < s.length; k++) {
+    const c = s[k];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') {
+        inStr = false;
+        let m = k + 1;
+        while (m < s.length && /\s/.test(s[m])) m++;
+        if (m >= s.length || s[m] === ',' || s[m] === '}' || s[m] === ']') candidates.push(k);
+      }
+      continue;
+    }
+    if (c === '"') { inStr = true; continue; }
+    if (c === '{' || c === '[') stack.push(c);
+    else if (c === '}' || c === ']') { if (stack.length) stack.pop(); candidates.push(k); }
+    else if (c === ',') candidates.push(k);
+  }
+  // 从最靠后的候选点往前试：截断 → 去悬挂逗号 → 按栈补齐闭合符 → 能解析即成功
+  for (let ci = candidates.length - 1; ci >= 0; ci--) {
+    let t = s.slice(0, candidates[ci] + 1).replace(/,\s*$/, '');
+    let st = [], inStr2 = false, esc2 = false;
+    for (let k = 0; k < t.length; k++) {
+      const c = t[k];
+      if (inStr2) {
+        if (esc2) esc2 = false;
+        else if (c === '\\') esc2 = true;
+        else if (c === '"') inStr2 = false;
+        continue;
+      }
+      if (c === '"') { inStr2 = true; continue; }
+      if (c === '{' || c === '[') st.push(c);
+      else if (c === '}' || c === ']') { if (st.length) st.pop(); }
+    }
+    if (inStr2) t += '"';
+    while (st.length) t += st.pop() === '{' ? '}' : ']';
+    try { return JSON.parse(t); } catch (e) { /* 试更早的候选点 */ }
+  }
+  return null;
 }
 
 module.exports = { plan, validatePlan, countLlmCalls, parseJson, PLAN_SCHEMA, MAX_ROUNDS };
