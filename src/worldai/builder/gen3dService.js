@@ -50,12 +50,8 @@ const providers = {
       };
     },
   },
-  /** Tripo：Phase 8 不接真服务（用户决策①），接时只改这里 */
-  tripo: {
-    name: 'tripo',
-    submit() { return { ok: false, code: 'PROVIDER_NOT_WIRED', reason: 'Tripo 适配器未接线（src/services/tripo.js 需在此暴露 submit/poll 契约）' }; },
-    poll() { return { ok: false, code: 'PROVIDER_NOT_WIRED', reason: 'Tripo 适配器未接线' }; },
-  },
+  /** Tripo：Phase 9 接真实服务（submit/poll/download 落盘在 gen3dTripoProvider） */
+  tripo: require('./gen3dTripoProvider'),
   /** 混元 3D：同上 */
   hunyuan3d: {
     name: 'hunyuan3d',
@@ -110,7 +106,21 @@ async function submitJob(o) {
   );
   const job = ins.rows[0];
 
+  const startedAt = Date.now();
   const sub = await provider.submit({ prompt, spec: p.spec || {}, params: p.params || {}, meta: (p.params && p.params.stub) || {} });
+  // 费用可见（Phase 9 用户决策②）：每笔真实提交落 ai_call_log（stub 桩零花费不记）
+  if (!(sub && sub.meta && sub.meta.stub)) {
+    query(
+      `INSERT INTO ai_call_log (purpose, provider_name, adapter, model, caller, ok, error_code, error_message, total_tokens, latency_ms, attempts)
+       VALUES ('gen3d', $1, 'tripo-openapi', $2, 'gen3dService.submitJob', $3, $4, $5, 0, $6, 1)`,
+      [providerName,
+        String((sub && sub.meta && sub.meta.modelVersion) || require('./gen3dTripoProvider').DEFAULT_MODEL_VERSION).slice(0, 160),
+        !!(sub && sub.ok === true),
+        (sub && sub.ok === true) ? null : String((sub && sub.code) || 'PROVIDER_SUBMIT_FAILED').slice(0, 60),
+        (sub && sub.ok === true) ? null : String((sub && sub.reason) || '提交失败').slice(0, 400),
+        Date.now() - startedAt]
+    ).catch(() => {});   // 账本失败绝不阻断生成流程
+  }
   if (!sub || sub.ok !== true) {
     await query(`UPDATE world_gen3d_jobs SET status='failed', error=$2, attempts=attempts+1, updated_at=NOW() WHERE id=$1`,
       [job.id, String((sub && sub.reason) || '提交失败').slice(0, 500)]);
@@ -173,7 +183,7 @@ async function pollJob(jobId) {
     return bad('PROVIDER_NOT_WIRED', '厂商「' + job.provider + '」在当前进程不可用（stub 需 env WORLD_AI_GEN3D_STUB=1）',
       { jobId: job.id, status: job.status });
   }
-  const pr = await provider.poll({ taskId: job.provider_task_id, prompt: job.prompt, meta: (job.params && job.params.stub) || {} });
+  const pr = await provider.poll({ taskId: job.provider_task_id, prompt: job.prompt, meta: (job.params && job.params.stub) || {}, job: { id: job.id } });
   if (!pr || pr.ok !== true) {
     await query(`UPDATE world_gen3d_jobs SET attempts=attempts+1, updated_at=NOW(), error=$2 WHERE id=$1`,
       [job.id, String((pr && pr.reason) || '轮询失败').slice(0, 500)]);

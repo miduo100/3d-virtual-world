@@ -50,16 +50,26 @@ async function get(jobId) {
 /** ③ 放置：唯一写库路径 = executor，且必须先过 AssetValidator（service.place 内双重校验） */
 async function place(o, ctx) { return await service.place(o, ctx); }
 
-/** 供调用方判定"该路径是否可用"（不做任何外部请求） */
+/** 供调用方判定"该路径是否可用"（不做任何外部请求；Phase 9 wired 判定改真） */
 async function availability() {
   const c = await strategy.config();
-  return {
-    enabled: c.enabled,
-    provider: c.provider,
-    wired: c.enabled ? !!(service.providers[String(c.provider).toLowerCase()]) : false,
-    suggest: c.enabled ? [] : strategy.SUGGEST.slice(),
-    note: c.enabled ? '' : 'gen3d 未启用 → 返回 unsupported，请改用 composite / procedural',
-  };
+  if (!c.enabled) {
+    return {
+      enabled: false, provider: c.provider, wired: false,
+      suggest: strategy.SUGGEST.slice(),
+      note: 'gen3d 未启用 → 返回 unsupported，请改用 composite / procedural',
+    };
+  }
+  const p = service.providers[String(c.provider).toLowerCase()];
+  if (!p) {
+    return { enabled: true, provider: c.provider, wired: false, suggest: strategy.SUGGEST.slice(),
+      note: '厂商「' + c.provider + '」未接线（providers 表无此适配器）' };
+  }
+  if (p.checkWired) {
+    const w = await p.checkWired();
+    return { enabled: true, provider: c.provider, wired: !!w.wired, suggest: w.wired ? [] : strategy.SUGGEST.slice(), note: w.reason || '' };
+  }
+  return { enabled: true, provider: c.provider, wired: true, suggest: [], note: '' };
 }
 
 module.exports = { planGen3d, submit, poll, list, get, place, availability, validateModel: service.validateModel };

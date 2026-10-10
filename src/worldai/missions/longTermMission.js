@@ -29,7 +29,7 @@ const promptBuilder = require('../llm/promptBuilder');
 const providerRouter = require('../llm/providerRouter');
 
 const ACTIVE_STATUSES = ['draft', 'running', 'paused', 'awaiting_review'];
-const DEFAULT_LIMITS = { tokens: 0, objects: 200, demolitions: 20 }; // 0 = 不限
+const DEFAULT_LIMITS = { tokens: 0, objects: 200, demolitions: 20, gen3d: 5 }; // 0 = 不限；gen3d = 3D 生成次数/月（Phase 9）
 
 function bad(code, reason) { return { ok: false, code, reason }; }
 function monthKey(d) { const x = d || new Date(); return x.toISOString().slice(0, 7); }
@@ -220,9 +220,13 @@ async function getMonthlyUsage(worldId) {
             count(*) FILTER (WHERE tool_name IN ('delete_object','remove_building'))::int AS demolitions
        FROM world_tool_executions
       WHERE status='succeeded' AND created_at >= date_trunc('month', NOW())`);
+  const r3 = await query(
+    `SELECT count(*)::int AS gen3d FROM ai_call_log
+      WHERE purpose='gen3d' AND created_at >= date_trunc('month', NOW())`);
   return {
     tokens: Number(r1.rows[0].tokens) || 0, llmCalls: Number(r1.rows[0].calls) || 0,
     objects: Number(r2.rows[0].objects) || 0, demolitions: Number(r2.rows[0].demolitions) || 0,
+    gen3d: Number(r3.rows[0].gen3d) || 0,
   };
 }
 
@@ -247,6 +251,7 @@ async function checkMonthlyBudget(m) {
   if (limits.tokens > 0 && usage.tokens >= limits.tokens) over.push('tokens ' + usage.tokens + '/' + limits.tokens);
   if (limits.objects > 0 && usage.objects >= limits.objects) over.push('objects ' + usage.objects + '/' + limits.objects);
   if (limits.demolitions > 0 && usage.demolitions >= limits.demolitions) over.push('demolitions ' + usage.demolitions + '/' + limits.demolitions);
+  if (limits.gen3d > 0 && usage.gen3d >= limits.gen3d) over.push('gen3d ' + usage.gen3d + '/' + limits.gen3d);
   return { ok: over.length === 0, over, usage, limits };
 }
 
@@ -417,10 +422,12 @@ async function generateMonthlyReport(worldId, opts) {
     did: '本月生成周计划 ' + ((b.used && b.used.weeklyPlans) || 0) + ' 份'
       + (wp.title ? '；本周重点「' + String(wp.title).slice(0, 60) + '」' : ''),
     dataCompare: { visitsThisMonth: visitsNow, visitsLastMonth: visitsPrev,
-      llmTokens: usage.tokens, llmCalls: usage.llmCalls, objectsBuilt: usage.objects, demolitions: usage.demolitions },
+      llmTokens: usage.tokens, llmCalls: usage.llmCalls, objectsBuilt: usage.objects, demolitions: usage.demolitions,
+      gen3dCalls: usage.gen3d },
     promises: '预算用量：tokens ' + usage.tokens + '/' + (limits.tokens || '不限')
       + '，objects ' + usage.objects + '/' + (limits.objects || '不限')
-      + '，demolitions ' + usage.demolitions + '/' + (limits.demolitions || '不限'),
+      + '，demolitions ' + usage.demolitions + '/' + (limits.demolitions || '不限')
+      + '，gen3d ' + (usage.gen3d || 0) + '/' + (limits.gen3d || '不限'),
     nextMonth: phase ? '继续阶段「' + String(phase.title).slice(0, 60) + '」：' + String(phase.goal).slice(0, 200) : '进入下一阶段（待里程碑评审）',
     pendingQuestion: o.injectQuestion || fallbackQuestion(m, phase),   // LLM 增强留接口；确定性兜底保底
     generatedAt: new Date().toISOString(),
