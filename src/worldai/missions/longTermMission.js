@@ -378,15 +378,10 @@ async function generateWeeklyPlan(worldId, opts) {
 }
 
 // ── 月报（每月一次；★必须携带 pendingQuestion）──────────────────────
-
-function fallbackQuestion(m, phase) {
-  return {
-    question: '当前阶段「' + (phase ? String(phase.title).slice(0, 60) : '-') + '」目标是：'
-      + (phase ? String(phase.goal).slice(0, 200) : '（无）') + '。下月继续按此目标推进，还是调整方向？',
-    options: ['继续当前目标', '调整方向（请在备注说明）', '听 AI 的（按数据自行决定）'],
-    askedAt: new Date().toISOString(), answered: null,
-  };
-}
+// 问题生成（LLM/模板/注入三路）在 monthlyQuestion.js（Phase 7b 遗留①拆出，本文件 500 行贴线）；
+// fallbackQuestion 从那里 re-export，调用方无需感知。
+const monthlyQuestion = require('./monthlyQuestion');
+const fallbackQuestion = monthlyQuestion.fallbackQuestion;
 
 /** 月报（runMonthlyTick 核心）。幂等：同一自然月只生成一次。 */
 async function generateMonthlyReport(worldId, opts) {
@@ -417,6 +412,8 @@ async function generateMonthlyReport(worldId, opts) {
   } catch (e) { /* metrics 缺表/缺列不阻断月报 */ }
 
   const wp = m.weekly_plan || {};
+  // 问题三路解析（Phase 7b 遗留①）：injectQuestion 注入 / llmQuestion=true 走 LLM（失败不静默回落模板+note）/ 否则纯模板
+  const mq = await monthlyQuestion.resolveMonthlyQuestion(worldId, m, usage, phase, o);
   const report = {
     month,
     did: '本月生成周计划 ' + ((b.used && b.used.weeklyPlans) || 0) + ' 份'
@@ -429,7 +426,9 @@ async function generateMonthlyReport(worldId, opts) {
       + '，demolitions ' + usage.demolitions + '/' + (limits.demolitions || '不限')
       + '，gen3d ' + (usage.gen3d || 0) + '/' + (limits.gen3d || '不限'),
     nextMonth: phase ? '继续阶段「' + String(phase.title).slice(0, 60) + '」：' + String(phase.goal).slice(0, 200) : '进入下一阶段（待里程碑评审）',
-    pendingQuestion: o.injectQuestion || fallbackQuestion(m, phase),   // LLM 增强留接口；确定性兜底保底
+    pendingQuestion: mq.pendingQuestion,
+    questionSource: mq.source,
+    questionNote: mq.note || null,
     generatedAt: new Date().toISOString(),
   };
   await query(`UPDATE world_missions SET last_report=$2::jsonb, updated_at=NOW() WHERE id=$1`, [m.id, JSON.stringify(report)]);
@@ -477,11 +476,11 @@ async function runWeeklyTick(worldId) {
   const r = await generateWeeklyPlan(worldId, {});
   return { ok: true, action: 'tick_weekly', result: r };
 }
-async function runMonthlyTick(worldId) {
+async function runMonthlyTick(worldId, opts) {
   const m = await getActive(worldId);
   if (!m) return { ok: true, action: 'tick_monthly', result: { ok: false, code: 'NO_MISSION' } };
   await grantMonthlyBudgetIfNeeded(m);
-  const rep = await generateMonthlyReport(worldId, {});
+  const rep = await generateMonthlyReport(worldId, Object.assign({ llmQuestion: true }, opts || {}));
   const timeout = await checkPendingQuestionTimeout(worldId);
   return { ok: true, action: 'tick_monthly', result: { report: rep, questionTimeout: timeout } };
 }

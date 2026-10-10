@@ -85,6 +85,7 @@
         $('am-body').innerHTML =
           '<div class="awb-redline">还没有长期使命。使命 = 管一两年方向的章程（阶段由它拆出）。</div>' +
           '<div class="awb-field"><label>使命文本（1~2 年不变）</label><textarea id="am-new-statement" rows="2" style="width:100%;" placeholder="例如：把这个世界经营成有烟火气的中世纪小镇，两年内日活玩家 30+"></textarea></div>' +
+          '<div class="awb-field"><label>阶段拆分（可选，每行一条「标题|目标|里程碑标准(可选)」，1~8 条；留空用默认 4 阶段模板）</label><textarea id="am-new-phases" rows="4" style="width:100%;" placeholder="摸底与试点|选 1 个区域小步建设，跑通规划→审批→执行→验证闭环|区域整洁且可交互&#10;规模化建设|按北极星指标铺开内容，覆盖冷区激活&#10;活动与留存|组织周期性活动拉参与率&#10;评审交接|里程碑评审并沉淀经验"></textarea></div>' +
           '<button id="am-create" class="am-btn" style="background:var(--green);color:#08130c;font-weight:600;">✔ 设定使命</button>';
         $('am-create').onclick = create;
         return;
@@ -121,8 +122,24 @@
     try {
       const statement = $('am-new-statement').value.trim();
       if (!statement) return msg('请填写使命文本', false);
-      await jreq('POST', API + '/long-missions', { statement });
-      msg('使命已创建（draft），点「▶ 启动」开始运行', true);
+      const body = { statement };
+      // 阶段自定义（Phase 7b 遗留③）：每行「标题|目标|里程碑可选」，1~8 条；留空走后端默认模板
+      const raw = ($('am-new-phases') && $('am-new-phases').value.trim()) || '';
+      if (raw) {
+        const lines = raw.split('\n').map((s) => s.trim()).filter(Boolean);
+        if (lines.length > 8) return msg('阶段最多 8 条（当前 ' + lines.length + ' 条）', false);
+        const phases = [];
+        for (let i = 0; i < lines.length; i++) {
+          const parts = lines[i].split('|').map((s) => s.trim());
+          if (parts.length < 2 || !parts[0] || !parts[1]) {
+            return msg('第 ' + (i + 1) + ' 行格式不对：每行「标题|目标」（里程碑可选第 3 段）', false);
+          }
+          phases.push({ title: parts[0], goal: parts[1], milestoneCheck: parts[2] || '' });
+        }
+        body.phases = phases;
+      }
+      await jreq('POST', API + '/long-missions', body);
+      msg('使命已创建（draft，' + (body.phases ? body.phases.length + ' 个自定义阶段' : '默认 4 阶段模板') + '），点「▶ 启动」开始运行', true);
       load();
     } catch (e) { msg('创建失败：' + e.message, false); }
   }

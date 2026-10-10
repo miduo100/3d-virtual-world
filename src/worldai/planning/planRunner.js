@@ -51,6 +51,21 @@ async function attemptApprovedPlan(worldId) {
   }
   const step = stepR.rows[0];
 
+  // §I.6 技术保障②（Phase 7b 遗留）：共享预算池 —— 愿景规划（plan step）与使命周计划共用
+  // 使命月度预算，谁也不能绕开配额。超限 → step 保持 pending（次月预算重置后自然续跑），
+  // 零世界写入 + audit；无活跃使命 → 完全不受影响（plan 侧无共享池可查）。
+  const mission = await require('../missions/longTermMission').getActive(String(worldId));
+  if (mission) {
+    const budget = await require('../missions/longTermMission').checkMonthlyBudget(mission);
+    if (!budget.ok) {
+      logger.audit('world_ai_step_budget_exhausted', {
+        planId: String(active.id), stepId: String(step.id), mission: String(mission.id),
+        over: (budget.over || []).join(';'),
+      });
+      return { ok: true, action: 'budget_exhausted', planId: String(active.id), stepId: String(step.id), over: budget.over };
+    }
+  }
+
   // P2-6 + §G.4（Phase 5 放开）：非 low 走审批闸；例外 = medium 且未被人工锁定
   // 且 risk_policy.medium='auto'（riskGate 裁决）→ 直接执行。
   // human_risk_locked 的 step 永不放开（P2-6：AI 不得降级人工设定的风险等级）。
