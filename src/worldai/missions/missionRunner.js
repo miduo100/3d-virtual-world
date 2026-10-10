@@ -126,12 +126,28 @@ async function run(missionId, opts) {
   const started = Date.now();
 
   // 1) 布局提案（预算闸门在 planner 内，查 ai_call_log 表）
+  // ★ B1 确认卡：useSavedPlan=true 时直接用"生成方案"保存并经管理员确认的那份方案，
+  //   绝不重新规划（否则确认卡看的是 A、建的却是 B，确认语义失效）。无已存方案时回落重新规划。
   let planned;
-  try {
-    planned = await missionPlanner.plan(mission, region, o);
-  } catch (e) {
-    await missionService.setStatus(mission.id, 'failed', { stats: { error: String(e && e.message).slice(0, 300) } });
-    return { ok: false, status: 'failed', code: 'PLANNER_FAILED', reason: String(e && e.message).slice(0, 300) };
+  const savedPlan = mission.plan && Array.isArray(mission.plan.blocks) ? mission.plan : null;
+  if (o.useSavedPlan && savedPlan) {
+    const parts = savedPlan.blocks.reduce((s, b) => s + ((b.parts || []).length), 0);
+    planned = {
+      ok: true, plan: savedPlan, rounds: 0, savedPlan: true,
+      llmCalls: 0,
+      stats: { blocks: savedPlan.blocks.length, parts, dropped: {} },
+    };
+    notes.push('本批按已确认的方案执行（未重新规划）');
+  } else {
+    planned = null;
+  }
+  if (!planned) {
+    try {
+      planned = await missionPlanner.plan(mission, region, o);
+    } catch (e) {
+      await missionService.setStatus(mission.id, 'failed', { stats: { error: String(e && e.message).slice(0, 300) } });
+      return { ok: false, status: 'failed', code: 'PLANNER_FAILED', reason: String(e && e.message).slice(0, 300) };
+    }
   }
   if (!planned.ok) {
     // P35-10：第 2 轮被预算拒绝 → status=failed 且写明原因

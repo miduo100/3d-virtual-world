@@ -245,16 +245,19 @@
             out(region, '委托已建（快照 ' + r.autonomySnapshot + '）' + (r.providerResolution && r.providerResolution.reason ? ' · ' + r.providerResolution.reason : ''), true);
             load();
           } else if (act === 'plan') {
-            outOf(mission, '生成中…', true);
+            outOf(mission, '生成中…（约 1~3 分钟，勿刷新）', true);
             const r = await jreq('POST', API + '/missions/' + mission + '/plan', {});
-            const parts = (r.plan && r.plan.blocks || []).reduce((s, b) => s + (b.parts || []).length, 0);
-            outOf(mission, '方案：' + ((r.plan && r.plan.blocks || []).length) + ' 块 / ' + parts + ' 件（LLM ' + r.llmCalls + ' 次）', true);
+            const blocks = (r.plan && r.plan.blocks || []);
+            const parts = blocks.reduce((s, b) => s + (b.parts || []).length, 0);
+            const kinds = new Set(blocks.flatMap((b) => (b.parts || []).map((p) => p.partKey))).size;
+            const gap = r.plan && r.plan.intentGap ? ' ⚠' + r.plan.intentGap : '';
+            outOf(mission, '🧠 我的理解：' + ((r.plan && r.plan.summary) || '(无摘要)') + ' → ' + blocks.length + ' 块 / ' + parts + ' 件 / ' + kinds + ' 种零件' + gap + '。确认无误点「执行」；不满意改诉求再点「生成方案」', !gap);
           } else if (act === 'run') {
             const eff = await jreq('GET', API + '/regions/' + encodeURIComponent(region));
             const autonomy = (eff.region || {}).autonomy;
             if (autonomy === 'managed' && !confirm('当前区域自主度是 managed：这批由你手动点执行。确认开始建？')) return;
             outOf(mission, '执行中…', true);
-            const r = await jreq('POST', API + '/missions/' + mission + '/run', { confirm: true });
+            const r = await jreq('POST', API + '/missions/' + mission + '/run', { confirm: true, useSavedPlan: true });
             const s = r.stats || {};
             outOf(mission, (r.status === 'completed' ? '✅ 完成' : '⚠ ' + r.status) + '：建 ' + (s.objectsCreated || 0) + ' 件 · 换位 ' + (s.skippedByCollision || 0) + ' · 拒绝 ' + (s.denied || 0) + ' · LLM ' + (s.llmCalls || 0) + ' 次', r.status === 'completed');
             load();

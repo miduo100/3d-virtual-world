@@ -212,7 +212,7 @@ router.post('/missions/:id/run', async (req, res) => {
         error: '当前有效自主度是 managed（只按明确下达的委托干活）→ 必须由管理员点「执行」确认；semi_autonomous / autonomous 才自动执行',
       });
     }
-    const r = await missionRunner.run(m.id, { injectPlan: (req.body || {}).injectPlan || null });
+    const r = await missionRunner.run(m.id, { injectPlan: (req.body || {}).injectPlan || null, useSavedPlan: !!(req.body || {}).useSavedPlan });
     // 3.5-3 P35-20：同区域并发被闸门拒绝 → 409（非硬失败；被拒方保持原状态可重跑）
     if (r.code === 'REGION_BUSY') return res.status(409).json(Object.assign({}, r, { success: false }));
     await logAdminAction(req.adminUser.id, 'world_ai_mission_run', 'world_build_missions', m.id, JSON.stringify({ status: r.status, created: r.stats && r.stats.objectsCreated }), req.ip);
