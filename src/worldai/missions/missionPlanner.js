@@ -335,6 +335,24 @@ async function plan(mission, region, opts) {
       continue;
     }
     const v = await validatePlan(raw, constraints);
+    // ★ 数量兜底（队列14 收尾）：用户写了具体下限而模型没给够 → 直接把散点块 count 抬到下限
+    //   （确定性、零 LLM；实测"大于6个"模型给 5 件、重试仍 5 件——散点原语本身就能精确补足）。
+    //   注意此时散点块尚未展开（v.stats.parts 只计普通 parts），件数要按 scatter.count 直算。
+    //   预算红线不破：补足量钳在 maxObjects 剩余额度内。
+    const minCount = parseMinCount(mission.prompt);
+    if (minCount) {
+      const scatters = (v.plan.blocks || []).filter((x) => x.mode === 'scatter' && x.scatter);
+      const plannedParts = (v.plan.blocks || []).reduce(
+        (s, x) => s + (x.mode === 'scatter' && x.scatter ? x.scatter.count : (x.parts || []).length), 0
+      );
+      const maxObjects = Number(constraints.max_objects) > 0 ? Number(constraints.max_objects) : 120;
+      const add = Math.min(minCount - plannedParts, maxObjects - plannedParts);
+      if (add > 0 && scatters.length) {
+        const per = Math.ceil(add / scatters.length);
+        for (const sb of scatters) sb.scatter.count = Math.min(sb.scatter.count + per, sb.scatter.count + add);
+        fallbackNotes.push('数量兜底：模型给 ' + plannedParts + ' 件 < 用户要求 ≥' + minCount + '，散点块已确定性补足到 ≥' + (plannedParts + add) + ' 件');
+      }
+    }
     // ★ C2：散点块展开为具体零件坐标（确定性：同委托同轮 → 同坐标 → 重跑幂等去重命中）
     const exp = expandScatterBlocks(v.plan, region, String(mission.id) + '|r' + round);
     if (exp.blocks > 0) {
