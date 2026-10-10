@@ -77,7 +77,7 @@
 
   async function load() {
     try {
-      const j = await jreq('GET', API + '/missions');
+      const j = await jreq('GET', API + '/long-missions');
       const m = j.active;
       const stEl = $('am-st');
       if (!m) {
@@ -121,7 +121,7 @@
     try {
       const statement = $('am-new-statement').value.trim();
       if (!statement) return msg('请填写使命文本', false);
-      await jreq('POST', API + '/missions', { statement });
+      await jreq('POST', API + '/long-missions', { statement });
       msg('使命已创建（draft），点「▶ 启动」开始运行', true);
       load();
     } catch (e) { msg('创建失败：' + e.message, false); }
@@ -173,7 +173,7 @@
 
   async function showReport() {
     try {
-      const j = await jreq('GET', API + '/missions');
+      const j = await jreq('GET', API + '/long-missions');
       const m = j.active;
       if (!m || !m.lastReport) return msg('还没有月报（每月一次，可点「补跑月报」）', false);
       const r = m.lastReport;

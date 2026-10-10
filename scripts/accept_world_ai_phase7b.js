@@ -330,7 +330,8 @@ async function main() {
   await restore();
   await cleanup();
   await sleep(500);
-  const suites = ['scripts/smoke_r185_world.js', 'scripts/accept_world_ai_phase7.js', 'scripts/accept_world_ai_phase6.js'];
+  const suites = (process.env.REGRESSION === '0') ? [] : ['scripts/smoke_r185_world.js', 'scripts/accept_world_ai_phase7.js', 'scripts/accept_world_ai_phase6.js'];
+  if (!suites.length) console.log('  (REGRESSION=0：本轮跳过回归套件，仅跑 P7b-1~P7b-10)');
   const results = [];
   for (const s of suites) {
     const run = () => spawnSync(process.execPath, [s], { cwd: path.join(__dirname, '..'), encoding: 'utf8', timeout: 600000, maxBuffer: 8 * 1024 * 1024 });

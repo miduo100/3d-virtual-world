@@ -69,7 +69,7 @@ router.use('/', require('./worldAiBuild'));
 router.use('/gameplay', require('./worldAiGameplay'));
 
 // ── Mission（Phase 7b · §I.6）：长期使命（状态机/里程碑/周计划/月报/月度预算）──
-router.use('/', require('./worldAiMission'));
+router.use('/long-missions', require('./worldAiMission'));
 
 // GET /api/world-ai/config
 router.get('/config', async (req, res) => {

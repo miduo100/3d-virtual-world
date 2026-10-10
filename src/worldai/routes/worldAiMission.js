@@ -33,7 +33,7 @@ function shape(m) {
 
 // ── 查询 ──────────────────────────────────────────────────────────
 
-router.get('/missions', async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const worldId = await resolveWorldId(req);
     const rows = await missionService.listMissions(worldId);
@@ -46,7 +46,7 @@ router.get('/missions', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, error: '查询使命失败: ' + e.message }); }
 });
 
-router.post('/missions', async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const worldId = await resolveWorldId(req);
     const r = await missionService.createMission({
@@ -71,7 +71,7 @@ async function resolveMissionId(idOrCurrent) {
   return m ? m.id : null;
 }
 
-router.post('/missions/:id/:action(start|pause|resume|finish|terminate)', async (req, res) => {
+router.post('/:id/:action(start|pause|resume|finish|terminate)', async (req, res) => {
   try {
     const mid = await resolveMissionId(req.params.id);
     if (!mid) return res.status(404).json({ success: false, code: 'NO_MISSION', reason: '没有进行中的长期使命' });
@@ -84,7 +84,7 @@ router.post('/missions/:id/:action(start|pause|resume|finish|terminate)', async 
 
 // ── 方向调整 / 里程碑评审 / 评审三选 ────────────────────────────────
 
-router.post('/missions/:id/adjust', async (req, res) => {
+router.post('/:id/adjust', async (req, res) => {
   try {
     const mid = await resolveMissionId(req.params.id);
     if (!mid) return res.status(404).json({ success: false, code: 'NO_MISSION', reason: '没有进行中的长期使命' });
@@ -95,7 +95,7 @@ router.post('/missions/:id/adjust', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, error: '调整失败: ' + e.message }); }
 });
 
-router.post('/missions/:id/review', async (req, res) => {
+router.post('/:id/review', async (req, res) => {
   try {
     const mid = await resolveMissionId(req.params.id);
     if (!mid) return res.status(404).json({ success: false, code: 'NO_MISSION', reason: '没有进行中的长期使命' });
@@ -108,7 +108,7 @@ router.post('/missions/:id/review', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, error: '评审失败: ' + e.message }); }
 });
 
-router.post('/missions/:id/review-choice', async (req, res) => {
+router.post('/:id/review-choice', async (req, res) => {
   try {
     const mid = await resolveMissionId(req.params.id);
     if (!mid) return res.status(404).json({ success: false, code: 'NO_MISSION', reason: '没有进行中的长期使命' });
@@ -120,7 +120,7 @@ router.post('/missions/:id/review-choice', async (req, res) => {
 
 // ── 月报问题回答 / 预算 / 手动触发 tick（验收与运维口）──────────────
 
-router.post('/missions/:id/answer', async (req, res) => {
+router.post('/:id/answer', async (req, res) => {
   try {
     const mid = await resolveMissionId(req.params.id);
     if (!mid) return res.status(404).json({ success: false, code: 'NO_MISSION', reason: '没有进行中的长期使命' });
@@ -130,7 +130,7 @@ router.post('/missions/:id/answer', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, error: '回答失败: ' + e.message }); }
 });
 
-router.get('/missions/:id/budget', async (req, res) => {
+router.get('/:id/budget', async (req, res) => {
   try {
     const m = await missionService.getMission(req.params.id);
     if (!m) return res.status(404).json({ success: false, code: 'NOT_FOUND' });
@@ -139,14 +139,14 @@ router.get('/missions/:id/budget', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, error: '查询预算失败: ' + e.message }); }
 });
 
-router.post('/missions/tick-weekly', async (req, res) => {
+router.post('/tick-weekly', async (req, res) => {
   try {
     const worldId = await resolveWorldId(req);
     res.json(await missionService.runWeeklyTick(worldId));
   } catch (e) { res.status(500).json({ success: false, error: 'tick_weekly 失败: ' + e.message }); }
 });
 
-router.post('/missions/tick-monthly', async (req, res) => {
+router.post('/tick-monthly', async (req, res) => {
   try {
     const worldId = await resolveWorldId(req);
     res.json(await missionService.runMonthlyTick(worldId));
