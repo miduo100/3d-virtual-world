@@ -74,6 +74,19 @@ router.post('/regions', async (req, res) => {
   }
 });
 
+// 区域详情（adminWorldRegions「执行」按钮的自主度预检走这里；此前缺失 → 前端 404 "Not found"）
+router.get('/regions/:regionKey', async (req, res) => {
+  try {
+    const worldId = req.query.worldId || (await worldAiConfig.getConfig()).world_id;
+    const region = await regionService.getRegion(worldId, req.params.regionKey);
+    if (!region) return res.status(404).json({ success: false, error: '区域不存在', code: 'REGION_NOT_FOUND' });
+    const eff = await regionService.effectiveAutonomyOf(worldId, req.params.regionKey);
+    res.json({ success: true, region, effectiveAutonomy: eff.effective });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 router.get('/regions/:regionKey/assets', async (req, res) => {
   try {
     const worldId = req.query.worldId || (await worldAiConfig.getConfig()).world_id;
