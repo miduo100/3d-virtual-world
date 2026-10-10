@@ -100,8 +100,13 @@ async function buildFromSpec(o) {
     actor: opt.actor || 'world_ai:runtime', effectiveAutonomy: opt.effectiveAutonomy,
   };
 
-  // ① 策略（L0 → L1 → L2）
+  // ① 策略（L0 → L1 → L2 → L3 gen3d）
   const strat = await assetSelector.decideStrategy(s);
+  // ★ Phase 8：gen3d 未启用等"不可用路径"必须显式失败，绝不静默降级成程序化（否则建出盒子还以为在生成 3D）
+  if (strat.strategy === 'unsupported') {
+    return { ok: false, code: strat.code || 'STRATEGY_UNSUPPORTED', strategy: 'unsupported',
+      suggest: strat.suggest || [], reason: strat.reason || '该生成路径不可用' };
+  }
   let parts = [];
   let visual = null;
   let physical = null;
@@ -220,6 +225,11 @@ async function preview(o) {
   if (!v.ok) return { ok: false, code: 'SPEC_INVALID', errors: v.errors, hint: v.hint };
   const s = v.spec;
   const strat = await assetSelector.decideStrategy(s);
+  // ★ 同上：unsupported 路径干跑也必须显式失败，不拿程序化结果冒充
+  if (strat.strategy === 'unsupported') {
+    return { ok: false, code: strat.code || 'STRATEGY_UNSUPPORTED', strategy: 'unsupported',
+      suggest: strat.suggest || [], reason: strat.reason || '该生成路径不可用' };
+  }
   const compiled = specCompiler.compile(s);
   const val = compiled.ok ? assetValidator.validateComponents(compiled.components, {
     maxComponents: s.budget && s.budget.maxComponents, maxTriangles: s.budget && s.budget.maxTriangles,

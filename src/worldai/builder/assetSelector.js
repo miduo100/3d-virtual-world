@@ -60,6 +60,17 @@ async function decideStrategy(spec) {
   const tags = (Array.isArray(s.assetHints && s.assetHints.preferTags) && s.assetHints.preferTags.length
     ? s.assetHints.preferTags : tagMapper.map(text)).slice(0, 10);
 
+  // L3：gen3d（Phase 8 第 4 条路径）—— **显式指定优先于 auto 链**（放在 L0 之前）：
+  //   ★未启用必须 unsupported + 建议换路径，**绝不静默降级**为 procedural/整栋资产
+  //     （否则"以为在生成 3D 其实在建盒子"）
+  if (s.assembly === 'gen3d') {
+    const g = await require('../strategy/gen3d').plan(s);
+    if (g.strategy === 'gen3d') {
+      return { strategy: 'gen3d', tags, provider: g.provider, prompt: g.prompt, reason: g.reason };
+    }
+    return { strategy: 'unsupported', tags, code: g.code, suggest: g.suggest, reason: g.reason };
+  }
+
   // L0：库里有整栋资产 → 单体放置（复用度最高）
   const assets = await searchAssets({ tags });
   if (assets.items.length) {

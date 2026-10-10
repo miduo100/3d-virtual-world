@@ -1,20 +1,20 @@
 {
-  "when": "2026-09-22T03:07:02.282Z",
-  "run": 72,
+  "when": "2026-10-10T00:15:31.049Z",
+  "run": 41,
   "ips": {
-    "owner": "203.0.113.72",
-    "auth": "203.0.113.102",
-    "main": "203.0.113.112",
-    "c18": "203.0.113.192",
-    "owner2": "203.0.113.172",
-    "rate": "198.51.100.72",
-    "fresh": "203.0.113.122",
-    "fresh2": "203.0.113.222",
-    "xObserver": "203.0.113.142",
+    "owner": "203.0.113.41",
+    "auth": "203.0.113.71",
+    "main": "203.0.113.81",
+    "c18": "203.0.113.161",
+    "owner2": "203.0.113.141",
+    "rate": "198.51.100.41",
+    "fresh": "203.0.113.91",
+    "fresh2": "203.0.113.191",
+    "xObserver": "203.0.113.111",
     "xAttempts": [
-      "203.0.113.132",
-      "203.0.113.133",
-      "203.0.113.134"
+      "203.0.113.101",
+      "203.0.113.102",
+      "203.0.113.103"
     ]
   },
   "groups": {
@@ -55,7 +55,7 @@
             "mode": "pull",
             "pushAllowed": false,
             "observeMaxRadius": 30,
-            "maxConnectionsPerIp": 1,
+            "maxConnectionsPerIp": 10,
             "actionRates": {
               "observe": [
                 1,
@@ -154,7 +154,14 @@
           "followStopDistanceDefault": 2,
           "followMaxDurationMs": 600000,
           "maxAgents": 50,
-          "maxConnectionsPerAgent": 1
+          "maxConnectionsPerAgent": 1,
+          "radii": {
+            "sayNearbyRange": 30,
+            "observeMax": 200,
+            "observeMaxGuest": 30,
+            "subscribeMax": 200,
+            "oneWsPerAgent": true
+          }
         },
         "entityIdentity": {
           "uniqueIdField": "id",
@@ -206,7 +213,7 @@
             "mode": "pull",
             "pushAllowed": false,
             "observeMaxRadius": 30,
-            "maxConnectionsPerIp": 1,
+            "maxConnectionsPerIp": 10,
             "actionRates": {
               "observe": [
                 1,
@@ -305,7 +312,14 @@
           "followStopDistanceDefault": 2,
           "followMaxDurationMs": 600000,
           "maxAgents": 50,
-          "maxConnectionsPerAgent": 1
+          "maxConnectionsPerAgent": 1,
+          "radii": {
+            "sayNearbyRange": 30,
+            "observeMax": 200,
+            "observeMaxGuest": 30,
+            "subscribeMax": 200,
+            "oneWsPerAgent": true
+          }
         },
         "entityIdentity": {
           "uniqueIdField": "id",
@@ -709,7 +723,7 @@
                 "observe"
               ],
               "summary": "Spatial radar: nearby entities / objects / portals",
-              "description": "self.position is the **live** position of the calling Agent (falls back to the session position when it has no live WS connection); every distance is measured from it. Rate-limited: `agent_observe_rate_key` (default 1/s) for Key tier, 1 per 2s for guest tier. Radius hard cap: 200m for Key, 30m for guest. Entity identity: `entities[].id` (=== characterId) is the ONLY identifier, `name` is display-only (duplicates by name are normal); `chat.characterId` / `chat/history.senderId` share the same namespace — see `x-entity-identity`.",
+              "description": "self.position is the **live** position of the calling Agent (falls back to the session position when it has no live WS connection); every distance is measured from it. Rate-limited: `agent_observe_rate_key` (default 1/s) for Key tier, 1 per 2s for guest tier (**sliding window**: polling exactly every 2s hits 429 on jitter — use ≥2.5s spacing). Radius hard cap: 200m for Key, 30m for guest. Entity identity: `entities[].id` (=== characterId) is the ONLY identifier, `name` is display-only (duplicates by name are normal); `chat.characterId` / `chat/history.senderId` share the same namespace — see `x-entity-identity`. Distance semantics (2026-09-23): `distance` is **horizontal (2D, ignores y)** and is what the radius filter uses, `distance3D` is the spatial distance (includes height difference). The server has **no terrain data** — agent movement is planar (y=0) while every client renders avatars snapped to ground height, so a small `distance` does NOT mean the same floor (real case: 4.44m horizontal but 9.6m apart vertically, unable to see each other). `self.positionIsServerPlane: true` means **your own y is a server-side plane estimate (0), NOT your rendered height** — so `distance3D` involving yourself is an upper bound; all server-side delivery checks (chat 30m / voice / interact 5m) use **horizontal** distance, matching the other distances you see here. Facing (2026-09-23): `entities[].yaw` is that entity avatar **yaw in radians** (which way it is facing; `null` when unknown) and your own facing is `self.rotation.yaw` — use it to tell whether someone is facing you or which way they walked off. It is the avatar yaw the client reports each frame, not a separate camera value.",
               "security": [
                 {
                   "AgentJwt": []
@@ -789,7 +803,7 @@
               "tags": [
                 "chat"
               ],
-              "summary": "Recent chat messages (for AI reconnect context)",
+              "summary": "Chat log: recent N, or **incremental** when `since` is given (the cursor auto-reply loops need)",
               "security": [
                 {
                   "AgentJwt": []
@@ -803,6 +817,14 @@
                     "type": "integer",
                     "default": 20
                   }
+                },
+                {
+                  "name": "since",
+                  "in": "query",
+                  "schema": {
+                    "type": "integer"
+                  },
+                  "description": "Cursor: return only messages with `id > since` (oldest-first). Response adds `nextSince` (max id seen) and `order`. Store nextSince and pass it back on the next poll. **Pull-tier clients (guests) must use it**: polling without a cursor re-reads the same N rows every tick, so one new message is fetched N times — multiplying DB load by N with no benefit."
                 }
               ],
               "responses": {
@@ -818,7 +840,7 @@
                 "action"
               ],
               "summary": "HTTP fallback entry (limited; primary is WS ACTION)",
-              "description": "Returns 501 WS_REQUIRED for all actions. Use WebSocket /ws/agent ACTION message instead.",
+              "description": "Returns 501 WS_REQUIRED for all actions. Use WebSocket /ws/agent ACTION message instead. WS receipt contract (2026-09-23): `say` resolves to ACTION_COMPLETED with `{ delivered: boolean, recipients: number }` where `recipients` = how many connections actually received the words within 30m (human WS + other chat-subscribed Agents, excluding the sender). `recipients: 0` means nobody heard you — do NOT assume your words were received; move closer with walk_to/follow and say again.",
               "security": [
                 {
                   "AgentJwt": []
@@ -1026,8 +1048,8 @@
       }
     },
     "B": {
-      "agentId": "agent:guest:409da104-be31-4b74-a83d-db55514d0d49",
-      "name": "游客AI-74c7e14c"
+      "agentId": "agent:guest:c44069de-749b-4b8b-a8ef-661fc481c3af",
+      "name": "游客AI-6ea2c3f1"
     },
     "C": {
       "connected": true
@@ -1045,22 +1067,22 @@
       "results": [
         {
           "attempt": 1,
-          "ip": "203.0.113.132",
-          "agentId": "agent:guest:4aba4ba5-36f9-4187-ae50-8149a89893c2",
+          "ip": "203.0.113.101",
+          "agentId": "agent:guest:c47e4553-669a-425e-a1e1-96fb84dba1c7",
           "ghost": false,
           "slotLeak": false
         },
         {
           "attempt": 2,
-          "ip": "203.0.113.133",
-          "agentId": "agent:guest:2088f397-2ff8-407d-a80f-4268571d5902",
+          "ip": "203.0.113.102",
+          "agentId": "agent:guest:6e2a2cab-638f-4bee-a6e2-ee0c21cf39e6",
           "ghost": false,
           "slotLeak": false
         },
         {
           "attempt": 3,
-          "ip": "203.0.113.134",
-          "agentId": "agent:guest:9f0d18c9-b62f-47b4-abf6-01c387214a6c",
+          "ip": "203.0.113.103",
+          "agentId": "agent:guest:e0da159d-8acd-4a58-b362-ec5e97ba7975",
           "ghost": false,
           "slotLeak": false
         }
@@ -1071,8 +1093,8 @@
   },
   "fatal": null,
   "result": {
-    "pass": 76,
-    "fail": 0,
+    "pass": 75,
+    "fail": 1,
     "total": 76
   },
   "rows": [
@@ -1167,12 +1189,12 @@
     {
       "name": "B4 agent.id 形如 agent:guest:<uuid>",
       "ok": true,
-      "detail": "agent:guest:409da104-be31-4b74-a83d-db55514d0d49"
+      "detail": "agent:guest:c44069de-749b-4b8b-a8ef-661fc481c3af"
     },
     {
       "name": "B5 agent.name 以 游客AI- 开头",
       "ok": true,
-      "detail": "游客AI-74c7e14c"
+      "detail": "游客AI-6ea2c3f1"
     },
     {
       "name": "B6 tierInfo.pushAllowed=false（红线 14）",
@@ -1280,7 +1302,7 @@
     {
       "name": "C12 WORLD_SNAPSHOT.self.id = 本 Agent",
       "ok": true,
-      "detail": "agent:guest:409da104-be31-4b74-a83d-db55514d0d49"
+      "detail": "agent:guest:c44069de-749b-4b8b-a8ef-661fc481c3af"
     },
     {
       "name": "C14 游客 SUBSCRIBE → GUEST_PUSH_FORBIDDEN",
@@ -1294,10 +1316,10 @@
     },
     {
       "name": "C16 同 IP 第 2 条连接 → GUEST_IP_CONCURRENCY + close 1013",
-      "ok": true,
+      "ok": false,
       "detail": {
-        "code": "GUEST_IP_CONCURRENCY",
-        "closeCode": 1013
+        "code": null,
+        "closeCode": null
       }
     },
     {
@@ -1339,14 +1361,14 @@
       "ok": true,
       "detail": {
         "entities": 1,
-        "objects": 100,
-        "portals": 4
+        "objects": 90,
+        "portals": 1
       }
     },
     {
       "name": "D3 self.id = 本 Agent（同一命名空间）",
       "ok": true,
-      "detail": "agent:guest:409da104-be31-4b74-a83d-db55514d0d49"
+      "detail": "agent:guest:c44069de-749b-4b8b-a8ef-661fc481c3af"
     },
     {
       "name": "D4 tier 字段回显 guest-pull",
@@ -1439,14 +1461,14 @@
       "ok": true,
       "detail": {
         "from": {
-          "x": 23.999999999999993,
+          "x": -1.1200000000000099,
           "y": 0,
-          "z": 0
+          "z": 14.84
         },
         "to": {
-          "x": 29.648144691979695,
+          "x": 24.771244188594093,
           "y": 0,
-          "z": 28.240723459898494
+          "z": 27.45282975254134
         },
         "moved": 28.8
       }
@@ -1456,7 +1478,7 @@
       "ok": true,
       "detail": {
         "code": "target_not_found",
-        "reason": "目标 00000000-0000-4000-8000-000000000000 不在附近"
+        "reason": "interact 失败：你请求的 id=00000000-0000-4000-8000-000000000000 不在附近。实体 id 随会话变化，请用最近一次 observe 的 entities[].id 重发。附近实体：游客AI-6ea2c3f1 id=agent:guest:c44069de-749b-4b8b-a8ef-661fc481c3af 0m"
       }
     },
     {
@@ -1469,7 +1491,7 @@
       "ok": true,
       "detail": {
         "code": "target_not_found",
-        "reason": "follow 启动失败"
+        "reason": "follow 失败：你请求的 id=00000000-0000-4000-8000-000000000001 不在附近。实体 id 随会话变化，请用最近一次 observe 的 entities[].id 重发。附近实体：游客AI-6ea2c3f1 id=agent:guest:c44069de-749b-4b8b-a8ef-661fc481c3af 0m"
       }
     },
     {
@@ -1591,5 +1613,5 @@
       "detail": "联测收尾需按红线 6 恢复 agent_enabled=false"
     }
   ],
-  "durationMs": 32242
+  "durationMs": 38975
 }
