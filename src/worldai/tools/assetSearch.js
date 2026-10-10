@@ -40,15 +40,25 @@ async function searchParts(o) {
     where.push(`(i.part_key ILIKE $${params.length} OR i.part_subtype ILIKE $${params.length})`);
   }
   params.push(limit);
+  // ★ 按库轮转采样（round-robin）：每个库先各出 1 件再进入第二轮，防止单一大库
+  //   （如 302 件的 road_tiles）按 id 顺序霸占全部候选——曾实测 24 个候选全是
+  //   roadTile_001~024，LLM 无墙无门可用只能编造键名 → 全部 unknownPart → 0 块/0 件。
+  //   有明确 roles/style/keyword 过滤时过滤条件已收窄，轮转同样适用且无害。
   const res = await query(
-    `SELECT i.part_key, i.part_role, i.part_subtype, i.grid_w, i.grid_h, i.grid_d,
-            i.collidable, i.stack_rule, i.repeat_allowed, i.metadata,
-            l.pack_key, l.style_family, l.priority, u.path AS model_path
-       FROM part_library_items i
-       JOIN part_libraries l ON l.id = i.library_id
-       JOIN uploaded_models u ON u.id = i.model_id
-      WHERE ${where.join(' AND ')}
-      ORDER BY l.priority ASC, l.id ASC, i.id ASC
+    `SELECT part_key, part_role, part_subtype, grid_w, grid_h, grid_d,
+            collidable, stack_rule, repeat_allowed, metadata,
+            pack_key, style_family, priority, model_path
+       FROM (
+         SELECT i.part_key, i.part_role, i.part_subtype, i.grid_w, i.grid_h, i.grid_d,
+                i.collidable, i.stack_rule, i.repeat_allowed, i.metadata,
+                l.pack_key, l.style_family, l.priority, u.path AS model_path,
+                row_number() OVER (PARTITION BY l.id ORDER BY i.id) AS rn
+           FROM part_library_items i
+           JOIN part_libraries l ON l.id = i.library_id
+           JOIN uploaded_models u ON u.id = i.model_id
+          WHERE ${where.join(' AND ')}
+       ) t
+      ORDER BY t.rn ASC, t.priority ASC, t.pack_key ASC
       LIMIT $${params.length}`,
     params
   );

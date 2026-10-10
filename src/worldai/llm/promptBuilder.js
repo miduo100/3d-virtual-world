@@ -136,7 +136,7 @@ function renderWorld(w, opts) {
 /** 零件明细段：只带 partKey / role / 尺寸 / gridsnap（§H.9.2 硬约束 2：不带几何与贴图描述） */
 function renderParts(parts) {
   if (!parts.length) return '';
-  const lines = ['可用零件（已按预算取 Top-N）：'];
+  const lines = ['可用零件（partKey 必须逐字取自下列清单，清单外的键名一律非法被剔除；找不到理想零件就选语义最接近的一个，绝不编造键名）：'];
   for (const p of parts) {
     lines.push(`- ${p.partKey}｜role=${p.role || '-'}｜尺寸=${p.size || '-'}｜gridsnap=${p.gridsnap == null ? '-' : p.gridsnap}`);
   }
