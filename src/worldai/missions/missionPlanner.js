@@ -264,7 +264,7 @@ async function plan(mission, region, opts) {
         memories: [],
         tools: [],
         allowedTools: [],
-        history: round > 1 && lastStats ? [{ tool: 'validate_plan', argsSummary: '上一轮剔除 ' + JSON.stringify(lastStats.dropped), ok: lastStats.parts > 0 }] : [],
+        history: round > 1 && lastStats ? [{ tool: 'validate_plan', argsSummary: '上一轮剔除 ' + JSON.stringify(lastStats.dropped) + (lastPlan && lastPlan.intentGap ? '；未达标：' + lastPlan.intentGap + '——本轮必须修正' : ''), ok: lastStats.parts > 0 }] : [],
         untrusted: [String(mission.title || '')],
         contextWindowTokens: o.contextWindowTokens || null,
         nearDist: 0, midDist: 0,
@@ -303,8 +303,14 @@ async function plan(mission, region, opts) {
     const v = await validatePlan(raw, constraints);
     lastStats = v.stats;
     lastPlan = v.plan;
-    // 还有合法零件就不必再来一轮（省调用成本）
-    if (v.stats.parts > 0) break;
+    // ★ 意图达标检查（队列14 A1/A2）：有合法零件但数量/种类不达标 → 带差距反馈重试下一轮
+    //   （MAX_ROUNDS=2 兜底：第 2 轮仍不达标就用最好的一版，绝不静默丢弃差距信息——notes 会带出去）
+    if (v.stats.parts > 0) {
+      const gap = intentGap(mission.prompt, v);
+      if (!gap) break;
+      lastPlan.intentGap = gap; // 透出给 runner notes / 后台确认卡
+      fallbackNotes.push('第 ' + round + ' 轮方案未达用户意图（' + gap + '），重试下一轮');
+    }
   }
 
   if (!lastPlan) {
@@ -320,6 +326,27 @@ async function plan(mission, region, opts) {
   };
 }
 
+/** 意图差距检测（队列14 A1/A2）：返回可读差距描述；达标返回 null */
+function parseMinCount(prompt) {
+  const s = String(prompt || '');
+  const m = s.match(/(?:大于|超过|至少|不少于|≥)\s*(\d{1,4})\s*[棵个件株朵座栋]/)
+    || s.match(/(\d{1,4})\s*[棵个件株朵座栋]\s*(?:以上|及以上)/);
+  return m ? Number(m[1]) : null;
+}
+
+function intentGap(prompt, v) {
+  const minCount = parseMinCount(prompt);
+  const wantsVariety = /多样|各种|不同|丰富/.test(String(prompt || ''))
+    || /森林|树林|丛林|花田|草地/.test(String(prompt || ''));
+  const parts = Number(v.stats && v.stats.parts) || 0;
+  const distinctKeys = new Set(
+    (v.plan && v.plan.blocks || []).flatMap((b) => (b.parts || []).map((p) => p.partKey))
+  ).size;
+  if (minCount && parts < minCount) return '用户要求 ≥' + minCount + ' 件，方案只有 ' + parts + ' 件';
+  if (wantsVariety && parts >= 3 && distinctKeys < 3) return '用户要求多样/自然景观，方案只用了 ' + distinctKeys + ' 种 partKey（要求 ≥3 种）';
+  return null;
+}
+
 /** 方案输出与布局契约（拼进 [TASK]，永不裁）：坐标语义 + 防重叠 + 区域内落点 */
 function buildPlanOutputContract(region) {
   const b = (region && region.bounds) || {};
@@ -332,7 +359,9 @@ function buildPlanOutputContract(region) {
     '坐标语义：anchor.dx/dz = 该块相对区域左上角的偏移；parts 的 dx/dz = 该零件相对所属块 anchor 的偏移；ry = 绕 Y 轴角度（0/90/180/270）；level = 堆叠层数（0=地面层）。',
     '布局要求：按 PARTS 段标注的零件尺寸（宽×高×深，米）排布——墙围成一圈、地板铺底、家具放在屋子内部；相邻零件中心间距 ≥ 两者最大边长的一半之和，禁止把多个零件放在同一坐标；全部零件必须落在区域内且距边界 ≥ 2 米。',
     '主体建筑的 anchor 放在区域中部（约 宽/2, 深/2 处），不要贴角。',
-    `零件总数控制在 6~15 件（超出会被预算截断；输出过长会被截断导致方案残缺）。`,
+    '★ 数量语义（必须换算成零件件数，用户对数量敏感）：「几棵/几个」=4~6 件；「一片森林/树林/花田/草地」=20~40 件；「很多/大量/尽量多」=本次预算上限（' + (Number(constraints.max_objects) > 0 ? Number(constraints.max_objects) : 120) + ' 件）的 80%；用户写了具体数字（如「大于3棵」「20个以上」）→ parts 总件数必须 ≥ 该数字。',
+    '★ 种类语义：委托含「多样/各种/不同/丰富」或主体是自然景观（森林/树林/丛林/花田/草地）→ 必须使用 ≥3 个不同的 partKey（不同树种/不同种类），只重复同一个 partKey 视为不合格。',
+    `散点类需求（森林/花田/草地/树丛）不需要建筑结构，用不同 partKey 的自然零件散开排布即可。`,
     '★ 关键：同一个零件复用（如 4 面墙）时，每份的 dx/dz 必须互不相同、按尺寸错开围成一圈。带数字的示例（4 面墙围 4×4 米小屋，建筑块尺寸约 1×3×0.2）：',
     '{"kind":"house","footprint":{"w":4,"d":4},"anchor":{"dx":' + Math.round(bx + bw / 2 - 2) + ',"dz":' + Math.round(bz + bd / 2 - 2) + '},"parts":[{"partKey":"building_block","dx":0,"dz":0,"ry":0,"level":0},{"partKey":"building_block","dx":4,"dz":0,"ry":90,"level":0},{"partKey":"building_block","dx":4,"dz":4,"ry":180,"level":0},{"partKey":"building_block","dx":0,"dz":4,"ry":270,"level":0}]}',
   ].join('\n');

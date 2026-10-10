@@ -149,9 +149,11 @@ function checkPlacement(bounds, x, z, footprint, obstacles) {
  */
 function findFreeSpot(bounds, prefer, footprint, obstacles, opts) {
   const o = opts || {};
-  const maxAttempts = Math.max(1, num(o.maxAttempts, 12));
-  const stepX = Math.max(0.5, num(o.stepX, (num(footprint && footprint.w, DEFAULT_FOOTPRINT.w) || 2)));
-  const stepZ = Math.max(0.5, num(o.stepZ, (num(footprint && footprint.d, DEFAULT_FOOTPRINT.d) || 2)));
+  // 12 次 × 0.5m 步长的老参数在"历次 AI 资产同点堆簇"的角落里搜不出 1.7m 半径，
+  // 实测"换位 4 全灭"（§队列14 A3）。48 次 + 步长下限 1m：覆盖半径 ~7m，密簇也能摊开。
+  const maxAttempts = Math.max(1, num(o.maxAttempts, 48));
+  const stepX = Math.max(1, num(o.stepX, (num(footprint && footprint.w, DEFAULT_FOOTPRINT.w) || 2)));
+  const stepZ = Math.max(1, num(o.stepZ, (num(footprint && footprint.d, DEFAULT_FOOTPRINT.d) || 2)));
   const x0 = num(prefer && prefer.x, 0), z0 = num(prefer && prefer.z, 0);
   let attempts = 0;
   for (let ring = 0; ring <= maxAttempts; ring++) {
