@@ -59,6 +59,13 @@ async function generate(o) {
 
   let validated;
   let llmCallId = null;
+  // Phase 7b（§I.6 两条技术保障①·生成前注入）：处理愿景时 prompt 必须携带当前使命 + 阶段目标，
+  // 从源头避免"愿景背离使命"的方案；无使命时为空串（行为零变化）。
+  let missionCtx = '';
+  try {
+    const mc = await require('../missions/longTermMission').getMissionContext(p.worldId);
+    if (mc) missionCtx = '\n【长期使命（愿景不得背离，冲突走使命变更流程 §I.6）】\n' + mc;
+  } catch (e) { /* 注入失败不阻断规划 */ }
   if (p.injectPlan) {
     validated = planValidator.validate(p.injectPlan);
     if (!validated.ok) return { ok: false, code: 'PLAN_INVALID', errors: validated.errors, reason: '注入的规划未通过校验' };
@@ -70,7 +77,8 @@ async function generate(o) {
         task: {
           prompt: (goal.vision ? String(goal.vision) : goal.title)
             + '\n硬性规则（不可违反）：' + (goal.hard_rules || []).join('；')
-            + '\n偏好：' + (goal.soft_prefs || []).join('；'),
+            + '\n偏好：' + (goal.soft_prefs || []).join('；')
+            + missionCtx,
           constraints: { phases: planValidator.PHASE_COUNT, purposeVocabulary: purposePrimitives.KEYS },
         },
         parts: purposePrimitives.PRIMITIVES.map((x) => ({ partKey: x.key, role: x.title, name: x.key, description: x.desc + '；依赖：' + (x.dependsOn.join('/') || '无') })),

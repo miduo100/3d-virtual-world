@@ -22,12 +22,16 @@
 
 const worldAiConfig = require('../config');
 
-const KINDS = ['observe', 'plan', 'optimize', 'idle'];
+const KINDS = ['observe', 'plan', 'optimize', 'idle', 'weekly', 'monthly'];
 const DEFAULT_INTERVAL_MS = {
   observe: 10 * 60 * 1000,
   plan: 6 * 60 * 60 * 1000,
   optimize: 24 * 60 * 60 * 1000,
   idle: 30 * 60 * 1000,
+  // Phase 7b（§I.6）：weekly/monthly tick 是**检查器**不是精确触发器——tick 内部按 ISO 周/
+  // 自然月幂等（同周/同月只生成一次），所以轮询间隔 6h 足够，错过也可由 trigger() 手动补跑
+  weekly: 6 * 60 * 60 * 1000,
+  monthly: 6 * 60 * 60 * 1000,
 };
 const MIN_INTERVAL_MS = 60 * 1000;          // 1 分钟（再小就是忙轮，配置错误）
 const MAX_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -146,7 +150,18 @@ async function runHousekeeping(worldId) {
   return out;
 }
 
-const HANDLERS = { observe: tickObserve, plan: tickPlan, optimize: tickOptimize, idle: tickIdle };
+/** Phase 7b（§I.6）：长期使命的周计划 / 月报 + 月度预算发放 + 月报问题超时检查。
+ *  都是幂等检查器：同 ISO 周 / 同自然月只生成一次，没使命时安静跳过。 */
+async function tickWeekly(cfg) {
+  const missionService = require('../missions/longTermMission');
+  return missionService.runWeeklyTick(String(cfg.world_id));
+}
+async function tickMonthly(cfg) {
+  const missionService = require('../missions/longTermMission');
+  return missionService.runMonthlyTick(String(cfg.world_id));
+}
+
+const HANDLERS = { observe: tickObserve, plan: tickPlan, optimize: tickOptimize, idle: tickIdle, weekly: tickWeekly, monthly: tickMonthly };
 
 // ────────────────────────────── 定时器链 ──────────────────────────────
 

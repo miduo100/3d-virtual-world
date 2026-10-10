@@ -84,7 +84,8 @@ async function initializeDatabase() {
     'migrations/add_world_activities.sql',         // Phase 6: 活动 + 参与者（生命周期/排名/幂等结算）
     'migrations/add_wallets.sql',                  // Phase 6: 钱包 + 流水（原子扣减 + 幂等键）+ shops.merchant_id 放宽
     'migrations/add_ai_experiments.sql',           // Phase 7: A/B 实验（baseline 7d/实验 3d/同区域冷却 7d，自动回滚靠重放 change_steps）
-    'migrations/add_world_gen3d_jobs.sql'          // Phase 8: 3D 生成任务账本（★落表，重启后仍可轮询 —— aiSceneGenerator:2310 内存 Map 的教训）
+    'migrations/add_world_gen3d_jobs.sql',         // Phase 8: 3D 生成任务账本（★落表，重启后仍可轮询 —— aiSceneGenerator:2310 内存 Map 的教训）
+    'migrations/add_world_missions.sql'            // Phase 7b: 长期使命（§I.6；每世界同时最多 1 个 active）
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);
