@@ -61,6 +61,16 @@ const PLAN_SCHEMA = {
     required: ['blocks'],
   },
 };
+/** 关键词预选输出 schema（candidate 语义贴合用，失败静默回退轮转采样） */
+const KEYWORD_SCHEMA = {
+  name: 'part_keywords',
+  schema: {
+    type: 'object',
+    properties: { keywords: { type: 'array', items: { type: 'string' } } },
+    required: ['keywords'],
+  },
+};
+
 /** 委托已用掉的 LLM 次数（**查表**，重启安全 —— 判据 P35-10） */
 async function countLlmCalls(missionId) {
   const res = await query(
@@ -170,18 +180,63 @@ async function plan(mission, region, opts) {
 
   // 3) 世界快照 + 候选零件（只带 partKey/role/尺寸/gridsnap，§H.9.2 硬约束 2）
   const world = await regionSnapshot(region);
-  const candidates = await assetSearch.searchParts({
+  const fallbackNotes = []; // 3.5-3 P35-22：换家原因（runner 会并入 executed_stats.notes）；提前声明供关键词预选使用
+  let candidates = await assetSearch.searchParts({
     roles: constraints.allowed_roles,
     forbidRoles: constraints.forbid_roles,
     styleFamily: constraints.style_family,
     limit: 24,
   });
 
+  // 3.5) ★ 关键词预选（1 次廉价 LLM 调用）：轮转采样的候选与委托语义无关
+  //   （实测"森林"委托拿到的是 building_a×4——候选里根本没有树）。先让模型从委托提炼
+  //   英文关键词（库键名是英文），按关键词检索合并；失败/零命中 → 静默回退轮转采样。
+  if (o.injectPlan == null && used0 < maxCalls) {
+    try {
+      const kwChat = await providerFallback.chatWithFallback({
+        messages: [
+          { role: 'system', content: '你是零件库检索助手。从建设委托提炼 3~6 个英文检索关键词（库内键名是英文，如 tree/pine/rock/wall/floor/door/fence/table/chair）。只输出 JSON：{"keywords":["..."]}' },
+          { role: 'user', content: '建设委托：' + String(mission.prompt || '').slice(0, 400) },
+        ],
+        jsonSchema: KEYWORD_SCHEMA,
+        temperature: 0.1,
+        maxTokens: 300,
+        purpose: 'tool_select',
+        caller: 'world_ai_mission_planner_keywords',
+        missionId: String(mission.id),
+        regionKey: String(mission.region_key),
+        timeoutMs: 60000,
+        retries: 0,
+      }, { primary: provider });
+      const kwParsed = parseJson(kwChat.content);
+      const keywords = kwParsed && Array.isArray(kwParsed.keywords)
+        ? kwParsed.keywords.map((s) => String(s).trim()).filter(Boolean).slice(0, 6)
+        : [];
+      if (keywords.length) {
+        const merged = new Map();
+        for (const k of keywords) {
+          if (merged.size >= 24) break;
+          const r = await assetSearch.searchParts({
+            keyword: k,
+            forbidRoles: constraints.forbid_roles,
+            styleFamily: constraints.style_family,
+            limit: 12,
+          });
+          for (const it of r.items) if (!merged.has(it.partKey)) merged.set(it.partKey, it);
+        }
+        if (merged.size) {
+          candidates = { ok: true, items: Array.from(merged.values()).slice(0, 24), total: merged.size, notice: 'keyword-driven: ' + keywords.join(',') };
+        }
+      }
+    } catch (e) {
+      fallbackNotes.push('关键词预选失败已回退轮转采样：' + String(e.message || e).slice(0, 160));
+    }
+  }
+
   const maxRounds = Math.min(MAX_ROUNDS, Math.max(1, Number(o.maxRounds) || MAX_ROUNDS));
   let rounds = 0;
   let lastStats = null;
   let lastPlan = null;
-  const fallbackNotes = []; // 3.5-3 P35-22：换家原因（runner 会并入 executed_stats.notes）
 
   for (let round = 1; round <= maxRounds; round++) {
     const used = await countLlmCalls(mission.id);

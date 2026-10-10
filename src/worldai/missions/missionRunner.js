@@ -77,8 +77,17 @@ async function claimRegionForRun(mission) {
 /** 相对偏移 → 绝对坐标（吸附后） */
 function absoluteOf(region, block, part) {
   const b = region.bounds || {};
-  const baseX = num(b.minX, num(b.x, 0)) + num(block.anchor && block.anchor.dx, 0);
-  const baseZ = num(b.minZ, num(b.z, 0)) + num(block.anchor && block.anchor.dz, 0);
+  const minX = num(b.minX, num(b.x, 0));
+  const minZ = num(b.minZ, num(b.z, 0));
+  const maxX = num(b.maxX, minX + num(b.width, 0));
+  const maxZ = num(b.maxZ, minZ + num(b.depth, 0));
+  // ★ 模型经常把 block.anchor 写成 (0,0) → 整块落点贴在区域角点 → 距边 0 < 半足迹
+  //   → 全部 OUT_OF_BOUNDS、0 件落地（实测 3 连）。把块锚点钳进区域内侧（留 3m 边距），
+  //   同点叠放交给既有"碰撞→换位"逻辑摊开；零件最终落点仍走 boundsGuard，围栏红线不变。
+  const margin = 3;
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+  const baseX = clamp(minX + num(block.anchor && block.anchor.dx, 0), minX + margin, Math.max(minX + margin, maxX - margin));
+  const baseZ = clamp(minZ + num(block.anchor && block.anchor.dz, 0), minZ + margin, Math.max(minZ + margin, maxZ - margin));
   const unit = Array.isArray(part.grid) && part.grid.length === 3 && part.grid[0] > 0 ? part.grid : gridsnap.unitOf(region.gridsnap);
   const snapped = gridsnap.snap({ x: baseX + num(part.dx, 0), z: baseZ + num(part.dz, 0), y: 0 }, unit, part.level);
   return { x: snapped.x, y: snapped.y, z: snapped.z, unit };
