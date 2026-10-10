@@ -276,6 +276,10 @@ function buildPlanOutputContract(region) {
     `区域范围：左上角 (${bx}, ${bz})，宽 ${bw} 米、深 ${bd} 米。所有坐标单位一律是"米"。`,
     '坐标语义：anchor.dx/dz = 该块相对区域左上角的偏移；parts 的 dx/dz = 该零件相对所属块 anchor 的偏移；ry = 绕 Y 轴角度（0/90/180/270）；level = 堆叠层数（0=地面层）。',
     '布局要求：按 PARTS 段标注的零件尺寸（宽×高×深，米）排布——墙围成一圈、地板铺底、家具放在屋子内部；相邻零件中心间距 ≥ 两者最大边长的一半之和，禁止把多个零件放在同一坐标；全部零件必须落在区域内且距边界 ≥ 2 米。',
+    '主体建筑的 anchor 放在区域中部（约 宽/2, 深/2 处），不要贴角。',
+    `零件总数控制在 6~15 件（超出会被预算截断；输出过长会被截断导致方案残缺）。`,
+    '★ 关键：同一个零件复用（如 4 面墙）时，每份的 dx/dz 必须互不相同、按尺寸错开围成一圈。带数字的示例（4 面墙围 4×4 米小屋，建筑块尺寸约 1×3×0.2）：',
+    '{"kind":"house","footprint":{"w":4,"d":4},"anchor":{"dx":' + Math.round(bx + bw / 2 - 2) + ',"dz":' + Math.round(bz + bd / 2 - 2) + '},"parts":[{"partKey":"building_block","dx":0,"dz":0,"ry":0,"level":0},{"partKey":"building_block","dx":4,"dz":0,"ry":90,"level":0},{"partKey":"building_block","dx":4,"dz":4,"ry":180,"level":0},{"partKey":"building_block","dx":0,"dz":4,"ry":270,"level":0}]}',
   ].join('\n');
 }
 
