@@ -201,6 +201,9 @@ async function plan(mission, region, opts) {
             exclude: Array.isArray(constraints.forbid_roles) ? constraints.forbid_roles : null,
             budget: { maxObjects: constraints.max_objects || null, maxTris: constraints.max_tris || null, maxHeight: constraints.max_height || null },
           },
+          // 输出与布局契约（TASK 永不裁）：曾实测模型不知道 dx/dz 的单位与相对关系，
+          // 把全部零件写成 dx=0,dz=0 叠在区域角点 → 全部 OUT_OF_BOUNDS、0 件落地。
+          outputContract: buildPlanOutputContract(region),
         },
         parts: candidates.items,
         memories: [],
@@ -260,6 +263,20 @@ async function plan(mission, region, opts) {
     candidates: candidates.items.length,
     fallbackNotes,
   };
+}
+
+/** 方案输出与布局契约（拼进 [TASK]，永不裁）：坐标语义 + 防重叠 + 区域内落点 */
+function buildPlanOutputContract(region) {
+  const b = (region && region.bounds) || {};
+  const bx = Number(b.x) || 0, bz = Number(b.z) || 0;
+  const bw = Number(b.width) || 0, bd = Number(b.depth) || 0;
+  return [
+    '【输出与布局契约（必须遵守）】',
+    '只输出一个 JSON 对象，不要任何解释文字或 markdown 围栏：{"style","summary","blocks":[{"kind","footprint":{"w","d"},"anchor":{"dx","dz"},"parts":[{"partKey","dx","dz","ry","level"}]}]}。',
+    `区域范围：左上角 (${bx}, ${bz})，宽 ${bw} 米、深 ${bd} 米。所有坐标单位一律是"米"。`,
+    '坐标语义：anchor.dx/dz = 该块相对区域左上角的偏移；parts 的 dx/dz = 该零件相对所属块 anchor 的偏移；ry = 绕 Y 轴角度（0/90/180/270）；level = 堆叠层数（0=地面层）。',
+    '布局要求：按 PARTS 段标注的零件尺寸（宽×高×深，米）排布——墙围成一圈、地板铺底、家具放在屋子内部；相邻零件中心间距 ≥ 两者最大边长的一半之和，禁止把多个零件放在同一坐标；全部零件必须落在区域内且距边界 ≥ 2 米。',
+  ].join('\n');
 }
 
 /** 容忍模型在 JSON 前后加解释文字 / ```json 围栏 */

@@ -93,6 +93,7 @@ function renderTask(ctx) {
   if (c.budget) kv.push('预算=' + (typeof c.budget === 'object' ? JSON.stringify(c.budget) : c.budget));
   if (Array.isArray(c.constraints) && c.constraints.length) kv.push('其它约束=' + c.constraints.join('；'));
   if (kv.length) lines.push('约束：' + kv.join('；'));
+  if (t.outputContract) lines.push(String(t.outputContract));
   return lines.join('\n');
 }
 
@@ -138,7 +139,8 @@ function renderParts(parts) {
   if (!parts.length) return '';
   const lines = ['可用零件（partKey 必须逐字取自下列清单，清单外的键名一律非法被剔除；找不到理想零件就选语义最接近的一个，绝不编造键名）：'];
   for (const p of parts) {
-    lines.push(`- ${p.partKey}｜role=${p.role || '-'}｜尺寸=${p.size || '-'}｜gridsnap=${p.gridsnap == null ? '-' : p.gridsnap}`);
+    const sizeText = p.size || (Array.isArray(p.grid) && p.grid.length ? p.grid.join('×') : '-');
+    lines.push(`- ${p.partKey}｜role=${p.role || '-'}｜尺寸=${sizeText}｜gridsnap=${p.gridsnap == null ? '-' : p.gridsnap}`);
   }
   return lines.join('\n');
 }
