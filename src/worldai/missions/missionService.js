@@ -83,6 +83,12 @@ async function createMission(input) {
   // autonomy_snapshot：建委托那一刻的有效自主度（§C.3㉑）
   const eff = await regionService.effectiveAutonomyOf(p.worldId, p.regionKey);
 
+  // ★ 队列14 收尾：semi_autonomous / autonomous 下新委托直接入队（status='queued'），
+  //   调度器 tick 才会自动抓取执行——否则"全自主"区域的新委托永远是 draft、永远等人工点执行，
+  //   "AI 自己干"名存实亡（实测用户 autonomous 区域建完委托毫无动静的第二个根因）。
+  //   managed 仍是 draft（必须人工点执行，P35-3b2 口径不变）。
+  const initialStatus = eff.effective === 'managed' ? 'draft' : 'queued';
+
   const row = {
     world_id: String(p.worldId), region_key: String(p.regionKey),
     title: String(p.title || String(p.prompt).slice(0, 40)),
@@ -94,11 +100,11 @@ async function createMission(input) {
   const res = await query(
     `INSERT INTO world_build_missions
        (world_id, region_key, title, prompt, constraints, budget, autonomy_snapshot, status, provider_id, provider_resolution, origin, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,'draft',$8,$9,'ai',$10)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'ai',$11)
      RETURNING *`,
     [row.world_id, row.region_key, row.title, row.prompt,
       JSON.stringify(sc.constraints), JSON.stringify(p.budget || {}),
-      String(eff.effective || 'managed'), row.provider_id,
+      String(eff.effective || 'managed'), initialStatus, row.provider_id,
       JSON.stringify(Object.assign({ decidedAt: new Date().toISOString() }, resolution.byPurpose || {})),
       String(p.createdBy)]
   );
