@@ -86,7 +86,10 @@ async function build(spec, ctx) {
       if (t) for (const e of edges) { if (sideOf(e, bbox) !== bSide) continue; const q = g.lerpOnSeg(e, e.len / 2); push(mk(t, q.dx + e.normal.dx, q.dz + e.normal.dz, e.ang, y)); }
     }
   }
-  const topY = (floors - 1) * floorHeight;
+  // ★ 墙顶高度 = floors × floorHeight（**不是** (floors-1)×floorHeight）。
+  //   原式取的是"最后一层的底部"，屋顶被埋进顶层墙体里（5 层楼屋顶落在 y=9.7，
+  //   而顶层墙占 9.6~12.0）→ 从外面看不到屋顶、能一眼看进空楼（用户看图发现）。
+  const topY = floors * floorHeight;
   let roofCount = 0;
   if (roof) {
     const rw = Math.max(0.5, roof.grid[0]), rd = Math.max(0.5, roof.grid[2]);
@@ -94,7 +97,7 @@ async function build(spec, ctx) {
     const nx = Math.max(1, Math.round(W / rw)), nz = Math.max(1, Math.round(D / rd));
     for (let ix = 0; ix < nx; ix++) for (let iz = 0; iz < nz; iz++) {
       const x = bbox.minX + (ix + 0.5) * (W / nx), z = bbox.minZ + (iz + 0.5) * (D / nz);
-      if (push(mk(roof, x, z, 0, topY + Math.max(0.1, roof.grid[1] || 0.1)))) roofCount++;
+      if (push(mk(roof, x, z, 0, topY + Math.max(0.05, (roof.grid[1] || 0.1) / 2)))) roofCount++;
     }
   }
   let truncated = false;
