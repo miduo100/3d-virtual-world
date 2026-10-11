@@ -91,8 +91,15 @@
       b.addEventListener('click', function () {
         b.disabled = true;
         api('/api/world-ai/runtime/' + pair[0], { method: 'POST', body: '{}' })
-          .then(function () { return refresh(box); })
-          .catch(function () { box.appendChild(el('div', { class: 'arp-err' }, '操作失败：' + pair[0])); })
+          .then(function (res) {
+            // ★ 失败必须可见：此前 400 响应体被静默丢弃，用户点 N 次只看到控制台红字（队列14 实测反馈）
+            if (res && (res.status >= 400 || (res.j && res.j.success === false))) {
+              var reason = res.j && (res.j.reason || res.j.error || res.j.code);
+              box.appendChild(el('div', { class: 'arp-err' }, '「' + pair[1] + '」失败：' + (reason || ('HTTP ' + res.status))));
+            }
+            return refresh(box);
+          })
+          .catch(function (e) { box.appendChild(el('div', { class: 'arp-err' }, '「' + pair[1] + '」请求失败：' + (e && e.message || e))); })
           .then(function () { b.disabled = false; });
       });
       acts.appendChild(b);
