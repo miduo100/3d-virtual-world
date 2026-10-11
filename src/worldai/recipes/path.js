@@ -83,9 +83,14 @@ async function build(spec, ctx) {
     );
   }
 
-  const base = tiles[0];
-  const step = Math.max(0.5, base.grid[0]);        // 沿路方向步长（零件 local X 对齐段方向）
-  const pitch = Math.max(0.5, base.grid[2]);       // 横向排距（零件 local Z）
+  // ★ 步长/排距取**所有 tile 的最小尺寸**，不是第一个 tile 的尺寸：
+  //   同一条路混用不同尺寸的路面零件时（如 3m 的 roadTile + 1m 的 path_square），
+  //   若按最大尺寸取 → 小砖之间留大洞；按最小尺寸取 → 大砖轻微重叠但**绝不露缝**，
+  //   路面连续性优先（实测"换位4建了1"同款教训：宁可重叠不可露洞）。
+  //   单一尺寸时与旧行为逐字节一致（min === tiles[0]）。
+  const minOf = (idx) => Math.min.apply(null, tiles.map((t) => t.grid[idx]));
+  const step = Math.max(0.5, minOf(0));           // 沿路方向步长（零件 local X 对齐段方向）
+  const pitch = Math.max(0.5, minOf(2));          // 横向排距（零件 local Z）
   const widthM = Number(s.width) > 0 ? Number(s.width) : pitch;
   const rows = Math.max(1, Math.round(widthM / pitch)); // §4.3-4 宽排并铺
   const rowOffsets = [];

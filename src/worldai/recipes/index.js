@@ -101,7 +101,8 @@ async function build(name, spec, ctx) {
   return r;
 }
 
-// ── 注册（会话1 只有 path；后续会话各加一行，见 §4.7 文件清单）
+// ── 注册（会话1 path；会话2 building）
 register('path', require('./path').build);
+register('building', require('./building').build);
 
 module.exports = { register, unregister, listRecipeNames, has, describe, build, DESC };

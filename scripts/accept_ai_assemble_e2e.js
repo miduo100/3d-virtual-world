@@ -29,7 +29,14 @@ const KEEP = args.includes('--keep');
 const DEMAND = (args.filter((a) => !a.startsWith('--'))[0] || '搭一条20米长的小路').trim();
 const STAMP = 'e2e_asm_' + Date.now().toString(36);
 const REGION_KEY = STAMP;
-const ORIGIN = { x: 3200, z: 3200, width: 60, depth: 60, kind: 'rect' };
+// --at=x,z 指定测试区原点（默认 3200,3200 的空旷地；想让人走过去看到就传出生点附近的空地）
+const AT = (function () {
+  const a = args.filter((x) => x.indexOf('--at=') === 0)[0];
+  if (!a) return { x: 3200, z: 3200 };
+  const parts = a.slice(5).split(',').map(Number);
+  return { x: isFinite(parts[0]) ? parts[0] : 3200, z: isFinite(parts[1]) ? parts[1] : 3200 };
+})();
+const ORIGIN = { x: AT.x, z: AT.z, width: 60, depth: 60, kind: 'rect' };
 const WORLD_ID = process.env.E2E_WORLD_ID || '';
 const TARGET = 20;
 

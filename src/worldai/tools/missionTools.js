@@ -102,7 +102,8 @@ async function verbPlacePart(params, ctx) {
 
   // ★ 幂等先行（判据 P35-11b）：重跑同一委托的同一条指令必须复用上次那件，
   //   否则"上次建的件把落点占了 → 换位 → 又建一件"会每跑一次多一批重复对象。
-  const existingId = await journal.findExisting(ctx.missionId, part.part_key, snapped.x, snapped.z);
+  // ★ 带 y：多层建筑上层与下层同 (x,z) 不同 y，不带 y 会把整栋楼误判成"重跑已存在"
+  const existingId = await journal.findExisting(ctx.missionId, part.part_key, snapped.x, snapped.z, snapped.y);
   if (existingId) {
     return {
       ok: true, id: existingId, deduped: true, relocated: false, skippedByCollision: false, humanBlocked: false,

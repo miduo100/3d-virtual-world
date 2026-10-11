@@ -76,12 +76,15 @@ async function createObject(params, ctx) {
 
   const key = String((params && params.partKey) || params.name || '');
   if (ctx.missionId && key) {
+    // ★ 带 y：多层建筑上层与下层同 (x,z) 不同 y，不带 y → 2~5 层全被误判成"重跑幂等"
+    //   （实测 5 层楼 87 件 deduped、只落 1 层）。单层场景 y 相同，行为不变。
     const dup = await query(
       `SELECT id FROM world_objects
         WHERE created_by = $1 AND origin = 'ai' AND name = $2
           AND abs(position_x - $3) < 1e-6 AND abs(position_z - $4) < 1e-6
+          AND abs(position_y - $5) < 1e-6
         LIMIT 1`,
-      [String(ctx.missionId), key, num(params.position_x, 0), num(params.position_z, 0)]
+      [String(ctx.missionId), key, num(params.position_x, 0), num(params.position_z, 0), num(params.position_y, 0)]
     );
     if (dup.rows && dup.rows.length) {
       return { ok: true, id: dup.rows[0].id, deduped: true, reason: '重跑幂等：复用已存在的同批对象（判据 P35-11b）' };
@@ -125,15 +128,20 @@ async function batchCreate(items, ctx) {
  * ★ 必须按**请求落点**（吸附后、换位前）查，而不是按最终落点：
  *   否则重跑时"落点已被自己上次建的件占住"→ 先被换位逻辑挪走 → 永远命中不了去重，
  *   每重跑一次就多一批重复对象（这正是 P35-11b 要防的事故）。
+ * ★★ 必须带 y：多层建筑（building recipe / 5 层楼）上层与下层**同 (x,z) 不同 y**，
+ *   只按 (x,z) 匹配会把 2~5 层全部误判成"已存在"→ 整栋楼只落 1 层（实测 22 件里 21 件在 y=0）。
+ *   y 传 null 时保持旧口径（单层场景行为逐字节不变）。
  */
-async function findExisting(missionId, name, x, z) {
+async function findExisting(missionId, name, x, z, y) {
   if (!missionId || !name) return null;
   const res = await query(
     `SELECT id FROM world_objects
       WHERE created_by = $1 AND origin = 'ai' AND name = $2
         AND abs(position_x - $3) < 1e-6 AND abs(position_z - $4) < 1e-6
+        AND ($5::double precision IS NULL OR abs(position_y - $5) < 1e-6)
       LIMIT 1`,
-    [String(missionId), String(name), num(x, 0), num(z, 0)]
+    [String(missionId), String(name), num(x, 0), num(z, 0),
+      y == null ? null : num(y, 0)]
   );
   return (res.rows && res.rows[0]) ? res.rows[0].id : null;
 }

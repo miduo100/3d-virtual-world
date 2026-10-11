@@ -26,6 +26,15 @@ const SPEC_RULES = {
       .concat(spec.cornerTile ? [String(spec.cornerTile)] : []),
     roles: ['road', 'ground', 'floor'],
   },
+  building: {
+    required: ['footprint', 'floors', 'parts'],
+    partKeys: (spec) => {
+      const p = (spec && spec.parts) || {};
+      return ['wall', 'corner', 'door', 'window', 'roof', 'trim', 'balcony']
+        .filter((k) => p[k]).map(String);
+    },
+    roles: ['wall', 'window', 'door', 'roof', 'cornice', 'column', 'floor', 'railing', 'stairs', 'awning'],
+  },
 };
 
 /** 已登记规则的 recipe 名 */

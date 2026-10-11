@@ -141,6 +141,9 @@ function polygonEdges(points) {
   const segs = segments(closed);
   return segs.map((s) => ({
     index: s.i, ax: s.ax, az: s.az, bx: s.bx, bz: s.bz,
+    // ★ dx/dz 必须带上：lerpOnSeg 靠它们做沿线插值。缺了会让 building 全部墙件坐标变 NaN
+    //   → 同位去重把它们压成 1 件（会话2 实测踩到：5 层楼只落了 1 块墙）。
+    dx: s.dx, dz: s.dz,
     len: s.len, ang: s.ang,
     mid: { dx: (s.ax + s.bx) / 2, dz: (s.az + s.bz) / 2 },
     normal: segNormal(s),
