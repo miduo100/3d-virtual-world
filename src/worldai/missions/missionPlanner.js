@@ -23,6 +23,8 @@ const providerFallback = require('../llm/providerFallback'); // 3.5-3 P35-22：�
 const assetSearch = require('../tools/assetSearch');
 const boundsGuard = require('../regions/boundsGuard');
 const scatterMod = require('./scatter'); // 队列14 C2：散点布局原语（确定性泊松盘）
+const recipeRegistry = require('../recipes'); // AI 自由拼装：recipe 注册表（几何与落件全在 recipes/）
+const recipeValidate = require('../recipes/validate'); // recipe 骨架校验（规则不写在本文件，守 500 行红线）
 
 const MAX_ROUNDS = 2;
 
@@ -42,7 +44,9 @@ const PLAN_SCHEMA = {
             kind: { type: 'string' },
             footprint: { type: 'object', properties: { w: { type: 'number' }, d: { type: 'number' } } },
             anchor: { type: 'object', properties: { dx: { type: 'number' }, dz: { type: 'number' } } },
-            mode: { type: 'string', enum: ['scatter'] },
+            mode: { type: 'string', enum: ['scatter', 'recipe'] },
+            recipe: { type: 'string' },
+            spec: { type: 'object' },
             partKeys: { type: 'array', items: { type: 'string' } },
             count: { type: 'number' },
             parts: {
@@ -102,9 +106,22 @@ async function regionSnapshot(region) {
   };
 }
 
-/** 校验并归一 LLM 产物：非法 partKey / 禁用 role 一律剔除；超预算截断（P35-9） */
-async function validatePlan(raw, constraints) {
+/** recipe 零件解析器：把 assetSearch.getPart 的行形状适配成 recipes 契约（grid 数组化） */
+async function recipePartResolver(partKey) {
+  const p = await assetSearch.getPart(partKey);
+  if (!p) return null;
+  return {
+    part_key: p.part_key, part_role: p.part_role,
+    grid: [p.grid_w || 1, p.grid_h || 1, p.grid_d || 1],
+    model_path: p.model_path,
+  };
+}
+
+/** 校验并归一 LLM 产物：非法 partKey / 禁用 role 一律剔除；超预算截断（P35-9）
+ *  opts.seedStr：确定性种子（recipe 展开用；缺省退化为固定串，注入路径可重跑同坐标） */
+async function validatePlan(raw, constraints, opts) {
   const c = constraints || {};
+  const seedStr = String((opts && opts.seedStr) || 'seed0');
   const allowed = Array.isArray(c.allowed_roles) ? c.allowed_roles.map(String) : null;
   const forbid = Array.isArray(c.forbid_roles) ? c.forbid_roles.map(String) : [];
   const maxObjects = Number(c.max_objects) > 0 ? Number(c.max_objects) : 120;
@@ -112,8 +129,34 @@ async function validatePlan(raw, constraints) {
   const kept = [];
   // ★ 预算计数单位是**零件**，不是块（判据 P35-9：maxObjects=10 而布局 30 件 → 截断到 10 件）
   let placedParts = 0;
-  const dropped = { unknownPart: 0, roleNotAllowed: 0, roleForbidden: 0, overBudget: 0 };
+  const dropped = { unknownPart: 0, roleNotAllowed: 0, roleForbidden: 0, overBudget: 0, recipeInvalid: 0 };
   for (const b of blocks) {
+    // ★ AI 自由拼装 recipe 块：AI 只给**骨架**（waypoints/footprint），引擎沿骨架铺零件。
+    //   这里是全链路唯一接线点：校验 → 调 registry 展开 → 落成 parts（与普通块同构）。
+    if (b && b.mode === 'recipe') {
+      const remain0 = maxObjects - placedParts;
+      if (remain0 <= 0) { dropped.overBudget++; continue; }
+      const rv = await recipeValidate.validateRecipeBlock(b, {
+        partResolver: recipePartResolver, forbidRoles: forbid, allowedRoles: allowed,
+      });
+      if (!rv.ok) { dropped.recipeInvalid++; continue; }
+      const built = await recipeRegistry.build(rv.recipe, rv.spec, {
+        partResolver: recipePartResolver,
+        seedStr: seedStr + '|' + String(b.kind || rv.recipe),
+        maxObjects: remain0,
+      });
+      if (!built.ok) { dropped.recipeInvalid++; continue; }
+      if (built.stats && built.stats.truncated) dropped.overBudget++;
+      placedParts += built.parts.length;
+      kept.push({
+        kind: String(b.kind || rv.recipe), mode: 'recipe',
+        recipe: rv.recipe, spec: rv.spec, recipeStats: built.stats,
+        footprint: { w: Number(b.footprint && b.footprint.w) || 0, d: Number(b.footprint && b.footprint.d) || 0 },
+        anchor: { dx: Number(b.anchor && b.anchor.dx) || 0, dz: Number(b.anchor && b.anchor.dz) || 0 },
+        parts: built.parts,
+      });
+      continue;
+    }
     // ★ C2 散点块：模型只给 partKeys + count，坐标由 scatter 原语展开（确定性泊松盘）
     if (b && b.mode === 'scatter') {
       const keys = Array.isArray(b.partKeys) ? b.partKeys.map(String) : [];
@@ -190,7 +233,7 @@ async function plan(mission, region, opts) {
 
   // 0) 注入路径（欠费/不可用时的验收与演练路径，§Phase 3.5「不得为绕过欠费实现程序化兜底」的反面：这里只是把固定 plan 喂进去）
   if (o.injectPlan) {
-    const v = await validatePlan(o.injectPlan, constraints);
+    const v = await validatePlan(o.injectPlan, constraints, { seedStr: String(mission.id) + '|inject' });
     return Object.assign({ ok: true, rounds: 0, llmCalls: await countLlmCalls(mission.id), injected: true }, v);
   }
 
@@ -334,7 +377,7 @@ async function plan(mission, region, opts) {
       fallbackNotes.push('第 ' + round + ' 轮 LLM 产物解析失败（截断修复后仍不可解析），重试下一轮');
       continue;
     }
-    const v = await validatePlan(raw, constraints);
+    const v = await validatePlan(raw, constraints, { seedStr: String(mission.id) + '|r' + round });
     // ★ 数量兜底（队列14 收尾）：用户写了具体下限而模型没给够 → 直接把散点块 count 抬到下限
     //   （确定性、零 LLM；实测"大于6个"模型给 5 件、重试仍 5 件——散点原语本身就能精确补足）。
     //   注意此时散点块尚未展开（v.stats.parts 只计普通 parts），件数要按 scatter.count 直算。
@@ -342,6 +385,9 @@ async function plan(mission, region, opts) {
     const minCount = parseMinCount(mission.prompt);
     if (minCount) {
       const scatters = (v.plan.blocks || []).filter((x) => x.mode === 'scatter' && x.scatter);
+      // ★ §11-1：recipe 块已在本函数内展开成 parts，故走 parts.length 分支即可；
+      //   若将来改回"延后展开"，这里必须改用 recipeStats.count，否则 recipe 块恒被当 0 件
+      //   → 数量兜底会把预算全加到散点块上（队列14 A3 同款坑）。
       const plannedParts = (v.plan.blocks || []).reduce(
         (s, x) => s + (x.mode === 'scatter' && x.scatter ? x.scatter.count : (x.parts || []).length), 0
       );
@@ -457,6 +503,12 @@ function buildPlanOutputContract(region, maxObjectsCap) {
     '★ 数量语义（必须换算成零件件数，用户对数量敏感）：「几棵/几个」=4~6 件；「一片森林/树林/花田/草地」=20~40 件；「很多/大量/尽量多」=本次预算上限（' + (Number(maxObjectsCap) > 0 ? Number(maxObjectsCap) : 120) + ' 件）的 80%；用户写了具体数字（如「大于3棵」「20个以上」）→ parts 总件数必须 ≥ 该数字。',
     '★ 种类语义：委托含「多样/各种/不同/丰富」或主体是自然景观（森林/树林/丛林/花田/草地）→ 必须使用 ≥3 个不同的 partKey（不同树种/不同种类），只重复同一个 partKey 视为不合格。',
     `散点类需求（森林/花田/草地/树丛）推荐用散点块，不必手排坐标：{"kind":"forest","mode":"scatter","partKeys":["tree_pine","tree_oak",…],"count":30}——系统会用确定性均匀布点把 count 件零件铺满整个区域；partKeys 必须来自 PARTS 清单（≥3 个不同键）。`,
+    '★ recipe 结构类需求（小路/围墙/房屋等**有形状**的构件）必须用 recipe 模式：{"kind":"主路","mode":"recipe","recipe":"<recipe名>","spec":{…骨架…}}。',
+    '  recipe 只给「骨架」，**绝对禁止输出逐件坐标** —— 几何由引擎算；你手排几十块砖的偏移必崩，最后会退化成"放一整栋楼"。',
+    '  ★ 当前**仅 path 已实现**（building/fence/garden/forest 尚未上线）：除小路外的结构请用普通 parts 模式逐件输出 dx/dz/ry/level，不要用 recipe —— 用未实现的 recipe 会被整块丢弃。',
+    '  可用 recipe —— ' + recipeRegistry.describe(),
+    '  path 示例（10 米直线小路，坐标单位米，相对块 anchor）：{"mode":"recipe","recipe":"path","spec":{"waypoints":[{"dx":0,"dz":0},{"dx":10,"dz":0}],"width":3,"tile":["roadTile_001"],"cornerTile":"roadTile_corner"}}',
+    '  ★ 尺寸语义（用户报的数字必须体现在骨架上）："20 米长的小路" → waypoints 首尾直线距离 = 20 米（{"dx":0,"dz":0} 到 {"dx":20,"dz":0}）；不要自作主张加余量、也不要缩水。铺装宽度用 width（米）。',
     '★ 关键：同一个零件复用（如 4 面墙）时，每份的 dx/dz 必须互不相同、按尺寸错开围成一圈。带数字的示例（4 面墙围 4×4 米小屋，建筑块尺寸约 1×3×0.2）：',
     '{"kind":"house","footprint":{"w":4,"d":4},"anchor":{"dx":' + Math.round(bx + bw / 2 - 2) + ',"dz":' + Math.round(bz + bd / 2 - 2) + '},"parts":[{"partKey":"building_block","dx":0,"dz":0,"ry":0,"level":0},{"partKey":"building_block","dx":4,"dz":0,"ry":90,"level":0},{"partKey":"building_block","dx":4,"dz":4,"ry":180,"level":0},{"partKey":"building_block","dx":0,"dz":4,"ry":270,"level":0}]}',
   ].join('\n');

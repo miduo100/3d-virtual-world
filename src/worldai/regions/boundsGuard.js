@@ -97,6 +97,11 @@ async function loadObstacles(bounds, opts) {
   const o = opts || {};
   const b = bounds || {};
   const pad = num(o.pad, 6);
+  // ★ ignoreSelfBatch（AI 自由拼装 recipe 块）：排除**本委托自己刚建的件**。
+  //   原因（E2E 实测真 bug）：recipe 引擎沿骨架均分出的间距可能小于零件尺寸
+  //   （20m 骨架 / roadTile 3m → 间距 2.857m），相邻砖天然贴合——这是设计内布局，
+  //   不是"撞到东西"。同批件互相判碰撞 → findFreeSpot 换位 → 路被挪歪（实测 1 块飞到 (3238,3227)）。
+  //   ★ 人类资产（origin≠'ai'）与**其他委托**的资产照旧参与碰撞——红线"人工资产不覆盖"不受影响。
   const res = await query(
     `SELECT id, name, type, origin, region_id, created_by, is_locked,
             position_x, position_y, position_z, scale_x, scale_y, scale_z, custom_config
@@ -104,10 +109,12 @@ async function loadObstacles(bounds, opts) {
       WHERE position_x >= $1::double precision - $4::double precision
         AND position_x <= $2::double precision + $4::double precision
         AND position_z >= $3::double precision - $4::double precision
-        AND position_z <= $5::double precision + $4::double precision`,
+        AND position_z <= $5::double precision + $4::double precision
+        AND NOT ($6::text IS NOT NULL AND origin = 'ai' AND created_by = $6::text)`,
     [num(b.minX, num(b.x, 0)), num(b.maxX, num(b.x, 0) + num(b.width, 0)),
       num(b.minZ, num(b.z, 0)), pad,
-      num(b.maxZ, num(b.z, 0) + num(b.depth, 0))]
+      num(b.maxZ, num(b.z, 0) + num(b.depth, 0)),
+      o.ignoreSelfBatch ? String(o.missionId || '') : null]
   );
   return res.rows || [];
 }

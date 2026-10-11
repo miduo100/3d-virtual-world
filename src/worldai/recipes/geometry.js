@@ -105,18 +105,20 @@ function segments(points) {
 
 /**
  * 沿段等距采样（返回距起点的距离序列，米）。
- * @param {number} len  段长
- * @param {number} step 步长（= 零件沿路方向的尺寸）
- * @param {boolean} skipFirst 跳过 d=0（该顶点已由 corner 件占据）
- * @param {boolean} skipEnd   跳过 d=len（该顶点已由下一段或 corner 件占据）
+ *★ 均分而非"步长取整"：块数 n = ceil(len/step)，间距均摊 len/n ——
+ *   保证 ① 首尾一定到头（否则路短一截：20m/步长3 只铺到 18m）
+ *         ② 不会出现"末块间距过小 → gridsnap 吸附后与前一块同格位 → 被去重吃掉"（E2E 实测 7/8 件）。
+ *   skipFirst：跳过 d=0（该顶点已由 corner 件占据）；skipEnd：不取到 L（终点是 corner）。
  */
 function sampleDistances(len, step, skipFirst, skipEnd) {
   const s = Number(step) > 0 ? Number(step) : 1;
-  const L = Math.max(0, Number(len) || 0);
+  const L = Number(len) || 0;
+  if (!(L > 0)) return [];
+  const n = Math.max(1, Math.ceil(L / s - 1e-9));
+  const gap = L / n;
+  const lastIdx = skipEnd ? n - 1 : n;
   const out = [];
-  const end = skipEnd ? L - s * 0.5 : L;
-  let d = skipFirst ? s : 0;
-  for (; d <= end + 1e-6; d += s) out.push(Math.min(d, L));
+  for (let i = skipFirst ? 1 : 0; i <= lastIdx; i++) out.push(r2(i * gap));
   return out;
 }
 

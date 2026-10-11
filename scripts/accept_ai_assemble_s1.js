@@ -185,8 +185,15 @@ function onPolyline(pt, segs, eps) {
     const cap = await registry.build('path', {
       waypoints: [{ dx: 0, dz: 0 }, { dx: 20, dz: 0 }], width: 1, tile: ['roadTile_001'],
     }, { partResolver: resolver, seedStr: 'cap', maxObjects: 5 });
-    check('X-5', '预算截断：11 件 → 截到 5 件且 truncated=true',
+    check('X-5', '预算截断：展开 8 件（20m/步长2 含补尾）→ 截到 5 件且 truncated=true',
       cap.ok === true && cap.parts.length === 5 && cap.stats.truncated === true, '件数=' + cap.parts.length + ' truncated=' + cap.stats.truncated);
+
+    const tail = await registry.build('path', {
+      waypoints: [{ dx: 0, dz: 0 }, { dx: 20, dz: 0 }], width: 1, tile: ['roadTile_001'],
+    }, { partResolver: resolver, seedStr: 'tail' });
+    check('X-7', '末端补齐：20m/步长2 → 11 件且最后一块落在 20（不短一截）',
+      tail.ok === true && tail.parts.length === 11 && near(tail.parts[tail.parts.length - 1].dx, 20),
+      '件数=' + tail.parts.length + ' 末点 dx=' + (tail.parts[tail.parts.length - 1] || {}).dx);
 
     const nocorner = await registry.build('path', {
       waypoints: [{ dx: 0, dz: 0 }, { dx: 6, dz: 0 }, { dx: 6, dz: 6 }], width: 1, tile: ['roadTile_001'], cornerTile: 'roadTile_missing',

@@ -94,7 +94,14 @@ function absoluteOf(region, block, part) {
   const rawZ = (anchorDx === 0 && anchorDz === 0) ? midZ : minZ + anchorDz;
   const baseX = clamp(rawX, minX + margin, Math.max(minX + margin, maxX - margin));
   const baseZ = clamp(rawZ, minZ + margin, Math.max(minZ + margin, maxZ - margin));
-  const unit = Array.isArray(part.grid) && part.grid.length === 3 && part.grid[0] > 0 ? part.grid : gridsnap.unitOf(region.gridsnap);
+  // ★ recipe 块（AI 自由拼装）：引擎已沿骨架**均分**出精确尺寸（实测 20m 骨架 → 间距 2.857m），
+  //   若这里再按"零件自身尺寸"吸附（roadTile 3m），间距 < 模数必然有两块塌到同一格位
+  //   → 被幂等去重吃掉 → 实测落库只剩 7 件、跨度 18m，短了整整 2m（E2E 实测 -2m）。
+  //   吸附模数对齐模块化建筑是对的（判据 P35-8 的墙），但连续结构必须保住骨架尺寸 →
+  //   recipe 块改用米级吸附（累计误差 ≤0.5m）。普通块行为**逐字节不变**。
+  const unit = (block && block.mode === 'recipe')
+    ? [1, 1, 1]
+    : (Array.isArray(part.grid) && part.grid.length === 3 && part.grid[0] > 0 ? part.grid : gridsnap.unitOf(region.gridsnap));
   const snapped = gridsnap.snap({ x: baseX + num(part.dx, 0), z: baseZ + num(part.dz, 0), y: 0 }, unit, part.level);
   return { x: snapped.x, y: snapped.y, z: snapped.z, unit };
 }
@@ -193,11 +200,16 @@ async function run(missionId, opts) {
   };
   const deniedSamples = [];
   for (const block of planned.plan.blocks || []) {
+    // recipe 块（连续结构）：① 用米级吸附保住骨架尺寸；② 同批件视为设计内贴合，不互相判碰撞。
+    //   人类资产与其它委托的资产照旧参与碰撞（红线不变）。普通块沿用原行为，逐字节不变。
+    const partCtx = (block && block.mode === 'recipe')
+      ? Object.assign({}, ctx, { snapUnit: 1, ignoreSelfBatch: true })
+      : ctx;
     for (const part of block.parts || []) {
       const abs = absoluteOf(region, block, part);
       const r = await missionTools.execute('place_part', {
         partKey: part.partKey, x: abs.x, z: abs.z, ry: part.ry, level: part.level,
-      }, ctx);
+      }, partCtx);
       if (r.ok) {
         if (r.deduped) stats.deduped++;
         else stats.objectsCreated++;
