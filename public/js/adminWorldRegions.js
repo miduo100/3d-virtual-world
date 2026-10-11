@@ -174,8 +174,8 @@
       '<div class="awb-field"><label>范围</label><span class="awb-tag">x ' + num(b.x) + ' ~ ' + num2(b.x, b.width) + ' · z ' + num(b.z) + ' ~ ' + num2(b.z, b.depth) + '（' + num(b.width) + '×' + num(b.depth) + ' 米）</span></div>' +
       '<div class="awb-field"><label>预算</label><span class="awb-tag">最多 ' + num(c.maxObjects, 60) + ' 件 · 面数 ' + num(c.maxTris, 40000) + ' · 限高 ' + num(c.maxHeight, 12) + 'm</span></div>' +
       '<div class="awb-field"><label>区域内已有资产</label><span class="awr-assets" data-region="' + esc(g.region_key) + '">读取中…</span></div>' +
-      '<div class="awb-field"><label>调整自主度（调严立即生效；执行中的委托按快照跑完）</label><div class="awr-inline">' +
-        '<select class="awr-newauto" data-region="' + esc(g.region_key) + '">' + AUTONOMIES.map((a) => '<option value="' + a[0] + '">' + a[1] + '</option>').join('') + '</select>' +
+      '<div class="awb-field"><label>调整自主度（调严立即生效；执行中的委托按快照跑完）——当前：' + esc(g.autonomy) + '（下拉框改动后需点「应用」）</label><div class="awr-inline">' +
+        '<select class="awr-newauto" data-region="' + esc(g.region_key) + '">' + AUTONOMIES.map((a) => '<option value="' + a[0] + '"' + (a[0] === g.autonomy ? ' selected' : '') + '>' + a[1] + '</option>').join('') + '</select>' +
         '<button class="awr-btn" data-act="setauto" data-region="' + esc(g.region_key) + '">应用</button>' +
         '<button class="awr-btn" data-act="assets" data-region="' + esc(g.region_key) + '">查看人工资产</button>' +
         '<button class="awr-btn" data-act="del" data-region="' + esc(g.region_key) + '">🗑 删除区域</button>' +
