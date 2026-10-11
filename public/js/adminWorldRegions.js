@@ -73,7 +73,7 @@
         '<div class="awb-field"><label>自主度（<b>不预选</b>：每块地的松紧必须你自己决定）</label>' +
           '<select id="awr-autonomy" style="width:100%;"><option value="">— 请选择 —</option>' +
           AUTONOMIES.map((a) => '<option value="' + a[0] + '">' + a[1] + '</option>').join('') + '</select></div>' +
-        '<div class="awb-field"><label>授权理由（选 autonomous 时必填，写清授权范围，审计用）</label>' +
+        '<div class="awb-field"><label>授权理由（选 autonomous 时【必填】，写清授权范围，审计用；managed/semi_autonomous 可留空）</label>' +
           '<input type="text" id="awr-notes" maxlength="400" style="width:100%;"></div>' +
         '<div class="awb-field"><label>网格对齐（留空=按零件自身 grid 尺寸；填 [1,0.63,1] 之类模数）</label>' +
           '<input type="text" id="awr-grid" placeholder="例如 1,0.63,1" style="width:220px;"></div>' +
@@ -102,6 +102,7 @@
     if (!/^[a-z0-9_]{2,60}$/.test(key)) return msg('区域机器名只能用 2~60 位【小写】字母/数字/下划线（不能用大写、中文、空格、横杠），例如 my_forest');
     if (!name) return msg('请填区域名称（显示用，可以中文）');
     if (!autonomy) return msg('必须显式选择自主度（UI 不预选，这是刻意的）');
+    if (autonomy === 'autonomous' && !String($('awr-notes').value || '').trim()) return msg('选 autonomous（全自主）必须填「授权理由」——写清楚你授权 AI 在这块地做什么（审计追溯用，如：授权在此区域自主搭建森林景观）；若只是测试建议选 managed');
     const bx = Number($('awr-x').value), bz = Number($('awr-z').value);
     const bw = Number($('awr-w').value), bd = Number($('awr-d').value);
     if (!isFinite(bx) || !isFinite(bz)) return msg('范围起点 x/z 必须是数字');
