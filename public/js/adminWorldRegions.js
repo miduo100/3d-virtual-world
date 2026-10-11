@@ -99,7 +99,13 @@
     const name = String($('awr-name').value || '').trim();
     const autonomy = $('awr-autonomy').value;
     if (!key) return msg('请先填区域机器名 region_key');
+    if (!/^[a-z0-9_]{2,60}$/.test(key)) return msg('区域机器名只能用 2~60 位【小写】字母/数字/下划线（不能用大写、中文、空格、横杠），例如 my_forest');
+    if (!name) return msg('请填区域名称（显示用，可以中文）');
     if (!autonomy) return msg('必须显式选择自主度（UI 不预选，这是刻意的）');
+    const bx = Number($('awr-x').value), bz = Number($('awr-z').value);
+    const bw = Number($('awr-w').value), bd = Number($('awr-d').value);
+    if (!isFinite(bx) || !isFinite(bz)) return msg('范围起点 x/z 必须是数字');
+    if (!isFinite(bw) || !isFinite(bd) || bw <= 0 || bd <= 0) return msg('宽/深必须是大于 0 的数字（区域大小，米）');
     const gridRaw = String($('awr-grid').value || '').trim();
     let gridsnap = {};
     if (gridRaw) {
@@ -110,7 +116,7 @@
     try {
       const r = await jreq('POST', API + '/regions', {
         regionKey: key, name,
-        bounds: { kind: 'rect', x: Number($('awr-x').value), z: Number($('awr-z').value), width: Number($('awr-w').value), depth: Number($('awr-d').value) },
+        bounds: { kind: 'rect', x: bx, z: bz, width: bw, depth: bd },
         autonomy, notes: $('awr-notes').value,
         gridsnap,
         constraints: { maxObjects: Number($('awr-maxobj').value), maxTris: Number($('awr-maxtris').value), maxHeight: Number($('awr-maxh').value) },
