@@ -23,6 +23,7 @@
 'use strict';
 
 const { estimateTokens, usableBudget, clampText, resolveWindowTokens } = require('./tokenEstimate');
+const natureKind = require('../tools/natureKind'); // nature 内部细分（树/花卉/植物/装饰），PARTS 形态标注用
 
 // ── 默认预算（§H.9.2）────────────────────────────────────────────────────
 const DEFAULT_BUDGET = {
@@ -223,7 +224,11 @@ function renderParts(parts, opts) {
       //   h 明显大于最窄边 = 坡屋顶/塔顶。此前 grid_h=0 被兜底成 1，AI 看到"2×1×2"
       //   根本分不出 Roof_2x2 是平板，坡屋顶引导完全失效。
       let form = '';
-      if ((p.role === 'roof' || p.role === 'floor') && Array.isArray(p.grid) && p.grid.length === 3) {
+      // ★ nature 内部细分标注（2026-10-14）：273 件 nature 一桶混装树/花/岩石/篝火，
+      //   实测 forest 树种混进 campfire_logs、garden 无花可挑。natureKind 按命名细分，
+      //   让 AI 直接看到「这件是树还是花」。
+      if (p.role === 'nature') form = natureKind.formLabel(p.partKey);
+      else if ((p.role === 'roof' || p.role === 'floor') && Array.isArray(p.grid) && p.grid.length === 3) {
         const gg = p.grid.map(Number);
         const me = Math.min(gg[0], gg[2]);
         if (isFinite(gg[1]) && isFinite(me)) {

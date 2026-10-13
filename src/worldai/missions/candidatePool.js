@@ -19,6 +19,7 @@
  *   4) 成套 pack → pack 内 role 种类 → 字典序
  */
 const assetSearch = require('../tools/assetSearch');
+const natureKind = require('../tools/natureKind'); // nature 内部细分（树/花卉/植物/装饰），自然保底分桶用
 
 // 坡屋顶/塔顶命名特征（与 validate.js 的 SLOPE_NAME 保持一致）
 const SLOPE_NAME = /roof|slate|tile|spire|gable|pitch|steeple|turret|_top$|^top_/i;
@@ -207,12 +208,13 @@ async function finalize(o) {
     }
   }
 
-  // ── 自然类保底（2026-10-14）──
+  // ── 自然类保底（2026-10-14，同日加细分）──
   //   forest/garden recipe 的槽件全在 nature role（全库 273 件，根本没有 tree/plant
   //   role），而轮转采样/关键词预选从不带回它（实测庄园候选池 role 分布无 nature）。
   //   叠加 prompt 门槛表「≥2 棵树必须 forest」后 AI 无米下锅 → 直接放弃种树
-  //   （实测庄园复跑树类 0 件）。委托含自然意图词就定向补 nature；补 6 件不挤占
-  //   建筑件名额（MUST_KEEP 再兜底保证不被 LIMIT 裁掉）。
+  //   （实测庄园复跑树类 0 件）。委托含自然意图词就定向补 nature。
+  //   ★ 细分补齐（同日）：按 natureKind 分桶取——树 3 + 花 2 + 植物 1 + 装饰 2。
+  //     旧版按 role 检索前 6 件一锅端，实测全被 tree_*/杂件占满，garden 依旧无花可挑。
   const NATURE_WORDS = /树|林|花|草|绿化|自然|森林|院子|庄园|花园|公园|tree|forest|garden|plant|nature|yard|manor/i;
   const wantNature = NATURE_WORDS.test(String(c.prompt || ''));
   if (wantNature && !pool.some(function (it) { return it.role === 'nature'; })) {
@@ -220,12 +222,21 @@ async function finalize(o) {
       roles: ['nature'],
       forbidRoles: constraints.forbid_roles,
       styleFamily: constraints.style_family,
-      limit: 6,
+      limit: 24,                                        // 多取些再按 kind 挑，别被前 6 件的分布绑死
     });
+    const byKind = { tree: [], flower: [], plant: [], decor: [] };
     for (const it of (rr.items || [])) {
       if (shapeBad(it)) continue;
-      if (!pool.some(function (x) { return x.partKey === it.partKey; })) pool.push(it);
+      if (pool.some(function (x) { return x.partKey === it.partKey; })) continue;
+      byKind[natureKind.kindOf(it.partKey)].push(it);
     }
+    const picks = [].concat(
+      byKind.tree.slice(0, 3),
+      byKind.flower.slice(0, 2),
+      byKind.plant.slice(0, 1),
+      byKind.decor.slice(0, 2)
+    );
+    for (const it of picks) pool.push(it);
   }
 
   // ── 加权排序 ──
@@ -278,11 +289,19 @@ async function finalize(o) {
       const slope = pool.find(isSlopeRoof);
       if (slope && mustKeep.indexOf(slope) < 0) mustKeep.push(slope);
     }
-    // 自然类保底（2026-10-14）：委托含自然意图时保 2 件 nature（forest/garden 槽件），
-    // 否则排不出前 24 又被裁（与坡屋顶保底同款问题：件不在清单里，prompt 再怎么说也没用）
+    // 自然类保底（2026-10-14）：委托含自然意图时保 nature 件——但**必须树/花各 1**：
+    //     旧版保「排序后前 2 件 nature」，排序对 nature 无加权 → 保下来的常是 2 棵树，
+    //     花卉被裁 → PARTS 清单里没有花，garden 的 flower_types 无从填起
+    //     （实测庄园三轮复跑 garden 均未出现，campfire 式漂移消失但花坛始终缺）。
     if (wantNature && !mustKeep.some(function (it) { return it.role === 'nature'; })) {
-      const nats = pool.filter(function (it) { return it.role === 'nature'; }).slice(0, 2);
-      for (const n of nats) if (mustKeep.indexOf(n) < 0) mustKeep.push(n);
+      const natTree = pool.find(function (it) { return it.role === 'nature' && natureKind.kindOf(it.partKey) === 'tree'; });
+      const natFlower = pool.find(function (it) { return it.role === 'nature' && natureKind.kindOf(it.partKey) === 'flower'; });
+      if (natTree && mustKeep.indexOf(natTree) < 0) mustKeep.push(natTree);
+      if (natFlower && mustKeep.indexOf(natFlower) < 0) mustKeep.push(natFlower);
+      if (!natTree && !natFlower) {
+        const n = pool.find(function (it) { return it.role === 'nature'; });
+        if (n) mustKeep.push(n);
+      }
     }
     const rest = pool.filter(function (it) { return mustKeep.indexOf(it) < 0; });
     final = mustKeep.concat(rest).slice(0, LIMIT);
