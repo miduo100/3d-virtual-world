@@ -382,10 +382,20 @@ function buildPlanOutputContract(region, maxObjectsCap) {
     '主体建筑的 anchor 放在区域中部（约 宽/2, 深/2 处），不要贴角。',
     '★ 数量语义（必须换算成零件件数，用户对数量敏感）：「几棵/几个」=4~6 件；「一片森林/树林/花田/草地」=20~40 件；「很多/大量/尽量多」=本次预算上限（' + (Number(maxObjectsCap) > 0 ? Number(maxObjectsCap) : 120) + ' 件）的 80%；用户写了具体数字（如「大于3棵」「20个以上」）→ parts 总件数必须 ≥ 该数字。',
     '★ 种类语义：委托含「多样/各种/不同/丰富」或主体是自然景观（森林/树林/丛林/花田/草地）→ 必须使用 ≥3 个不同的 partKey（不同树种/不同种类），只重复同一个 partKey 视为不合格。',
-    `散点类需求（森林/花田/草地/树丛）推荐用散点块，不必手排坐标：{"kind":"forest","mode":"scatter","partKeys":["tree_pine","tree_oak",…],"count":30}——系统会用确定性均匀布点把 count 件零件铺满整个区域；partKeys 必须来自 PARTS 清单（≥3 个不同键）。`,
+    `散点块（mode:"scatter"）是 forest recipe 的简化替代：铺满**整个区域**、不能圈范围/定中心——「草地铺满全图」用它：{"kind":"forest","mode":"scatter","partKeys":["tree_pine","tree_oak",…],"count":30}（partKeys ≥3 个不同键）；要圈范围或放在房子旁边，一律用 forest recipe。`,
     '★ recipe 结构类需求（小路/围墙/房屋等**有形状**的构件）必须用 recipe 模式：{"kind":"主路","mode":"recipe","recipe":"<recipe名>","spec":{…骨架…}}。',
     '  recipe 只给「骨架」，**绝对禁止输出逐件坐标** —— 几何由引擎算；你手排几十块砖的偏移必崩，最后会退化成"放一整栋楼"。',
     '  ★ 已实现的 recipe —— ' + recipeRegistry.describe(),
+    // ★ recipe 触发门槛表（2026-10-14）：只有「推荐」没有「门槛」时，小模型会挑软柿子
+    //   手排——庄园实测：forest 说明就在 prompt 里，AI 仍手排了 2 棵树。写成**硬门槛**
+    //   并同时声明「普通 parts 模式的合法剩余范围」，两边一夹就没有逃逸空间。
+    '  ★ recipe 触发门槛（满足条件**必须**用对应 recipe，用普通 parts 手排 = 不合格方案）：',
+    '    · 房屋/建筑（含楼/屋/店/堡）→ building；',
+    '    · 围墙/栅栏/院界（≥2 段连续边界）→ fence；',
+    '    · 树/植物 ≥2 棵（树丛/树林/林间点缀都算）→ forest —— **禁止手排多棵树的坐标**；',
+    '    · 花坛/带围边的绿化 → garden；',
+    '    · 小路/广场/栈道 → path。',
+    '    普通零件块（mode 无 recipe）只允许：单件装饰物、或总数 ≤3 件且无形状规律的零散小件（如门口 1 个路灯 + 1 个信箱）。',
     '  ★ 搭房子/围墙等**有形状的建筑**必须用 building recipe，严禁用普通 parts 逐件手排坐标（你手排几十块砖的偏移必崩）。building 骨架如下：',
     '  {"kind":"主楼","mode":"recipe","recipe":"building","spec":{"footprint":[{"dx":0,"dz":0},{"dx":8,"dz":0},{"dx":8,"dz":6},{"dx":0,"dz":6}],"floors":3,"door":{"side":"south","position":0.5},"windows":{"perWall":2,"skipDoor":true},"parts":{"wall":"<墙件partKey>","door":"<门件partKey>","window":"<窗件partKey>","roof":"<屋顶partKey>","corner":"<角柱partKey,可省>","trim":"<腰线partKey,可省>"}}}',
     '  · footprint：多边形顶点（逆时针，单位米，相对块 anchor），它就是建筑占地； floors：层数。',

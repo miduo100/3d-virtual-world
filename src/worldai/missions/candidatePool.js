@@ -207,6 +207,27 @@ async function finalize(o) {
     }
   }
 
+  // ── 自然类保底（2026-10-14）──
+  //   forest/garden recipe 的槽件全在 nature role（全库 273 件，根本没有 tree/plant
+  //   role），而轮转采样/关键词预选从不带回它（实测庄园候选池 role 分布无 nature）。
+  //   叠加 prompt 门槛表「≥2 棵树必须 forest」后 AI 无米下锅 → 直接放弃种树
+  //   （实测庄园复跑树类 0 件）。委托含自然意图词就定向补 nature；补 6 件不挤占
+  //   建筑件名额（MUST_KEEP 再兜底保证不被 LIMIT 裁掉）。
+  const NATURE_WORDS = /树|林|花|草|绿化|自然|森林|院子|庄园|花园|公园|tree|forest|garden|plant|nature|yard|manor/i;
+  const wantNature = NATURE_WORDS.test(String(c.prompt || ''));
+  if (wantNature && !pool.some(function (it) { return it.role === 'nature'; })) {
+    const rr = await assetSearch.searchParts({
+      roles: ['nature'],
+      forbidRoles: constraints.forbid_roles,
+      styleFamily: constraints.style_family,
+      limit: 6,
+    });
+    for (const it of (rr.items || [])) {
+      if (shapeBad(it)) continue;
+      if (!pool.some(function (x) { return x.partKey === it.partKey; })) pool.push(it);
+    }
+  }
+
   // ── 加权排序 ──
   const packOf = function (it) { return it.pack || it.styleFamily || ''; };
   const packScore = new Map();
@@ -256,6 +277,12 @@ async function finalize(o) {
     if (wantSlope && !mustKeep.some(isSlopeRoof)) {
       const slope = pool.find(isSlopeRoof);
       if (slope && mustKeep.indexOf(slope) < 0) mustKeep.push(slope);
+    }
+    // 自然类保底（2026-10-14）：委托含自然意图时保 2 件 nature（forest/garden 槽件），
+    // 否则排不出前 24 又被裁（与坡屋顶保底同款问题：件不在清单里，prompt 再怎么说也没用）
+    if (wantNature && !mustKeep.some(function (it) { return it.role === 'nature'; })) {
+      const nats = pool.filter(function (it) { return it.role === 'nature'; }).slice(0, 2);
+      for (const n of nats) if (mustKeep.indexOf(n) < 0) mustKeep.push(n);
     }
     const rest = pool.filter(function (it) { return mustKeep.indexOf(it) < 0; });
     final = mustKeep.concat(rest).slice(0, LIMIT);

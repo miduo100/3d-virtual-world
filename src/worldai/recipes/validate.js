@@ -36,19 +36,21 @@ const SPEC_RULES = {
     },
     roles: ['railing', 'wall', 'column', 'door', 'prop', 'fence'],
   },
-  // forest（2026-10-13）：树丛。role 收 tree/plant/prop（prop 是兜底——不少树被标成 prop）
+  // forest（2026-10-13，10-14 修正）：树丛。role 收 tree/plant/prop/nature——
+  // 全库实测根本没有 tree/plant role，自然物（273 件）全被 partClassifier 标成 nature，
+  // 不收 nature 则 forest 槽位件全被拒 → AI 干脆放弃种树（实测庄园复跑树类 0 件）。
   forest: {
     required: ['partKeys'],
     partKeys: (spec) => (Array.isArray(spec.partKeys) ? spec.partKeys : [spec.partKeys]).filter(Boolean).map(String),
-    roles: ['tree', 'plant', 'prop'],
+    roles: ['tree', 'plant', 'prop', 'nature'],
   },
-  // garden（2026-10-13）：花坛。花卉收 plant/prop；edge 围边收 trim/fence/wall/railing
+  // garden（2026-10-13，10-14 修正）：花坛。花卉收 plant/prop/nature；edge 围边收 trim/fence/wall/railing
   garden: {
     required: ['flower_types'],
     partKeys: (spec) => (Array.isArray(spec.flower_types) ? spec.flower_types : [spec.flower_types])
       .filter(Boolean).map(String)
       .concat(spec.parts && spec.parts.edge ? [String(spec.parts.edge)] : []),
-    roles: ['plant', 'prop', 'trim', 'fence', 'wall', 'railing', 'tree'],
+    roles: ['plant', 'prop', 'nature', 'trim', 'fence', 'wall', 'railing', 'tree'],
   },
   building: {
     required: ['footprint', 'floors', 'parts'],
