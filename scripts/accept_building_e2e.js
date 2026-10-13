@@ -51,6 +51,9 @@ const MOCK = {
   'bedSingle': { role: 'prop', grid: [1.62, 0.51, 1.89] },
   'chair': { role: 'prop', grid: [0.2, 0.47, 0.2] },
   'loungeSofa': { role: 'prop', grid: [2, 0.7, 0.9] },
+  'fence_wood_panel': { role: 'railing', grid: [2, 1.2, 0.1] },
+  'fence_post': { role: 'column', grid: [0.15, 1.4, 0.15] },
+  'gate_wood': { role: 'door', grid: [3, 2, 0.12] },
 };
 function mockResolver(key) {
   const m = MOCK[String(key)];
@@ -180,6 +183,30 @@ async function level1() {
   check('F-5', '编造家具键显式记账且好键仍散点',
     f1d.ok && f1d.stats.dropped.unknownPart === 1 && f1d.parts.some(function (p) { return p.partKey === 'bedSingle'; })
       && (f1d.stats.notes || []).some(function (n) { return /nonexistent_bed/.test(n); }));
+
+  // W-1~4 fence recipe（2026-10-13）
+  const RECT = [{ dx: 0, dz: 0 }, { dx: 20, dz: 0 }, { dx: 20, dz: 15 }, { dx: 0, dz: 15 }];
+  const w1 = await R.build('fence', {
+    polygon: RECT, gate_position: 0.5,
+    parts: { fence: 'fence_wood_panel', post: 'fence_post', gate: 'gate_wood' },
+  }, { partResolver: mockResolver, seedStr: 'f1' });
+  check('W-1', 'fence 矩形围墙闭环展开（panel+post+gate 全落）',
+    w1.ok && w1.parts.length > 20 && w1.stats.posts === 4 && w1.stats.gate === 'gate_wood',
+    w1.ok ? 'panels=' + w1.stats.panels + ' posts=' + w1.stats.posts : w1.code + ' ' + w1.reason);
+  if (w1.ok) {
+    // 周长 70m / 步长 2m = 35 位 − 4 角柱 − 1 门 = 30 栏板（采样含两端，角点由去重合并）
+    const panels = w1.parts.filter(function (p) { return p.partKey === 'fence_wood_panel'; }).length;
+    check('W-2', '栏板数 ≈ 周长/步长 − 4 角柱 − 1 门（≈30，容差 ±3）', Math.abs(panels - 30) <= 3, 'panels=' + panels);
+    const gateP = w1.parts.filter(function (p) { return p.partKey === 'gate_wood'; })[0];
+    check('W-3', '大门嵌在第一段 50% 处（x≈10, z=0）', gateP && Math.abs(gateP.dx - 10) <= 1.2 && Math.abs(gateP.dz) <= 0.3,
+      gateP ? '(' + gateP.dx + ',' + gateP.dz + ')' : '无门');
+    const kws = w1.parts.map(function (p) { return Math.round(p.dx * 100) + ':' + Math.round(p.dz * 100); });
+    check('W-4', '同位去重（无重复键）', new Set(kws).size === kws.length);
+  }
+  const w2 = await R.build('fence', { polygon: RECT, parts: { fence: 'nonexistent_panel' } }, { partResolver: mockResolver });
+  check('W-5', 'fence 槽编造键显式拒绝', !w2.ok && w2.code === 'RECIPE_ALL_PARTS_UNKNOWN', w2.ok ? '被放行！' : w2.code);
+  const w3 = await R.build('fence', { parts: { fence: 'fence_wood_panel' } }, { partResolver: mockResolver });
+  check('W-6', '缺 polygon 明确报错', !w3.ok && w3.code === 'RECIPE_SPEC_INCOMPLETE');
 
   // S-1 subBlocks（事故：城堡只有外壳；角楼 anchor 偏移丢失）
   const s1 = await R.build('building', {

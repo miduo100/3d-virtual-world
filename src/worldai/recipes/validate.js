@@ -26,6 +26,16 @@ const SPEC_RULES = {
       .concat(spec.cornerTile ? [String(spec.cornerTile)] : []),
     roles: ['road', 'ground', 'floor'],
   },
+  // fence（2026-10-13）：围栏/围墙。fence 槽位收 railing/wall（栏板或矮墙段），
+  // post 收 column/railing，gate 收 door/prop——庄园大门件多被标成 door。
+  fence: {
+    required: ['polygon', 'parts'],
+    partKeys: (spec) => {
+      const p = (spec && spec.parts) || {};
+      return ['fence', 'post', 'gate'].filter((k) => p[k]).map((k) => String(p[k]));
+    },
+    roles: ['railing', 'wall', 'column', 'door', 'prop', 'fence'],
+  },
   building: {
     required: ['footprint', 'floors', 'parts'],
     partKeys: (spec) => {

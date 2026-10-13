@@ -563,6 +563,7 @@ function buildPlanOutputContract(region, maxObjectsCap) {
     '  ★ 屋顶两种形态都合法：平板（高度≤最窄边，如 Roof_2x2）与坡屋顶/塔顶（高度可大于最窄边，如 Roof_Slate_Center、tower_square_roof）——坡屋顶件请填在 roof 槽位。',
     '  ★ 屋顶风格要与建筑风格一致：城堡/木屋/别墅/中世纪 → 用坡屋顶（Roof_Slate_Center 这类 h 明显大于 0 的件）；现代办公楼/厂房/平顶建筑 → 用平板（Roof_2x2 这类 h=0 的件）。**不要给城堡盖现代平板顶。**',
     '  ★ 内部结构：不填 interior 时引擎会自动用 parts.roof 铺内部楼板（顶层由屋顶负责），所以楼里不会是空的；想自定义楼板/立柱才填 interior:{floor:"楼板件",column:"立柱件"}。',
+    '  ★ 围墙/栅栏/庭院边界用 fence recipe（自动闭环）：{"kind":"庭院围墙","mode":"recipe","recipe":"fence","spec":{"polygon":[{"dx":0,"dz":0},{"dx":20,"dz":0},{"dx":20,"dz":15},{"dx":0,"dz":15}],"gate_position":0.5,"parts":{"fence":"栏板partKey","post":"柱partKey可省","gate":"大门partKey可省"}}}——polygon 是围墙多边形顶点，gate_position 是门在第一段上的位置(0~1)。',
     // ★ 两条硬规则放 TASK 段（本段永不裁）：PARTS 段超预算时会被 clampText 尾部硬截，
     //   放在那里可能连规则一起被切掉（2026-10-12 修正）。
     '★ 零件多样性（硬性）：同一 role 下若有多个不同 partKey（尤其同 pack 里的墙/屋顶变体），必须交替使用至少 2~3 种，禁止一栋建筑整栋只重复同一个 partKey。',
