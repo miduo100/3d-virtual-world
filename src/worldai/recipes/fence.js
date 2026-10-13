@@ -109,17 +109,44 @@ async function build(spec, ctx) {
   let gateDone = false;
   const gatePos = isFinite(Number(s.gate_position)) ? Math.max(0, Math.min(1, Number(s.gate_position))) : 0.5;
   const first = segs[0];
-  // 门的世界坐标（第一段上 gatePos 比例处）
-  const gatePt = gate ? g.lerpOnSeg(first, first.len * gatePos) : null;
+
+  // ── 门段/门点判定（2026-10-14 加 gate_align）──
+  //   旧行为：门永远在第一段 gatePos 比例处——与建筑门位无关，院子门可能开在
+  //   房子山墙面，进门先撞墙。
+  //   gate_align {dx,dz}：参考点（通常是 building 大门相对本块 anchor 的偏移）。
+  //   门选**离参考点最近的段**，门点取参考点在该段上的投影——院门正对楼门。
+  let gateSeg = first;
+  let gateD = first.len * gatePos;
+  const ga = s.gate_align || null;
+  const gax = ga && isFinite(Number(ga.dx)) ? Number(ga.dx) : null;
+  const gaz = ga && isFinite(Number(ga.dz)) ? Number(ga.dz) : null;
+  if (gate && gax !== null && gaz !== null) {
+    let bestSeg = null, bestD = 0, bestDist = Infinity;
+    for (const sg of segs) {
+      const rad = (sg.ang * Math.PI) / 180;
+      const ux = Math.cos(rad), uz = Math.sin(rad);
+      let t = (gax - sg.ax) * ux + (gaz - sg.az) * uz;   // 投影参数（米）
+      t = Math.max(0, Math.min(sg.len, t));
+      const px = sg.ax + ux * t, pz = sg.az + uz * t;
+      const dd = (px - gax) * (px - gax) + (pz - gaz) * (pz - gaz);
+      if (dd < bestDist) { bestDist = dd; bestSeg = sg; bestD = t; }
+    }
+    if (bestSeg) {
+      gateSeg = bestSeg;
+      gateD = bestD;
+      notes.push('gate_align：门选最近段（距参考点 ' + (Math.sqrt(bestDist).toFixed(2)) + 'm），投影点距段起点 ' + bestD.toFixed(2) + 'm');
+    }
+  }
+  const gatePt = gate ? g.lerpOnSeg(gateSeg, gateD) : null;
 
   let panels = 0;
   for (const sg of segs) {
-    const isGateSeg = gate && sg === first;
+    const isGateSeg = gate && sg === gateSeg;
     const dists = g.sampleDistances(sg.len, step, false, false);
     for (const d of dists) {
       const pt = g.lerpOnSeg(sg, d);
-      // 门位：第一段上距 gatePt 最近的一块板换成大门（换完即止）
-      if (isGateSeg && !gateDone && gatePt && Math.abs(d - first.len * gatePos) <= step / 2 + 1e-6) {
+      // 门位：门段上距 gatePt 最近的一块板换成大门（换完即止）
+      if (isGateSeg && !gateDone && gatePt && Math.abs(d - gateD) <= step / 2 + 1e-6) {
         if (push({ partKey: gate.partKey, role: gate.role, grid: gate.grid, modelPath: gate.modelPath,
           dx: g.r2(pt.dx), dz: g.r2(pt.dz), ry: g.r2(sg.ang), level: 0 })) { gateDone = true; continue; }
       }
@@ -127,10 +154,10 @@ async function build(spec, ctx) {
         dx: g.r2(pt.dx), dz: g.r2(pt.dz), ry: g.r2(sg.ang), level: 0 })) panels++;
     }
   }
-  if (gate && !gateDone) notes.push('大门未嵌入（第一段没有可替换的栏板位）→ 落在段中点补放');
+  if (gate && !gateDone) notes.push('大门未嵌入（门段没有可替换的栏板位）→ 落在门点补放');
   if (gate && !gateDone && gatePt) {
     push({ partKey: gate.partKey, role: gate.role, grid: gate.grid, modelPath: gate.modelPath,
-      dx: g.r2(gatePt.dx), dz: g.r2(gatePt.dz), ry: g.r2(first.ang), level: 0 });
+      dx: g.r2(gatePt.dx), dz: g.r2(gatePt.dz), ry: g.r2(gateSeg.ang), level: 0 });
   }
 
   // ── 5) 预算截断
@@ -147,7 +174,8 @@ async function build(spec, ctx) {
     parts,
     stats: {
       recipe: 'fence', count: parts.length, panels, posts,
-      gate: gateDone ? gate.partKey : (gate ? (gate.partKey + '(段中点补放)') : null),
+      gate: gateDone ? gate.partKey : (gate ? (gate.partKey + '(门点补放)') : null),
+      gateAlign: !!(gax !== null && gaz !== null),
       segments: segs.length, step: g.r2(step), closed: true,
       truncated, bounds: g.boundsOf(parts), dropped, notes,
     },

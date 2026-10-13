@@ -208,6 +208,21 @@ async function level1() {
     const kws = w1.parts.map(function (p) { return Math.round(p.dx * 100) + ':' + Math.round(p.dz * 100); });
     check('W-4', '同位去重（无重复键）', new Set(kws).size === kws.length);
   }
+  // gate_align：楼门在 (10, -3)（院子北侧外）→ 门应开在北边 z=15 的墙段上 x≈10 处
+  const w4 = await R.build('fence', {
+    polygon: RECT, gate_align: { dx: 10, dz: 18 },
+    parts: { fence: 'fence_wood_panel', gate: 'gate_wood' },
+  }, { partResolver: mockResolver, seedStr: 'f4' });
+  const w4gate = w4.ok ? w4.parts.filter(function (p) { return p.partKey === 'gate_wood'; })[0] : null;
+  check('W-7', 'gate_align 门开在离参考点最近的段上（北墙 z=15、x≈10）',
+    w4gate && Math.abs(w4gate.dz - 15) <= 0.3 && Math.abs(w4gate.dx - 10) <= 1.5,
+    w4gate ? '(' + w4gate.dx + ',' + w4gate.dz + ')' : (w4.ok ? '无门' : w4.code));
+  const w5 = await R.build('fence', {
+    polygon: RECT, gate_position: 0.5,
+    parts: { fence: 'fence_wood_panel', gate: 'gate_wood' },
+  }, { partResolver: mockResolver, seedStr: 'f5' });
+  check('W-8', '无 gate_align 时保持旧行为（门在第一段 50% 处）', w5.ok && w5.stats.gateAlign === false,
+    w5.ok ? 'gateAlign=' + w5.stats.gateAlign : w5.code);
   const w2 = await R.build('fence', { polygon: RECT, parts: { fence: 'nonexistent_panel' } }, { partResolver: mockResolver });
   check('W-5', 'fence 槽编造键显式拒绝', !w2.ok && w2.code === 'RECIPE_ALL_PARTS_UNKNOWN', w2.ok ? '被放行！' : w2.code);
   const w3 = await R.build('fence', { parts: { fence: 'fence_wood_panel' } }, { partResolver: mockResolver });

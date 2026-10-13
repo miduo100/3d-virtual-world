@@ -213,12 +213,16 @@ async function plan(mission, region, opts) {
         //   明确写进 history，AI 才能自愈。
         history: round > 1 && lastStats ? [{
           tool: 'validate_plan',
-          // ★ 修正指令放最前（renderHistory 会截断，dropped JSON 很长，关键信息必须在头部）
-          argsSummary: (lastMissing.length
-            ? '【上轮方案被拒，本轮必须修正】' + lastMissing.slice(0, 3).join('；').slice(0, 420) + '。'
+          // ★ 修正指令放最前（renderHistory 会截断，dropped JSON 很长，关键信息必须在头部）。
+          //   2026-10-14 强化：intentGap 也前置成硬性要求——旧版 gap 拼在剔除 JSON 之后，
+          //   实测「建一栋两层小楼+院子」LLM 两轮都只交 fence，第二轮根本没理会尾部
+          //   的「未达标：主体建筑缺失」。
+          argsSummary: ((lastMissing.length || (lastPlan && lastPlan.intentGap))
+            ? '【上轮方案被打回，本轮必须修正】'
+            + (lastMissing.length ? lastMissing.slice(0, 3).join('；').slice(0, 300) + '。' : '')
+            + (lastPlan && lastPlan.intentGap ? '硬性要求：' + lastPlan.intentGap + '。' : '')
             : '')
-            + '上轮剔除 ' + JSON.stringify(lastStats.dropped)
-            + (lastPlan && lastPlan.intentGap ? '；未达标：' + lastPlan.intentGap : ''),
+            + '上轮剔除 ' + JSON.stringify(lastStats.dropped),
           ok: lastStats.parts > 0,
         }] : [],
         untrusted: [String(mission.title || '')],
@@ -365,6 +369,15 @@ function intentGap(prompt, v) {
   ).size;
   if (minCount && parts < minCount) return '用户要求 ≥' + minCount + ' 件，方案只有 ' + parts + ' 件';
   if (wantsVariety && parts >= 3 && distinctKeys < 3) return '用户要求多样/自然景观，方案只用了 ' + distinctKeys + ' 种 partKey（要求 ≥3 种）';
+  // ★ 主体建筑缺失检测（2026-10-14）：委托明确要楼/房/堡等建筑，方案却全是
+  //   围墙/树丛等配块——实测「建一栋两层小楼+院子」LLM 两轮都只交 fence
+  //   （fence 示例变详细后模型注意力漂移），intentGap 没有建筑维度拦不住。
+  //   打回重规划后 LLM 会看到差距描述并补 building 块。误伤面小：真不要楼的
+  //   委托顶多多花一轮重试，最终仍采用最后方案。
+  if (/楼|房屋|房子|住宅|别墅|城堡|店铺|仓库|塔楼|宅邸|两层|三层|五层/.test(String(prompt || ''))) {
+    const hasBldg = ((v.plan && v.plan.blocks) || []).some((b) => b.mode === 'recipe' && b.recipe === 'building');
+    if (!hasBldg) return '委托要求建筑（楼/房等），方案里没有任何 building 块——主体建筑缺失，必须先输出 building recipe 块';
+  }
   return null;
 }
 
@@ -415,7 +428,7 @@ function buildPlanOutputContract(region, maxObjectsCap) {
     '  ★ 屋顶两种形态都合法：平板（高度≤最窄边，如 Roof_2x2）与坡屋顶/塔顶（高度可大于最窄边，如 Roof_Slate_Center、tower_square_roof）——坡屋顶件请填在 roof 槽位。',
     '  ★ 屋顶风格要与建筑风格一致：城堡/木屋/别墅/中世纪 → 用坡屋顶（Roof_Slate_Center 这类 h 明显大于 0 的件）；现代办公楼/厂房/平顶建筑 → 用平板（Roof_2x2 这类 h=0 的件）。**不要给城堡盖现代平板顶。**',
     '  ★ 内部结构：不填 interior 时引擎会自动用 parts.roof 铺内部楼板（顶层由屋顶负责），所以楼里不会是空的；想自定义楼板/立柱才填 interior:{floor:"楼板件",column:"立柱件"}。',
-    '  ★ 围墙/栅栏/庭院边界用 fence recipe（自动闭环）：{"kind":"庭院围墙","mode":"recipe","recipe":"fence","spec":{"polygon":[{"dx":0,"dz":0},{"dx":20,"dz":0},{"dx":20,"dz":15},{"dx":0,"dz":15}],"gate_position":0.5,"parts":{"fence":"栏板partKey","post":"柱partKey可省","gate":"大门partKey可省"}}}——polygon 是围墙多边形顶点，gate_position 是门在第一段上的位置(0~1)。',
+    '  ★ 围墙/栅栏/庭院边界用 fence recipe（自动闭环）：{"kind":"庭院围墙","mode":"recipe","recipe":"fence","spec":{"polygon":[{"dx":0,"dz":0},{"dx":20,"dz":0},{"dx":20,"dz":15},{"dx":0,"dz":15}],"gate_align":{"dx":10,"dz":0},"parts":{"fence":"栏板partKey","post":"柱partKey可省","gate":"大门partKey可省"}}}——polygon 是围墙多边形顶点；gate_align 是参考点（填楼门相对本块 anchor 的偏移），门会开在**离它最近的墙段上正对楼门**；不填 gate_align 才用 gate_position(0~1，第一段比例)。',
     '  ★ 树丛/树林用 forest recipe（泊松盘自动布点，绝不重叠）：{"kind":"树林","mode":"recipe","recipe":"forest","spec":{"count":15,"size":{"width":25,"depth":20},"around":{"dx":10,"dz":8},"partKeys":["树种partKey1","树种partKey2"]}}——around 是林子中心偏移（可省=size 居中），多个树种会自动混种。',
     '  ★ 花坛/绿化用 garden recipe（围边+内部花卉散点）：{"kind":"花坛","mode":"recipe","recipe":"garden","spec":{"shape":"rect或circle","size":{"width":8,"depth":5},"flower_types":["花卉partKey1","花卉partKey2"],"parts":{"edge":"围边partKey可省"}}}。',
     // ★ 两条硬规则放 TASK 段（本段永不裁）：PARTS 段超预算时会被 clampText 尾部硬截，
