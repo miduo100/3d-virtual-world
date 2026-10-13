@@ -82,6 +82,20 @@ async function build(spec, ctx) {
     notes.push('interior.floor=false → 按需关闭内部楼板');
   }
   const iCol = await resolvePart(c, IN && IN.column, notes);
+  // ★ interior.furniture（2026-10-13）：室内家具散点。kenney_furniture_kit 140 件
+  //   （bedSingle/chair/loungeSofa…，件名语义化）此前全库未用——interior 只铺楼板，
+  //   房子里没有家具。AI 给键名数组（须在 PARTS 清单），引擎每层地面确定性散点：
+  //   内部网格步长 1.2m + LCG（seedStr 种子）抖动/洗牌/朝向 → 同种子逐字节同输出。
+  const furnList = IN && Array.isArray(IN.furniture) ? IN.furniture.map(String).filter(Boolean).slice(0, 8) : [];
+  const furnParts = [];
+  for (const k of furnList) {
+    const p = await resolvePart(c, k, notes);
+    if (p) furnParts.push(p);
+    else { dropped.unknownPart++; notes.push('interior.furniture 查不到（显式丢弃）: ' + k); }
+  }
+  if (IN && typeof IN.furniture === 'string' && IN.furniture) {
+    notes.push('interior.furniture 应为数组（如 ["bedSingle","chair"]），收到字符串已忽略');
+  }
   if (!P.door) notes.push('no parts.door -> no doorway');
   if (!P.window) notes.push('no parts.window -> no windows');
   if (!P.roof) notes.push('no parts.roof -> open top (note only, not an error)');
@@ -138,6 +152,7 @@ async function build(spec, ctx) {
   function mk(t, dx, dz, ry, lv) { return { partKey: t.partKey, role: t.role, grid: t.grid, modelPath: t.modelPath, dx: g.r2(dx), dz: g.r2(dz), ry: g.r2(ry), level: g.r2(lv) }; }
   // 预算上限（提前取出：内部楼板要用它做"超预算就跳过"的保护）
   const maxObjects = Number(c.maxObjects) > 0 ? Math.floor(Number(c.maxObjects)) : 0;
+  let furnTotal = 0;   // 家具散点计数（stats 用；声明须在层循环前，否则 TDZ）
   for (let f = 0; f < floors; f++) {
     const y = f * floorHeight;
     for (let row = 0; row < wallRows; row++) {
@@ -213,6 +228,40 @@ async function build(spec, ctx) {
       ];
       for (const q of pts4) push(mk(iCol, q.dx, q.dz, 0, y));
     }
+    // ── interior.furniture 家具散点（2026-10-13）── 每层地面一层；网格步长 1.2m +
+    //    LCG 洗牌/抖动/朝向（seedStr 种子 → 同种子逐字节同输出，幂等重跑不重复）。
+    //    数量：默认 min(8, 内部面积/6㎡)，可用 interior.furnitureCount 覆盖。
+    if (furnParts.length && row === 0) {
+      const inset = Math.max(wall.grid[0], wall.grid[2]) * 0.5 + 0.6;
+      const iMinX = bbox.minX + inset, iMaxX = bbox.maxX - inset;
+      const iMinZ = bbox.minZ + inset, iMaxZ = bbox.maxZ - inset;
+      const iW = Math.max(0, iMaxX - iMinX), iD = Math.max(0, iMaxZ - iMinZ);
+      if (iW > 1 && iD > 1) {
+        const STEP = 1.2;
+        const cells = [];
+        for (let gx = iMinX + STEP / 2; gx < iMaxX; gx += STEP) for (let gz = iMinZ + STEP / 2; gz < iMaxZ; gz += STEP) cells.push({ dx: gx, dz: gz });
+        // LCG（确定性；seed 来自 ctx.seedStr，与 path.js 同一幂等口径）
+        let seed = 2166136261;
+        const seedStr = String(c.seedStr || '');
+        for (const ch of seedStr) { seed ^= ch.charCodeAt(0); seed = Math.imul(seed, 16777619) >>> 0; }
+        seed = (seed + f * 2654435761) >>> 0;                     // 每层不同布局
+        const rnd = function () { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+        // 洗牌
+        for (let i = cells.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = cells[i]; cells[i] = cells[j]; cells[j] = t; }
+        const area = iW * iD;
+        const want = Math.max(1, Math.min(cells.length, isFinite(Number(IN.furnitureCount)) && Number(IN.furnitureCount) > 0 ? Math.floor(Number(IN.furnitureCount)) : Math.min(8, Math.floor(area / 6))));
+        const budgetLeftF = maxObjects > 0 ? maxObjects - parts.length : Infinity;
+        const n = Math.min(want, furnParts.length * 3, budgetLeftF > 0 ? budgetLeftF : want);
+        for (let i = 0; i < n; i++) {
+          const cell = cells[i % cells.length];
+          const p = furnParts[i % furnParts.length];
+          const jx = (rnd() - 0.5) * 0.3, jz = (rnd() - 0.5) * 0.3;
+          const ryOpt = [0, 90, 180, 270];
+          push(mk(p, cell.dx + jx, cell.dz + jz, ryOpt[Math.floor(rnd() * 4)], y));
+        }
+        furnTotal += n;
+      }
+    }
     }   // end wallRows
   }
   // ★ 墙顶高度 = floors × floorHeight（**不是** (floors-1)×floorHeight）。
@@ -269,6 +318,6 @@ async function build(spec, ctx) {
 
   let truncated = false;
   if (maxObjects && parts.length > maxObjects) { notes.push('budget truncate ' + parts.length + ' -> ' + maxObjects); parts.length = maxObjects; truncated = true; }
-  return { ok: true, parts: parts, stats: { recipe: 'building', count: parts.length, floors: floors, floorHeight: g.r2(floorHeight), wallRows: wallRows, wallH: g.r2(wallH), edges: edges.length, segLen: g.r2(segLen), roofCount: roofCount, doorSide: door ? doorSide : null, winPerWall: winPerWall, truncated: truncated, height: g.r2(floors * floorHeight), interiorFloors: iFloor ? floors : 0, interiorColumns: iCol ? floors * 5 : 0, subBlocks: subCount, subParts: subParts, bounds: g.boundsOf(parts), dropped: dropped, notes: notes } };
+  return { ok: true, parts: parts, stats: { recipe: 'building', count: parts.length, floors: floors, floorHeight: g.r2(floorHeight), wallRows: wallRows, wallH: g.r2(wallH), edges: edges.length, segLen: g.r2(segLen), roofCount: roofCount, doorSide: door ? doorSide : null, winPerWall: winPerWall, truncated: truncated, height: g.r2(floors * floorHeight), interiorFloors: iFloor ? floors : 0, interiorColumns: iCol ? floors * 5 : 0, furniture: furnTotal, subBlocks: subCount, subParts: subParts, bounds: g.boundsOf(parts), dropped: dropped, notes: notes } };
 }
 module.exports = { build: build, DEFAULT_FLOOR_HEIGHT: DEFAULT_FLOOR_HEIGHT, MAX_FLOORS: MAX_FLOORS };

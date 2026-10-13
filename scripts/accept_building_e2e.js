@@ -48,6 +48,9 @@ const MOCK = {
   'column_thin': { role: 'column', grid: [0.3, 2.4, 0.3] },
   'Floor_2x2': { role: 'floor', grid: [2, 0.1, 2] },
   'Brick_BottomTrim': { role: 'cornice', grid: [2, 3, 0.229] },
+  'bedSingle': { role: 'prop', grid: [1.62, 0.51, 1.89] },
+  'chair': { role: 'prop', grid: [0.2, 0.47, 0.2] },
+  'loungeSofa': { role: 'prop', grid: [2, 0.7, 0.9] },
 };
 function mockResolver(key) {
   const m = MOCK[String(key)];
@@ -140,6 +143,43 @@ async function level1() {
   const topY3 = 3 * 2.5;
   const slabTop = i1.parts.filter(function (p) { return p.partKey === 'Roof_2x2' && Math.abs(p.level - (topY3 + 0.05)) < 0.06; }).length;
   check('I-6', '顶层顶面只有屋顶、无楼板抢位', slabTop === 24, '该高度上 ' + slabTop + ' 件（应=屋顶 24）');
+
+  // F-1~4 interior.furniture 家具散点（2026-10-13）
+  const FURN = { wall: 'building_block', roof: 'Roof_2x2', floor: 'Floor_2x2' };
+  const f1 = await R.build('building', {
+    footprint: FP12x8, floors: 3,
+    parts: Object.assign({}, BASE_PARTS, FURN),
+    interior: { furniture: ['bedSingle', 'chair', 'loungeSofa'] },
+  }, { partResolver: mockResolver, floorHeight: 2.4, seedStr: 'seedA' });
+  const f1Beds = f1.parts.filter(function (p) { return p.partKey === 'bedSingle'; }).length;
+  check('F-1', '家具散点落位（bed/chair/sofa 每层都有）',
+    f1.ok && f1Beds >= 3 && f1.parts.some(function (p) { return p.partKey === 'chair'; })
+      && f1.parts.some(function (p) { return p.partKey === 'loungeSofa'; }),
+    'bed×' + f1Beds + ' stats.furniture=' + (f1.stats && f1.stats.furniture));
+  const f1In = f1.parts.filter(function (p) { return ['bedSingle', 'chair', 'loungeSofa'].indexOf(p.partKey) >= 0; });
+  check('F-2', '家具全部落在墙体内部（inset 内，不与外墙重叠）',
+    f1In.every(function (p) { return p.dx > 0.5 && p.dx < 12 - 0.5 && p.dz > 0.5 && p.dz < 8 - 0.5; }));
+  const f1b = await R.build('building', {
+    footprint: FP12x8, floors: 3,
+    parts: Object.assign({}, BASE_PARTS, FURN),
+    interior: { furniture: ['bedSingle', 'chair', 'loungeSofa'] },
+  }, { partResolver: mockResolver, floorHeight: 2.4, seedStr: 'seedA' });
+  const sig = function (r) { return r.parts.filter(function (p) { return ['bedSingle', 'chair', 'loungeSofa'].indexOf(p.partKey) >= 0; }).map(function (p) { return p.partKey + '@' + p.dx + ',' + p.dz + ',' + p.ry; }).join('|'); };
+  check('F-3', '同种子逐字节相同（幂等重跑不重复）', sig(f1) === sig(f1b));
+  const f1c = await R.build('building', {
+    footprint: FP12x8, floors: 3,
+    parts: Object.assign({}, BASE_PARTS, FURN),
+    interior: { furniture: ['bedSingle', 'chair', 'loungeSofa'] },
+  }, { partResolver: mockResolver, floorHeight: 2.4, seedStr: 'seedB' });
+  check('F-4', '换种子布局不同', sig(f1) !== sig(f1c));
+  const f1d = await R.build('building', {
+    footprint: FP12x8, floors: 3,
+    parts: Object.assign({}, BASE_PARTS, FURN),
+    interior: { furniture: ['bedSingle', 'nonexistent_bed'] },
+  }, { partResolver: mockResolver, floorHeight: 2.4 });
+  check('F-5', '编造家具键显式记账且好键仍散点',
+    f1d.ok && f1d.stats.dropped.unknownPart === 1 && f1d.parts.some(function (p) { return p.partKey === 'bedSingle'; })
+      && (f1d.stats.notes || []).some(function (n) { return /nonexistent_bed/.test(n); }));
 
   // S-1 subBlocks（事故：城堡只有外壳；角楼 anchor 偏移丢失）
   const s1 = await R.build('building', {

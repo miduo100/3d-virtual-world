@@ -559,6 +559,7 @@ function buildPlanOutputContract(region, maxObjectsCap) {
     '    {"kind":"城堡","mode":"recipe","recipe":"building","spec":{"footprint":[主楼多边形],"floors":4,"parts":{"wall":"石墙件","roof":"坡屋顶件（如 Roof_Slate_Center）"},"subBlocks":[{"anchor":{"dx":0,"dz":0},"footprint":[角楼多边形],"floors":6,"parts":{"wall":"石墙件","roof":"坡屋顶件"}},{"anchor":{"dx":20,"dz":0},"footprint":[...],"floors":6}]}}',
     '    · subBlocks[i].anchor 相对本块 anchor； floors / parts 可省略（缺省 floors 比主楼少 1 层、parts 继承主楼）；子块可用不同的 roof 做出坡屋顶塔楼。',
     '    · interior.floor = 每层内部楼板（顶层也铺，等于封顶）；interior.column = 内部立柱。不给 interior 也不会报错，但楼内部是空的。',
+    '    · interior.furniture = 室内家具键名数组（如 ["bedSingle","chair","loungeSofa"]，须来自 PARTS 清单），引擎每层地面确定性散点（默认每层 ≤8 件，可用 interior.furnitureCount 调）。住宅/公寓建议配家具——房子从"能看"变"能住"。',
     '  ★ 屋顶两种形态都合法：平板（高度≤最窄边，如 Roof_2x2）与坡屋顶/塔顶（高度可大于最窄边，如 Roof_Slate_Center、tower_square_roof）——坡屋顶件请填在 roof 槽位。',
     '  ★ 屋顶风格要与建筑风格一致：城堡/木屋/别墅/中世纪 → 用坡屋顶（Roof_Slate_Center 这类 h 明显大于 0 的件）；现代办公楼/厂房/平顶建筑 → 用平板（Roof_2x2 这类 h=0 的件）。**不要给城堡盖现代平板顶。**',
     '  ★ 内部结构：不填 interior 时引擎会自动用 parts.roof 铺内部楼板（顶层由屋顶负责），所以楼里不会是空的；想自定义楼板/立柱才填 interior:{floor:"楼板件",column:"立柱件"}。',

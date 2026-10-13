@@ -40,6 +40,7 @@ const SPEC_RULES = {
       const IN = (spec && spec.interior) || {};
       if (IN.floor) keys.push(String(IN.floor));
       if (IN.column) keys.push(String(IN.column));
+      if (Array.isArray(IN.furniture)) for (const f of IN.furniture) keys.push(String(f));
       for (const sb of (Array.isArray(spec && spec.subBlocks) ? spec.subBlocks : [])) {
         const sp = (sb && sb.parts) || {};
         for (const k of ['wall', 'corner', 'door', 'window', 'roof', 'trim']) if (sp[k]) keys.push(String(sp[k]));
