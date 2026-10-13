@@ -134,13 +134,107 @@ function renderWorld(w, opts) {
   return lines.join('\n');
 }
 
-/** 零件明细段：只带 partKey / role / 尺寸 / gridsnap（§H.9.2 硬约束 2：不带几何与贴图描述） */
-function renderParts(parts) {
+/** 推荐用途一句话标注（2026-10-13）：按 role+尺寸给「铺大面积 / 点缀」的直觉提示 */
+function recommendUse(p) {
+  const g = (Array.isArray(p.grid) ? p.grid : []).map(Number);
+  if (g.length < 3 || !g.every(function (v) { return isFinite(v) && v >= 0; })) return '';
+  const w = g[0], h = g[1], d = g[2];
+  const me = Math.min(w, d);
+  switch (p.role) {
+    case 'wall':
+      if (w >= 1.5 && h >= 1.5) return '大墙件——整栋主墙首选';
+      if (h >= 1.5) return '窄墙件——补缝/转角用，别整栋铺';
+      return '小块——装饰点缀';
+    case 'roof':
+      if (h <= me + 1e-6) return '平板屋顶/楼板';
+      return '坡屋顶/塔顶——城堡木屋用';
+    case 'floor':
+      return h <= me + 1e-6 ? '楼板/地坪' : '';
+    case 'column':
+      return h >= 2 ? '立柱——层间支撑/门廊' : '短柱——装饰';
+    case 'door':
+      return '门——底层开门洞';
+    case 'window':
+      return '窗——嵌在墙面中上部';
+    case 'cornice':
+      return '腰线/檐口——层间装饰线';
+    case 'railing':
+      return '栏杆——阳台/屋顶边缘';
+    case 'stairs':
+      return '楼梯';
+    case 'road':
+      return '路面——沿折线铺';
+    case 'ground':
+      return '地面铺装';
+    case 'nature':
+      return '绿化——路边屋旁点缀';
+    case 'prop':
+      return '杂物——点缀';
+    case 'awning':
+      return '雨棚——门/窗上方';
+    default:
+      return '';
+  }
+}
+
+/**
+ * 零件明细段（2026-10-11 重写）
+ * ------------------------------------------------------------------
+ * 旧版每件只给 partKey / role / 尺寸 / gridsnap 四个字段，且按入库顺序平铺。后果是 AI
+ * 既不知道「同一 role 有多少个变体可换」，也不知道「哪些件属于同一个套件」——
+ * 用户实测"AI 打印出来的房子都是一样的，都是用的一个零件"。
+ *
+ * 现在：
+ *   ① 按 pack 分组呈现 —— pack（套件）才是真正的搭配边界，同一 pack 内的
+ *      wall/door/window/roof 才是配套的；
+ *   ② 显式要求交替使用多个变体，禁止整栋只重复一个 partKey；
+ *   ③ 可注入 partUsage.usagePromptText()（各 role 干什么 / 摆哪 / 注意什么）。
+ * 仍遵守 §H.9.2 硬约束 2：不带几何与贴图描述，只给工程参数。
+ */
+function renderParts(parts, opts) {
   if (!parts.length) return '';
-  const lines = ['可用零件（partKey 必须逐字取自下列清单，清单外的键名一律非法被剔除；找不到理想零件就选语义最接近的一个，绝不编造键名）：'];
+  const o = opts || {};
+  const head = [
+    '可用零件（partKey 必须逐字取自下列清单，清单外的键名一律非法被剔除；找不到理想零件就选语义最接近的一个，绝不编造键名）：',
+  ];
+  if (o.usageText) head.push(o.usageText);
+  // 注：多样性/套件一致性两条硬规则已移到 TASK 段（永不裁）——见
+  // missionPlanner.buildPlanOutputContract。这里只留轻量提示，避免本段被 clampText
+  // 尾部硬截时连规则一起丢掉。
+  head.push('（选零件规则见 TASK 段「零件多样性」「套件一致性」两条硬性要求）');
+
+  // 按 pack 分组；未标 pack 的归入 styleFamily，再不行归"(未分组)"
+  const groups = new Map();
   for (const p of parts) {
-    const sizeText = p.size || (Array.isArray(p.grid) && p.grid.length ? p.grid.join('×') : '-');
-    lines.push(`- ${p.partKey}｜role=${p.role || '-'}｜尺寸=${sizeText}｜gridsnap=${p.gridsnap == null ? '-' : p.gridsnap}`);
+    const k = p.pack || p.styleFamily || '(未分组)';
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(p);
+  }
+  // pack 排序：零件多的在前（套装越全越可能凑齐一栋房子）
+  const order = Array.from(groups.keys()).sort((a, b) => groups.get(b).length - groups.get(a).length);
+
+  const lines = head.slice();
+  for (const k of order) {
+    lines.push('');
+    lines.push('【' + k + '】');
+    for (const p of groups.get(k)) {
+      const sizeText = p.size || (Array.isArray(p.grid) && p.grid.length ? p.grid.join('×') : '-');
+      // ★ 屋顶形态标注（2026-10-12）：尺寸 w×h×d 里 h 就是高度。h=0 或 h≤最窄边 = 平板；
+      //   h 明显大于最窄边 = 坡屋顶/塔顶。此前 grid_h=0 被兜底成 1，AI 看到"2×1×2"
+      //   根本分不出 Roof_2x2 是平板，坡屋顶引导完全失效。
+      let form = '';
+      if ((p.role === 'roof' || p.role === 'floor') && Array.isArray(p.grid) && p.grid.length === 3) {
+        const gg = p.grid.map(Number);
+        const me = Math.min(gg[0], gg[2]);
+        if (isFinite(gg[1]) && isFinite(me)) {
+          form = gg[1] <= me + 1e-6 ? '｜形态=平板' : '｜形态=坡屋顶/塔顶';
+        }
+      }
+      // ★ 推荐用途（2026-10-13）：AI 之前不知道一件该「铺大面积」还是「点缀」，
+      //   实测拿 1.34m 宽的窄件当主墙铺出 281 件格栅。按尺寸给一句话用途，降低选错率。
+      const use = recommendUse(p);
+      lines.push(`- ${p.partKey}｜role=${p.role || '-'}｜尺寸=${sizeText}${form}${use ? '｜用途=' + use : ''}｜gridsnap=${p.gridsnap == null ? '-' : p.gridsnap}`);
+    }
   }
   return lines.join('\n');
 }
@@ -171,12 +265,15 @@ function renderTools(tools) {
   return lines.join('\n');
 }
 
-/** HISTORY 段：只留结论行（§H.9.3 第 3 条） */
+/** HISTORY 段：只留结论行（§H.9.3 第 3 条）
+ *  ★ 2026-10-13：截断 120 → 520。修正指令（"wall 槽位不能填拱形件"）写在 argsSummary
+ *    尾部，120 字符时正好被切掉（dropped JSON 占 ~90），AI 第二轮看不到拒因、
+ *    交出一模一样被拒的方案（实测两轮全拒 0 件落库）。 */
 function renderHistory(history) {
   if (!history.length) return '';
   const lines = ['本轮此前的动作结论（原始结果见工具账本，此处只留结论）：'];
   for (const h of history) {
-    lines.push(`- ${h.tool}(${String(h.argsSummary || '').slice(0, 120)}) → ${h.ok ? '成功' : '失败'}`);
+    lines.push(`- ${h.tool}(${String(h.argsSummary || '').slice(0, 520)}) → ${h.ok ? '成功' : '失败'}`);
   }
   return lines.join('\n');
 }
@@ -251,7 +348,7 @@ function build(o) {
       objects: allObjects.slice(0, st.objCount),
       nearDist, midDist,
     }),
-    PARTS: renderParts(allParts.slice(0, st.partCount)),
+    PARTS: renderParts(allParts.slice(0, st.partCount), { usageText: ctx.partsUsage }),
     MEMORY: renderMemory(allMemories.slice(0, st.memCount), ctx.yesterdaySummary),
     TOOLS: renderTools(allTools),
     HISTORY: renderHistory(allHistory.slice(0, st.hisCount)),

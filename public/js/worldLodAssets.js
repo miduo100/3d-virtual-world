@@ -104,14 +104,32 @@
    */
   async function loadVariant(loader, url, level) {
     const vUrl = lodUrl(url, level);
-    if (!vUrl || !loader || typeof loader.load !== 'function') return null;
+    // ★ 先建槽（2026-10-11）：旧代码把 slot() 放在下面的异步 IIFE 里，于是
+    //   "推导不出变体 URL / loader 未就绪"这条提前 return 的分支**一个槽都没建**，
+    //   stateOf() 于是永远读到 'idle'，渲染侧又用 `!== 'none'` 把 'idle' 当成"加载中"
+    //   → 该模型只要离玩家超过 near 距离就整片画方块，且永不恢复。
+    const s = slot(url, level);
+    // ★ 分两种情况（2026-10-12 修正）：只有「推导不出变体 URL」才是永久终态；
+    //   「loader 未就绪」必须可重试 —— requestLodVariants 里
+    //   `if (!world.gltfLoader) return;` 会在合批时（模型加载早期）直接提前返回，
+    //   此刻 loader 往往还没就绪。若把这种情形也钉成永久 'none'，
+    //   该模型就永远拿不到 LOD 变体（比原先"短暂显示方块"更糟：永久无降级 → 常驻高模开销）。
+    if (!vUrl) {
+      if (s.state !== 'ready') { s.state = 'none'; s.noneAt = Date.now(); s.noneReason = 'unsupported'; }
+      return null;
+    }
+    if (!loader || typeof loader.load !== 'function') {
+      if (s.state !== 'ready') { s.state = 'none'; s.noneAt = Date.now(); s.noneReason = 'error'; }
+      return null;                                    // error 类 TTL 60s，会自动重试
+    }
     const key = url + '|' + level;
     if (inflight.has(key)) return inflight.get(key);
 
     const p = (async () => {
-      const s = slot(url, level);
       if (s.state === 'ready') return s.scene;
       if (s.state === 'none') {
+        // 'unsupported' 是终态（无变体 URL / loader 未就绪），不重试，避免每 60s 空转一轮
+        if (s.noneReason === 'unsupported') return null;
         // 冷却期内的"确认缺失/失败"直接返回 null；冷却已过则重新探测（自愈）
         const ttl = (s.noneReason === 'missing') ? NONE_TTL_MISSING : NONE_TTL_ERROR;
         if (Date.now() - (s.noneAt || 0) < ttl) return null;

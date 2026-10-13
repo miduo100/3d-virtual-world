@@ -25,6 +25,23 @@ const boundsGuard = require('../regions/boundsGuard');
 const scatterMod = require('./scatter'); // 队列14 C2：散点布局原语（确定性泊松盘）
 const recipeRegistry = require('../recipes'); // AI 自由拼装：recipe 注册表（几何与落件全在 recipes/）
 const recipeValidate = require('../recipes/validate'); // recipe 骨架校验（规则不写在本文件，守 500 行红线）
+const partUsage = require('../recipes/partUsage'); // 零件用途对照表（role → 干什么/摆哪/注意什么），注入 [PARTS] 段
+const candidatePool = require('./candidatePool'); // 候选零件池三步构建（2026-10-13 从本文件拆出，守 500 行红线）
+
+// ★ 建楼默认层高（后台 system_config.building_floor_height，缺省 2.4m）。
+//   进程内缓存 60s：plan 一次委托只读一次库，后台改配置不必重启即可在下一批委托生效。
+const DEFAULT_FLOOR_HEIGHT = 2.4;
+let _fhCache = { v: DEFAULT_FLOOR_HEIGHT, at: 0 };
+async function buildingFloorHeight() {
+  if (Date.now() - _fhCache.at < 60000) return _fhCache.v;
+  try {
+    const r = await query("SELECT config_value FROM system_config WHERE config_key = 'building_floor_height'");
+    const n = Number(r.rows[0] && r.rows[0].config_value);
+    if (isFinite(n) && n > 0 && n <= 20) _fhCache = { v: n, at: Date.now() };
+    else _fhCache = { v: DEFAULT_FLOOR_HEIGHT, at: Date.now() };
+  } catch (e) { _fhCache = { v: DEFAULT_FLOOR_HEIGHT, at: Date.now() }; }
+  return _fhCache.v;
+}
 
 const MAX_ROUNDS = 2;
 
@@ -130,6 +147,7 @@ async function validatePlan(raw, constraints, opts) {
   // ★ 预算计数单位是**零件**，不是块（判据 P35-9：maxObjects=10 而布局 30 件 → 截断到 10 件）
   let placedParts = 0;
   const dropped = { unknownPart: 0, roleNotAllowed: 0, roleForbidden: 0, overBudget: 0, recipeInvalid: 0 };
+  const lastMiss = [];   // AI 编造/记错的 partKey（§11-6 显式记账，供 runner 并入 notes 曝光）
   for (const b of blocks) {
     // ★ AI 自由拼装 recipe 块：AI 只给**骨架**（waypoints/footprint），引擎沿骨架铺零件。
     //   这里是全链路唯一接线点：校验 → 调 registry 展开 → 落成 parts（与普通块同构）。
@@ -139,14 +157,43 @@ async function validatePlan(raw, constraints, opts) {
       const rv = await recipeValidate.validateRecipeBlock(b, {
         partResolver: recipePartResolver, forbidRoles: forbid, allowedRoles: allowed,
       });
-      if (!rv.ok) { dropped.recipeInvalid++; continue; }
+      if (!rv.ok) {
+        dropped.recipeInvalid++;
+        lastMiss.push('recipe=' + String(rv.recipe || '?') + ' 校验被拒：' + String(rv.reason || '').slice(0, 200)
+          + (rv.hint ? '｜改法：' + String(rv.hint).slice(0, 200) : ''));
+        continue;
+      }
       const built = await recipeRegistry.build(rv.recipe, rv.spec, {
         partResolver: recipePartResolver,
         seedStr: seedStr + '|' + String(b.kind || rv.recipe),
         maxObjects: remain0,
+        // ★ 层高与限高（2026-10-12）：
+        //   floorHeight = 后台 system_config.building_floor_height（缺省 2.4m）。
+        //     不传则 recipe 退化为"层高=墙件高度"，Kenney building_block 只有 0.625m
+        //     → 5 层楼总高 3.1m，像积木玩具。墙件比层高矮时由 recipe 沿高度堆叠补足。
+        //   maxHeight = 委托级 constraints.max_height，按"层高×层数"折算成最大层数，
+        //     真正截断 floors（此前它只是透传给 LLM 的软约束，从未执行）。
+        floorHeight: await buildingFloorHeight(),
+        maxHeight: Number(c.max_height) > 0 ? Number(c.max_height) : 0,
       });
-      if (!built.ok) { dropped.recipeInvalid++; continue; }
+      if (!built.ok) {
+        dropped.recipeInvalid++;
+        // ★ 拒绝原因回流（2026-10-13）：拱件墙/角色不符/尺寸不符被拒时，reason 里
+        //   写明了「哪个槽位、什么零件、为什么不行」——必须让下一轮 LLM 看到，
+        //   否则它两轮都交同一份被拒方案（实测：新校验上线后 2 轮全拒、0 件落库）。
+        lastMiss.push('recipe=' + rv.recipe + ' 整块被拒：' + String(built.reason || '').slice(0, 200)
+          + (built.hint ? '｜改法：' + String(built.hint).slice(0, 200) : ''));
+        continue;
+      }
       if (built.stats && built.stats.truncated) dropped.overBudget++;
+      // ★ 槽位件查不到要显式记账（2026-10-12）：AI 会编造零件名（实测把
+      //   tower_hexagon_roof_secondary 记成 tower_square_roof_secondary），旧逻辑只对 wall
+      //   失败整块拒绝，roof/corner/door 等槽位查不到时静默跳过 → 楼盖出来没屋顶且无痕迹。
+      if (built.stats && built.stats.dropped && built.stats.dropped.unknownPart > 0) {
+        dropped.recipeInvalid++;
+        const miss = (built.stats.notes || []).filter(function (n) { return /查不到/.test(n); });
+        if (miss.length) lastMiss.push(miss.join(' | '));
+      }
       placedParts += built.parts.length;
       kept.push({
         kind: String(b.kind || rv.recipe), mode: 'recipe',
@@ -215,6 +262,9 @@ async function validatePlan(raw, constraints, opts) {
   return {
     plan: { style: raw.style || null, summary: raw.summary || null, blocks: kept },
     stats: { blocks: kept.length, parts: kept.reduce((s, b) => s + b.parts.length, 0), dropped },
+    // AI 编造/记错的 partKey（§11-6）：runner 并入 executed_stats.notes，让"楼没屋顶"这类
+    // 静默失败在结果里可见，而不是只埋在 building.js 的 notes 数组里没人看。
+    missingParts: lastMiss.slice(0, 6),
     truncated: dropped.overBudget > 0,
   };
 }
@@ -255,58 +305,28 @@ async function plan(mission, region, opts) {
     if (!provider) return { ok: false, code: 'NO_PROVIDER', reason: r.reason || '没有可用 provider' };
   }
 
-  // 3) 世界快照 + 候选零件（只带 partKey/role/尺寸/gridsnap，§H.9.2 硬约束 2）
+  // 3) 世界快照 + 候选零件池（2026-10-13 三步逻辑拆到 candidatePool.js，守 500 行红线）
   const world = await regionSnapshot(region);
-  const fallbackNotes = []; // 3.5-3 P35-22：换家原因（runner 会并入 executed_stats.notes）；提前声明供关键词预选使用
-  let candidates = await assetSearch.searchParts({
-    roles: constraints.allowed_roles,
-    forbidRoles: constraints.forbid_roles,
-    styleFamily: constraints.style_family,
-    limit: 24,
-  });
-
-  // 3.5) ★ 关键词预选（1 次廉价 LLM 调用）：轮转采样的候选与委托语义无关
-  //   （实测"森林"委托拿到的是 building_a×4——候选里根本没有树）。先让模型从委托提炼
-  //   英文关键词（库键名是英文），按关键词检索合并；失败/零命中 → 静默回退轮转采样。
+  const fallbackNotes = []; // 3.5-3 P35-22：换家原因（runner 会并入 executed_stats.notes）
+  let candidates = await candidatePool.buildBase(constraints);
   if (o.injectPlan == null && used0 < maxCalls) {
+    const kw = await candidatePool.enrichByKeywords({
+      providerFallback: providerFallback, provider: provider, mission: mission,
+      constraints: constraints, keywordSchema: KEYWORD_SCHEMA, parseJson: parseJson,
+      onNote: function (n) { fallbackNotes.push(n); },
+    });
+    if (kw.items) {
+      candidates = { ok: true, items: kw.items, total: kw.items.length, notice: 'keyword-driven: ' + kw.keywords.join(',') };
+    }
     try {
-      const kwChat = await providerFallback.chatWithFallback({
-        messages: [
-          { role: 'system', content: '你是零件库检索助手。从建设委托提炼 3~6 个英文检索关键词（库内键名是英文，如 tree/pine/rock/wall/floor/door/fence/table/chair）。只输出 JSON：{"keywords":["..."]}' },
-          { role: 'user', content: '建设委托：' + String(mission.prompt || '').slice(0, 400) },
-        ],
-        jsonSchema: KEYWORD_SCHEMA,
-        temperature: 0.1,
-        maxTokens: 300,
-        purpose: 'tool_select',
-        caller: 'world_ai_mission_planner_keywords',
-        missionId: String(mission.id),
-        regionKey: String(mission.region_key),
-        timeoutMs: 60000,
-        retries: 0,
-      }, { primary: provider });
-      const kwParsed = parseJson(kwChat.content);
-      const keywords = kwParsed && Array.isArray(kwParsed.keywords)
-        ? kwParsed.keywords.map((s) => String(s).trim()).filter(Boolean).slice(0, 6)
-        : [];
-      if (keywords.length) {
-        const merged = new Map();
-        for (const k of keywords) {
-          if (merged.size >= 24) break;
-          const r = await assetSearch.searchParts({
-            keyword: k,
-            forbidRoles: constraints.forbid_roles,
-            styleFamily: constraints.style_family,
-            limit: 12,
-          });
-          for (const it of r.items) if (!merged.has(it.partKey)) merged.set(it.partKey, it);
-        }
-        if (merged.size) {
-          candidates = { ok: true, items: Array.from(merged.values()).slice(0, 24), total: merged.size, notice: 'keyword-driven: ' + keywords.join(',') };
-        }
-      }
+      const fin = await candidatePool.finalize({
+        candidates: candidates, keywordHits: kw.hits, constraints: constraints,
+        prompt: mission.prompt, onNote: function (n) { fallbackNotes.push(n); },
+      });
+      candidates.items = fin.items;
+      if (fin.notice) candidates.notice = (candidates.notice ? candidates.notice + ' | ' : '') + fin.notice;
     } catch (e) {
-      fallbackNotes.push('关键词预选失败已回退轮转采样：' + String(e.message || e).slice(0, 160));
+      fallbackNotes.push('候选池收尾失败（保留原候选）：' + String(e.message || e).slice(0, 160));
     }
   }
 
@@ -314,6 +334,7 @@ async function plan(mission, region, opts) {
   let rounds = 0;
   let lastStats = null;
   let lastPlan = null;
+  let lastMissing = [];   // 上一轮 AI 编造/记错的 partKey（回流给下一轮 history）
 
   for (let round = 1; round <= maxRounds; round++) {
     const used = await countLlmCalls(mission.id);
@@ -338,10 +359,26 @@ async function plan(mission, region, opts) {
           outputContract: buildPlanOutputContract(region, Number(constraints.max_objects) > 0 ? Number(constraints.max_objects) : 120),
         },
         parts: candidates.items,
+        // ★ 零件用途对照表（2026-10-11 接线）：partUsage.usagePromptText() 此前**零引用**，
+        //   各 role「干什么/摆哪/注意什么」从未进入任何 prompt —— AI 拿到 24 个英文键名
+        //   却没人告诉它 wall 是墙、roof 是屋顶，只能瞎猜键名 → 大量 unknownPart。
+        partsUsage: partUsage.usagePromptText(),
         memories: [],
         tools: [],
         allowedTools: [],
-        history: round > 1 && lastStats ? [{ tool: 'validate_plan', argsSummary: '上一轮剔除 ' + JSON.stringify(lastStats.dropped) + (lastPlan && lastPlan.intentGap ? '；未达标：' + lastPlan.intentGap + '——本轮必须修正' : ''), ok: lastStats.parts > 0 }] : [],
+        // ★ missingParts 回流（2026-10-13）：AI 编造的键名上一轮只进了 executed_stats，
+        //   第二轮 LLM 根本看不到，重试等于瞎猜。现在把「哪些键不存在 + 必须改用清单里的键」
+        //   明确写进 history，AI 才能自愈。
+        history: round > 1 && lastStats ? [{
+          tool: 'validate_plan',
+          // ★ 修正指令放最前（renderHistory 会截断，dropped JSON 很长，关键信息必须在头部）
+          argsSummary: (lastMissing.length
+            ? '【上轮方案被拒，本轮必须修正】' + lastMissing.slice(0, 3).join('；').slice(0, 420) + '。'
+            : '')
+            + '上轮剔除 ' + JSON.stringify(lastStats.dropped)
+            + (lastPlan && lastPlan.intentGap ? '；未达标：' + lastPlan.intentGap : ''),
+          ok: lastStats.parts > 0,
+        }] : [],
         untrusted: [String(mission.title || '')],
         contextWindowTokens: o.contextWindowTokens || null,
         nearDist: 0, midDist: 0,
@@ -408,6 +445,7 @@ async function plan(mission, region, opts) {
     }
     lastStats = v.stats;
     lastPlan = v.plan;
+    lastMissing = Array.isArray(v.missingParts) ? v.missingParts : [];
     // ★ 意图达标检查（队列14 A1/A2）：有合法零件但数量/种类不达标 → 带差距反馈重试下一轮
     //   （MAX_ROUNDS=2 兜底：第 2 轮仍不达标就用最好的一版，绝不静默丢弃差距信息——notes 会带出去）
     if (v.stats.parts > 0) {
@@ -505,8 +543,29 @@ function buildPlanOutputContract(region, maxObjectsCap) {
     `散点类需求（森林/花田/草地/树丛）推荐用散点块，不必手排坐标：{"kind":"forest","mode":"scatter","partKeys":["tree_pine","tree_oak",…],"count":30}——系统会用确定性均匀布点把 count 件零件铺满整个区域；partKeys 必须来自 PARTS 清单（≥3 个不同键）。`,
     '★ recipe 结构类需求（小路/围墙/房屋等**有形状**的构件）必须用 recipe 模式：{"kind":"主路","mode":"recipe","recipe":"<recipe名>","spec":{…骨架…}}。',
     '  recipe 只给「骨架」，**绝对禁止输出逐件坐标** —— 几何由引擎算；你手排几十块砖的偏移必崩，最后会退化成"放一整栋楼"。',
-    '  ★ 当前**仅 path 已实现**（building/fence/garden/forest 尚未上线）：除小路外的结构请用普通 parts 模式逐件输出 dx/dz/ry/level，不要用 recipe —— 用未实现的 recipe 会被整块丢弃。',
-    '  可用 recipe —— ' + recipeRegistry.describe(),
+    '  ★ 已实现的 recipe —— ' + recipeRegistry.describe(),
+    '  ★ 搭房子/围墙等**有形状的建筑**必须用 building recipe，严禁用普通 parts 逐件手排坐标（你手排几十块砖的偏移必崩）。building 骨架如下：',
+    '  {"kind":"主楼","mode":"recipe","recipe":"building","spec":{"footprint":[{"dx":0,"dz":0},{"dx":8,"dz":0},{"dx":8,"dz":6},{"dx":0,"dz":6}],"floors":3,"door":{"side":"south","position":0.5},"windows":{"perWall":2,"skipDoor":true},"parts":{"wall":"<墙件partKey>","door":"<门件partKey>","window":"<窗件partKey>","roof":"<屋顶partKey>","corner":"<角柱partKey,可省>","trim":"<腰线partKey,可省>"}}}',
+    '  · footprint：多边形顶点（逆时针，单位米，相对块 anchor），它就是建筑占地； floors：层数。',
+    '  ★ 层高由后台统一设定（system_config.building_floor_height，当前默认 2.4m/层），**不要**自己填 floorHeight；墙件比层高矮时引擎会自动沿高度堆叠补足。',
+    '  ★ 总高 = 层高 × 层数：想要"20 米高的楼"→ floors = 20 / 2.4 ≈ 8 层。委托若给了 max_height，超出会被自动截断。',
+    '  ★ 墙件高度要接近层高（看 PARTS 里的尺寸 w×h×d，h 就是墙件高度）：选 h≈2.4m 的墙件时每层 1 排；选 h=0.625m 的小块时每层要堆 4 排、件数翻 4 倍，很容易撞 max_objects 预算被截断成"矮楼"。**高层建筑优先选高墙件。**',
+    '  · door/windows：可选；door.side 取 south/north/east/west（footprint 起边为 south），position 取 0~1 表示沿该边的位置。',
+    '  · parts：五个槽位（wall/door/window/roof/corner/trim 均可省），**partKey 必须逐字取自 PARTS 清单**；引擎会自己完成绕轮廓铺墙、换转角件、开窗开门、封屋顶、按层堆叠。',
+    '  · roof 槽位选件规则（PARTS 里每件都标了「形态=平板」或「形态=坡屋顶/塔顶」）：城堡/木屋/别墅/中世纪/茅屋 → 必须选「形态=坡屋顶/塔顶」的件（如 Roof_Slate_Center）；现代办公楼/厂房/平顶建筑 → 选「形态=平板」的件（如 Roof_2x2）。**看到「形态=坡屋顶」就不要绕过去选平板。**',
+    '  ★ 尺寸语义（用户报的数字必须体现在骨架上）："20 米宽的房子" → footprint 最大跨度 = 20 米；不要自作主张加余量、也不要缩水。',
+    '  ★ 让每栋房不一样：parts 里给不同 pack 的墙/屋顶，或多栋楼用不同 pack、不同 floors、不同 footprint —— 这是"组合出新样式"的正路。',
+    '  ★ 大型/复合建筑（城堡/宫殿/庄园/城墙）必须用 building 的 subBlocks 组合多个子结构，一个块只出外壳：',
+    '    {"kind":"城堡","mode":"recipe","recipe":"building","spec":{"footprint":[主楼多边形],"floors":4,"parts":{"wall":"石墙件","roof":"坡屋顶件（如 Roof_Slate_Center）"},"subBlocks":[{"anchor":{"dx":0,"dz":0},"footprint":[角楼多边形],"floors":6,"parts":{"wall":"石墙件","roof":"坡屋顶件"}},{"anchor":{"dx":20,"dz":0},"footprint":[...],"floors":6}]}}',
+    '    · subBlocks[i].anchor 相对本块 anchor； floors / parts 可省略（缺省 floors 比主楼少 1 层、parts 继承主楼）；子块可用不同的 roof 做出坡屋顶塔楼。',
+    '    · interior.floor = 每层内部楼板（顶层也铺，等于封顶）；interior.column = 内部立柱。不给 interior 也不会报错，但楼内部是空的。',
+    '  ★ 屋顶两种形态都合法：平板（高度≤最窄边，如 Roof_2x2）与坡屋顶/塔顶（高度可大于最窄边，如 Roof_Slate_Center、tower_square_roof）——坡屋顶件请填在 roof 槽位。',
+    '  ★ 屋顶风格要与建筑风格一致：城堡/木屋/别墅/中世纪 → 用坡屋顶（Roof_Slate_Center 这类 h 明显大于 0 的件）；现代办公楼/厂房/平顶建筑 → 用平板（Roof_2x2 这类 h=0 的件）。**不要给城堡盖现代平板顶。**',
+    '  ★ 内部结构：不填 interior 时引擎会自动用 parts.roof 铺内部楼板（顶层由屋顶负责），所以楼里不会是空的；想自定义楼板/立柱才填 interior:{floor:"楼板件",column:"立柱件"}。',
+    // ★ 两条硬规则放 TASK 段（本段永不裁）：PARTS 段超预算时会被 clampText 尾部硬截，
+    //   放在那里可能连规则一起被切掉（2026-10-12 修正）。
+    '★ 零件多样性（硬性）：同一 role 下若有多个不同 partKey（尤其同 pack 里的墙/屋顶变体），必须交替使用至少 2~3 种，禁止一栋建筑整栋只重复同一个 partKey。',
+    '★ 套件一致性（硬性）：同一栋建筑优先从 PARTS 里同一个【pack名】下选零件，混用不同 pack 会出现风格割裂。',
     '  path 示例（10 米直线小路，坐标单位米，相对块 anchor）：{"mode":"recipe","recipe":"path","spec":{"waypoints":[{"dx":0,"dz":0},{"dx":10,"dz":0}],"width":3,"tile":["roadTile_001"],"cornerTile":"roadTile_corner"}}',
     '  ★ 尺寸语义（用户报的数字必须体现在骨架上）："20 米长的小路" → waypoints 首尾直线距离 = 20 米（{"dx":0,"dz":0} 到 {"dx":20,"dz":0}）；不要自作主张加余量、也不要缩水。铺装宽度用 width（米）。',
     '★ 关键：同一个零件复用（如 4 面墙）时，每份的 dx/dz 必须互不相同、按尺寸错开围成一圈。带数字的示例（4 面墙围 4×4 米小屋，建筑块尺寸约 1×3×0.2）：',

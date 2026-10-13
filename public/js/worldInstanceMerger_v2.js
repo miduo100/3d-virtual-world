@@ -682,17 +682,27 @@
     }
     _lastCullPos = { x: player.position.x, y: player.position.y, z: player.position.z };
     playerPos.copy(player.position);
-    const maxDistSq = MAX_RENDER_DIST * MAX_RENDER_DIST;
-    let totalCulled = 0;
-
-    const world = findWorld();
-
-    // 未合批对象（加载期占位符/独立模型）视距裁剪
-    totalCulled += cullUnmerged(world, playerPos, maxDistSq);
 
     const B = window.WorldObjectBounds;
     const A = window.WorldLodAssets;
     const lodOn = !!(A && A.isEnabled());
+
+    // ★ 统一远界口径（2026-10-11）：**模型只有一档几何时（无 _mid/_lod 变体，含 geometry:*
+    //   程序化模型与 Kenney 建筑套件等官方素材），就按「低模」那一档对待**——可见到后台配置的
+    //   lod_far_dist（默认 400m），超出该距离才画方块。
+    //   旧口径是「无变体组封顶 min(lod_far_dist, 200m)」，与后台"低模带 400m"的语义直接冲突：
+    //   Kenney 墙/窗/角柱/屋顶（79 个 GLB，_mid/_lod 各 0 个）在 200m 外就变蓝方块，
+    //   而同库用户上传模型（_mid/_lod 齐全）能显示到 400m —— 同一世界两套可见距离。
+    //   注：这是刻意的性能取舍反转。无变体组渲染的就是它唯一的几何，"降级"无处可降，
+    //   按低模带可见才符合"只有一档 = 那一档"的直觉。
+    const farLimitAll = lodOn ? bandFar() : MAX_RENDER_DIST;
+    const maxDistSq = farLimitAll * farLimitAll;
+    let totalCulled = 0;
+
+    const world = findWorld();
+
+    // 未合批对象（加载期占位符/独立模型/geometry:* 程序化模型）视距裁剪
+    totalCulled += cullUnmerged(world, playerPos, maxDistSq);
 
     // 合批组分带（先算带，syncFarBoxes 才能拿到最新的 farLimit 与 pendingIdx）
     mergedGroups.forEach((rec) => {
@@ -701,18 +711,20 @@
       const r = B ? B.radiusByUrl(rec.url) : 0;
       const midReady = !!(rec.lod.mid && rec.lod.mid.ims && rec.lod.mid.ims.length);
       const lowReady = !!(rec.lod.low && rec.lod.low.ims && rec.lod.low.ims.length);
-      // 远界：低模就绪 = 后台配置的低模带距离；低模缺失 = 封顶在 min(配置距离, 200m)，
-      // 缺失部分的几何由高模兜底渲染（若不封顶，配置拉大时缺低模的组会用高模渲染到很远，
-      // 2026-09-12 实测：7 组缺低模导致 232 实例高模渲染、GPU 不降）
-      rec.farLimit = !lodOn ? MAX_RENDER_DIST
-        : (lowReady ? bandFar() : Math.min(bandFar(), MAX_RENDER_DIST));
+      // 远界（2026-10-11 统一）：一律用低模带距离 lod_far_dist。
+      //   低模就绪 → 本来就该按低模带可见；
+      //   低模缺失（本组只有一档几何）→ 按"只有一档 = 低模档"处理，同样到 lod_far_dist，
+      //   不再封顶 200m（否则 Kenney 等无变体素材比有变体素材看得更近，语义自相矛盾）。
+      rec.farLimit = farLimitAll;
       const farLimit = rec.farLimit;
 
-      // 严格分带（2026-09-14）：目标带变体「加载中」（idle/loading，未确认缺失）→
-      // 该带实例暂不渲染（占位方块），绝不以高模顶替；
-      // 「确认缺失」（state='none'）→ 维持既有失败回退（高模兜底）。
-      const midLoading = lodOn && !midReady && A.stateOf(rec.url, 'mid') !== 'none';
-      const lowLoading = lodOn && !lowReady && A.stateOf(rec.url, 'low') !== 'none';
+      // 严格分带（2026-09-14，2026-10-11 修正）：
+      //   只有**真正在下载**（state='loading'）才画占位方块；
+      //   'idle'（尚未探测完成，如 loadVariant 因缺 loader 提前返回、gltfLoader 未就绪）
+      //     必须走高模兜底 —— 旧判据用 `!== 'none'` 把 idle 也算成"加载中"，
+      //     导致这类模型**距离一超过 near(10m) 就整片变方块**，且永不恢复。
+      const midLoading = lodOn && !midReady && A.stateOf(rec.url, 'mid') === 'loading';
+      const lowLoading = lodOn && !lowReady && A.stateOf(rec.url, 'low') === 'loading';
 
       const highIdx = [];
       const midIdx = [];
@@ -794,7 +806,8 @@
     if (findWorld()) {
       startTimer();
       startCull();
-      console.log(`[合批] 实例合批模块已启动：阈值 ${MERGE_THRESHOLD}，扫描间隔 ${SCAN_INTERVAL}ms，视距 ${MAX_RENDER_DIST}m`);
+      console.log(`[合批] 实例合批模块已启动：阈值 ${MERGE_THRESHOLD}，扫描间隔 ${SCAN_INTERVAL}ms，`
+      + `视距 ${bandFar()}m（LOD 开启时=低模带距离；无高中低变体的模型按此档可见）`);
     } else {
       setTimeout(boot, BOOT_RETRY);
     }
@@ -906,7 +919,7 @@
       return Object.assign({}, stats, {
         enabled: enabled,
         threshold: MERGE_THRESHOLD,
-        maxDist: MAX_RENDER_DIST,
+        maxDist: (window.WorldLodAssets && window.WorldLodAssets.isEnabled()) ? bandFar() : MAX_RENDER_DIST,
         lodEnabled: !!(window.WorldLodAssets && window.WorldLodAssets.isEnabled()),
         lodNearDist: bandNear(),
         lodFarDist: bandFar(),
@@ -919,7 +932,7 @@
       const player = (typeof window !== 'undefined' && window.player) || null;
       if (!player || !player.position) return { error: 'no player' };
       playerPos.copy(player.position);
-      const maxDistSq = MAX_RENDER_DIST * MAX_RENDER_DIST;
+      const maxDistSq = (((window.WorldLodAssets && window.WorldLodAssets.isEnabled()) ? bandFar() : MAX_RENDER_DIST)) ** 2;
       const results = [];
       mergedGroups.forEach((rec, url) => {
         const positions = rec.instancePositions;

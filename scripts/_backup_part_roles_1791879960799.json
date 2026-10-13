@@ -1,0 +1,125 @@
+{
+  "at": "2026-10-13T08:26:00.810Z",
+  "rows": [
+    {
+      "id": "1903",
+      "part_key": "gutter_vertical_top",
+      "part_role": "roof"
+    },
+    {
+      "id": "2084",
+      "part_key": "chimney_basic",
+      "part_role": "roof"
+    },
+    {
+      "id": "2085",
+      "part_key": "chimney_large",
+      "part_role": "roof"
+    },
+    {
+      "id": "2086",
+      "part_key": "chimney_medium",
+      "part_role": "roof"
+    },
+    {
+      "id": "2087",
+      "part_key": "chimney_small",
+      "part_role": "roof"
+    },
+    {
+      "id": "2098",
+      "part_key": "water_tower",
+      "part_role": "roof"
+    },
+    {
+      "id": "2650",
+      "part_key": "unit_tower",
+      "part_role": "roof"
+    },
+    {
+      "id": "2755",
+      "part_key": "spline_concave_cap_back",
+      "part_role": "roof"
+    },
+    {
+      "id": "2756",
+      "part_key": "spline_concave_cap_front",
+      "part_role": "roof"
+    },
+    {
+      "id": "2777",
+      "part_key": "spline_default_cap_back",
+      "part_role": "roof"
+    },
+    {
+      "id": "2778",
+      "part_key": "spline_default_cap_front",
+      "part_role": "roof"
+    },
+    {
+      "id": "2986",
+      "part_key": "cliff_cornerTop_rock",
+      "part_role": "roof"
+    },
+    {
+      "id": "2987",
+      "part_key": "cliff_cornerTop_stone",
+      "part_role": "roof"
+    },
+    {
+      "id": "3010",
+      "part_key": "cliff_top_rock",
+      "part_role": "roof"
+    },
+    {
+      "id": "3011",
+      "part_key": "cliff_top_stone",
+      "part_role": "roof"
+    },
+    {
+      "id": "3012",
+      "part_key": "cliff_waterfallTop_rock",
+      "part_role": "roof"
+    },
+    {
+      "id": "3013",
+      "part_key": "cliff_waterfallTop_stone",
+      "part_role": "roof"
+    },
+    {
+      "id": "18737",
+      "part_key": "Building_Large_2",
+      "part_role": "wall"
+    },
+    {
+      "id": "18738",
+      "part_key": "Building_Medium_2_001",
+      "part_role": "wall"
+    },
+    {
+      "id": "18739",
+      "part_key": "Building_Small_1",
+      "part_role": "wall"
+    },
+    {
+      "id": "19147",
+      "part_key": "Prop_Chimney",
+      "part_role": "roof"
+    },
+    {
+      "id": "19148",
+      "part_key": "Prop_Chimney2",
+      "part_role": "roof"
+    },
+    {
+      "id": "19369",
+      "part_key": "Prop_Chimney",
+      "part_role": "roof"
+    },
+    {
+      "id": "19370",
+      "part_key": "Prop_Chimney2",
+      "part_role": "roof"
+    }
+  ]
+}

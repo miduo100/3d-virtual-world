@@ -368,6 +368,24 @@ router.get('/lod-enabled', async (req, res) => {
   }
 });
 
+// ===== AI 建楼默认层高（公开只读，服务端 recipe 与前端提示用） =====
+// system_config.building_floor_height：后台可调，缺省 2.4m。
+// 语义：building recipe 每一层的高度。墙件比它矮时引擎沿高度自动堆叠
+//（如 Kenney building_block 只有 0.625m 高，叠 4 块刚好 2.4m 一层）——
+// 否则"5 层公寓楼"总高只有 3.1m，像个积木玩具。
+router.get('/building-floor-height', async (req, res) => {
+  try {
+    const result = await query(
+      "SELECT config_value FROM system_config WHERE config_key = 'building_floor_height'"
+    );
+    const raw = result.rows.length ? Number(result.rows[0].config_value) : NaN;
+    res.json({ floorHeight: (isFinite(raw) && raw > 0 && raw <= 20) ? raw : 2.4 });
+  } catch (error) {
+    console.error('获取建楼默认层高失败:', error);
+    res.json({ floorHeight: 2.4 });
+  }
+});
+
 // ===== 天气系统 =====
 
 // 获取当前天气配置

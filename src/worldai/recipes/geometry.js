@@ -175,14 +175,18 @@ function offsetPolygon(points, dist) {
   });
 }
 
-/** 零件 grid 归一（[w,h,d]，缺省 1） */
+/** 零件 grid 归一（[w,h,d]，缺省 1）
+ *  ★ 2026-10-12 修：原写法 `Number(g[1]) || 1` 把 **0 当成缺省值**兜底成 1。
+ *    而 Roof_2x2 / floor / top 这类零厚度平板的 grid_h 就是 0（实测 12 件），
+ *    被抬成 1 后 building.js 按「墙顶 + h/2」放屋顶 → 屋顶悬在墙顶上方 0.5m，
+ *    用户看到"屋顶和墙之间一道缝"。现在 0 是合法值（零厚度），只有未提供/非法才兜底 1。 */
 function normGrid(grid) {
   const g = Array.isArray(grid) ? grid : [];
-  return [
-    Math.max(0.1, Number(g[0]) || 1),
-    Math.max(0.1, Number(g[1]) || 1),
-    Math.max(0.1, Number(g[2]) || 1),
-  ];
+  const one = function (v) {
+    const n = Number(v);
+    return (isFinite(n) && n >= 0) ? n : 1;
+  };
+  return [one(g[0]), one(g[1]), one(g[2])];
 }
 
 /** 零件集合包围盒（区域裁剪/越界预判/后台确认卡摘要用） */

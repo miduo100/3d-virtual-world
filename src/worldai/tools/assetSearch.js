@@ -62,11 +62,15 @@ async function searchParts(o) {
       LIMIT $${params.length}`,
     params
   );
+  // ★ grid 兜底不能用 `|| 1`（2026-10-12）：零厚度平板（Roof_2x2 / floor / top，实测 12 件）
+  //   的 grid_h 就是 0，`0 || 1` 会把它抬成 1 → prompt 里 AI 看到"2×1×2"，分不清这是平板
+  //   还是高屋顶，直接导致"坡屋顶/平板"引导失效（AI 以为 Roof_2x2 就是高屋顶）。
+  const numOr = (v, d) => { const n = Number(v); return (isFinite(n) && n >= 0) ? n : d; };
   const items = (res.rows || []).map((r) => ({
     partKey: r.part_key,
     role: r.part_role,
     subtype: r.part_subtype,
-    grid: [r.grid_w || 1, r.grid_h || 1, r.grid_d || 1],
+    grid: [numOr(r.grid_w, 1), numOr(r.grid_h, 1), numOr(r.grid_d, 1)],
     pack: r.pack_key,
     styleFamily: r.style_family,
     modelPath: r.model_path,
