@@ -36,6 +36,20 @@ const SPEC_RULES = {
     },
     roles: ['railing', 'wall', 'column', 'door', 'prop', 'fence'],
   },
+  // forest（2026-10-13）：树丛。role 收 tree/plant/prop（prop 是兜底——不少树被标成 prop）
+  forest: {
+    required: ['partKeys'],
+    partKeys: (spec) => (Array.isArray(spec.partKeys) ? spec.partKeys : [spec.partKeys]).filter(Boolean).map(String),
+    roles: ['tree', 'plant', 'prop'],
+  },
+  // garden（2026-10-13）：花坛。花卉收 plant/prop；edge 围边收 trim/fence/wall/railing
+  garden: {
+    required: ['flower_types'],
+    partKeys: (spec) => (Array.isArray(spec.flower_types) ? spec.flower_types : [spec.flower_types])
+      .filter(Boolean).map(String)
+      .concat(spec.parts && spec.parts.edge ? [String(spec.parts.edge)] : []),
+    roles: ['plant', 'prop', 'trim', 'fence', 'wall', 'railing', 'tree'],
+  },
   building: {
     required: ['footprint', 'floors', 'parts'],
     partKeys: (spec) => {

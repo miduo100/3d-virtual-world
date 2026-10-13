@@ -101,9 +101,11 @@ async function build(name, spec, ctx) {
   return r;
 }
 
-// ── 注册（会话1 path；会话2 building；会话3 fence）
+// ── 注册（会话1 path；会话2 building；会话3 fence；会话3.5 forest/garden）
 register('path', require('./path').build);
 register('building', require('./building').build);
 register('fence', require('./fence').build);
+register('forest', require('./forest').build);
+register('garden', require('./garden').build);
 
 module.exports = { register, unregister, listRecipeNames, has, describe, build, DESC };

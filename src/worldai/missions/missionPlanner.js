@@ -564,6 +564,8 @@ function buildPlanOutputContract(region, maxObjectsCap) {
     '  ★ 屋顶风格要与建筑风格一致：城堡/木屋/别墅/中世纪 → 用坡屋顶（Roof_Slate_Center 这类 h 明显大于 0 的件）；现代办公楼/厂房/平顶建筑 → 用平板（Roof_2x2 这类 h=0 的件）。**不要给城堡盖现代平板顶。**',
     '  ★ 内部结构：不填 interior 时引擎会自动用 parts.roof 铺内部楼板（顶层由屋顶负责），所以楼里不会是空的；想自定义楼板/立柱才填 interior:{floor:"楼板件",column:"立柱件"}。',
     '  ★ 围墙/栅栏/庭院边界用 fence recipe（自动闭环）：{"kind":"庭院围墙","mode":"recipe","recipe":"fence","spec":{"polygon":[{"dx":0,"dz":0},{"dx":20,"dz":0},{"dx":20,"dz":15},{"dx":0,"dz":15}],"gate_position":0.5,"parts":{"fence":"栏板partKey","post":"柱partKey可省","gate":"大门partKey可省"}}}——polygon 是围墙多边形顶点，gate_position 是门在第一段上的位置(0~1)。',
+    '  ★ 树丛/树林用 forest recipe（泊松盘自动布点，绝不重叠）：{"kind":"树林","mode":"recipe","recipe":"forest","spec":{"count":15,"size":{"width":25,"depth":20},"around":{"dx":10,"dz":8},"partKeys":["树种partKey1","树种partKey2"]}}——around 是林子中心偏移（可省=size 居中），多个树种会自动混种。',
+    '  ★ 花坛/绿化用 garden recipe（围边+内部花卉散点）：{"kind":"花坛","mode":"recipe","recipe":"garden","spec":{"shape":"rect或circle","size":{"width":8,"depth":5},"flower_types":["花卉partKey1","花卉partKey2"],"parts":{"edge":"围边partKey可省"}}}。',
     // ★ 两条硬规则放 TASK 段（本段永不裁）：PARTS 段超预算时会被 clampText 尾部硬截，
     //   放在那里可能连规则一起被切掉（2026-10-12 修正）。
     '★ 零件多样性（硬性）：同一 role 下若有多个不同 partKey（尤其同 pack 里的墙/屋顶变体），必须交替使用至少 2~3 种，禁止一栋建筑整栋只重复同一个 partKey。',

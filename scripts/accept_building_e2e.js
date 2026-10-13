@@ -54,6 +54,11 @@ const MOCK = {
   'fence_wood_panel': { role: 'railing', grid: [2, 1.2, 0.1] },
   'fence_post': { role: 'column', grid: [0.15, 1.4, 0.15] },
   'gate_wood': { role: 'door', grid: [3, 2, 0.12] },
+  'tree_oak': { role: 'tree', grid: [2.5, 6, 2.5] },
+  'tree_pine': { role: 'tree', grid: [2, 8, 2] },
+  'flower_red': { role: 'plant', grid: [0.4, 0.35, 0.4] },
+  'flower_yellow': { role: 'plant', grid: [0.4, 0.3, 0.4] },
+  'garden_edge_stone': { role: 'trim', grid: [1, 0.3, 0.25] },
 };
 function mockResolver(key) {
   const m = MOCK[String(key)];
@@ -207,6 +212,69 @@ async function level1() {
   check('W-5', 'fence 槽编造键显式拒绝', !w2.ok && w2.code === 'RECIPE_ALL_PARTS_UNKNOWN', w2.ok ? '被放行！' : w2.code);
   const w3 = await R.build('fence', { parts: { fence: 'fence_wood_panel' } }, { partResolver: mockResolver });
   check('W-6', '缺 polygon 明确报错', !w3.ok && w3.code === 'RECIPE_SPEC_INCOMPLETE');
+
+  // F-1~5 forest / G-1~7 garden（2026-10-13）
+  const fo1 = await R.build('forest', {
+    count: 15, size: { width: 25, depth: 20 }, around: { dx: 10, dz: 8 },
+    partKeys: ['tree_oak', 'tree_pine'],
+  }, { partResolver: mockResolver, seedStr: 'fo1' });
+  check('F-1', 'forest 泊松盘展开（15 棵、围绕中心偏移）',
+    fo1.ok && fo1.parts.length >= 12 && fo1.stats.requested === 15,
+    fo1.ok ? '实放=' + fo1.parts.length + ' radius=' + fo1.stats.radius : fo1.code + ' ' + fo1.reason);
+  if (fo1.ok) {
+    const oak = fo1.parts.filter(function (p) { return p.partKey === 'tree_oak'; }).length;
+    const pine = fo1.parts.filter(function (p) { return p.partKey === 'tree_pine'; }).length;
+    check('F-2', '两树种混种（都出现）', oak > 0 && pine > 0, 'oak=' + oak + ' pine=' + pine);
+    const minDist = (function () {
+      let m = Infinity;
+      for (let i = 0; i < fo1.parts.length; i++) for (let j = i + 1; j < fo1.parts.length; j++) {
+        const dx = fo1.parts[i].dx - fo1.parts[j].dx, dz = fo1.parts[i].dz - fo1.parts[j].dz;
+        m = Math.min(m, Math.sqrt(dx * dx + dz * dz));
+      }
+      return m;
+    })();
+    check('F-3', '最小间距 ≥ radiusFor 下限（2.5×1.2=3.0m）', minDist >= 2.9, 'minDist=' + minDist.toFixed(2));
+    const inside = fo1.parts.every(function (p) {
+      return p.dx >= 10 - 12.5 && p.dx <= 10 + 12.5 && p.dz >= 8 - 10 && p.dz <= 8 + 10;
+    });
+    check('F-4', '全部落在 around ± size/2 内', inside);
+    const fo2 = await R.build('forest', { count: 15, partKeys: ['tree_oak', 'tree_pine'] }, { partResolver: mockResolver, seedStr: 'fo1' });
+    const fo2b = await R.build('forest', { count: 15, partKeys: ['tree_oak', 'tree_pine'] }, { partResolver: mockResolver, seedStr: 'fo1' });
+    check('F-5', '同种子幂等（坐标逐字节一致）', fo2.ok && fo2b.ok &&
+      JSON.stringify(fo2.parts) === JSON.stringify(fo2b.parts));
+    const fo3 = await R.build('forest', { count: 5, partKeys: ['ghost_tree'] }, { partResolver: mockResolver });
+    check('F-6', '树种编造键显式拒绝', !fo3.ok && fo3.code === 'RECIPE_ALL_PARTS_UNKNOWN', fo3.ok ? '被放行！' : fo3.code);
+  }
+  const ga1 = await R.build('garden', {
+    shape: 'rect', size: { width: 8, depth: 5 },
+    flower_types: ['flower_red', 'flower_yellow'], parts: { edge: 'garden_edge_stone' },
+  }, { partResolver: mockResolver, seedStr: 'ga1' });
+  check('G-1', 'garden 矩形花坛（围边+花卉）', ga1.ok && ga1.stats.edgeCount >= 20 && ga1.stats.flowerCount >= 3,
+    ga1.ok ? 'edge=' + ga1.stats.edgeCount + ' flower=' + ga1.stats.flowerCount : ga1.code + ' ' + ga1.reason);
+  if (ga1.ok) {
+    const inb = ga1.parts.every(function (p) { return Math.abs(p.dx) <= 4.01 && Math.abs(p.dz) <= 2.51; });
+    check('G-2', '全部落在 size 矩形内', inb);
+    const flowers = ga1.parts.filter(function (p) { return p.partKey !== 'garden_edge_stone'; });
+    const onEdge = flowers.filter(function (p) { return Math.abs(Math.abs(p.dx) - 4) < 0.3 || Math.abs(Math.abs(p.dz) - 2.5) < 0.3; }).length;
+    check('G-3', '花卉内缩不压围边（贴边 0.3m 内的 ≤2 株）', onEdge <= 2, '贴边=' + onEdge);
+    const ga2 = await R.build('garden', {
+      shape: 'circle', size: { width: 10, depth: 10 },
+      flower_types: ['flower_red'], parts: { edge: 'garden_edge_stone' },
+    }, { partResolver: mockResolver, seedStr: 'ga2' });
+    const circOk = ga2.ok && ga2.parts.every(function (p) {
+      return Math.sqrt(p.dx * p.dx + p.dz * p.dz) <= 5.01;
+    });
+    check('G-4', '圆形花坛：围边半径 5m、花卉在内切圆内', circOk, ga2.ok ? 'count=' + ga2.parts.length : ga2.code);
+    const ga3 = await R.build('garden', { size: { width: 8, depth: 5 }, flower_types: ['no_such_flower'] }, { partResolver: mockResolver });
+    check('G-5', '花卉编造键显式拒绝', !ga3.ok && ga3.code === 'RECIPE_ALL_PARTS_UNKNOWN', ga3.ok ? '被放行！' : ga3.code);
+    const ga4 = await R.build('garden', { shape: 'rect', size: { width: 8, depth: 5 }, parts: { edge: 'garden_edge_stone' } }, { partResolver: mockResolver });
+    check('G-6', '缺 flower_types 明确报错', !ga4.ok && ga4.code === 'RECIPE_SPEC_INCOMPLETE');
+    const ga5 = await R.build('garden', {
+      shape: 'rect', size: { width: 8, depth: 5 },
+      flower_types: ['flower_red', 'flower_yellow'], parts: { edge: 'garden_edge_stone' },
+    }, { partResolver: mockResolver, seedStr: 'ga1' });
+    check('G-7', '同种子幂等', ga5.ok && JSON.stringify(ga5.parts) === JSON.stringify(ga1.parts));
+  }
 
   // S-1 subBlocks（事故：城堡只有外壳；角楼 anchor 偏移丢失）
   const s1 = await R.build('building', {
