@@ -183,6 +183,7 @@ function offsetPolygon(points, dist) {
 function normGrid(grid) {
   const g = Array.isArray(grid) ? grid : [];
   const one = function (v) {
+    if (v == null) return 1;            // null/undefined 是「未提供」（注意 Number(null)===0，不能只靠 isFinite）
     const n = Number(v);
     return (isFinite(n) && n >= 0) ? n : 1;
   };
