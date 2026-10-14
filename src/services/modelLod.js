@@ -399,8 +399,24 @@ async function generateLodVariants(absPath, { force = false } = {}) {
     // 低模「已判定无收益」标记：落盘成功则清除标记；被收益闸门拦下则留下标记；
     // 其它失败原因（error / too-few-tris / not-reduced / no-output）不写标记 ——
     // 那些是可能恢复的失败，应继续算作「待生成」以便重试。
+    // ★ Draco 压缩源例外（2026-10-14）：gltfpack 没有 Draco 解码器，「file requires
+    //   Draco mesh compression support」是**永久不可生成**（实测 model-1783481710732
+    //   141802 面反复失败）。归入终态：改写 reason 便于诊断 + 写 skip 标记，
+    //   否则后台「待生成」永远清不掉、一键生成每次都空转重试。
     const skipPath = lowSkipPath(base.lowPath);
-    if (variants.low.status === 'generated' || variants.low.status === 'exists') {
+    const dracoHit = [variants.mid, variants.low].some(function (v) {
+      return /draco/i.test(String((v && v.error) || ''));
+    });
+    if (dracoHit) {
+      variants.mid.reason = 'draco-unsupported';
+      variants.low.reason = 'draco-unsupported';
+      try {
+        await fs.promises.writeFile(skipPath, JSON.stringify({
+          reason: 'draco-unsupported', midTris: 0, lowTris: 0,
+          source: path.basename(srcPath), at: new Date().toISOString(),
+        }), 'utf8');
+      } catch (_) { /* 标记写失败不影响主流程 */ }
+    } else if (variants.low.status === 'generated' || variants.low.status === 'exists') {
       await _safeUnlink(skipPath);
     } else if (String(variants.low.reason || '').startsWith('no-benefit-vs-')) {
       try {
@@ -509,6 +525,7 @@ async function scanStatus() {
   let pending = 0;
   let lowPolySkipped = 0;
   let lowBenefitSkipped = 0;
+  let unsupportedSkipped = 0;
   let superseded = 0;
   let missingSource = 0;
   const pendingList = [];
@@ -539,7 +556,13 @@ async function scanStatus() {
     } else {
       // 低模缺失但已被收益闸门判无效 → 不是待生成（否则永远清不掉）
       const lowUnresolved = !hasLow && !hasLowSkip;
-      if (!hasMid || lowUnresolved) {
+      // ★ 源不可用终态（2026-10-14）：mid/low 全缺但有 skip 标记（Draco 压缩源等
+      //   永久失败）→ 不算 pending，单独计数。旧判定 `!hasMid` 会把这类永远算待生成。
+      const unsupported = hasLowSkip && !hasMid && !hasLow;
+      if (unsupported) {
+        unsupportedSkipped += 1;
+        notEligible = true;
+      } else if (!hasMid || lowUnresolved) {
         sourceTris = countTrisExact(srcPath);
         if (sourceTris < MIN_SOURCE_TRIS) {
           lowPolySkipped += 1;
@@ -572,6 +595,7 @@ async function scanStatus() {
     lowCount,
     pending,
     lowPolySkipped,
+    unsupportedSkipped,
     missingSource,
     models: list,
     pendingList,
@@ -595,12 +619,20 @@ async function batchGenerateMissing({ limit = 3 } = {}) {
     const r = await generateLodVariants(item.absPath);
     const ok = !!r.ok;
     if (ok) succeeded += 1;
+    // ★ reason 透传（2026-10-14）：顶层 reason 只覆盖 skipped 类，variants 里
+    //   的失败原因（draco-unsupported / gltfpack error 详情）此前全被丢成 null，
+    //   后台一键生成"失败了但不知道为什么"。
+    const vErr = (r.variants && (r.variants.mid || r.variants.low)) || null;
     results.push({
       name: item.name,
       absPath: item.absPath,
       ok,
       skipped: !!r.skipped,
-      reason: r.reason || null,
+      reason: r.reason
+        || (vErr && (vErr.reason === 'error' && vErr.error
+          ? String(vErr.error).slice(0, 160)
+          : vErr.reason))
+        || null,
       sourceTris: r.sourceTris,
       mid: r.variants && r.variants.mid ? r.variants.mid.status : null,
       low: r.variants && r.variants.low ? r.variants.low.status : null,
