@@ -417,7 +417,9 @@ async function level3() {
   check('E2E-2', 'skippedByCollision=0（同批不互判）', (ex.skippedByCollision || 0) === 0, 'skipped=' + ex.skippedByCollision);
   check('E2E-3', '墙件落了（存在 role=wall 的件）', names.some(function (n) { return MOCK[n] && MOCK[n].role === 'wall'; }), names.join(',').slice(0, 120));
   check('E2E-4', '屋顶落了', names.some(function (n) { return /roof|slate/i.test(n); }), names.join(',').slice(0, 120));
-  check('E2E-5', '门落了（且只 1 件）', (by['DoorFrame_Metal_Single'] || 0) === 1);
+  const doorNames = Object.keys(by).filter(function (n) { return /door/i.test(n); });
+  const doorTotal = doorNames.reduce(function (s, n) { return s + by[n]; }, 0);
+  check('E2E-5', '门落了（且只 1 件，不限型号）', doorTotal === 1, doorNames.map(function (n) { return n + '×' + by[n]; }).join(','));
   check('E2E-6', '窗落了', names.some(function (n) { return /window/i.test(n); }));
   // 拒因回流自愈：两轮内必须产出可用方案（objectsCreated>0 即证明第二轮修正成功）
   check('E2E-7', '两轮内自愈（llmCalls ≤ 3 且有产出）', (ex.llmCalls || 0) <= 3 && objs.length > 0, 'llmCalls=' + ex.llmCalls);

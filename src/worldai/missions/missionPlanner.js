@@ -136,6 +136,8 @@ async function plan(mission, region, opts) {
     return { ok: false, code: 'LLM_BUDGET_EXCEEDED', llmCalls: used0, reason: '委托 LLM 次数预算已用完（' + used0 + '/' + maxCalls + '，查 ai_call_log 表），拒绝再发起调用' };
   }
 
+  // ★ 白卷换家开关（2026-10-14）：qwen 白卷不是 HTTP 失败，fallback 不触发，须主动切（声明须在 provider 获取前，防 TDZ）
+  let switchProvider = false;
   // 2) 用途级路由拿 provider（plan 与 tool_select 必须同家，§H.10.3）
   let provider = o.provider || null;
   if (!provider) {
@@ -143,6 +145,20 @@ async function plan(mission, region, opts) {
       worldId,
       providerMap: mission.provider_id ? { plan: Number(mission.provider_id), tool_select: Number(mission.provider_id) } : null,
     });
+    // ★ 白卷换家（2026-10-14）：上一轮交了白卷（blocks 空）——那是 HTTP 200 的合法
+    //   JSON，providerFallback 的失败切换不触发。第二轮强制用候选链下一家：
+    //   qwen-plus 实测会连续多轮对同一 prompt 交白卷，换豆包即恢复。
+    if (switchProvider && provider && provider.id != null) {
+      try {
+        const cands = await providerRouter.safeCandidates('plan');
+        const next = cands.find(function (x) { return Number(x.id) !== Number(provider.id) && x.isUsable !== false; });
+        if (next) {
+          fallbackNotes.push('白卷换家重试：' + (provider.display_name || provider.provider_name || provider.id)
+            + ' → ' + (next.display_name || next.provider_name || next.id));
+          provider = next;
+        }
+      } catch (e) { /* 换家失败用原 provider，不影响主流程 */ }
+    }
     provider = r.provider;
     if (!provider) return { ok: false, code: 'NO_PROVIDER', reason: r.reason || '没有可用 provider' };
   }
@@ -198,7 +214,7 @@ async function plan(mission, region, opts) {
           },
           // 输出与布局契约（TASK 永不裁）：曾实测模型不知道 dx/dz 的单位与相对关系，
           // 把全部零件写成 dx=0,dz=0 叠在区域角点 → 全部 OUT_OF_BOUNDS、0 件落地。
-          outputContract: buildPlanOutputContract(region, Number(constraints.max_objects) > 0 ? Number(constraints.max_objects) : 120),
+          outputContract: buildPlanOutputContract(region, Number(constraints.max_objects) > 0 ? Number(constraints.max_objects) : 120, mission.prompt),
         },
         parts: candidates.items,
         // ★ 零件用途对照表（2026-10-11 接线）：partUsage.usagePromptText() 此前**零引用**，
@@ -236,7 +252,9 @@ async function plan(mission, region, opts) {
       messages: built.messages,
       jsonSchema: PLAN_SCHEMA,
       temperature: 0.2,
-      maxTokens: 4000,
+      // 6000（2026-10-14）：subBlocks 大 JSON（城堡 4 角楼）实测逼近 4000 上限，
+      // 截断 → repairTruncatedJson 修出残块 → 被拒。qwen-plus 输出上限 8k，留足余量。
+      maxTokens: 6000,
       // 规划输出大（实测千问 2000 token 需 ~44s），默认 60s 必超时；超时仍不重试（§口径），给足 3 分钟
       timeoutMs: 180000,
       purpose: 'plan',
@@ -311,6 +329,7 @@ async function plan(mission, region, opts) {
         ? '方案 blocks 为空。该委托是复合型大工程——本轮【只输出主体建筑一个块】（building recipe 主楼），围墙/树丛/花坛等配景全部不要，先确保主体成功'
         : '方案 blocks 为空或没有任何合法零件——这是不合格方案，必须至少输出一个内容块（building/fence/forest/garden/path recipe 块，或普通零件块）';
       lastPlan.intentGap = blankGap;
+      switchProvider = true;   // 下一轮换候选链下一家（白卷不是 HTTP 失败，须主动切）
       fallbackNotes.push('第 ' + round + ' 轮交了空方案，带反馈重试下一轮' + (complex ? '（复合委托：只要求主体）' : ''));
     }
   }
@@ -411,11 +430,11 @@ function intentGap(prompt, v) {
 }
 
 /** 方案输出与布局契约（拼进 [TASK]，永不裁）：坐标语义 + 防重叠 + 区域内落点 */
-function buildPlanOutputContract(region, maxObjectsCap) {
+function buildPlanOutputContract(region, maxObjectsCap, prompt) {
   const b = (region && region.bounds) || {};
   const bx = Number(b.x) || 0, bz = Number(b.z) || 0;
   const bw = Number(b.width) || 0, bd = Number(b.depth) || 0;
-  return [
+  const lines = [
     '【输出与布局契约（必须遵守）】',
     '只输出一个 JSON 对象，不要任何解释文字或 markdown 围栏：{"style","summary","blocks":[{"kind","footprint":{"w","d"},"anchor":{"dx","dz"},"parts":[{"partKey","dx","dz","ry","level"}]}]}。',
     '★ blocks 禁止为空数组——只写 style/summary 不写块 = 不合格方案，会被系统整体打回；无论委托多简单，至少输出一个块（先主体建筑，再配景）。',
@@ -470,7 +489,30 @@ function buildPlanOutputContract(region, maxObjectsCap) {
     '  ★ 尺寸语义（用户报的数字必须体现在骨架上）："20 米长的小路" → waypoints 首尾直线距离 = 20 米（{"dx":0,"dz":0} 到 {"dx":20,"dz":0}）；不要自作主张加余量、也不要缩水。铺装宽度用 width（米）。',
     '★ 关键：同一个零件复用（如 4 面墙）时，每份的 dx/dz 必须互不相同、按尺寸错开围成一圈。带数字的示例（4 面墙围 4×4 米小屋，建筑块尺寸约 1×3×0.2）：',
     '{"kind":"house","footprint":{"w":4,"d":4},"anchor":{"dx":' + Math.round(bx + bw / 2 - 2) + ',"dz":' + Math.round(bz + bd / 2 - 2) + '},"parts":[{"partKey":"building_block","dx":0,"dz":0,"ry":0,"level":0},{"partKey":"building_block","dx":4,"dz":0,"ry":90,"level":0},{"partKey":"building_block","dx":4,"dz":4,"ry":180,"level":0},{"partKey":"building_block","dx":0,"dz":4,"ry":270,"level":0}]}',
-  ].join('\n');
+  ];
+  // ── 分级瘦身（2026-10-14）：TASK 段 3230 token 且持续膨胀——注意力稀释是复杂
+  //   委托空方案的诱因之一。按委托意图只保留对应 recipe 的详细说明组；
+  //   契约/门槛表/硬规则永不裁；委托一个组都没命中时全保留（安全默认）。
+  const ptxt = String(prompt || '');
+  const GROUPS = [
+    { re: /楼|房|屋|别墅|城堡|店铺|仓库|塔|宅|馆|厅|宫殿/, sigs: ['recipe":"building', 'building 骨架', 'footprint：多边形顶点', '层高由后台', '总高 = 层高', '墙件高度要接近层高', 'door/windows：可选', '五个槽位', 'roof 槽位选件规则', '米宽的房子', '让每栋房不一样', '大型/复合建筑', 'subBlocks', 'interior.floor', 'interior.furniture', '屋顶两种形态', '屋顶风格要与建筑风格', '内部结构：不填 interior'] },
+    { re: /围墙|栅栏|篱笆|院子|庭院|庄园/, sigs: ['recipe":"fence'] },
+    { re: /树|林|森林/, sigs: ['recipe":"forest'] },
+    { re: /花坛|花卉|花园|绿化/, sigs: ['recipe":"garden'] },
+    { re: /小路|广场|栈道|道路|步道/, sigs: ['path 示例', '米长的小路'] },
+  ];
+  const wanted = [];
+  for (const g of GROUPS) if (g.re.test(ptxt)) wanted.push.apply(wanted, g.sigs);
+  const keepAll = !wanted.length;
+  const groupOf = function (line) {
+    for (const g of GROUPS) for (const s of g.sigs) if (line.indexOf(s) >= 0) return g;
+    return null;
+  };
+  const filtered = keepAll ? lines : lines.filter(function (line) {
+    const grp = groupOf(line);
+    return grp === null || grp.re.test(ptxt);   // 非组内行（契约/门槛表/硬规则）全保留
+  });
+  return filtered.join('\n');
 }
 
 /** 容忍模型在 JSON 前后加解释文字 / ```json 围栏 */
