@@ -412,6 +412,12 @@ curl https://your-domain.com/api/federation/info
 
 > 完整许可协议请参阅 [EULA.md](./EULA.md) 和 [LICENSE](./LICENSE)。
 
+### 第三方素材
+
+- **LDraw 零件库**（`public/models/builtin/ldraw/`）：零件几何由 [LDraw.org Parts Library](https://ldraw.org) 贡献者创作，遵循 [CC BY 4.0](https://ldraw.org/license.html) 许可。LEGO® 是 LEGO 集团的商标，本项目与 LEGO 集团无任何关联或认可关系。
+- **Kenney 素材包**（需自行导入）：由 [Kenney](https://www.kenney.nl) 创作，遵循 [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) 许可。
+- **Mixamo®**：本程序**不包含、不分发**任何 Mixamo® 素材文件。若用户自行使用 Adobe Mixamo® 生成的动画资产，须自行遵守 Adobe 的相关服务条款。
+
 ### 联系方式
 
 - **公司**：济宁米多信息科技有限公司

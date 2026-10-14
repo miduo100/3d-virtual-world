@@ -622,6 +622,12 @@ A subscription license **must** be obtained if any of the following operations a
 
 > For full license agreement, see [EULA.md](./EULA.md) and [LICENSE](./LICENSE).
 
+### Third-Party Assets
+
+- **LDraw parts library** (`public/models/builtin/ldraw/`): part geometry by the [LDraw.org Parts Library](https://ldraw.org) contributors, licensed under [CC BY 4.0](https://ldraw.org/license.html). LEGO® is a trademark of the LEGO Group; this project is not affiliated with or endorsed by it.
+- **Kenney asset packs** (imported by the user): created by [Kenney](https://www.kenney.nl), licensed under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
+- **Mixamo®**: this program does **not** include or distribute any Mixamo® assets. If you use animations generated with Adobe Mixamo®, you are responsible for complying with Adobe's terms of service.
+
 ### Contact
 
 - **Company**: Jining Miduo Information Technology Co., Ltd.
