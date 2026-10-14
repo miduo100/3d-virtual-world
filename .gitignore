@@ -193,3 +193,7 @@ Screenshot/baseline_r185/*
 public/js/diagTurnLag.js
 public/js/diagRenderCost.js
 public/js/diagTurnSweep.js
+
+# User-generated content (copyright: never distribute via git)
+public/uploaded/
+public/models/generated/
