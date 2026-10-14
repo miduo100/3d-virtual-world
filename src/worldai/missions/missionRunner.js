@@ -164,10 +164,14 @@ async function run(missionId, opts) {
   };
   const deniedSamples = [];
   for (const block of planned.plan.blocks || []) {
-    // recipe 块（连续结构）：① 用米级吸附保住骨架尺寸；② 同批件视为设计内贴合，不互相判碰撞。
-    //   人类资产与其它委托的资产照旧参与碰撞（红线不变）。普通块沿用原行为，逐字节不变。
+    // recipe 块（连续结构）：① 细格吸附（x/z 0.05m）保住骨架尺寸与密集小件；
+    //   ② y 轴仍按 1m 格 —— gridsnap.snap 的 y = level×u[1]，u[1]=1 才让 level 语义=米
+    //   （building 堆叠靠它）；③ 同批件视为设计内贴合，不互相判碰撞。
+    //   ★ 2026-10-15 由固定 1 改 [0.05,1,0.05]：乐高砖段 0.56m、排距 0.17m，
+    //     米级吸附把多块砖吸进同一米格 → 被幂等去重吃掉（实测 300 件展开只落 68 件）。
+    //   普通块沿用原行为，逐字节不变。
     const partCtx = (block && block.mode === 'recipe')
-      ? Object.assign({}, ctx, { snapUnit: 1, ignoreSelfBatch: true })
+      ? Object.assign({}, ctx, { snapUnit: [0.05, 1, 0.05], ignoreSelfBatch: true })
       : ctx;
     for (const part of block.parts || []) {
       const abs = coords.absoluteOf(region, block, part);

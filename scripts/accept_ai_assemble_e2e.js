@@ -39,6 +39,12 @@ const AT = (function () {
 const ORIGIN = { x: AT.x, z: AT.z, width: 60, depth: 60, kind: 'rect' };
 const WORLD_ID = process.env.E2E_WORLD_ID || '';
 const TARGET = 20;
+// --max=N 委托对象预算（默认 40；乐高积木件数多，建议 --max=200）
+const MAX_OBJECTS = (function () {
+  const a = args.filter((x) => x.indexOf('--max=') === 0)[0];
+  const n = a ? Number(a.slice(6)) : NaN;
+  return isFinite(n) && n > 0 ? Math.floor(n) : 40;
+})();
 
 // ---------- 测量工具 ----------
 const r1 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -109,7 +115,7 @@ async function cleanup(missionId) {
 
     const ms = await missionService.createMission({
       regionKey: REGION_KEY, prompt: DEMAND, createdBy: 'e2e_assemble',
-      worldId: WORLD_ID, constraints: { max_objects: 40, placement_policy: 'avoid' } });
+      worldId: WORLD_ID, constraints: { max_objects: MAX_OBJECTS, placement_policy: 'avoid' } });
     if (!ms.ok) throw new Error('建委托失败：' + ms.code + ' ' + ms.reason);
     missionId = ms.mission.id;
     kv('委托', missionId + ' status=' + ms.mission.status + ' snapshot=' + ms.mission.autonomy_snapshot);

@@ -37,9 +37,13 @@ function absoluteOf(region, block, part) {
   //   若这里再按"零件自身尺寸"吸附（roadTile 3m），间距 < 模数必然有两块塌到同一格位
   //   → 被幂等去重吃掉 → 实测落库只剩 7 件、跨度 18m，短了整整 2m（E2E 实测 -2m）。
   //   吸附模数对齐模块化建筑是对的（判据 P35-8 的墙），但连续结构必须保住骨架尺寸 →
-  //   recipe 块改用米级吸附（累计误差 ≤0.5m）。普通块行为**逐字节不变**。
+  //   recipe 块改用细格吸附（累计误差 ≤2.5cm）。普通块行为**逐字节不变**。
+  //   ★ 2026-10-15 由 [1,1,1] 改 [0.05,1,0.05]：乐高砖段 0.56m、排距 0.225m，
+  //     x/z 米级吸附把多块砖吸进同一米格 → place_part 幂等去重吃掉
+  //     （实测 300 件展开只落 68 件）。y 轴必须保持 1m 格 —— snap 的 y = level×u[1]，
+  //     u[1]=1 才让 level 语义=米（building 逐排堆叠靠它）。
   const unit = (block && block.mode === 'recipe')
-    ? [1, 1, 1]
+    ? [0.05, 1, 0.05]
     : (Array.isArray(part.grid) && part.grid.length === 3 && part.grid[0] > 0 ? part.grid : gridsnap.unitOf(region.gridsnap));
   const snapped = gridsnap.snap({ x: baseX + num(part.dx, 0), z: baseZ + num(part.dz, 0), y: 0 }, unit, part.level);
   return { x: snapped.x, y: snapped.y, z: snapped.z, unit };

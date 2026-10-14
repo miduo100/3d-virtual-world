@@ -141,6 +141,22 @@ function recommendUse(p) {
   if (g.length < 3 || !g.every(function (v) { return isFinite(v) && v >= 0; })) return '';
   const w = g[0], h = g[1], d = g[2];
   const me = Math.min(w, d);
+  // ★ 乐高件（2026-10-15）：「小块堆叠」体系，通用标注（小块=装饰点缀）会误导 AI
+  //   弃用乐高砖——乐高建筑本来就是矮砖堆叠砌墙。
+  if (String(p.pack || '') === 'ldraw_builtin') {
+    switch (p.role) {
+      case 'wall':
+        return '乐高砖——堆叠砌墙（件矮，层高取砖高3~5倍由引擎自动堆叠排数；砖段仅~0.5m，footprint 建议 ≤6×5m，太大件数会超预算被截断）';
+      case 'roof':
+        return h <= me + 1e-6 ? '乐高平板瓦——铺屋顶/楼板' : '乐高斜面砖——坡屋顶/檐口装饰';
+      case 'floor':
+        return '乐高平板——楼板/地坪';
+      case 'trim':
+        return '乐高平板——平台/屋面板';
+      default:
+        break;
+    }
+  }
   switch (p.role) {
     case 'wall':
       if (w >= 1.5 && h >= 1.5) return '大墙件——整栋主墙首选';
@@ -195,15 +211,9 @@ function recommendUse(p) {
 function renderParts(parts, opts) {
   if (!parts.length) return '';
   const o = opts || {};
-  const head = [
-    '可用零件（partKey 必须逐字取自下列清单，清单外的键名一律非法被剔除；找不到理想零件就选语义最接近的一个，绝不编造键名）：',
-  ];
-  if (o.usageText) head.push(o.usageText);
-  // 注：多样性/套件一致性两条硬规则已移到 TASK 段（永不裁）——见
-  // missionPlanner.buildPlanOutputContract。这里只留轻量提示，避免本段被 clampText
-  // 尾部硬截时连规则一起丢掉。
-  head.push('（选零件规则见 TASK 段「零件多样性」「套件一致性」两条硬性要求）');
-
+  // ★ 用户点名套件（2026-10-15）：需求提到「乐高/积木/lego」时，ldraw_builtin 组
+  //   置顶并加硬性优先指令——否则 AI 按件数/尺寸直觉总挑 Kenney 大墙件。
+  const prefer = String(o.preferPack || '');
   // 按 pack 分组；未标 pack 的归入 styleFamily，再不行归"(未分组)"
   const groups = new Map();
   for (const p of parts) {
@@ -211,8 +221,26 @@ function renderParts(parts, opts) {
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k).push(p);
   }
-  // pack 排序：零件多的在前（套装越全越可能凑齐一栋房子）
-  const order = Array.from(groups.keys()).sort((a, b) => groups.get(b).length - groups.get(a).length);
+  const head = [
+    '可用零件（partKey 必须逐字取自下列清单，清单外的键名一律非法被剔除；找不到理想零件就选语义最接近的一个，绝不编造键名）：',
+  ];
+  if (o.usageText) head.push(o.usageText);
+  if (prefer && groups.has(prefer)) {
+    head.push(`★ 用户在本条需求中点名要「${prefer}」套件的零件——wall/door/window/roof/trim 等槽位必须优先从【${prefer}】组选取（标注「乐高」的行）；其它组仅在乐高组确实没有对应槽位时才允许补缺，并在心里确认没有更合适的乐高件。（自然类零件如树木/花草不受此限——乐高库没有树时，用其它套件的树正常搭配。）`);
+  }
+  // 注：多样性/套件一致性两条硬规则已移到 TASK 段（永不裁）——见
+  // missionPlanner.buildPlanOutputContract。这里只留轻量提示，避免本段被 clampText
+  // 尾部硬截时连规则一起丢掉。
+  head.push('（选零件规则见 TASK 段「零件多样性」「套件一致性」两条硬性要求）');
+
+  // pack 排序：指定套件最前，其余零件多的在前（套装越全越可能凑齐一栋房子）
+  const order = Array.from(groups.keys()).sort((a, b) => {
+    if (prefer) {
+      if (a === prefer) return -1;
+      if (b === prefer) return 1;
+    }
+    return groups.get(b).length - groups.get(a).length;
+  });
 
   const lines = head.slice();
   for (const k of order) {
@@ -238,7 +266,9 @@ function renderParts(parts, opts) {
       // ★ 推荐用途（2026-10-13）：AI 之前不知道一件该「铺大面积」还是「点缀」，
       //   实测拿 1.34m 宽的窄件当主墙铺出 281 件格栅。按尺寸给一句话用途，降低选错率。
       const use = recommendUse(p);
-      lines.push(`- ${p.partKey}｜role=${p.role || '-'}｜尺寸=${sizeText}${form}${use ? '｜用途=' + use : ''}｜gridsnap=${p.gridsnap == null ? '-' : p.gridsnap}`);
+      // ★ title（2026-10-15）：LDraw 编号件（3001）对 AI 是天书，透出语义名
+      //   （"Brick 2 x 4"）它才能按含义挑选乐高件
+      lines.push(`- ${p.partKey}${p.title ? '（' + p.title + '）' : ''}｜role=${p.role || '-'}｜尺寸=${sizeText}${form}${use ? '｜用途=' + use : ''}｜gridsnap=${p.gridsnap == null ? '-' : p.gridsnap}`);
     }
   }
   return lines.join('\n');
@@ -321,6 +351,9 @@ function build(o) {
     .slice()
     .sort((a, b) => (Number(a.distance) || 0) - (Number(b.distance) || 0));
   const allParts = (Array.isArray(ctx.parts) ? ctx.parts : []).slice();
+  // ★ 用户点名套件检测（2026-10-15）：需求原文提到乐高/积木/lego → 优先 ldraw_builtin
+  const taskPrompt = String((ctx.task && ctx.task.prompt) || '');
+  const preferPack = /乐高|积木|lego/i.test(taskPrompt) ? 'ldraw_builtin' : '';
   const allMemories = (Array.isArray(ctx.memories) ? ctx.memories : [])
     .slice()
     .sort((a, b) => (Number(b.importance) || 0) - (Number(a.importance) || 0));
@@ -353,7 +386,7 @@ function build(o) {
       objects: allObjects.slice(0, st.objCount),
       nearDist, midDist,
     }),
-    PARTS: renderParts(allParts.slice(0, st.partCount), { usageText: ctx.partsUsage }),
+    PARTS: renderParts(allParts.slice(0, st.partCount), { usageText: ctx.partsUsage, preferPack }),
     MEMORY: renderMemory(allMemories.slice(0, st.memCount), ctx.yesterdaySummary),
     TOOLS: renderTools(allTools),
     HISTORY: renderHistory(allHistory.slice(0, st.hisCount)),

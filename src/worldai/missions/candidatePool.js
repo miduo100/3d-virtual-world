@@ -36,6 +36,10 @@ const SLOPE_WORDS = /坡屋顶|斜顶|斜屋顶|尖顶|人字顶|斜面顶|瓦�
 
 const num = function (v) { const n = Number(v); return isFinite(n) ? n : 0; };
 const gridOf = function (it) { return (Array.isArray(it.grid) ? it.grid : []).map(Number); };
+// ★ 乐高件豁免（2026-10-15）：ldraw_builtin 是「小区块、按块堆叠」体系，砖块
+//   天然 0.5m 级——按 Kenney 模块板的尺寸闸（墙 minEdge>2.5、门窗 minEdge>1.5、
+//   窄件剔除）会把全部乐高砖挡在候选池外，AI 永远看不到它们。
+const isLego = function (it) { return String(it.pack || '') === 'ldraw_builtin'; };
 
 /** 尺寸 sanity 过滤（2026-10-11 引入，10-12/10-13 修订，详见各分支注释） */
 function shapeBad(it) {
@@ -59,9 +63,11 @@ function shapeBad(it) {
     //   相接像楼层线），但层高 > 件高触发垂直堆叠（wallRows>1）时，第二排叠在第一排
     //   的坡顶上——3 层楼渲染成「小房子堆成的圣诞树」（实测截图穿帮）。
     if (/house|home|cottage/i.test(String(it.partKey || ''))) return true;
-    return minEdge > 2.5;                        // 整栋模型（20×28×16）
+    return !isLego(it) && minEdge > 2.5;         // 整栋模型（20×28×16）；乐高砖豁免
   }
-  if (['door', 'window', 'trim', 'railing'].indexOf(it.role) >= 0) return minEdge > 1.5 || h > 8;
+  if (['door', 'window', 'trim', 'railing'].indexOf(it.role) >= 0) {
+    return !isLego(it) && (minEdge > 1.5 || h > 8);   // 乐高门窗豁免（编号件 minEdge 0.28m）
+  }
   // 整栋模型被改判成 prop 后仍占候选名额（Building_Large_2 28m、Medium 25m），对
   // building recipe 永远不可用，也不适合散点——超大 prop 直接滤掉腾位置
   if (it.role === 'prop') return Math.max(g[0], g[1], g[2]) > 15;
@@ -173,7 +179,8 @@ async function finalize(o) {
   //   窄件不再进 prompt，AI 无从选错；castle 等没有大墙件的包不受影响。
   const bigWalls = pool.filter(isBigWall);
   if (bigWalls.length >= 3) {
-    const onlyBig = pool.filter(function (it) { return it.role !== 'wall' || isBigWall(it); });
+    // 乐高墙不参与「窄件剔除」（砖本来就小；大墙充足也不该把乐高砖清出池子）
+    const onlyBig = pool.filter(function (it) { return it.role !== 'wall' || isBigWall(it) || isLego(it); });
     if (onlyBig.length >= 8) {
       pool = onlyBig;
       if (c.onNote) c.onNote('候选池剔除窄墙件 ' + (items.length - pool.length) + ' 件（保留 ' + bigWalls.length + ' 件大墙件）');
@@ -270,6 +277,48 @@ async function finalize(o) {
       byKind.decor.slice(0, 2)
     );
     for (const it of picks) pool.push(it);
+  }
+
+  // ── 乐高保底（2026-10-15）──
+  //   委托要乐高/积木时定向补 ldraw_builtin 四槽件各 3 件。轮转采样每库只出 1 件
+  //   （LDraw 出的常是 trim 平板），wall 槽补齐又因 Kenney 大墙充足而跳过——
+  //   实测池里乐高件为 0，AI 无米下锅只能继续用 Kenney 件。
+  const LEGO_WORDS = /乐高|积木|lego/i;
+  if (LEGO_WORDS.test(String(c.prompt || ''))) {
+    for (const r of NEED) {
+      const rr = await assetSearch.searchParts({
+        roles: [r], packs: ['ldraw_builtin'],
+        forbidRoles: constraints.forbid_roles, limit: 6,
+      });
+      let added = 0;
+      for (const it of (rr.items || [])) {
+        if (shapeBad(it)) continue;
+        if (pool.some(function (x) { return x.partKey === it.partKey; })) continue;
+        pool.push(it); added++;
+        if (added >= 3) break;
+      }
+      if (c.onNote && added) c.onNote('乐高保底：' + r + ' 补 ' + added + ' 件');
+    }
+  }
+
+  // ── 乐高独占（2026-10-15）──
+  //   委托点名乐高时，结构性槽位（NEED+floor/trim/column）只要乐高组有件，
+  //   就把该槽位的**非乐高件清出候选池**——软性「优先」指令实测拦不住
+  //   （三轮 e2e，AI 仍给 wall/roof 挑 Kenney 大墙件；只肯把 window 给乐高）。
+  //   池里没有 Kenney 墙，AI 就只能用乐高砖（推荐用途行已教它「堆叠砌墙」）。
+  //   注意：nature（树/花）不受独占影响——「树木搭配」并不限定乐高件。
+  if (LEGO_WORDS.test(String(c.prompt || ''))) {
+    const EXCL_ROLES = NEED.concat(['floor', 'trim', 'column']);
+    const before = pool.length;
+    pool = pool.filter(function (it) {
+      if (isLego(it)) return true;
+      if (EXCL_ROLES.indexOf(it.role) < 0) return true;
+      // pool 此处仍指向旧数组（filter 回调里未重赋值）——按「原池该 role 是否有乐高」判
+      return !pool.some(function (x) { return x.role === it.role && isLego(x); });
+    });
+    if (c.onNote && pool.length !== before) {
+      c.onNote('乐高独占：结构性槽位剔除非乐高件 ' + (before - pool.length) + ' 件');
+    }
   }
 
   // ── 加权排序 ──

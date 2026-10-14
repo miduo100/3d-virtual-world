@@ -88,13 +88,19 @@ async function verbPlacePart(params, ctx) {
   const part = p.part;
   const region = ctx.region || {};
   const bounds = region.bounds || {};
-  // ★ ctx.snapUnit：调用方已按更细的模数吸附过时（AI 自由拼装 recipe 块 → 米级 1m），
-  //   优先用它，不再按"零件自身尺寸"二次吸附。
+  // ★ ctx.snapUnit：调用方已按更细的模数吸附过时（AI 自由拼装 recipe 块 → [0.05,1,0.05]），
+  //   优先用它，不再按"零件自身尺寸"二次吸附。支持标量（三轴同值）与 [ux,uy,uz] 数组
+  //   （2026-10-15：乐高砖段 0.56m/排距 0.17m 用米级吸附会同格塌缩被去重吃掉，
+  //   但 y 轴必须保持 1m 格 —— snap 的 y = level×u[1]，u[1]=1 才让 level 语义=米）。
   //   原因（E2E 实测真 bug）：roadTile 模数 3m，而引擎沿骨架均分出的间距是 2.857m < 3m，
   //   二次吸附必然有两块塌到同一格位 → 被幂等去重吃掉 → 20 米的路只落 7 件、跨度 18m。
   //   普通块不传此字段 → 行为逐字节不变（判据 P35-8 的墙仍按零件模数吸附）。
   const hint = Number(ctx.snapUnit);
-  const unit = hint > 0 ? [hint, hint, hint] : (gridsnap.unitOfPart(part) || gridsnap.unitOf(region.gridsnap));
+  const hintArr = Array.isArray(ctx.snapUnit) && ctx.snapUnit.length >= 3
+    && ctx.snapUnit.every(function (v) { return Number(v) > 0; })
+    ? ctx.snapUnit.map(Number) : null;
+  const unit = hintArr ? hintArr
+    : (hint > 0 ? [hint, hint, hint] : (gridsnap.unitOfPart(part) || gridsnap.unitOf(region.gridsnap)));
   const snapped = gridsnap.snap({ x: params.x, z: params.z, y: 0 }, unit, params.level);
 
   const footprint = { w: Number(part.grid_w) || boundsGuard.DEFAULT_FOOTPRINT.w, d: Number(part.grid_d) || boundsGuard.DEFAULT_FOOTPRINT.d };

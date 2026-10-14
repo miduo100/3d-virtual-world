@@ -35,6 +35,10 @@ async function searchParts(o) {
   if (roles.length) { params.push(roles); where.push(`i.part_role = ANY($${params.length})`); }
   if (forbid.length) { params.push(forbid); where.push(`NOT (i.part_role = ANY($${params.length}))`); }
   if (opt.styleFamily) { params.push(String(opt.styleFamily)); where.push(`l.style_family = $${params.length}`); }
+  if (opt.packs && (Array.isArray(opt.packs) ? opt.packs : [opt.packs]).length) {
+    params.push((Array.isArray(opt.packs) ? opt.packs : [opt.packs]).map(String));
+    where.push(`l.pack_key = ANY($${params.length})`);
+  }
   if (opt.keyword) {
     params.push('%' + String(opt.keyword) + '%');
     where.push(`(i.part_key ILIKE $${params.length} OR i.part_subtype ILIKE $${params.length})`);
@@ -47,6 +51,7 @@ async function searchParts(o) {
   const res = await query(
     `SELECT part_key, part_role, part_subtype, grid_w, grid_h, grid_d,
             collidable, stack_rule, repeat_allowed, metadata,
+            metadata->'ldraw'->>'title' AS ldraw_title,
             pack_key, style_family, priority, model_path
        FROM (
          SELECT i.part_key, i.part_role, i.part_subtype, i.grid_w, i.grid_h, i.grid_d,
@@ -68,6 +73,9 @@ async function searchParts(o) {
   const numOr = (v, d) => { const n = Number(v); return (isFinite(n) && n >= 0) ? n : d; };
   const items = (res.rows || []).map((r) => ({
     partKey: r.part_key,
+    // ★ LDraw 编号件（3001 等）的语义名（"Brick 2 x 4"）——编号本身对 AI 无意义，
+    //   不透出 title 它永远挑不出乐高件（2026-10-15）
+    title: r.ldraw_title || null,
     role: r.part_role,
     subtype: r.part_subtype,
     grid: [numOr(r.grid_w, 1), numOr(r.grid_h, 1), numOr(r.grid_d, 1)],
