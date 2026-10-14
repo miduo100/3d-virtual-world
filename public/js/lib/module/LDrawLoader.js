@@ -574,7 +574,10 @@ class LDrawParsedCache {
 	async fetchData( fileName ) {
 
 		let triedLowerCase = false;
-		let locationState = FILE_LOCATION_TRY_PARTS;
+		// [vendor-fix ldraw_lib] 初始站改为 AS_IS：原 TRY_PARTS 会让带 'p/'、's/' 前缀的
+		// 子件引用被拼成双重前缀（parts/p/48/...、parts/parts/s/...）而 404，
+		// 正确文件其实就在 AS_IS 站（p/48/...、parts/s/...）。裸名引用多一次 404 探测，无害。
+		let locationState = FILE_LOCATION_AS_IS;
 		while ( locationState !== FILE_LOCATION_NOT_FOUND ) {
 
 			let subobjectURL = fileName;

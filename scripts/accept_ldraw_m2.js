@@ -32,8 +32,8 @@ function check(id, name, cond, extra) {
     `SELECT part_role, COUNT(*)::int AS n FROM part_library_items WHERE library_id=$1 GROUP BY 1`,
     [lib.id])).rows;
   const roleN = Object.fromEntries(byRole.map(r => [r.part_role, r.n]));
-  check('W3', '件数=170 且 8 类 role 齐全',
-    byRole.reduce((s, r) => s + r.n, 0) === 170
+  check('W3', '件数=178 且 8 类 role 齐全',
+    byRole.reduce((s, r) => s + r.n, 0) === 178
       && ['wall', 'floor', 'roof', 'door', 'window', 'column', 'railing', 'trim'].every(k => (roleN[k] || 0) > 0),
     JSON.stringify(roleN));
   const orphan = (await pool.query(

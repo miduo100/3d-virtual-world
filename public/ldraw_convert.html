@@ -21,6 +21,19 @@ try {
     // ★ 米制缩放：LDrawLoader 输出 LDU 原值，人仔比例（人高1.75m）缩放 0.0004×17.5=0.007
     //   LDrawLoader onLoad 返回 Group（无 .scene 包装）
     const inner = g.scene || g;
+    // ★ 防御（2026-10-15）：子件加载失败时 LDrawLoader 可能留下 material=null 的 mesh
+    //   （GLTFExporter.processMeshAsync 读 null.uuid 直接炸，8 件组合件曾因此全灭）。
+    //   兜底为默认灰色材质，比转换失败好。
+    const fallbackMat = new THREE.MeshStandardMaterial({ color: 0xcccccc });
+    const fallbackLine = new THREE.LineBasicMaterial({ color: 0x222222 });
+    inner.traverse(function (o) {
+      // ★ LineSegments 也走 GLTFExporter.processMeshAsync（isLineSegments 分支），同样要兜
+      const isGeo = o.isMesh || o.isLineSegments || o.isLine;
+      if (!isGeo) return;
+      const fb = o.isMesh ? fallbackMat : fallbackLine;
+      if (o.material === null || o.material === undefined) { o.material = fb; return; }
+      if (Array.isArray(o.material)) o.material = o.material.map(function (m) { return m || fb; });
+    });
     const root = new (inner.constructor)();
     root.name = 'LDrawPart';
     root.scale.setScalar(0.0004 * 17.5);

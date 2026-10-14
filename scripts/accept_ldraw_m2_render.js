@@ -10,7 +10,7 @@ const { chromium } = require('playwright');
 
 const BASE = process.env.WORLD_AI_BASE || 'http://localhost:3002';
 const TEST_NAME = '__LDRW_m2_render';
-const KEYS = ['3001', '2400'];   // wall + door 各一件
+const KEYS = ['3001', '27cc01'];   // 对照砖 + 曾转换失败的组合窗户件
 
 let pass = 0, fail = 0;
 const log = (ok, name, extra) => { ok ? pass++ : fail++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? '  ' + extra : ''}`); };
