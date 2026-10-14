@@ -294,9 +294,20 @@ async function build(spec, ctx) {
       // 四向斜檐（2026-10-14 v2）：坡屋顶件实为「平顶+四周斜檐」（渲染目检确认），
       // 阶梯抬升会变成悬浮盒子。正确用法是单层平铺、边缘件斜檐朝外（Kenney 塔
       // 顶系统的标准用法）——四坡向由边缘件 ry 决定，内部件保持 0。
+      // ★ 中央盖板（2026-10-14 v3）：中央件也是坡件（中央平四周斜）→ 多件拼接后
+      //   拼缝处形成天沟网格（渲染目检内天沟凹陷）。有平板楼板件（iFloor，非坡件
+      //   前提下解析成功）时中央区改用平板封盖，只有外圈用坡件斜檐——天沟消失。
       const nz = Math.max(1, Math.round(D / rd));
+      const capPart = (iFloor && iFloor.partKey !== roof.partKey) ? iFloor : null;
       for (let ix = 0; ix < nx; ix++) for (let iz = 0; iz < nz; iz++) {
         const x = bbox.minX + (ix + 0.5) * (W / nx), z = bbox.minZ + (iz + 0.5) * (D / nz);
+        const isEdge = iz === 0 || iz === nz - 1 || ix === 0 || ix === nx - 1;
+        if (!isEdge && capPart) {
+          // 中央区：平板封盖（消除天沟网格）；楼板 grid 与 roof 不同时按自身尺寸重算列距——
+          // 这里直接沿用 nx/nz 网格中心点，板间微小缝隙被楼板厚度吸收
+          if (push(mk(capPart, x, z, 0, topY + 0.05))) roofCount++;
+          continue;
+        }
         let ry = 180;
         if (iz === 0) ry = 180;                     // 南边：斜檐朝南（件面朝向经渲染校准 +180）
         else if (iz === nz - 1) ry = 0;             // 北边
