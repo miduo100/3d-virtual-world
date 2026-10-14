@@ -48,7 +48,14 @@ function shapeBad(it) {
     if (h <= minEdge + 1e-6) return false;
     return !(SLOPE_NAME.test(String(it.partKey || '')) && minEdge >= 1 && h <= 5);
   }
-  if (it.role === 'wall') return minEdge > 2.5;                        // 整栋模型（20×28×16）
+  if (it.role === 'wall') {
+    // ★ 拱形/栏杆/装饰薄片对主墙永远不可用（2026-10-14）：Wall_Arch(2×3×0.064 有拱洞)
+    //   曾同时出现在「被拒明细」和「可用替代件」两份反馈里——模型彻底混乱，
+    //   三轮重复选它（实测 castle 委托）。既然防看穿闸必拒，候选侧直接剔掉，
+    //   模型无从选错（替代键列表也随之自洽）。
+    if (NOT_WALL.test(String(it.partKey || ''))) return true;
+    return minEdge > 2.5;                        // 整栋模型（20×28×16）
+  }
   if (['door', 'window', 'trim', 'railing'].indexOf(it.role) >= 0) return minEdge > 1.5 || h > 8;
   // 整栋模型被改判成 prop 后仍占候选名额（Building_Large_2 28m、Medium 25m），对
   // building recipe 永远不可用，也不适合散点——超大 prop 直接滤掉腾位置

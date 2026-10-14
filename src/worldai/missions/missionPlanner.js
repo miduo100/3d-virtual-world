@@ -303,9 +303,15 @@ async function plan(mission, region, opts) {
       lastPlan.intentGap = gap; // 透出给 runner notes / 后台确认卡
       fallbackNotes.push('第 ' + round + ' 轮方案未达用户意图（' + gap + '），重试下一轮');
     } else {
-      const blankGap = '方案 blocks 为空或没有任何合法零件——这是不合格方案，必须至少输出一个内容块（building/fence/forest/garden/path recipe 块，或普通零件块）';
+      // ★ 白卷反馈分级（2026-10-14）：复合型大工程（城堡/庄园/小镇）模型一轮规划
+      //   不动（实测 castle 三轮空 blocks）——反馈里明确「本轮只交主体建筑一个块」，
+      //   配景放弃，先保主体成功。单一委托才要求完整输出。
+      const complex = /城堡|宫殿|庄园|小镇|商业街|村庄|要塞|要塞/.test(String(mission.prompt || ''));
+      const blankGap = complex
+        ? '方案 blocks 为空。该委托是复合型大工程——本轮【只输出主体建筑一个块】（building recipe 主楼），围墙/树丛/花坛等配景全部不要，先确保主体成功'
+        : '方案 blocks 为空或没有任何合法零件——这是不合格方案，必须至少输出一个内容块（building/fence/forest/garden/path recipe 块，或普通零件块）';
       lastPlan.intentGap = blankGap;
-      fallbackNotes.push('第 ' + round + ' 轮交了空方案，带反馈重试下一轮');
+      fallbackNotes.push('第 ' + round + ' 轮交了空方案，带反馈重试下一轮' + (complex ? '（复合委托：只要求主体）' : ''));
     }
   }
 
@@ -417,6 +423,7 @@ function buildPlanOutputContract(region, maxObjectsCap) {
     '坐标语义：anchor.dx/dz = 该块相对区域左上角的偏移；parts 的 dx/dz = 该零件相对所属块 anchor 的偏移；ry = 绕 Y 轴角度（0/90/180/270）；level = 堆叠层数（0=地面层）。',
     '布局要求：按 PARTS 段标注的零件尺寸（宽×高×深，米）排布——墙围成一圈、地板铺底、家具放在屋子内部；相邻零件中心间距 ≥ 两者最大边长的一半之和，禁止把多个零件放在同一坐标；全部零件必须落在区域内且距边界 ≥ 2 米。',
     '主体建筑的 anchor 放在区域中部（约 宽/2, 深/2 处），不要贴角。',
+    '★ 多栋建筑并排（联排/商业街）时：相邻建筑 footprint 之间至少留 1.5m 间距——引擎按件落位会做碰撞检测，间距不足的墙件会被整段拒绝（外观缺墙）。',
     '★ 数量语义（必须换算成零件件数，用户对数量敏感）：「几棵/几个」=4~6 件；「一片森林/树林/花田/草地」=20~40 件；「很多/大量/尽量多」=本次预算上限（' + (Number(maxObjectsCap) > 0 ? Number(maxObjectsCap) : 120) + ' 件）的 80%；用户写了具体数字（如「大于3棵」「20个以上」）→ parts 总件数必须 ≥ 该数字。',
     '★ 种类语义：委托含「多样/各种/不同/丰富」或主体是自然景观（森林/树林/丛林/花田/草地）→ 必须使用 ≥3 个不同的 partKey（不同树种/不同种类），只重复同一个 partKey 视为不合格。',
     `散点块（mode:"scatter"）是 forest recipe 的简化替代：铺满**整个区域**、不能圈范围/定中心——「草地铺满全图」用它：{"kind":"forest","mode":"scatter","partKeys":["tree_pine","tree_oak",…],"count":30}（partKeys ≥3 个不同键）；要圈范围或放在房子旁边，一律用 forest recipe。`,

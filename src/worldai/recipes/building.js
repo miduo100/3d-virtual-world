@@ -297,25 +297,30 @@ async function build(spec, ctx) {
       // ★ 中央盖板（2026-10-14 v3）：中央件也是坡件（中央平四周斜）→ 多件拼接后
       //   拼缝处形成天沟网格（渲染目检内天沟凹陷）。有平板楼板件（iFloor，非坡件
       //   前提下解析成功）时中央区改用平板封盖，只有外圈用坡件斜檐——天沟消失。
+      // ★ 异形适配（2026-10-14 v4）：逐格做「格中心在 footprint 多边形内」测试——
+      //   圆楼/L楼按矩形 bbox 平铺会让屋顶大范围悬空在墙外（可见缺陷）。
+      //   「边缘」判定同样改为「某方向邻居出界」→ 斜檐朝那个方向。
       const nz = Math.max(1, Math.round(D / rd));
       const capPart = (iFloor && iFloor.partKey !== roof.partKey) ? iFloor : null;
+      const inPoly = function (x, z) { return g.pointInPolygon({ dx: x, dz: z }, pts); };
+      let laid = 0;
       for (let ix = 0; ix < nx; ix++) for (let iz = 0; iz < nz; iz++) {
         const x = bbox.minX + (ix + 0.5) * (W / nx), z = bbox.minZ + (iz + 0.5) * (D / nz);
-        const isEdge = iz === 0 || iz === nz - 1 || ix === 0 || ix === nx - 1;
-        if (!isEdge && capPart) {
-          // 中央区：平板封盖（消除天沟网格）；楼板 grid 与 roof 不同时按自身尺寸重算列距——
-          // 这里直接沿用 nx/nz 网格中心点，板间微小缝隙被楼板厚度吸收
-          if (push(mk(capPart, x, z, 0, topY + 0.05))) roofCount++;
+        if (!inPoly(x, z)) continue;                        // 格子在轮廓外：不铺
+        // 边缘 = 某方向邻居（半格距）出界 → 斜檐朝那个方向；四邻全界内 → 中央区
+        let ry = null;
+        if (!inPoly(x, z - rd)) ry = 180;                   // 南邻出界：檐朝南
+        else if (!inPoly(x, z + rd)) ry = 0;                // 北邻出界
+        else if (!inPoly(x - rw, z)) ry = 90;               // 西邻出界
+        else if (!inPoly(x + rw, z)) ry = 270;              // 东邻出界
+        if (ry === null && capPart) {
+          if (push(mk(capPart, x, z, 0, topY + 0.05))) { roofCount++; laid++; }
           continue;
         }
-        let ry = 180;
-        if (iz === 0) ry = 180;                     // 南边：斜檐朝南（件面朝向经渲染校准 +180）
-        else if (iz === nz - 1) ry = 0;             // 北边
-        else if (ix === 0) ry = 90;                 // 西边
-        else if (ix === nx - 1) ry = 270;           // 东边
-        if (push(mk(roof, x, z, ry, topY + 0.05))) roofCount++;
+        if (ry === null) ry = 0;                            // 中央且无盖板：坡件平放
+        if (push(mk(roof, x, z, ry, topY + 0.05))) { roofCount++; laid++; }
       }
-      notes.push('坡屋顶四向斜檐铺设：' + nx + '×' + nz + '（边缘件檐口朝外）');
+      notes.push('坡屋顶四向斜檐铺设：' + laid + ' 件（' + nx + '×' + nz + ' 网格 ∩ footprint 多边形，边缘檐口朝外）');
     }
   }
   // ★ subBlocks（2026-10-12）：多块组合。原 recipe 一个块只能出一个"外壳"，

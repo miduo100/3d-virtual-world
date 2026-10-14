@@ -190,6 +190,22 @@ function normGrid(grid) {
   return [one(g[0]), one(g[1]), one(g[2])];
 }
 
+/** 点是否在多边形内（射线法；2026-10-14 异形屋顶铺设用）。
+ *  pt={dx,dz}，poly=[{dx,dz},...]（顶点序不限）。边界点视为界内（容差 1e-9）。 */
+function pointInPolygon(pt, poly) {
+  const x = Number(pt && pt.dx), z = Number(pt && pt.dz);
+  if (!isFinite(x) || !isFinite(z) || !Array.isArray(poly) || poly.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = Number(poly[i].dx), zi = Number(poly[i].dz);
+    const xj = Number(poly[j].dx), zj = Number(poly[j].dz);
+    const intersect = (zi > z) !== (zj > z)
+      && x < ((xj - xi) * (z - zi)) / (zj - zi + ((zj - zi >= 0) ? 1e-12 : -1e-12)) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
 /** 零件集合包围盒（区域裁剪/越界预判/后台确认卡摘要用） */
 function boundsOf(items) {
   if (!Array.isArray(items) || !items.length) return null;
@@ -205,5 +221,5 @@ function boundsOf(items) {
 module.exports = {
   r2, normalize180, turnDeg, angleDeg, point, normPoints, closeLoop, segments,
   sampleDistances, lerpOnSeg, segNormal, polygonEdges, polygonCentroid,
-  offsetPolygon, normGrid, boundsOf,
+  offsetPolygon, normGrid, boundsOf, pointInPolygon,
 };
