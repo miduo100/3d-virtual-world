@@ -197,3 +197,6 @@ public/js/diagTurnSweep.js
 # User-generated content (copyright: never distribute via git)
 public/uploaded/
 public/models/generated/
+
+# LDraw parts library source (139MB, re-download: https://library.ldraw.org/library/updates/complete.zip)
+public/ldraw_lib/

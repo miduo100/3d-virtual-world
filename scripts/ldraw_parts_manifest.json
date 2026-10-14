@@ -1,0 +1,896 @@
+{
+ "generatedAt": "2026-10-14T14:40:47.840Z",
+ "scale": 17.5,
+ "items": [
+  {
+   "part": "3001.dat",
+   "title": "3001 (classic)",
+   "role": "wall"
+  },
+  {
+   "part": "3003.dat",
+   "title": "3003 (classic)",
+   "role": "wall"
+  },
+  {
+   "part": "3004.dat",
+   "title": "3004 (classic)",
+   "role": "wall"
+  },
+  {
+   "part": "3010.dat",
+   "title": "3010 (classic)",
+   "role": "wall"
+  },
+  {
+   "part": "2456.dat",
+   "title": "2456 (classic)",
+   "role": "wall"
+  },
+  {
+   "part": "3011.dat",
+   "title": "3011 (classic)",
+   "role": "wall"
+  },
+  {
+   "part": "3005.dat",
+   "title": "3005 (classic)",
+   "role": "wall"
+  },
+  {
+   "part": "2357.dat",
+   "title": "2357 (classic)",
+   "role": "wall"
+  },
+  {
+   "part": "2450.dat",
+   "title": "2450 (classic)",
+   "role": "column"
+  },
+  {
+   "part": "3062b.dat",
+   "title": "3062b (classic)",
+   "role": "column"
+  },
+  {
+   "part": "3941.dat",
+   "title": "3941 (classic)",
+   "role": "column"
+  },
+  {
+   "part": "3020.dat",
+   "title": "3020 (classic)",
+   "role": "floor"
+  },
+  {
+   "part": "3021.dat",
+   "title": "3021 (classic)",
+   "role": "floor"
+  },
+  {
+   "part": "3022.dat",
+   "title": "3022 (classic)",
+   "role": "floor"
+  },
+  {
+   "part": "3710.dat",
+   "title": "3710 (classic)",
+   "role": "floor"
+  },
+  {
+   "part": "3666.dat",
+   "title": "3666 (classic)",
+   "role": "floor"
+  },
+  {
+   "part": "3039.dat",
+   "title": "3039 (classic)",
+   "role": "roof"
+  },
+  {
+   "part": "3040.dat",
+   "title": "3040 (classic)",
+   "role": "roof"
+  },
+  {
+   "part": "3298.dat",
+   "title": "3298 (classic)",
+   "role": "roof"
+  },
+  {
+   "part": "4871.dat",
+   "title": "4871 (classic)",
+   "role": "roof"
+  },
+  {
+   "part": "30499.dat",
+   "title": "30499 (classic)",
+   "role": "roof"
+  },
+  {
+   "part": "10202.dat",
+   "title": "Tile  6 x  6 with Groove and Underside Studs",
+   "role": "trim"
+  },
+  {
+   "part": "10247.dat",
+   "title": "Plate  2 x  2 with Hole and Complete Underside Rib",
+   "role": "floor"
+  },
+  {
+   "part": "10314.dat",
+   "title": "Brick  1 x  4 x  1.333 with Curved Top without Understuds",
+   "role": "wall"
+  },
+  {
+   "part": "109373.dat",
+   "title": "Brick  2 x  2 x  0.667 with Rubber Foot",
+   "role": "wall"
+  },
+  {
+   "part": "11002.dat",
+   "title": "Plate  2 x  2 with 2 Wheel Pins Extended with Wishbones",
+   "role": "floor"
+  },
+  {
+   "part": "11203.dat",
+   "title": "Tile  2 x  2 Inverted",
+   "role": "trim"
+  },
+  {
+   "part": "11211.dat",
+   "title": "Brick  1 x  2 with Two Studs on One Side",
+   "role": "wall"
+  },
+  {
+   "part": "11212.dat",
+   "title": "Plate  3 x  3",
+   "role": "floor"
+  },
+  {
+   "part": "11213.dat",
+   "title": "Plate  6 x  6 Round with Hole and Snapstud",
+   "role": "floor"
+  },
+  {
+   "part": "1126.dat",
+   "title": "Tile  1 x  2 with Rounded Ends",
+   "role": "trim"
+  },
+  {
+   "part": "11290.dat",
+   "title": "Slope Brick Curved  2 x  8 x  2 Double",
+   "role": "roof"
+  },
+  {
+   "part": "11399.dat",
+   "title": "Plate  4 x  4 with 2 Clips Horizontal (Open C-Clips)",
+   "role": "floor"
+  },
+  {
+   "part": "11458.dat",
+   "title": "Plate  1 x  2 with Offset Peghole",
+   "role": "floor"
+  },
+  {
+   "part": "11476.dat",
+   "title": "Plate  1 x  2 with Clip Horizontal on Side (Thick C-Clip)",
+   "role": "floor"
+  },
+  {
+   "part": "11477.dat",
+   "title": "Slope Brick Curved  2 x  1",
+   "role": "roof"
+  },
+  {
+   "part": "11609.dat",
+   "title": "Plate  1 x  1 Round with Five-Pointed Star Top and Pin Hole",
+   "role": "floor"
+  },
+  {
+   "part": "11833.dat",
+   "title": "Plate  4 x  4 Round with  2 x  2 Round Hole",
+   "role": "floor"
+  },
+  {
+   "part": "12602.dat",
+   "title": "Duplo Fence with  6 Posts",
+   "role": "railing"
+  },
+  {
+   "part": "12825.dat",
+   "title": "Tile  1 x  1 with Clip with Rounded Tips",
+   "role": "trim"
+  },
+  {
+   "part": "13269.dat",
+   "title": "Slope Brick 33/45  6 x  4 with  2 x  2 Cutout",
+   "role": "roof"
+  },
+  {
+   "part": "13548.dat",
+   "title": "Slope Brick 45  2 x  2 Double Convex with 45 Corner",
+   "role": "roof"
+  },
+  {
+   "part": "14413.dat",
+   "title": "Brick  4 x  4 Facet",
+   "role": "wall"
+  },
+  {
+   "part": "14417.dat",
+   "title": "Plate  1 x  2 with Ball Joint-8 on Side",
+   "role": "floor"
+  },
+  {
+   "part": "14418.dat",
+   "title": "Plate  1 x  2 with Socket Joint-8 with Friction",
+   "role": "floor"
+  },
+  {
+   "part": "14419.dat",
+   "title": "Plate  1 x  2 with Socket Joint-8 with Friction and Ball Joint-8",
+   "role": "floor"
+  },
+  {
+   "part": "14704.dat",
+   "title": "Plate  1 x  2 with Socket Joint-8 with Friction Centre",
+   "role": "floor"
+  },
+  {
+   "part": "14716.dat",
+   "title": "Brick  1 x  1 x  3",
+   "role": "wall"
+  },
+  {
+   "part": "14719.dat",
+   "title": "Tile  2 x  2 Corner",
+   "role": "trim"
+  },
+  {
+   "part": "14769.dat",
+   "title": "Tile  2 x  2 Round with Round Underside Stud",
+   "role": "trim"
+  },
+  {
+   "part": "15068.dat",
+   "title": "Slope Brick Curved  2 x  2 x  0.667",
+   "role": "roof"
+  },
+  {
+   "part": "15070.dat",
+   "title": "Plate  1 x  1 with Tooth Perpendicular",
+   "role": "floor"
+  },
+  {
+   "part": "15071.dat",
+   "title": "Brick  1 x  2 x  0.667 with 8 Studs and Angled Handle",
+   "role": "wall"
+  },
+  {
+   "part": "15092.dat",
+   "title": "Plate  2 x  2 with  2 Pins",
+   "role": "floor"
+  },
+  {
+   "part": "15108.dat",
+   "title": "Plate  2 x  2 with Peghole, Axlehole, Hinge and Rubberband Slots",
+   "role": "floor"
+  },
+  {
+   "part": "15208.dat",
+   "title": "Plate  1 x  2 with 3 Teeth In-line",
+   "role": "floor"
+  },
+  {
+   "part": "15209.dat",
+   "title": "Tile  1 x  2 with  2 Teeth Vertical",
+   "role": "trim"
+  },
+  {
+   "part": "15332.dat",
+   "title": "Fence Spindled  1 x  4 x  2 with 4 Studs",
+   "role": "railing"
+  },
+  {
+   "part": "15397.dat",
+   "title": "Plate  3 x  3 Cross",
+   "role": "floor"
+  },
+  {
+   "part": "15403.dat",
+   "title": "Plate  1 x  2 with Mini Shooting Blaster",
+   "role": "floor"
+  },
+  {
+   "part": "15411.dat",
+   "title": "Brick  1 x  1 with Conductive Element and Stud on Opposite Sides",
+   "role": "wall"
+  },
+  {
+   "part": "15444.dat",
+   "title": "Brick  1 x  1 x  2 with Square Hole in 1 Side",
+   "role": "wall"
+  },
+  {
+   "part": "15456.dat",
+   "title": "Plate  2 x  2 with Towball and Centre Hole",
+   "role": "floor"
+  },
+  {
+   "part": "15469.dat",
+   "title": "Brick  2 x  2 Round with 4 Petals Base and Axle Hole",
+   "role": "wall"
+  },
+  {
+   "part": "15470.dat",
+   "title": "Plate  1 x  1 Round with Swirled Top",
+   "role": "floor"
+  },
+  {
+   "part": "15533.dat",
+   "title": "Brick  1 x  4 with Embossed Bricks",
+   "role": "wall"
+  },
+  {
+   "part": "15535.dat",
+   "title": "Tile  2 x  2 Round with Hole",
+   "role": "trim"
+  },
+  {
+   "part": "15571.dat",
+   "title": "Slope Brick 45  1 x  2 Triple with Bottom Stud Holder",
+   "role": "roof"
+  },
+  {
+   "part": "15573.dat",
+   "title": "Plate  1 x  2 with Groove with 1 Centre Stud, without Understud",
+   "role": "floor"
+  },
+  {
+   "part": "15623.dat",
+   "title": "Plate 16 x 16 x  0.667",
+   "role": "floor"
+  },
+  {
+   "part": "15624.dat",
+   "title": "Plate  8 x  8 x  0.667",
+   "role": "floor"
+  },
+  {
+   "part": "15625.dat",
+   "title": "Slope Brick Curved  5 x  8 x  0.667",
+   "role": "roof"
+  },
+  {
+   "part": "15672.dat",
+   "title": "Slope Plate 45  2 x  1",
+   "role": "roof"
+  },
+  {
+   "part": "15706.dat",
+   "title": "Plate  1 x  4 with Plate  1 x  4 at 45 Degrees",
+   "role": "floor"
+  },
+  {
+   "part": "15712.dat",
+   "title": "Tile  1 x  1 with Clip (Thick C-Clip)",
+   "role": "trim"
+  },
+  {
+   "part": "16968.dat",
+   "title": "Brick  1 x  4 Disk Shooter",
+   "role": "wall"
+  },
+  {
+   "part": "17114.dat",
+   "title": "Brick  2 x  2 with Two Ball Joints and Axlehole",
+   "role": "wall"
+  },
+  {
+   "part": "1745.dat",
+   "title": "Plate  1 x  2 Half Round with 1 Centre Stud",
+   "role": "floor"
+  },
+  {
+   "part": "1748.dat",
+   "title": "Tile  1 x  2 Half Round",
+   "role": "trim"
+  },
+  {
+   "part": "17485.dat",
+   "title": "Brick  2 x  2 Round with Pin Holes",
+   "role": "wall"
+  },
+  {
+   "part": "1750.dat",
+   "title": "Brick  2 x  2 x  1 with Curved Bottom",
+   "role": "wall"
+  },
+  {
+   "part": "1751.dat",
+   "title": "Tile  4 x  4",
+   "role": "trim"
+  },
+  {
+   "part": "1762.dat",
+   "title": "Slope Brick 31  2 x  2 Double, Curved",
+   "role": "roof"
+  },
+  {
+   "part": "18601.dat",
+   "title": "Plate 12 x 24 with  6 x  6 Square Cutouts and  6 x  6 Hole",
+   "role": "floor"
+  },
+  {
+   "part": "18603c01.dat",
+   "title": "Brick  4 x  4 x  0.667 Round with RFID Tag and  4 Studs",
+   "role": "wall"
+  },
+  {
+   "part": "18603c02.dat",
+   "title": "Brick  4 x  4 x  0.667 Round with RFID Tag and  2 Studs",
+   "role": "wall"
+  },
+  {
+   "part": "18646.dat",
+   "title": "Plate  3 x  6 Round Half with  1 x  2 Cutout",
+   "role": "floor"
+  },
+  {
+   "part": "18649.dat",
+   "title": "Plate  1 x  2 with Handles on Opposite Ends",
+   "role": "floor"
+  },
+  {
+   "part": "18674.dat",
+   "title": "Plate  2 x  2 Round with  1 Centre Stud",
+   "role": "floor"
+  },
+  {
+   "part": "1871.dat",
+   "title": "Brick  1 x  1 x  1.333 Round Quarter Dome with Curved Top",
+   "role": "wall"
+  },
+  {
+   "part": "18892.dat",
+   "title": "Brick  2 x  4 with  2 x  2 x  0.667 Cutout and 2 Wheel Pins",
+   "role": "wall"
+  },
+  {
+   "part": "18897.dat",
+   "title": "Brick  6 x  6 Round with Holes",
+   "role": "wall"
+  },
+  {
+   "part": "19121.dat",
+   "title": "Fence Ornamented  1 x  4 x  2",
+   "role": "railing"
+  },
+  {
+   "part": "1942.dat",
+   "title": "Slope Curved  4 x  2 x  0.667 Double with Fresnel Lens",
+   "role": "roof"
+  },
+  {
+   "part": "20309.dat",
+   "title": "Window  1 x  4 x  1.667 Half Round with 3 Radial Dividers",
+   "role": "window"
+  },
+  {
+   "part": "20310.dat",
+   "title": "Brick  1 x  1 with Scroll with Open Stud",
+   "role": "wall"
+  },
+  {
+   "part": "2040.dat",
+   "title": "Fabuland Fence  1 x  6 x  2 Rounded",
+   "role": "railing"
+  },
+  {
+   "part": "20482.dat",
+   "title": "Tile  1 x  1 Round with Pin and Pin Hole",
+   "role": "trim"
+  },
+  {
+   "part": "21229.dat",
+   "title": "Fence Spindled  4 x  4 x  2 Quarter Round with  3 Studs",
+   "role": "railing"
+  },
+  {
+   "part": "2214.dat",
+   "title": "Duplo Fence with  5 Posts",
+   "role": "railing"
+  },
+  {
+   "part": "22385.dat",
+   "title": "Tile  3 x  2 with Angled End",
+   "role": "trim"
+  },
+  {
+   "part": "22388.dat",
+   "title": "Slope Brick 50  1 x  1 x  0.667 Quadruple",
+   "role": "roof"
+  },
+  {
+   "part": "22885.dat",
+   "title": "Brick  1 x  2 x  1.667 with Studs on 1 Side",
+   "role": "wall"
+  },
+  {
+   "part": "22886.dat",
+   "title": "Brick  1 x  2 x  3 without Understud",
+   "role": "wall"
+  },
+  {
+   "part": "2342.dat",
+   "title": "Tile  1 x  2 with Console",
+   "role": "trim"
+  },
+  {
+   "part": "2356.dat",
+   "title": "Brick  4 x  6",
+   "role": "wall"
+  },
+  {
+   "part": "2376.dat",
+   "title": "Tile  2 x  2 Round with Lifting Ring",
+   "role": "trim"
+  },
+  {
+   "part": "2377.dat",
+   "title": "Window  1 x  2 x  2 Plane",
+   "role": "window"
+  },
+  {
+   "part": "23949.dat",
+   "title": "Slope Brick 45  2 x  6",
+   "role": "roof"
+  },
+  {
+   "part": "2400.dat",
+   "title": "Door  1 x  5 x 10 with 1/4 Circle Top",
+   "role": "door"
+  },
+  {
+   "part": "24054.dat",
+   "title": "Door  1 x  4 x  7.667 with Curved Top",
+   "role": "door"
+  },
+  {
+   "part": "24309.dat",
+   "title": "Slope Brick Curved  3 x  2",
+   "role": "roof"
+  },
+  {
+   "part": "2434.dat",
+   "title": "Brick  2 x  4 x  2 with Studs on Sides",
+   "role": "wall"
+  },
+  {
+   "part": "2453a.dat",
+   "title": "Brick  1 x  1 x  5 with Hollow Stud",
+   "role": "wall"
+  },
+  {
+   "part": "2453b.dat",
+   "title": "Brick  1 x  1 x  5 with Solid Stud",
+   "role": "wall"
+  },
+  {
+   "part": "2454a.dat",
+   "title": "Brick  1 x  2 x  5 with Hollow Studs and Asymmetric Inner Ridges",
+   "role": "wall"
+  },
+  {
+   "part": "2454b.dat",
+   "title": "Brick  1 x  2 x  5 with Blocked Open Studs and Symmetric Inner Ridges",
+   "role": "wall"
+  },
+  {
+   "part": "2458.dat",
+   "title": "Brick  1 x  2 with Pin",
+   "role": "wall"
+  },
+  {
+   "part": "24599.dat",
+   "title": "Brick  5 x  5 x  1 Corner Round with Curved Top",
+   "role": "wall"
+  },
+  {
+   "part": "2462.dat",
+   "title": "Brick  3 x  3 Facet",
+   "role": "wall"
+  },
+  {
+   "part": "2463.dat",
+   "title": "Brick  3 x  3 x  2 Facet Top",
+   "role": "wall"
+  },
+  {
+   "part": "2464.dat",
+   "title": "Brick  3 x  3 x  2 Facet Bottom",
+   "role": "wall"
+  },
+  {
+   "part": "2465.dat",
+   "title": "Brick  1 x 16",
+   "role": "wall"
+  },
+  {
+   "part": "2493a.dat",
+   "title": "Window  1 x  4 x  5 with Solid Studs",
+   "role": "window"
+  },
+  {
+   "part": "2493b.dat",
+   "title": "Window  1 x  4 x  5 with Hollow Studs",
+   "role": "window"
+  },
+  {
+   "part": "2529.dat",
+   "title": "Window  1 x  2 x  3 Pane Latticed",
+   "role": "window"
+  },
+  {
+   "part": "2554.dat",
+   "title": "Door  1 x  3 x  6 with 1/4 Circle Top",
+   "role": "door"
+  },
+  {
+   "part": "2577.dat",
+   "title": "Brick  4 x  4 Corner Round",
+   "role": "wall"
+  },
+  {
+   "part": "2596.dat",
+   "title": "Door  1 x  9 x 11",
+   "role": "door"
+  },
+  {
+   "part": "2605c01.dat",
+   "title": "Brick  1 x  2 x  2.333 Shock Absorber (Complete)",
+   "role": "wall"
+  },
+  {
+   "part": "2634c01.dat",
+   "title": "Window  2 x  8 x  2 Inverted Sloped with TransLightBlue Glass",
+   "role": "window"
+  },
+  {
+   "part": "2634c02.dat",
+   "title": "Window  2 x  8 x  2 Inverted Sloped with Trans Brown Glass",
+   "role": "window"
+  },
+  {
+   "part": "2653.dat",
+   "title": "Brick  1 x  4 with Groove",
+   "role": "wall"
+  },
+  {
+   "part": "2657.dat",
+   "title": "Door  1 x  3 x  5",
+   "role": "door"
+  },
+  {
+   "part": "26597.dat",
+   "title": "Brick  1 x  2 with Handle on End with Untrimmed Arm",
+   "role": "wall"
+  },
+  {
+   "part": "26604.dat",
+   "title": "Brick  1 x  1 with Studs on Two Adjacent Sides",
+   "role": "wall"
+  },
+  {
+   "part": "2662.dat",
+   "title": "Door Frame  2 x 10 x 12",
+   "role": "door"
+  },
+  {
+   "part": "27266.dat",
+   "title": "Brick  2 x  2 Round with  8 Spikes",
+   "role": "wall"
+  },
+  {
+   "part": "27ac01.dat",
+   "title": "Window  1 x  2 x  1 Classic with Solid Studs (Complete)",
+   "role": "window"
+  },
+  {
+   "part": "27bc01.dat",
+   "title": "Window  1 x  2 x  1 Classic with Long Sill (Complete)",
+   "role": "window"
+  },
+  {
+   "part": "27c.dat",
+   "title": "Window  1 x  2 x  1 Classic with Short Sill",
+   "role": "window"
+  },
+  {
+   "part": "27cc01.dat",
+   "title": "Window  1 x  2 x  1 Classic with Short Sill (Complete)",
+   "role": "window"
+  },
+  {
+   "part": "281.dat",
+   "title": "Window  1.25 x  4 x  3 with Rounded Top",
+   "role": "window"
+  },
+  {
+   "part": "28192.dat",
+   "title": "Slope Brick 45  2 x  1 with Cutout and without Stud",
+   "role": "roof"
+  },
+  {
+   "part": "28327.dat",
+   "title": "Door Frame  4 x  4 x  6 Corner",
+   "role": "door"
+  },
+  {
+   "part": "2874.dat",
+   "title": "Door Sliding Type 2",
+   "role": "door"
+  },
+  {
+   "part": "2875.dat",
+   "title": "Slope Brick 45  2 x  6 x  0.667",
+   "role": "roof"
+  },
+  {
+   "part": "2876.dat",
+   "title": "Slope Brick 33/45  6 x  6 with  4 x  4 Cutout",
+   "role": "roof"
+  },
+  {
+   "part": "29119.dat",
+   "title": "Slope Brick Curved  2 x  1 with Cutout Right",
+   "role": "roof"
+  },
+  {
+   "part": "29120.dat",
+   "title": "Slope Brick Curved  2 x  1 with Cutout Left",
+   "role": "roof"
+  },
+  {
+   "part": "2937.dat",
+   "title": "Slope Brick 55  1 x  6 x  5 with Bottom Stud Holders",
+   "role": "roof"
+  },
+  {
+   "part": "30055.dat",
+   "title": "Fence Spindled  1 x  4 x  2",
+   "role": "railing"
+  },
+  {
+   "part": "30056.dat",
+   "title": "Fence Spindled  4 x  4 x  2 Quarter Round with  2 Studs",
+   "role": "railing"
+  },
+  {
+   "part": "30073.dat",
+   "title": "Door  1 x  6 x  8 Left with Window",
+   "role": "door"
+  },
+  {
+   "part": "30074.dat",
+   "title": "Door  1 x  6 x  8 Right with Window",
+   "role": "door"
+  },
+  {
+   "part": "30101.dat",
+   "title": "Door  2 x  8 x  6 Revolving Frame",
+   "role": "door"
+  },
+  {
+   "part": "30102.dat",
+   "title": "Door  2 x  8 x  6 Revolving",
+   "role": "door"
+  },
+  {
+   "part": "30180.dat",
+   "title": "Slope Brick 45 10 x  2 x  2 Double",
+   "role": "roof"
+  },
+  {
+   "part": "30180p01.dat",
+   "title": "Slope Brick 45 10 x  2 x  2 Double w/ Black/Yellow Stripes Patt.",
+   "role": "roof"
+  },
+  {
+   "part": "30182.dat",
+   "title": "Slope Brick 45  4 x  4",
+   "role": "roof"
+  },
+  {
+   "part": "30249.dat",
+   "title": "Slope Brick 55  1 x  6 x  5",
+   "role": "roof"
+  },
+  {
+   "part": "30363.dat",
+   "title": "Slope Brick 18  4 x  2",
+   "role": "roof"
+  },
+  {
+   "part": "3037.dat",
+   "title": "Slope Brick 45  2 x  4",
+   "role": "roof"
+  },
+  {
+   "part": "3038.dat",
+   "title": "Slope Brick 45  2 x  3",
+   "role": "roof"
+  },
+  {
+   "part": "3040a.dat",
+   "title": "Slope Brick 45  2 x  1 without Centre Stud",
+   "role": "roof"
+  },
+  {
+   "part": "3040b.dat",
+   "title": "Slope Brick 45  2 x  1",
+   "role": "roof"
+  },
+  {
+   "part": "3041.dat",
+   "title": "Slope Brick 45  2 x  4 Double",
+   "role": "roof"
+  },
+  {
+   "part": "3042.dat",
+   "title": "Slope Brick 45  2 x  3 Double",
+   "role": "roof"
+  },
+  {
+   "part": "3062a.dat",
+   "title": "Brick  1 x  1 Round with Solid Stud",
+   "role": "column"
+  },
+  {
+   "part": "4588.dat",
+   "title": "Brick  1 x  1 Round with Fins",
+   "role": "column"
+  },
+  {
+   "part": "47974.dat",
+   "title": "Brick  4 x  8 Round Half Circle",
+   "role": "column"
+  },
+  {
+   "part": "48147.dat",
+   "title": "Brick  4 x  8 Round Half Circle with Two Pins",
+   "role": "column"
+  },
+  {
+   "part": "6143.dat",
+   "title": "Brick  2 x  2 Round Reinforced",
+   "role": "column"
+  },
+  {
+   "part": "6222.dat",
+   "title": "Brick  4 x  4 Round with Holes",
+   "role": "column"
+  },
+  {
+   "part": "67361.dat",
+   "title": "Brick  2 x  2 Round with Tail/Neck Curved Extension with Tip Pin Hole",
+   "role": "column"
+  },
+  {
+   "part": "68325.dat",
+   "title": "Brick  4 x  4 Round with  3 x  3 Recess with Hole and Snapstud",
+   "role": "column"
+  },
+  {
+   "part": "7534.dat",
+   "title": "Brick  1 x  2 Round Curved with Side Stud and Bar",
+   "role": "column"
+  },
+  {
+   "part": "87081.dat",
+   "title": "Brick  4 x  4 Round with Pinhole and Snapstud",
+   "role": "column"
+  }
+ ]
+}
