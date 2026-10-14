@@ -190,9 +190,24 @@ async function finalize(o) {
 
   // ── building 必需 role 定向补齐 ──
   const BUILDING_ROLES = ['wall', 'door', 'window', 'roof', 'column', 'cornice', 'floor', 'railing', 'stairs'];
+  // ★ 关键槽最低件数（2026-10-14）：NEED 四槽（wall/door/window/roof）每槽至少 2 件。
+  //   实测「4 层住宅楼」两轮连拒：池里 wall 只有 1 件 building_block（1×0.625×1 小块），
+  //   AI 看不上就**编造**了一个更像墙的名字 Wall_Arch → RECIPE_ALL_PARTS_UNKNOWN
+  //   整块拒绝 → blocks 空。槽里只有 1 个候选时模型没有可替换项，编造是必然。
+  const SLOT_MIN = { wall: 2, door: 2, window: 2, roof: 2 };
+  const countRole = function (r) { return pool.filter(function (it) { return it.role === r; }).length; };
   const have = new Set(pool.map(function (it) { return it.role; }));
   for (const r of BUILDING_ROLES) {
-    if (have.has(r)) continue;
+    const need = SLOT_MIN[r] || 0;
+    if (r === 'wall') {
+      // ★ wall 特判（2026-10-14）：件数够但**没有实心大墙**时仍要补——
+      //   实测池里 wall=building_block(1×0.625×1 小块)+building_a，模型看不上小块
+      //   （prompt 自己都警告小块墙件数翻 4 倍），又不肯用凑数的 building_a，
+      //   于是三轮都编造 Wall_Arch 挑战防看穿闸。库里有 Brick_InteriorWall_3
+      //   (2×3×0) 这样的样板大墙，检索排序很吵（30 件里排 22）必须定向补。
+      const bigN = pool.filter(function (it) { return it.role === 'wall' && isBigWall(it); }).length;
+      if (bigN >= 1 && countRole(r) >= need) continue;
+    } else if (need ? countRole(r) >= need : have.has(r)) continue;
     // roof 多取几件（limit 8）：轮转采样/关键词预选经常只带回平板屋顶，
     // 若只取 3 件大概率全是 Roof_2x2，坡屋顶（Roof_Slate 系）进不了池子，
     // 下方"坡屋顶保底"就成了无米之炊（实测 roof:1 全是平板）。
@@ -200,11 +215,17 @@ async function finalize(o) {
       roles: [r],
       forbidRoles: constraints.forbid_roles,
       styleFamily: constraints.style_family,
-      limit: r === 'roof' ? 8 : 3,
+      // wall 多取（30）：roles 检索的排序很吵——实测 wall 前 30 里实心大墙只有 1 件
+      // 且排第 22，Wall_Arch（0.064 薄拱片）排第 3。取少了补齐抓不到实心墙，
+      // 模型在池里没有可替换项就反复挑战防看穿闸（实测 Wall_Arch 连拒两轮）。
+      limit: r === 'wall' ? 30 : r === 'roof' ? 8 : (need ? 4 : 3),
     });
-    for (const it of (rr.items || [])) {
-      if (shapeBad(it)) continue;
+    // wall 优先收实心大墙（isBigWall），其余按原序兜底
+    const items = (rr.items || []).filter(function (it) { return !shapeBad(it); });
+    if (r === 'wall') items.sort(function (a, b) { return (isBigWall(b) ? 1 : 0) - (isBigWall(a) ? 1 : 0); });
+    for (const it of items) {
       if (!pool.some(function (x) { return x.partKey === it.partKey; })) pool.push(it);
+      if (need && countRole(r) >= need + 1) break;   // 达到 最低+1 即可，别挤占其它槽
     }
   }
 
@@ -276,12 +297,18 @@ async function finalize(o) {
   let final = pool;
   if (pool.length > LIMIT) {
     const mustKeep = [];
-    const usedRole = new Set();
+    const usedRole = new Map();   // role → 已保件数
     for (const it of pool) {
-      if (NEED.indexOf(it.role) >= 0 && !usedRole.has(it.role)) {
-        mustKeep.push(it);
-        usedRole.add(it.role);
-        if (usedRole.size === NEED.length) break;
+      if (NEED.indexOf(it.role) >= 0) {
+        // ★ 每槽保 SLOT_MIN 件（2026-10-14）：旧版每槽只保 1——补齐进来的第 2 面
+        //   实心墙排序靠后被 slice 裁掉，模型在池里仍只有 1 面墙可选，继续编造
+        //   Wall_Arch 连拒两轮（实测「4 层住宅楼」）。
+        const n = usedRole.get(it.role) || 0;
+        if (n < (SLOT_MIN[it.role] || 1)) {
+          mustKeep.push(it);
+          usedRole.set(it.role, n + 1);
+        }
+        if (Array.from(usedRole.values()).reduce(function (s, v) { return s + v; }, 0) >= 8) break;
       }
     }
     // 坡屋顶保底（排序已把坡屋顶排前，这里取排序后第一个坡屋顶件）

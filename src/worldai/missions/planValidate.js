@@ -20,6 +20,30 @@ const recipeRegistry = require('../recipes');
 const recipeValidate = require('../recipes/validate');
 const coords = require('./coords'); // 绝对坐标唯一换算（与 runner 落件同函数，区域裁剪用）
 
+/**
+ * 被拒时的「可用替代件」提示（2026-10-14）
+ * ------------------------------------------------------------------
+ * 只说「Wall_Arch 被拒」不够——实测 qwen-plus 三轮重复同一错误（temperature 0.2
+ * 下确定性偏好某个不在清单的名字，拒绝反馈里重复它的名字反而是负面强化）。
+ * 直接把候选池里各关键槽的合法键列出来，模型照抄即可。
+ * opts.candidates：plan() 调用时传候选池 items（partKey/role）。
+ */
+function buildAltsHint(rv, opts) {
+  const cands = (opts && opts.candidates) || [];
+  if (!cands.length) return '';
+  const WANT = ['wall', 'door', 'window', 'roof'];
+  const by = {};
+  for (const it of cands) {
+    const r = String(it.role || '');
+    if (WANT.indexOf(r) < 0) continue;
+    (by[r] = by[r] || []).push(String(it.partKey));
+  }
+  const txt = WANT.filter((r) => by[r] && by[r].length)
+    .map((r) => r + ' 槽可用: ' + by[r].slice(0, 3).join('、'))
+    .join('；');
+  return txt ? '｜本轮必须改用这些真实存在的键——' + txt : '';
+}
+
 const DEFAULT_FLOOR_HEIGHT = 2.4;
 let _fhCache = { v: DEFAULT_FLOOR_HEIGHT, at: 0 };
 async function buildingFloorHeight() {
@@ -75,7 +99,8 @@ async function validatePlan(raw, constraints, opts) {
       if (!rv.ok) {
         dropped.recipeInvalid++;
         lastMiss.push('recipe=' + String(rv.recipe || '?') + ' 校验被拒：' + String(rv.reason || '').slice(0, 200)
-          + (rv.hint ? '｜改法：' + String(rv.hint).slice(0, 200) : ''));
+          + (rv.hint ? '｜改法：' + String(rv.hint).slice(0, 200) : '')
+          + buildAltsHint(rv, opts));
         continue;
       }
       const built = await recipeRegistry.build(rv.recipe, rv.spec, {
@@ -97,7 +122,8 @@ async function validatePlan(raw, constraints, opts) {
         //   写明了「哪个槽位、什么零件、为什么不行」——必须让下一轮 LLM 看到，
         //   否则它两轮都交同一份被拒方案（实测：新校验上线后 2 轮全拒、0 件落库）。
         lastMiss.push('recipe=' + rv.recipe + ' 整块被拒：' + String(built.reason || '').slice(0, 200)
-          + (built.hint ? '｜改法：' + String(built.hint).slice(0, 200) : ''));
+          + (built.hint ? '｜改法：' + String(built.hint).slice(0, 200) : '')
+          + buildAltsHint(rv, opts));
         continue;
       }
       if (built.stats && built.stats.truncated) dropped.overBudget++;

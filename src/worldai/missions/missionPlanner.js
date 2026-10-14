@@ -260,7 +260,7 @@ async function plan(mission, region, opts) {
       fallbackNotes.push('第 ' + round + ' 轮 LLM 产物解析失败（截断修复后仍不可解析），重试下一轮');
       continue;
     }
-    const v = await planValidate.validatePlan(raw, constraints, { seedStr: String(mission.id) + '|r' + round, bounds: region && region.bounds });
+    const v = await planValidate.validatePlan(raw, constraints, { seedStr: String(mission.id) + '|r' + round, bounds: region && region.bounds, candidates: candidates.items });
     // ★ 数量兜底（队列14 收尾）：用户写了具体下限而模型没给够 → 直接把散点块 count 抬到下限
     //   （确定性、零 LLM；实测"大于6个"模型给 5 件、重试仍 5 件——散点原语本身就能精确补足）。
     //   注意此时散点块尚未展开（v.stats.parts 只计普通 parts），件数要按 scatter.count 直算。
@@ -294,11 +294,18 @@ async function plan(mission, region, opts) {
     lastMissing = Array.isArray(v.missingParts) ? v.missingParts : [];
     // ★ 意图达标检查（队列14 A1/A2）：有合法零件但数量/种类不达标 → 带差距反馈重试下一轮
     //   （MAX_ROUNDS=2 兜底：第 2 轮仍不达标就用最好的一版，绝不静默丢弃差距信息——notes 会带出去）
+    //   ★ 白卷也要带反馈（2026-10-14）：parts=0（blocks 空，或全被拒）时旧逻辑不记
+    //     gap 不 break——下一轮 LLM 完全不知道自己交了白卷 → 必再交白卷
+    //     （实测「4 层住宅楼」连空两轮，一轮反馈都没有）。
     if (v.stats.parts > 0) {
       const gap = intentGap(mission.prompt, v);
       if (!gap) break;
       lastPlan.intentGap = gap; // 透出给 runner notes / 后台确认卡
       fallbackNotes.push('第 ' + round + ' 轮方案未达用户意图（' + gap + '），重试下一轮');
+    } else {
+      const blankGap = '方案 blocks 为空或没有任何合法零件——这是不合格方案，必须至少输出一个内容块（building/fence/forest/garden/path recipe 块，或普通零件块）';
+      lastPlan.intentGap = blankGap;
+      fallbackNotes.push('第 ' + round + ' 轮交了空方案，带反馈重试下一轮');
     }
   }
 
@@ -310,10 +317,14 @@ async function plan(mission, region, opts) {
   //   旧逻辑照单全收 ok=true → 落库 0 件、后台看起来"成功"。空方案必须报失败，
   //   让后台能看到并重试（改写委托/换 provider）。
   if (!lastPlan.blocks || !lastPlan.blocks.length) {
+    // ★ 拒绝明细透出（2026-10-14）：blocks 空通常是「AI 交了块但全被 validate 拒」
+    //   （实测 Wall_Arch 编造键名整块被拒）——只报"blocks 为空"后台根本没法诊断。
+    const why = (lastMissing.length ? '；被拒明细：' + lastMissing.slice(0, 3).join('｜').slice(0, 400) : '')
+      + (lastPlan.intentGap ? '；差距：' + String(lastPlan.intentGap).slice(0, 200) : '');
     return {
       ok: false, code: 'PLAN_EMPTY', rounds, llmCalls: await countLlmCalls(mission.id),
-      reason: 'LLM ' + rounds + ' 轮均未产出任何内容块（blocks 为空，模型对复杂委托可能"只总结不规划"）。'
-        + '请把委托拆小（先主体后配景）或稍后重试',
+      reason: 'LLM ' + rounds + ' 轮均未产出任何合法内容块' + why
+        + '。请把委托拆小（先主体后配景）或稍后重试',
       fallbackNotes,
     };
   }
@@ -401,6 +412,7 @@ function buildPlanOutputContract(region, maxObjectsCap) {
   return [
     '【输出与布局契约（必须遵守）】',
     '只输出一个 JSON 对象，不要任何解释文字或 markdown 围栏：{"style","summary","blocks":[{"kind","footprint":{"w","d"},"anchor":{"dx","dz"},"parts":[{"partKey","dx","dz","ry","level"}]}]}。',
+    '★ blocks 禁止为空数组——只写 style/summary 不写块 = 不合格方案，会被系统整体打回；无论委托多简单，至少输出一个块（先主体建筑，再配景）。',
     `区域范围：左上角 (${bx}, ${bz})，宽 ${bw} 米、深 ${bd} 米。所有坐标单位一律是"米"。`,
     '坐标语义：anchor.dx/dz = 该块相对区域左上角的偏移；parts 的 dx/dz = 该零件相对所属块 anchor 的偏移；ry = 绕 Y 轴角度（0/90/180/270）；level = 堆叠层数（0=地面层）。',
     '布局要求：按 PARTS 段标注的零件尺寸（宽×高×深，米）排布——墙围成一圈、地板铺底、家具放在屋子内部；相邻零件中心间距 ≥ 两者最大边长的一半之和，禁止把多个零件放在同一坐标；全部零件必须落在区域内且距边界 ≥ 2 米。',
