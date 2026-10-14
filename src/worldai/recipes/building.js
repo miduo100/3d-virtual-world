@@ -272,14 +272,39 @@ async function build(spec, ctx) {
   if (roof) {
     const rw = Math.max(0.5, roof.grid[0]), rd = Math.max(0.5, roof.grid[2]);
     const W = bbox.maxX - bbox.minX, D = bbox.maxZ - bbox.minZ;
-    const nx = Math.max(1, Math.round(W / rw)), nz = Math.max(1, Math.round(D / rd));
-    for (let ix = 0; ix < nx; ix++) for (let iz = 0; iz < nz; iz++) {
-      const x = bbox.minX + (ix + 0.5) * (W / nx), z = bbox.minZ + (iz + 0.5) * (D / nz);
-      // ★ 屋顶 y = 墙顶 + 0.05（2026-10-13）：旧公式 `topY + max(0.05, grid_h/2)` 假设
-      //   "零件原点在包围盒中心"，对薄板（h=0.1）没事，但对坡屋顶件（Roof_Slate h=3）
-      //   会把屋顶抬到墙顶上方 1.5m 悬空。Kenney/gltf 件原点都在底部（Ymin=0），
-      //   底面贴墙顶只需一个防 z-fighting 的小抬升。
-      if (push(mk(roof, x, z, 0, topY + 0.05))) roofCount++;
+    const nx = Math.max(1, Math.round(W / rw));
+    // ★ 坡屋顶人字铺设（2026-10-14）：坡屋顶件（高 > 最短边，与 validate flat 判据
+    //   同款反向）自带斜面，按平板逻辑 nz 排平铺时每块的斜面高端悬空——
+    //   实测 4 层楼屋顶左缘 3~4 块瓦片斜立翘起（用户截图看图发现）。
+    //   正确铺法：屋脊沿长边 W，z 方向分两坡，每坡 rowsPerSide 排**阶梯抬升**
+    //   （第 i 排 y += i×件高，前一块的高端 = 后一块的底，数学闭合），
+    //   两坡在屋脊处相接。平板件（h ≤ 最短边）走原平铺，行为不变。
+    const isPitched = (Number(roof.grid[1]) || 0) > Math.min(rw, rd) + 1e-6;
+    if (!isPitched) {
+      const nz = Math.max(1, Math.round(D / rd));
+      for (let ix = 0; ix < nx; ix++) for (let iz = 0; iz < nz; iz++) {
+        const x = bbox.minX + (ix + 0.5) * (W / nx), z = bbox.minZ + (iz + 0.5) * (D / nz);
+        // ★ 屋顶 y = 墙顶 + 0.05（2026-10-13）：旧公式 `topY + max(0.05, grid_h/2)` 假设
+        //   "零件原点在包围盒中心"，对薄板（h=0.1）没事，但对坡屋顶件（Roof_Slate h=3）
+        //   会把屋顶抬到墙顶上方 1.5m 悬空。Kenney/gltf 件原点都在底部（Ymin=0），
+        //   底面贴墙顶只需一个防 z-fighting 的小抬升。
+        if (push(mk(roof, x, z, 0, topY + 0.05))) roofCount++;
+      }
+    } else {
+      // 四向斜檐（2026-10-14 v2）：坡屋顶件实为「平顶+四周斜檐」（渲染目检确认），
+      // 阶梯抬升会变成悬浮盒子。正确用法是单层平铺、边缘件斜檐朝外（Kenney 塔
+      // 顶系统的标准用法）——四坡向由边缘件 ry 决定，内部件保持 0。
+      const nz = Math.max(1, Math.round(D / rd));
+      for (let ix = 0; ix < nx; ix++) for (let iz = 0; iz < nz; iz++) {
+        const x = bbox.minX + (ix + 0.5) * (W / nx), z = bbox.minZ + (iz + 0.5) * (D / nz);
+        let ry = 180;
+        if (iz === 0) ry = 180;                     // 南边：斜檐朝南（件面朝向经渲染校准 +180）
+        else if (iz === nz - 1) ry = 0;             // 北边
+        else if (ix === 0) ry = 90;                 // 西边
+        else if (ix === nx - 1) ry = 270;           // 东边
+        if (push(mk(roof, x, z, ry, topY + 0.05))) roofCount++;
+      }
+      notes.push('坡屋顶四向斜檐铺设：' + nx + '×' + nz + '（边缘件檐口朝外）');
     }
   }
   // ★ subBlocks（2026-10-12）：多块组合。原 recipe 一个块只能出一个"外壳"，
