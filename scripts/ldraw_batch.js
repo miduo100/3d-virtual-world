@@ -13,7 +13,7 @@ const { chromium } = require('playwright');
   const b = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=d3d11'] });
   const p = await b.newPage();
   p.on('pageerror', (e) => console.log('[pageerror] ' + String(e).slice(0, 120)));
-  await p.goto('http://localhost:3002/_tmp_shot/convert.html', { waitUntil: 'commit' });
+  await p.goto('http://localhost:3002/ldraw_convert.html', { waitUntil: 'commit' });
   try {
     await p.waitForFunction('window.__ready===true', { timeout: 30000 });
   } catch (e) {

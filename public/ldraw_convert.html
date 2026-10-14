@@ -1,0 +1,37 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<script type="importmap">{"imports":{"three":"/js/lib/module/three.module.min.js"}}</script>
+</head><body><script>
+window.__err = null; window.__ready = false;
+window.addEventListener('error', function (e) { window.__err = String(e.message || e); });
+</script><script type="module">
+try {
+  const THREE = await import('three');
+  const { LDrawLoader } = await import('/js/lib/module/LDrawLoader.js');
+  const { GLTFExporter } = await import('/js/lib/module/GLTFExporter.js');
+  let loader = null;
+  window.__conv = async function (partFile, colorCode) {
+    if (!loader) {
+      loader = new LDrawLoader();
+      loader.setPath('/ldraw_lib/');
+      loader.setPartsLibraryPath('/ldraw_lib/');
+      // ★ R185 必须显式给条件线材质的「构造类」（内部自行 new）；GLB 导出不需要线
+      loader.setConditionalLineMaterial(THREE.LineBasicMaterial);
+    }
+    const g = await new Promise((res, rej) => loader.load('parts/' + partFile, res, undefined, rej));
+    // ★ 米制缩放：LDrawLoader 输出 LDU 原值，人仔比例（人高1.75m）缩放 0.0004×17.5=0.007
+    //   LDrawLoader onLoad 返回 Group（无 .scene 包装）
+    const inner = g.scene || g;
+    const root = new (inner.constructor)();
+    root.name = 'LDrawPart';
+    root.scale.setScalar(0.0004 * 17.5);
+    root.add(inner);
+    const exporter = new GLTFExporter();
+    const ab = await new Promise((res, rej) => exporter.parse(root, res, rej, { binary: true }));
+    const bytes = new Uint8Array(ab);
+    let bin = ''; const CH = 0x8000;
+    for (let i = 0; i < bytes.length; i += CH) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+    return btoa(bin);
+  };
+  window.__ready = true;
+} catch (e) { window.__err = String(e && e.message || e); }
+</script></body></html>
