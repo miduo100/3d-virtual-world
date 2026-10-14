@@ -54,6 +54,11 @@ function shapeBad(it) {
     //   三轮重复选它（实测 castle 委托）。既然防看穿闸必拒，候选侧直接剔掉，
     //   模型无从选错（替代键列表也随之自洽）。
     if (NOT_WALL.test(String(it.partKey || ''))) return true;
+    // ★ 房子模块件剔除（2026-10-14）：building_sample_house_c 等是「带自家坡顶的
+    //   房子立面模块」，role=wall 是分类器误判。当墙平铺一层时看不出来（段间檐口
+    //   相接像楼层线），但层高 > 件高触发垂直堆叠（wallRows>1）时，第二排叠在第一排
+    //   的坡顶上——3 层楼渲染成「小房子堆成的圣诞树」（实测截图穿帮）。
+    if (/house|home|cottage/i.test(String(it.partKey || ''))) return true;
     return minEdge > 2.5;                        // 整栋模型（20×28×16）
   }
   if (['door', 'window', 'trim', 'railing'].indexOf(it.role) >= 0) return minEdge > 1.5 || h > 8;
