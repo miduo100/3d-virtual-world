@@ -260,7 +260,7 @@ async function plan(mission, region, opts) {
       fallbackNotes.push('第 ' + round + ' 轮 LLM 产物解析失败（截断修复后仍不可解析），重试下一轮');
       continue;
     }
-    const v = await planValidate.validatePlan(raw, constraints, { seedStr: String(mission.id) + '|r' + round });
+    const v = await planValidate.validatePlan(raw, constraints, { seedStr: String(mission.id) + '|r' + round, bounds: region && region.bounds });
     // ★ 数量兜底（队列14 收尾）：用户写了具体下限而模型没给够 → 直接把散点块 count 抬到下限
     //   （确定性、零 LLM；实测"大于6个"模型给 5 件、重试仍 5 件——散点原语本身就能精确补足）。
     //   注意此时散点块尚未展开（v.stats.parts 只计普通 parts），件数要按 scatter.count 直算。
@@ -304,6 +304,18 @@ async function plan(mission, region, opts) {
 
   if (!lastPlan) {
     return { ok: false, code: 'PLAN_PARSE_FAILED', rounds, llmCalls: await countLlmCalls(mission.id), reason: '全部 ' + rounds + ' 轮 LLM 产物均无法解析为方案 JSON（含截断修复），请缩小委托体量或稍后重试' };
+  }
+  // ★ 空方案显式失败（2026-10-14）：复杂委托（如「中世纪城堡」）实测 LLM 三轮都交
+  //   {"style":…,"summary":…,"blocks":[]}——style/summary 齐全但一个块都没有。
+  //   旧逻辑照单全收 ok=true → 落库 0 件、后台看起来"成功"。空方案必须报失败，
+  //   让后台能看到并重试（改写委托/换 provider）。
+  if (!lastPlan.blocks || !lastPlan.blocks.length) {
+    return {
+      ok: false, code: 'PLAN_EMPTY', rounds, llmCalls: await countLlmCalls(mission.id),
+      reason: 'LLM ' + rounds + ' 轮均未产出任何内容块（blocks 为空，模型对复杂委托可能"只总结不规划"）。'
+        + '请把委托拆小（先主体后配景）或稍后重试',
+      fallbackNotes,
+    };
   }
 
   return {
@@ -429,7 +441,7 @@ function buildPlanOutputContract(region, maxObjectsCap) {
     '  ★ 屋顶风格要与建筑风格一致：城堡/木屋/别墅/中世纪 → 用坡屋顶（Roof_Slate_Center 这类 h 明显大于 0 的件）；现代办公楼/厂房/平顶建筑 → 用平板（Roof_2x2 这类 h=0 的件）。**不要给城堡盖现代平板顶。**',
     '  ★ 内部结构：不填 interior 时引擎会自动用 parts.roof 铺内部楼板（顶层由屋顶负责），所以楼里不会是空的；想自定义楼板/立柱才填 interior:{floor:"楼板件",column:"立柱件"}。',
     '  ★ 围墙/栅栏/庭院边界用 fence recipe（自动闭环）：{"kind":"庭院围墙","mode":"recipe","recipe":"fence","spec":{"polygon":[{"dx":0,"dz":0},{"dx":20,"dz":0},{"dx":20,"dz":15},{"dx":0,"dz":15}],"gate_align":{"dx":10,"dz":0},"parts":{"fence":"栏板partKey","post":"柱partKey可省","gate":"大门partKey可省"}}}——polygon 是围墙多边形顶点；gate_align 是参考点（填楼门相对本块 anchor 的偏移），门会开在**离它最近的墙段上正对楼门**；不填 gate_align 才用 gate_position(0~1，第一段比例)。',
-    '  ★ 树丛/树林用 forest recipe（泊松盘自动布点，绝不重叠）：{"kind":"树林","mode":"recipe","recipe":"forest","spec":{"count":15,"size":{"width":25,"depth":20},"around":{"dx":10,"dz":8},"partKeys":["树种partKey1","树种partKey2"]}}——around 是林子中心偏移（可省=size 居中），多个树种会自动混种。',
+    '  ★ 树丛/树林用 forest recipe（泊松盘自动布点，绝不重叠）：{"kind":"树林","mode":"recipe","recipe":"forest","spec":{"count":15,"size":{"width":25,"depth":20},"partKeys":["树种partKey1","树种partKey2"]}}——多个树种自动混种；★ **around 通常不要填**（引擎自动把林子放在块中心，而块 anchor 又自动放区域中部——你若按"区域绝对偏移"理解 around 会把林子推到边界外被整片裁掉）；确需相对块中心偏移时才填 {"dx","dz"}（米）。',
     '  ★ 花坛/绿化用 garden recipe（围边+内部花卉散点）：{"kind":"花坛","mode":"recipe","recipe":"garden","spec":{"shape":"rect或circle","size":{"width":8,"depth":5},"flower_types":["花卉partKey1","花卉partKey2"],"parts":{"edge":"围边partKey可省"}}}。',
     // ★ 两条硬规则放 TASK 段（本段永不裁）：PARTS 段超预算时会被 clampText 尾部硬截，
     //   放在那里可能连规则一起被切掉（2026-10-12 修正）。

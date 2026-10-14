@@ -18,6 +18,7 @@ const { query } = require('../../database/db');
 const assetSearch = require('../tools/assetSearch');
 const recipeRegistry = require('../recipes');
 const recipeValidate = require('../recipes/validate');
+const coords = require('./coords'); // 绝对坐标唯一换算（与 runner 落件同函数，区域裁剪用）
 
 const DEFAULT_FLOOR_HEIGHT = 2.4;
 let _fhCache = { v: DEFAULT_FLOOR_HEIGHT, at: 0 };
@@ -44,10 +45,15 @@ async function recipePartResolver(partKey) {
 }
 
 /** 校验并归一 LLM 产物：非法 partKey / 禁用 role 一律剔除；超预算截断（P35-9）
- *  opts.seedStr：确定性种子（recipe 展开用；缺省退化为固定串，注入路径可重跑同坐标） */
+ *  opts.seedStr：确定性种子（recipe 展开用；缺省退化为固定串，注入路径可重跑同坐标）
+ *  opts.bounds：区域 bounds {x,z,width,depth}——存在时对展开件做区域裁剪（2026-10-14）：
+ *    path 横穿区域 / forest 圈太大时，AI 的骨架出界，件被 boundsGuard 静默拒绝
+ *    （实测 path1 40 件拒一部分、forest1 25 棵只落 8）。在 validate 层统一裁掉
+ *    出界件并记账透出，让下一轮 LLM 看到「出界 N 件」修正 anchor。 */
 async function validatePlan(raw, constraints, opts) {
   const c = constraints || {};
   const seedStr = String((opts && opts.seedStr) || 'seed0');
+  const bounds = (opts && opts.bounds) || null;
   const allowed = Array.isArray(c.allowed_roles) ? c.allowed_roles.map(String) : null;
   const forbid = Array.isArray(c.forbid_roles) ? c.forbid_roles.map(String) : [];
   const maxObjects = Number(c.max_objects) > 0 ? Number(c.max_objects) : 120;
@@ -55,7 +61,7 @@ async function validatePlan(raw, constraints, opts) {
   const kept = [];
   // ★ 预算计数单位是**零件**，不是块（判据 P35-9：maxObjects=10 而布局 30 件 → 截断到 10 件）
   let placedParts = 0;
-  const dropped = { unknownPart: 0, roleNotAllowed: 0, roleForbidden: 0, overBudget: 0, recipeInvalid: 0 };
+  const dropped = { unknownPart: 0, roleNotAllowed: 0, roleForbidden: 0, overBudget: 0, recipeInvalid: 0, outOfBounds: 0 };
   const lastMiss = [];   // AI 编造/记错的 partKey（§11-6 显式记账，供 runner 并入 notes 曝光）
   for (const b of blocks) {
     // ★ AI 自由拼装 recipe 块：AI 只给**骨架**（waypoints/footprint），引擎沿骨架铺零件。
@@ -168,6 +174,63 @@ async function validatePlan(raw, constraints, opts) {
       parts,
     });
   }
+  // ── 区域裁剪（2026-10-14）：绝对坐标出界的件在 validate 层裁掉并记账 ──
+  //   ★ 必须用与 runner 完全相同的换算（coords.absoluteOf：anchor 钳制/默认居中/gridsnap
+  //     吸附都在里面）——旧版手写 `bounds.x + anchor + dx` 与真实落点不一致，裁剪形同虚设
+  //     （实测 path1 出界件直通 boundsGuard 静默被拒）。
+  if (bounds) {
+    const bx = Number(bounds.x) || 0;
+    const bz = Number(bounds.z) || 0;
+    const bw = Number(bounds.width) || 0;
+    const bd = Number(bounds.depth) || 0;
+    if (bw > 0 && bd > 0) {
+      for (const b of kept) {
+        // ── 整块自愈（2026-10-14）：过半出界 = AI 的骨架语义错位（实测 forest 的
+        //   around 被 AI 按「区域绝对偏移」理解，40,40 恰是它心中的区域中心，
+        //   引擎再叠加块 anchor → 林子整体推出界，25 棵只落 7）——把块平移回
+        //   区域中心，比裁掉大半棵树好得多。改 anchor（不改零件坐标），下一轮
+        //   LLM 看到自愈记账后也能学到正确语义。
+        const absAll = b.parts.map((p) => coords.absoluteOf({ bounds: bounds }, b, p));
+        if (absAll.length) {
+          const mnX = Math.min.apply(null, absAll.map((a) => a.x));
+          const mxX = Math.max.apply(null, absAll.map((a) => a.x));
+          const mnZ = Math.min.apply(null, absAll.map((a) => a.z));
+          const mxZ = Math.max.apply(null, absAll.map((a) => a.z));
+          const outN = absAll.filter((a) => a.x < bx || a.x > bx + bw || a.z < bz || a.z > bz + bd).length;
+          if (outN > absAll.length / 2) {
+            const shiftX = Math.round((bx + bw / 2 - (mnX + mxX) / 2) * 100) / 100;
+            const shiftZ = Math.round((bz + bd / 2 - (mnZ + mxZ) / 2) * 100) / 100;
+            b.anchor = {
+              dx: Math.round(((Number(b.anchor && b.anchor.dx) || 0) + shiftX) * 100) / 100,
+              dz: Math.round(((Number(b.anchor && b.anchor.dz) || 0) + shiftZ) * 100) / 100,
+            };
+            lastMiss.push('块 ' + b.kind + ' 有 ' + outN + '/' + absAll.length + ' 件出界，已整体平移回区域中心——around/waypoints 相对的是块 anchor，不要按区域绝对坐标填');
+          }
+        }
+        const before = b.parts.length;
+        b.parts = b.parts.filter((p) => {
+          const abs = coords.absoluteOf({ bounds: bounds }, b, p);
+          // ★ 按半足迹判界（2026-10-14）：boundsGuard 用零件外接半径拒件（中心距边
+          //   < 半径即 OUT_OF_BOUNDS），裁剪只算中心点会漏放 → 出界件仍直通守卫
+          //   （实测 path_stone skipped=40）。逐件取 grid 长宽的半宽，0.3m 容差。
+          const gg = Array.isArray(p.grid) ? p.grid.map(Number) : [1, 1, 1];
+          const foot = Math.max(0, Math.max(Number(gg[0]) || 0, Number(gg[2]) || 0) / 2 - 0.3);
+          const inb = abs.x >= bx + foot && abs.x <= bx + bw - foot
+            && abs.z >= bz + foot && abs.z <= bz + bd - foot;
+          if (!inb) dropped.outOfBounds += 1;
+          return inb;
+        });
+        if (b.parts.length < before) {
+          lastMiss.push('块 ' + b.kind + ' 有 ' + (before - b.parts.length) + ' 件出区域边界被裁——把 anchor 往区域中心移，或缩小骨架范围');
+        }
+        if (!b.parts.length && b.mode !== 'scatter') {
+          // 整块被裁光：保留空块结构会让 runner 空转，这里记录即可（runner 对空 parts 块本就跳过）
+          lastMiss.push('块 ' + b.kind + ' 全部出界——骨架范围远超区域，缩小 footprint/waypoints');
+        }
+      }
+    }
+  }
+
   return {
     plan: { style: raw.style || null, summary: raw.summary || null, blocks: kept },
     stats: { blocks: kept.length, parts: kept.reduce((s, b) => s + b.parts.length, 0), dropped },
