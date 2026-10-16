@@ -2,7 +2,7 @@
  * 济宁米多信息科技有限公司 版权所有
  * 如需获取软件授权请联系：888@miduo100.com / 15660440944
  *
- * loadingMask.js v1 — 主世界首屏加载遮罩「光之门户」（自注入）
+ * loadingMask.js v2 — 主世界首屏加载遮罩「光之门户」（自注入）+ 老玩家免遮档薄幕
  *
  * 为什么自注入：index.html 已超 500 行（项目红线：大文件禁止追加），本次只在其中加
  * 1 行 <script>，遮罩的 CSS 与 DOM 全部在本模块生成（项目既有惯例：adminIssueRegistry.js /
@@ -29,6 +29,27 @@
  *      （宁可多盖一会儿品牌遮罩，也不让用户盯纯黑屏）
  *   ⑤ window.__WEBGL2_UNSUPPORTED（让位给 webgl2Guard 的全屏降级提示）
  *
+ * ── v2 新增：免遮档（curtain 薄幕模式）────────────────────────────────
+ * 需求：老玩家刷新时不要再等完整遮罩（实测首访与刷新的真实加载耗时本来几乎一样，
+ * 但产品决策是"只要这台浏览器进过一次世界，之后就别再挡品牌遮罩"）。
+ *
+ * 判定：localStorage 有 ENTERED_KEY 标记 → 走薄幕；无标记 → 完整遮罩（首访不变）。
+ * 标记只在【完整遮罩正常走完】时才写（reason=ready/timeout）；webgl2 不支持、
+ * 手动 hide、传送失败等路径都不写（否则会把"根本进不去"的机器记成老玩家）。
+ *
+ * 薄幕形态：仍是同一个 #loadingMask 元素（复用 tick / phase / 撤除逻辑），加 .lm-curtain：
+ *   · pointer-events:none     → 不挡任何点击（游客条、开始游戏按钮立即可用）
+ *   · 子元素全部 display:none → 无品牌文案、无进度条（不冒充"加载动画"）
+ *   · 画布一出画（帧数推进且 ≥3）就立刻撤，实测约 0.5s（不等 WorldReadyGate）
+ *
+ * 为什么还需要这层薄幕，而不是干脆什么都不显示：
+ *   world.js 的 renderer 是 alpha:false 的**不透明**画布 → 上下文创建后、首绘之前，
+ *   画布按规范就是纯黑且不透明，body 底色（在画布之下）根本看不见。所以"画布之上
+ *   的一层 DOM"是唯一能盖住那段黑的东西。不盖的话慢机/弱网会看到 1~2s 纯黑。
+ *   （index.html 的 body 底色也改成了同款品牌渐变，负责覆盖"还没有 WebGL 上下文"的解析期。）
+ *
+ * 手动恢复完整遮罩：控制台执行 LoadingMask.resetEntered() 后刷新。
+ *
  * 零侵入：不改 world.js / main.js / ui.js / loadingProgress.js，也不改 index.html 既有结构。
  * 唯一包装 = UI.hideLoadingScreen（原因见 _patchUIHide）。
  *
@@ -45,8 +66,12 @@
     MAX_VISIBLE_MS: 15000,  // 硬兜底（画布已出画时）
     MAX_VISIBLE_STALL_MS: 30000, // 画布始终没出画时的兜底（防遮罩永久遮挡）
     MIN_FRAMES: 3,          // 认为"画布已出画"所需的最小帧数
-    FADE_MS: 620            // 与 CSS transition 时长保持一致
+    FADE_MS: 620,           // 与 CSS transition 时长保持一致（完整遮罩）
+    CURTAIN_FADE_MS: 220    // 免遮档薄幕的淡出时长（更快，避免"闪一下"的观感）
   };
+
+  // 「本机曾成功进入过世界」标记（localStorage）：决定本次走完整遮罩还是免遮档薄幕
+  var ENTERED_KEY = 'genesis_entered_world';
 
   /* ---------- 样式（注入 <head>） ---------- */
   var CSS = [
@@ -64,6 +89,9 @@
     'mask-image:radial-gradient(70% 70% at 50% 50%,#000 20%,transparent 78%)}',
     '#loadingMask>*{position:relative;z-index:2}',
     '#loadingMask.lm-hide{opacity:0;visibility:hidden}',
+    /* 免遮档薄幕：不挡点击（pointer-events:none）+ 不显示品牌/进度内容 + 更快的淡出 */
+    '#loadingMask.lm-curtain{pointer-events:none;transition:opacity .22s ease,visibility .22s ease}',
+    '#loadingMask.lm-curtain>*{display:none}',
     '.lm-portal{position:relative;width:150px;height:150px;margin-bottom:6px;display:flex;align-items:center;justify-content:center}',
     '.lm-ring{position:absolute;border-radius:50%;border:2px solid transparent}',
     '.lm-r1{inset:0;border-top-color:#00E5FF;border-right-color:rgba(0,229,255,.25);animation:lm-spin 2.6s linear infinite}',
@@ -108,6 +136,7 @@
 
   var el = null, barEl = null, pctEl = null, legacyEl = null;
   var phase = 'idle';        // idle | running | fading | done
+  var mode = 'full';         // full = 完整遮罩（首访）| curtain = 免遮档薄幕（本机曾进过世界）
   var lastReason = null;     // ready | timeout | webgl2 | manual
   var pct = 0;
   var startedAt = 0, readyAt = 0;
@@ -179,6 +208,19 @@
     try { document.body.classList[on ? 'add' : 'remove']('lm-masking'); } catch (e) { /* ignore */ }
   }
 
+  /* ---------- 「本机曾成功进入过世界」标记 ----------
+     读不到/写不进去（隐私模式、存储被禁用、跨域 iframe）一律按"没有"处理 → 走完整遮罩，
+     也就是永远退回到最安全的那条路径。 */
+  function _hasEntered() {
+    try { return localStorage.getItem(ENTERED_KEY) === '1'; } catch (e) { return false; }
+  }
+  function _markEntered() {
+    try { localStorage.setItem(ENTERED_KEY, '1'); } catch (e) { /* ignore */ }
+  }
+  function _clearEntered() {
+    try { localStorage.removeItem(ENTERED_KEY); } catch (e) { /* ignore */ }
+  }
+
   function _setPct(v) {
     if (typeof v !== 'number' || !isFinite(v)) return;
     pct = Math.max(pct, Math.min(100, v));   // 单调不回退
@@ -241,13 +283,17 @@
     console.log('[LoadingMask] 撤下遮罩 reason=' + reason +
       ' t=' + Math.round(performance.now()) + 'ms pct=' + Math.round(pct) + '%' +
       ' frames=' + _lastFrames);
+    var isCurtain = (mode === 'curtain');
     fadeTimer = setTimeout(function () {
       fadeTimer = null;
       _forceRenderOnce();     // 真正 display:none 之前再补一帧，杜绝"撤罩即纯黑"
       if (el) el.style.display = 'none';
-      _maskingClass(false);   // 淡出结束才恢复游客提示条
+      if (!isCurtain) _maskingClass(false);   // 淡出结束才恢复游客提示条（薄幕档从头就没隐藏它）
+      // 只有完整遮罩"正常走完"才认定本机进过世界：webgl2 不支持 / 手动 hide / 传送失败都不算，
+      // 否则会把"根本进不去世界"的机器记成老玩家，下次直接免掉全部保护。
+      if (!isCurtain && (lastReason === 'ready' || lastReason === 'timeout')) _markEntered();
       phase = 'done';
-    }, CFG.FADE_MS);
+    }, isCurtain ? CFG.CURTAIN_FADE_MS : CFG.FADE_MS);
   }
 
   // 外部强制关闭（showLoginScreen 直接 display:none）→ 本模块安静收工
@@ -279,6 +325,15 @@
 
     var alive = _renderAlive();   // 每 tick 只探一次（内部推进 _lastFrames）
 
+    // 薄幕档（老玩家刷新）：不等 WorldReadyGate —— 这层只负责盖住"上下文已建、还没首绘"
+    // 的那段不透明黑，画布一出画就撤（实测约 0.5s）。撤掉后世界边加载边显示，
+    // 顶部进度条（loadingProgress.js，独立于本模块）继续给反馈。
+    if (mode === 'curtain') {
+      if (alive) { _finish('ready'); return; }
+      if (elapsed >= CFG.MAX_VISIBLE_STALL_MS) _finish('timeout');
+      return;
+    }
+
     if (_gateReady()) {
       if (!readyAt) readyAt = Date.now();
       // 就绪 + 画面已真的在出（否则会把纯黑露出来）→ 再等宽限期后撤
@@ -291,6 +346,13 @@
   function show() {
     if (!el) return;
     if (fadeTimer) { clearTimeout(fadeTimer); fadeTimer = null; }
+    // 薄幕档被外部要求显示遮罩时（跨世界传送到达：旧 #loadingScreen 被置 display:flex，
+    // 那一刻确实要加载目标世界资源），升级回完整品牌遮罩（恢复文案/进度/隐藏游客条）。
+    if (mode === 'curtain') {
+      mode = 'full';
+      el.classList.remove('lm-curtain');
+      _maskingClass(true);
+    }
     el.classList.remove('lm-hide');
     el.style.display = 'flex';
     _maskingClass(true);
@@ -308,7 +370,17 @@
     if (!el) return;                 // 未注入成功则静默停用
     _patchUIHide();
     legacyEl = document.getElementById('loadingScreen');
-    _maskingClass(true);
+
+    // 免遮档判定（同步、只读 localStorage）：本机曾成功进过世界 → 只铺一层不挡点击的渐变薄幕。
+    // 注意模块照常启动、tick 照常挂：这样"跨世界传送到达→旧 #loadingScreen 置 flex→show()"
+    // 的联动仍然有效（薄幕档会被 show() 升级回完整遮罩）。
+    mode = _hasEntered() ? 'curtain' : 'full';
+    if (mode === 'curtain') {
+      el.classList.add('lm-curtain');
+    } else {
+      _maskingClass(true);           // 只有完整遮罩才隐藏游客提示条（薄幕不挡点击，无需隐藏）
+    }
+
     phase = 'running';
     startedAt = Date.now();
     _render();
@@ -322,9 +394,13 @@
     hide: hide,
     isVisible: function () { return phase === 'running' || phase === 'fading'; },
     setProgress: function (v) { _setPct(v); _render(); },
+    // 手动恢复完整遮罩（清掉"曾进过世界"标记，下次刷新生效）：线上若出现"免遮档但加载很慢"
+    // 的情况，控制台执行 LoadingMask.resetEntered() 即可回到首访行为。
+    resetEntered: function () { _clearEntered(); return true; },
     _diag: function () {
       return {
-        phase: phase, pct: pct, lastReason: lastReason,
+        phase: phase, mode: mode, entered: _hasEntered(),
+        pct: pct, lastReason: lastReason,
         elapsedMs: startedAt ? Date.now() - startedAt : 0,
         readyAt: readyAt || null, uiHidePatched: uiHidePatched,
         frames: _lastFrames, canvasDrewFrames: _aliveSeen   // 画布是否已真实出画（排查"撤罩后黑屏"用）

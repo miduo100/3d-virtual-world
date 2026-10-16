@@ -67,7 +67,13 @@
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       overflow: hidden;
-      background: #000;
+      /* 品牌渐变底色（与 loadingMask 同款）：只在"还没有 WebGL 上下文、画布还没盖上来"的
+         极早期露出来（老玩家免遮档刷新时尤其重要），避免纯黑被看成黑屏故障。
+         注意：renderer 是 alpha:false 的不透明画布，一建上下文就由画布自己接管，
+         那段黑由 loadingMask 的免遮档薄幕负责，这里负责的是解析期。 */
+      background: radial-gradient(70% 90% at 50% 108%, rgba(255,179,71,.16), transparent 62%),
+                  radial-gradient(90% 70% at 50% -12%, rgba(0,229,255,.16), transparent 60%),
+                  linear-gradient(180deg, #0A0E27 0%, #141836 100%);
     }
 
     #canvas {
@@ -728,7 +734,7 @@
   <canvas id="canvas"></canvas>
   <!-- 首屏加载遮罩「光之门户」：CSS/DOM 全部由该模块自注入（本文件已超 500 行，不在此加代码）。
        位置必须在旧 #loadingScreen 之前解析，首帧才直接是门户、不闪黑屏。 -->
-  <script src="js/loadingMask.js?v=2"></script>
+  <script src="js/loadingMask.js?v=3"></script>
   <div id="ui-overlay">
     <!-- Health Bar -->
     <div class="health-bar" id="health-bar">
