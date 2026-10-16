@@ -17,9 +17,9 @@
  *   M7 干净：0 console error / 0 pageerror（按 url 过滤 favicon 噪音）+ uiHidePatched=true
  *   M8 传送失败分支：?teleport=true&token=bad → 登录页出现时遮罩不再盖住它（独立 profile）
  *   M9 画布未出画时不撤罩（>15s 仍盖着，防"撤罩后黑屏"；独立 profile）
- *   M10 免遮档（v2）：本机曾成功进过世界（localStorage 标记）时，刷新不再出现完整遮罩，
- *       改为一层 pointer-events:none、无品牌内容、画布一出画就撤（≤5s）的渐变薄幕；
- *       且 show()（跨世界传送到达）仍能弹回完整遮罩
+ *   M10 免遮档（v3）：本机曾成功进过世界（localStorage 标记）时，刷新**不留任何遮罩痕迹**
+ *       —— 整个流程 #loadingMask 恒为 display:none、中心点从不命中它、不隐藏游客提示条、
+ *       不进入遮罩流程（phase 一开始即 done）；且 show()（跨世界传送到达）仍能弹出完整遮罩
  *
  * 用法：node scripts/accept_loading_mask.js
  * 说明：①全程游客态（不登录），不依赖管理员账号 → 不受 admin 登录 IP 限流影响；
@@ -415,10 +415,12 @@ async function main() {
           const cs = getComputedStyle(el);
           const kid = el.firstElementChild ? getComputedStyle(el.firstElementChild).display : null;
           const d = window.LoadingMask && window.LoadingMask._diag ? window.LoadingMask._diag() : null;
+          const hit = document.elementFromPoint(Math.floor(window.innerWidth / 2), Math.floor(window.innerHeight / 2));
           window.__lmEarlySamples.push({
             t: Math.round(performance.now() - t0),
             cls: String(el.className), display: el.style.display || cs.display,
             pe: cs.pointerEvents, childDisplay: kid,
+            hit: hit ? (hit.id || String(hit.className) || hit.tagName) : 'null',
             bodyCls: document.body ? String(document.body.className) : '',
             phase: d ? d.phase : null, mode: d ? d.mode : null
           });
@@ -434,6 +436,8 @@ async function main() {
       await p10.waitForFunction(() => window.LoadingMask && window.LoadingMask._diag().phase === 'done', null, { timeout: 20000 });
     } catch (e) { done10 = false; }
     const ms10 = Date.now() - navT10;
+    // 多等 2s 让采样覆盖更长的早期窗口（"零痕迹"要证明的不只是"某一刻"隐藏）
+    await p10.waitForTimeout(2000);
 
     const d10 = await p10.evaluate(() => {
       const s = window.__lmEarlySamples || [];
@@ -443,26 +447,29 @@ async function main() {
         diag: window.LoadingMask._diag(),
         entered: entered,
         sampleCount: s.length,
-        curtainSamples: s.filter((x) => x.mode === 'curtain').length,
-        shownCurtain: s.filter((x) => x.mode === 'curtain' && x.cls.indexOf('lm-curtain') >= 0 && x.display !== 'none').length,
-        badPointerEvents: s.filter((x) => x.mode === 'curtain' && x.display !== 'none' && x.pe !== 'none').length,
-        badChildVisible: s.filter((x) => x.mode === 'curtain' && x.display !== 'none' && x.childDisplay !== 'none').length,
-        badMaskingBody: s.filter((x) => /lm-masking/.test(x.bodyCls)).length
+        // 核心判据：免遮档期间"一个像素都不许出现"
+        badVisible: s.filter((x) => x.display !== 'none').length,
+        badHit: s.filter((x) => /loadingMask/.test(x.hit || '')).length,
+        badChildVisible: s.filter((x) => x.display !== 'none' && x.childDisplay !== 'none').length,
+        everRunning: s.filter((x) => x.phase === 'running').length,
+        badMaskingBody: s.filter((x) => /lm-masking/.test(x.bodyCls)).length,
+        firstSample: s.length ? s[0] : null
       };
     });
-    log('M10 ' + JSON.stringify({ diag: d10.diag, entered: d10.entered, samples: d10.sampleCount, curtain: d10.curtainSamples, shown: d10.shownCurtain }));
+    log('M10 ' + JSON.stringify({ diag: d10.diag, entered: d10.entered, samples: d10.sampleCount, badVisible: d10.badVisible, badHit: d10.badHit, everRunning: d10.everRunning, first: d10.firstSample }));
 
     push('M10a 首访成功后写入"曾进过世界"标记（localStorage）', d10.entered === '1', 'marker=' + d10.entered);
-    push('M10b 刷新走免遮档薄幕路径（mode=curtain，未回到完整遮罩）',
-      d10.diag.mode === 'curtain' && d10.curtainSamples > 0,
-      'mode=' + d10.diag.mode + ' curtainSamples=' + d10.curtainSamples + '/' + d10.sampleCount);
-    push('M10c 薄幕不挡点击（pointer-events:none 全程成立）', d10.badPointerEvents === 0,
-      '违规样本=' + d10.badPointerEvents + ' 铺过薄幕的样本=' + d10.shownCurtain);
-    push('M10d 薄幕不含品牌/进度内容（子元素不可见）', d10.badChildVisible === 0,
-      '违规样本=' + d10.badChildVisible);
-    push('M10e 免遮档下不隐藏游客提示条（body 无 lm-masking）', d10.badMaskingBody === 0,
-      '违规样本=' + d10.badMaskingBody);
-    push('M10f 薄幕很快撤除（≤5s，不等 12s 兜底）', done10 && d10.diag.phase === 'done' && ms10 <= 5000,
+    push('M10b 刷新走免遮档路径（mode=skip）', d10.diag.mode === 'skip',
+      'mode=' + d10.diag.mode + ' 样本=' + d10.sampleCount);
+    push('M10c 零痕迹：全程 #loadingMask 从未可见（含解析早期）',
+      d10.badVisible === 0 && d10.sampleCount > 0,
+      '可见样本=' + d10.badVisible + '/' + d10.sampleCount + ' 首个样本=' + JSON.stringify(d10.firstSample));
+    push('M10d 零痕迹：中心点从未命中遮罩（不挡任何交互）', d10.badHit === 0,
+      '命中遮罩的样本=' + d10.badHit);
+    push('M10e 从未进入遮罩流程（无 running）+ 不隐藏游客提示条',
+      d10.everRunning === 0 && d10.badMaskingBody === 0,
+      'running样本=' + d10.everRunning + ' lm-masking样本=' + d10.badMaskingBody);
+    push('M10f 免遮档下 phase 一开始即 done（未走 12s 兜底）', d10.diag.phase === 'done' && done10,
       'phase=' + d10.diag.phase + ' 用时=' + ms10 + 'ms reason=' + d10.diag.lastReason);
 
     // 传送到达联动：show() 必须能把薄幕升级回完整品牌遮罩
@@ -475,9 +482,9 @@ async function main() {
         body: String(document.body.className), mode: window.LoadingMask._diag().mode
       };
     });
-    push('M10g 免遮档下 show() 仍能弹回完整遮罩（跨世界传送到达联动未破坏）',
-      sf.display === 'flex' && sf.cls.indexOf('lm-curtain') < 0 && sf.pe !== 'none' &&
-      /lm-masking/.test(sf.body) && sf.mode === 'full', JSON.stringify(sf));
+    push('M10g 免遮档下 show() 仍能弹出完整遮罩（跨世界传送到达联动未破坏）',
+      sf.display === 'flex' && sf.pe !== 'none' && /lm-masking/.test(sf.body) && sf.mode === 'full',
+      JSON.stringify(sf));
     await p10.evaluate(() => window.LoadingMask.hide());
 
     const real10 = err10.filter((t) => !/Failed to load resource/i.test(t));
