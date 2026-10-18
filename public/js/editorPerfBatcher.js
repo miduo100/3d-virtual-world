@@ -208,7 +208,10 @@
         var total = phList.length;
         var start = 0, end = total;
         if (!full && total > 256) {
-            var win = Math.ceil(total / 2);
+            // 【会话2】窗口从 1/2 降到 1/4：这 3900+ 个条目里只有「当前选中对象」的盒子会动
+            // （focusRoots 每轮必写），其余模型的位置根本不变，纯防御性重算。
+            // 1/4 窗口 → 4 次同步覆盖一轮（≈8 帧 / 133ms），单次扫描成本降到约 1/4。
+            var win = Math.ceil(total / 4);
             start = phCursor;
             end = Math.min(total, start + win);
             phCursor = end >= total ? 0 : end;
@@ -228,6 +231,8 @@
     var geoGroups = new Map();      // realGroup -> { sources: [], batched }
     var keepUnbatched = new Set();  // 选中对象的 realGroup（保持还原供编辑）
     var batches = new Map();        // key -> { key, geometry, material, sources, im, dirty }
+    var _syncBPending = false;      // 源增删后置位：下一帧立即同步一次（不等 4 帧节拍）
+    var _batchEnabled = true;       // 诊断开关：EditorPerf.setBatchEnabled(false) 可临时关掉几何合批
 
     function fnvAttr(attr) {
         var h = 0x811c9dc5, a = attr.array, step = a.length > 4096 ? 3 : 1;
@@ -243,12 +248,24 @@
     }
 
     function matSig(m) {
+        var emissive = m.emissive ? m.emissive.getHexString() : '-';
+        // 黑色自发光下 emissiveIntensity 对画面无影响：highlightObject 取消选中时会把该值
+        // 归零，若把它算进签名，「选过一次」的对象就会永久分裂成新批次（模板几何 1400+ 源时
+        // 批次数量会随点选次数不断增长）。
+        var emInt = (emissive !== '-' && emissive !== '000000' && m.emissiveIntensity !== undefined)
+            ? m.emissiveIntensity : '-';
         return [m.type,
             m.color ? m.color.getHexString() : '-',
-            m.emissive ? m.emissive.getHexString() : '-',
-            m.opacity, m.transparent ? 1 : 0, m.wireframe ? 1 : 0,
+            emissive, m.opacity, m.transparent ? 1 : 0, m.wireframe ? 1 : 0,
             m.map ? m.map.uuid : '-',
-            m.emissiveIntensity !== undefined ? m.emissiveIntensity : '-'].join('|');
+            emInt,
+            // 模板几何（GeometryTemplates）大量使用 Lambert/Standard：下面几项一旦不同，
+            // 合批后就会出现肉眼可见差异（单/双面、平滑、顶点色、粗糙度/金属度）。
+            m.side !== undefined ? m.side : '-',
+            m.flatShading ? 1 : 0,
+            m.vertexColors ? 1 : 0,
+            m.roughness !== undefined ? m.roughness : '-',
+            m.metalness !== undefined ? m.metalness : '-'].join('|');
     }
 
     function collectSources(realGroup) {
@@ -256,13 +273,107 @@
         realGroup.traverse(function (child) {
             if (!child.isMesh || child.isSkinnedMesh) return;
             var ud = child.userData || {};
-            if (ud.isPickProxy) return;
+            if (ud.isPickProxy || ud.gsPlaceholder || ud.gsProgress) return;
             if (!child.geometry || !child.geometry.attributes || !child.geometry.attributes.position) return;
             if (child.geometry.morphAttributes && Object.keys(child.geometry.morphAttributes).length) return;
             if (Array.isArray(child.material)) return;
+            // 占位线框盒（MeshBasicMaterial + wireframe）由 B1 占位镜像代渲染，绝不进合批
+            if (child.material && child.material.isMeshBasicMaterial && child.material.wireframe) return;
             out.push(child);
         });
         return out;
+    }
+
+    // ---- 源显隐：源自身的 visible 被接管后仍需保留「编辑器显隐意图」 ----
+    // 单 Mesh 模板几何（GeometryTemplates 里 `return mesh` 的那批）的源就是对象根，
+    // 直接 `src.visible = false` 会把「用户隐藏对象」与「合批接管渲染」两种语义搅拌在一起
+    // （读 chainVisible 永远 false → 实例被写成零矩阵，合批后什么都看不到）。
+    // 这里照抄占位镜像的做法：拦截 visible 写入，getter 恒 false（渲染器跳过），
+    // setter 只记录意图；同步时按意图决定实例矩阵。
+    function takeOverSourceVisibility(src) {
+        var intent = !!src.visible;
+        try {
+            Object.defineProperty(src, 'visible', {
+                configurable: true,
+                enumerable: true,
+                get: function () { return false; },
+                set: function (v) { intent = !!v; }
+            });
+        } catch (e) { return false; }
+        src.__epVisIntent = function () { return intent; };
+        src.__epVisTaken = true;
+        return true;
+    }
+
+    function releaseSourceVisibility(src) {
+        var intent = src.__epVisTaken && src.__epVisIntent ? src.__epVisIntent() : true;
+        try {
+            Object.defineProperty(src, 'visible', {
+                value: intent, writable: true, configurable: true, enumerable: true
+            });
+        } catch (e) { try { src.visible = intent; } catch (e2) {} }
+        src.__epVisTaken = false;
+        src.__epVisIntent = null;
+    }
+
+    // 源是否应当显示（编辑器语义）：realGroup 的祖先链 + realGroup 自身/意图
+    function sourceVisible(src) {
+        var rg = src.__epRealGroup;
+        if (!rg) return false;
+        var n;
+        if (rg === src) {
+            // 源即对象根：自身 visible 已被接管，改看意图 + 祖先链
+            if (src.__epVisIntent && src.__epVisIntent() === false) return false;
+            n = rg.parent;
+        } else {
+            n = rg;
+        }
+        while (n) { if (!n.visible) return false; n = n.parent; }
+        return true;
+    }
+
+    // realGroup 级显隐（同一组的源共享结论；rg === 源自身时看显隐意图）
+    function groupVisible(rec) {
+        var rg = rec.realGroup;
+        if (!rg) return false;
+        var n;
+        if (rg === rec.sources[0]) {
+            if (rg.__epVisIntent && rg.__epVisIntent() === false) return false;
+            n = rg.parent;
+        } else {
+            n = rg;
+        }
+        while (n) { if (!n.visible) return false; n = n.parent; }
+        return true;
+    }
+
+    // 强制刷新 realGroup 及其子节点的世界矩阵。
+    // ★ 为什么必须：实例矩阵是从 src.matrixWorld 抄的，而「父节点 matrixWorld 已更新、
+    //   子节点还是单位矩阵」是真实会出现的状态（对象刚被 add 进场景、或异步挂载真实模型后
+    //   还没渲染过一帧）。会话2 实测：一次错误的首写 + 组级短路（组没变就不再逐源比对）
+    //   = 1300+ 个实例永久停在原点，画面表现为「合批后大量模型消失」。
+    function forceMatrices(rg) {
+        if (!rg || typeof rg.updateWorldMatrix !== 'function') return;
+        try { rg.updateWorldMatrix(true, true); } catch (e) {}
+    }
+
+    // 组级「世界矩阵 + 显隐」是否与上次同步一致（一致 → 整组源的实例矩阵已经正确）
+    function groupUnchanged(rec, vis) {
+        var rg = rec.realGroup;
+        if (!rg || !rec._mw) return false;
+        if (rec._vis !== vis) return false;
+        var mw = rg.matrixWorld.elements;
+        for (var k = 0; k < 16; k++) { if (rec._mw[k] !== mw[k]) return false; }
+        return true;
+    }
+
+    function groupStamp(rec, vis) {
+        var rg = rec.realGroup;
+        if (!rg) return;
+        if (!rec._mw) rec._mw = new Float64Array(16);
+        var mw = rg.matrixWorld.elements;
+        for (var k = 0; k < 16; k++) rec._mw[k] = mw[k];
+        rec._vis = vis;
     }
 
     function batchGroup(rec) {
@@ -277,10 +388,17 @@
             batch.sources.push(src);
             batch.dirty = true;
             src.__epBatch = batch;
+            src.__epRec = rec;
             src.__epRealGroup = rec.realGroup;
-            src.visible = false; // 接管渲染，源保留在场景树（拾取/包围球/释放链路不变）
+            // 接管渲染，源保留在场景树（拾取/包围球/释放链路不变）
+            if (rec.realGroup === src) takeOverSourceVisibility(src);
+            else src.visible = false;
         });
         rec.batched = true;
+        forceMatrices(rec.realGroup);   // 首写前强制刷新父子矩阵（防实例停在原点）
+        rec._mw = null;                 // 让下一次组级预扫判定为「变了」，再刷一遍
+        _syncBPending = true;   // 立即同步（新合批的源不能等到 4 帧节拍）
+        _syncBPending = true;   // 立即同步（新合批的源不能等到 4 帧节拍）
     }
 
     function unbatchGroup(rec) {
@@ -292,9 +410,12 @@
                 batch.dirty = true;
             }
             src.__epBatch = null;
-            src.visible = true; // 还原为独立渲染（选中编辑态）
+            src.__epRec = null;
+            // 还原为独立渲染（选中编辑态），保留用户此前的显隐意图
+            releaseSourceVisibility(src);
         });
         rec.batched = false;
+        _syncBPending = true;   // 拆批后立即清掉旧实例矩阵
     }
 
     function rebuildBatch(batch, scene) {
@@ -308,12 +429,13 @@
         batch.im = im;
     }
 
-    function tryBatchGroup(realGroup) {
+    function tryBatchGroup(realGroup, isTemplate) {
+        if (!_batchEnabled) return;
         if (!realGroup || !realGroup.isObject3D || geoGroups.has(realGroup)) return;
         if (keepUnbatched.has(realGroup)) return;
         var sources = collectSources(realGroup);
         if (!sources.length) return;
-        var rec = { realGroup: realGroup, sources: sources, batched: false };
+        var rec = { realGroup: realGroup, sources: sources, batched: false, template: !!isTemplate };
         geoGroups.set(realGroup, rec);
         batchGroup(rec);
     }
@@ -325,6 +447,21 @@
     }
 
     function syncBatches(scene) {
+        // 【组级短路】模板几何合批后源数量 1400+，逐源读 matrixWorld 比对约 0.5ms/次。
+        // 编辑器只改「对象根」的变换（子 mesh 从不单独动），所以先按组判一次：
+        // 整组世界矩阵 + 显隐都没变 → 该组所有源的实例矩阵已经是正确的，整组跳过。
+        // 结论直接写在 rec 上（_dirty/_vis），不再每次同步 new 两个 Map（366 条目 × 每秒 30 次）。
+        var _tg0 = performance.now();
+        geoGroups.forEach(function (rec) {
+            if (!rec.batched) return;
+            var gv = groupVisible(rec);
+            rec._dirty = !groupUnchanged(rec, gv);
+            // 变了才需要重写；重写前强制刷新父子矩阵，避免抄到「父新子旧」的半成品矩阵
+            if (rec._dirty) { forceMatrices(rec.realGroup); groupStamp(rec, gv); }
+            rec._vis = gv;
+        });
+        statSyncBG += performance.now() - _tg0;
+        var _ts0 = performance.now();
         batches.forEach(function (batch) {
             var rebuilt = false;
             if (batch.dirty) { rebuildBatch(batch, scene); batch.dirty = false; rebuilt = true; }
@@ -343,7 +480,10 @@
             }
             for (var i = 0; i < batch.sources.length; i++) {
                 var src = batch.sources[i];
-                var vis = chainVisible(src.__epRealGroup);
+                var rec = src.__epRec;
+                var vis = rec ? rec._vis : sourceVisible(src);
+                // 整组未变 → 无需逐源比对
+                if (!full && rec && rec._dirty === false) continue;
                 var wasVis = batch.vis[i] === 1;
                 if (vis) {
                     var mw = src.matrixWorld.elements;
@@ -368,6 +508,7 @@
             }
             statBatchDirtyWrites += dirtyCount;
         });
+        statSyncBS += performance.now() - _ts0;
     }
 
     // ================= 生命周期 =================
@@ -396,6 +537,17 @@
 
     // ---- 巡检（2s 自愈）：注册新占位盒/新加载的几何体，丢弃失效条目 ----
     function woType(wo) { return wo.type || (wo.data && wo.data.type) || ''; }
+
+    // 旧格式模板几何识别（会话2 P1-1）：
+    //   geometry:nature/decoration/... 由 GeometryTemplates 同步生成，wo.mesh 子树就是真实几何，
+    //   既没有 _realMesh（异步 GLB/API 渲染产物才有），也没有 pendingGeometry（geometry_building 占位盒才有）。
+    function isTemplateGeom(u) {
+        if (!u) return false;
+        if (u._realMesh || u.pendingGeometry || u.pendingGlb) return false;
+        if (u.objectType === 'geometry_building' || u.objectType === 'gaussian_splat') return false;
+        return true;
+    }
+
     function sweep() {
         var wos = gWorldObjects(), scene = gScene();
         if (!wos || !scene || !scene.isScene) return;
@@ -415,7 +567,11 @@
             }
             if (isGeom) {
                 if (u._realMesh) tryBatchGroup(u._realMesh);
-                else {
+                else if (isTemplateGeom(u)) {
+                    // 【会话2 P1-1】旧格式模板几何（GeometryTemplates 同步生成）：
+                    // wo.mesh 本身就是真实几何容器，没有 _realMesh/占位链路 → 直接合批
+                    tryBatchGroup(mesh, true);
+                } else {
                     // 未加载的几何建筑：注册初始占位盒
                     for (var k = 0; k < mesh.children.length; k++) registerPlaceholder(mesh.children[k]);
                 }
@@ -433,21 +589,26 @@
     var statTickCount = 0, statTickSum = 0, statTickMax = 0, statTickLast = 0;
     var statPhDirtyWrites = 0, statPhWriteWrites = 0, statBatchDirtyWrites = 0;
     var statSyncP = 0, statSyncB = 0, statSyncN = 0;
+    var statSyncBG = 0, statSyncBS = 0;   // syncB 内部分解：组级扫描 / 逐源循环
     function tick() {
         var scene = gScene();
         if (!scene || !scene.isScene) return;
         var _t0 = performance.now();
-        // 占位盒镜像 / 合批同步仍是每 2 帧一次（视觉最多晚 1 帧）；失效条目清理要逐个爬父链，
-        // 再降到每 30 帧一次。单次同步的成本由「脏更新 + 分窗扫描」降下来（见 syncPlaceholders）。
         tickCount++;
+        // 占位盒镜像每 2 帧一次（拖动时必须跟手）；失效条目清理要逐个爬父链，降到每 60 帧
+        // （2s 一次，与 sweep 同量级即可——清理只兜「对象被删除/刷新」的残留）。
         if (tickCount % 2 === 0) {
             var _a = performance.now();
-            syncPlaceholders(scene, tickCount % 30 === 0);
+            syncPlaceholders(scene, tickCount % 60 === 0);
+            statSyncP += performance.now() - _a;
+        }
+        // 合批同步每 4 帧一次 + 事件触发即时同步（选中拆批/取消重新合批时立刻补一次，
+        // 否则最多 3 帧看到"零矩阵"的空档）。拖动中的对象在选中时已拆批，不受这 4 帧影响。
+        if (tickCount % 4 === 0 || _syncBPending) {
+            _syncBPending = false;
             var _b = performance.now();
             syncBatches(scene);
-            var _c = performance.now();
-            statSyncP += _b - _a;
-            statSyncB += _c - _b;
+            statSyncB += performance.now() - _b;
             statSyncN++;
         }
         var _dt = performance.now() - _t0;
@@ -470,7 +631,10 @@
         try {
             // 选中对象的占位盒每次同步都写（拖动时盒子必须跟手，不能等分窗轮扫）
             if (mesh) { if (hl) focusRoots.add(mesh); else focusRoots.delete(mesh); }
-            var rg = mesh && mesh.userData && mesh.userData._realMesh;
+            // realGroup 两种形态：uploaded_model/geometry_building 的 _realMesh（异步容器），
+            // 以及模板几何的 wo.mesh 本身（会话2 P1-1）。后者没有 _realMesh，得按对象根查表。
+            var rg = (mesh && mesh.userData && mesh.userData._realMesh) || null;
+            if (!rg && mesh && geoGroups.has(mesh)) rg = mesh;
             if (rg && geoGroups.has(rg)) {
                 var rec = geoGroups.get(rg);
                 if (hl) {
@@ -516,17 +680,113 @@
         stats: function () {
             var bs = 0, im = 0;
             batches.forEach(function (b) { bs += b.sources.length; if (b.im) im++; });
+            var tg = 0, tgs = 0;
+            geoGroups.forEach(function (rec) {
+                if (!rec.template) return;
+                tg++;
+                tgs += rec.sources.length;
+            });
             return {
                 placeholderMirrors: phEntries.size, batchedSources: bs, batches: im,
+                templateGroups: tg, templateSources: tgs,
                 groups: geoGroups.size, keepUnbatched: keepUnbatched.size,
                 tickCount: statTickCount, tickSumMs: statTickSum,
                 tickMaxMs: statTickMax, tickLastMs: statTickLast,
                 phDirtyTotal: statPhDirtyWrites, phWriteTotal: statPhWriteWrites, syncP: statSyncP, syncB: statSyncB, syncN: statSyncN,
+                syncBG: statSyncBG, syncBS: statSyncBS,
                 batchDirtyTotal: statBatchDirtyWrites
             };
         },
         reset: dropAll,
         resweep: sweep,
+        // 诊断/验收：临时关掉几何合批（占位盒镜像 B1 继续工作），用于「合批前后像素对比」
+        setBatchEnabled: function (on) {
+            _batchEnabled = !!on;
+            if (!_batchEnabled) {
+                geoGroups.forEach(function (rec) { unbatchGroup(rec); });
+                geoGroups.clear();
+                batches.forEach(function (b) {
+                    if (b.im) { var sc = gScene(); if (sc) sc.remove(b.im); b.im.dispose(); b.im = null; }
+                });
+                batches.clear();
+            } else {
+                _syncBPending = true;
+                sweep();
+            }
+            return _batchEnabled;
+        },
+        // 诊断：某个世界对象的合批状态（验收/现场排查「选中后是否已退出合批」）
+        inspect: function (id) {
+            var wos = gWorldObjects();
+            if (!wos) return null;
+            for (var i = 0; i < wos.length; i++) {
+                if (String(wos[i].id) !== String(id)) continue;
+                var m = wos[i].mesh, u = (m && m.userData) || {};
+                var rg = u._realMesh || m;
+                var rec = geoGroups.get(rg);
+                return {
+                    id: wos[i].id, type: woType(wos[i]),
+                    hasRealMesh: !!u._realMesh,
+                    template: !!(rec && rec.template),
+                    batched: !!(rec && rec.batched),
+                    sources: rec ? rec.sources.length : 0,
+                    keepUnbatched: keepUnbatched.has(rg),
+                    rootVisible: m ? m.visible : null
+                };
+            }
+            return null;
+        },
+        // 自检（会话2）：抽样比对「批次实例矩阵」与「源 mesh 的 matrixWorld」，
+        // 返回不一致个数——合批后画面异常时先跑它（不信赖可见性，只看矩阵）。
+        verifyBatches: function (n) {
+            var limit = n || 400, checked = 0, bad = 0, worst = 0, sample = null;
+            var got = new THREE.Matrix4();
+            batches.forEach(function (batch) {
+                if (!batch.im) return;
+                for (var i = 0; i < batch.sources.length && checked < limit; i++) {
+                    var src = batch.sources[i];
+                    if (batch.vis[i] !== 1) continue;
+                    checked++;
+                    batch.im.getMatrixAt(i, got);
+                    var exp = src.matrixWorld.elements;
+                    var d = 0;
+                    for (var k = 0; k < 16; k++) {
+                        var tol = Math.max(1e-4, Math.abs(exp[k]) * 1e-6);
+                        var dd = Math.abs(got.elements[k] - exp[k]) - tol;
+                        if (dd > 0) d += dd;
+                    }
+                    if (d > 0) {
+                        bad++;
+                        if (d > worst) {
+                            worst = d;
+                            sample = {
+                                objId: (function () {
+                                    var r = src.__epRealGroup;
+                                    return r && r.userData ? r.userData.objectId : null;
+                                })(),
+                                groupPos: (function () {
+                                    var r = src.__epRealGroup;
+                                    return r ? [r.position.x, r.position.y, r.position.z] : null;
+                                })(),
+                                instPos: [got.elements[12], got.elements[13], got.elements[14]],
+                                srcPos: [exp[12], exp[13], exp[14]]
+                            };
+                        }
+                    }
+                }
+            });
+            return { checked: checked, bad: bad, worst: worst, sample: sample };
+        },
+        // 诊断：按源数量排序的批次概览（验收看「几何签名+材质签名」是否真的合到预期批次）
+        batchTop: function (n) {
+            var arr = [];
+            batches.forEach(function (b) {
+                if (!b.im) return;
+                arr.push({ key: b.key, sources: b.sources.length });
+            });
+            arr.sort(function (a, b) { return b.sources - a.sources; });
+            return arr.slice(0, n || 20);
+        },
         // 自检：抽样比对「占位盒镜像实例矩阵」与「模型矩阵 × 盒子尺寸」，返回不一致个数。
         // 用于验收/现场排查（分窗扫描是否漏写、写错槽位）。
         verify: function (n) {
