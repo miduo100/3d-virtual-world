@@ -603,7 +603,8 @@ class Player {
       // GLB 模型已通过 fitModel 将原点对齐脚底，characterGroup 直接落在地面（playerHeight=0）
       // 方块人（程序生成）脚底在 characterGroup 下方 1.5 个单位，playerHeight=1.5 使脚底贴地
       const playerHeight = (this.worldObject && this.worldObject.userData && this.worldObject.userData.isGlbLoaded) ? 0 : 1.5;
-      const targetY = groundHeight + playerHeight;
+      // groundHeight === null：脚下没有任何地形 → targetY = -Infinity，走"空中"分支一直往下掉
+      const targetY = (groundHeight === null) ? -Infinity : groundHeight + playerHeight;
 
       // Gravity and jumping
       if (this.position.y > targetY + 0.1) {

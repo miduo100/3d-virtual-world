@@ -195,6 +195,8 @@ app.use('/api/asset-library', apiWriteGuard.forMount('/api/asset-library'), asse
 app.use('/api/part-library', apiWriteGuard.forMount('/api/part-library'), partLibraryRoutes);      // 📚 零件库管理 + 零件检索（独立主页面用）
 app.use('/api/tags', apiWriteGuard.forMount('/api/tags'), tagsRoutes);  // 标签管理路由
 app.use('/api/config', configRoutes);  // 配置管理路由
+// 地形配置（读公开 / 写管理员）：地形 = 地块，一块地形 = 位置+面积+基准高度+生成参数
+app.use('/api/terrain', require('./routes/terrain'));
 app.use('/api/character-templates', apiWriteGuard.forMount('/api/character-templates'), characterTemplatesRoutes);  // 角色模板路由（管理员）
 app.use('/api/inventory', apiWriteGuard.forMount('/api/inventory'), inventoryRoutes);  // 背包/奖励池/掉落物路由
 app.use('/api/npc', apiWriteGuard.forMount('/api/npc'), npcRoutes);  // NPC管理路由

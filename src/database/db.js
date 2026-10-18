@@ -85,7 +85,10 @@ async function initializeDatabase() {
     'migrations/add_wallets.sql',                  // Phase 6: 钱包 + 流水（原子扣减 + 幂等键）+ shops.merchant_id 放宽
     'migrations/add_ai_experiments.sql',           // Phase 7: A/B 实验（baseline 7d/实验 3d/同区域冷却 7d，自动回滚靠重放 change_steps）
     'migrations/add_world_gen3d_jobs.sql',         // Phase 8: 3D 生成任务账本（★落表，重启后仍可轮询 —— aiSceneGenerator:2310 内存 Map 的教训）
-    'migrations/add_world_missions.sql'            // Phase 7b: 长期使命（§I.6；每世界同时最多 1 个 active）
+    'migrations/add_world_missions.sql',           // Phase 7b: 长期使命（§I.6；每世界同时最多 1 个 active）
+    'migrations/add_terrains.sql',                 // 地形配置（一组参数 + seed，含内置"默认地形（平地）"）
+    'migrations/add_terrain_zones.sql',            // 地形区域化（全局兜底 + N 个矩形区域，边界硬接）
+    'migrations/add_terrain_areas.sql'             // 地形 = 地块：位置(中心 X/Z)、宽深、基准高度 base_y
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);

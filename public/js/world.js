@@ -486,13 +486,35 @@ class World {
       fog: !CONFIG.DISABLE_FOG
     });
     const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    // 命名标记：启用程序化地形时，TerrainSystem 会隐藏这张 y=0 的老地面，
+    // 否则它会和新地形的起伏穿插（表现为"两个地形重合"）
+    ground.name = 'world-ground';
+    ground.userData.__worldGround = true;
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = false;
     ground.castShadow = false;
     ground.matrixAutoUpdate = false;
     ground.updateMatrix();
     this.scene.add(ground);
-    
+
+    // 「地块」尺寸（world_editor 的 🟩 地块设置，默认 2000×2000）：
+    // 主世界的地面必须跟着地块走，否则编辑器里改了地块尺寸、主世界还是老的 2000
+    fetch('/api/world/ground-config', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!j || !j.success || !j.config) return;
+        const w = Number(j.config.width) || 0;
+        const d = Number(j.config.depth) || 0;
+        if (!(w > 0 && d > 0)) return;
+        if (w === CONFIG.WORLD_SIZE * 2 && d === CONFIG.WORLD_SIZE * 2) return;
+        ground.geometry.dispose();
+        ground.geometry = new THREE.PlaneGeometry(w, d);
+        if (j.config.color) ground.material.color.set(j.config.color);
+        ground.updateMatrix();
+        console.log('🌍 地块尺寸已按后台配置应用:', w + '×' + d);
+      })
+      .catch(() => { /* 拿不到就用默认 2000×2000 */ });
+
     console.log('🌍 地形初始化: 基础材质，无阴影');
 
     this.addDefaultEnvironment();
@@ -1697,14 +1719,23 @@ class World {
   }
 
   // Check collision and return the height the player should be at
+  // 返回 null = 脚下没有任何地形（玩家按 -Y 一直往下掉，这是"地形=离散地块"的设计）
   getGroundHeight(position) {
-    let maxHeight = 0; // Ground level
+    // 地面基线：由地形系统按"地形区域"查询（多块地形各有位置/面积/基准高度）
+    let hasBase = true;
+    let maxHeight = 0;
+    let hitObject = false;
+    if (window.TerrainSystem) {
+      const g = window.TerrainSystem.groundAt(position.x, position.z, position.y);
+      if (g === null) { hasBase = false; maxHeight = -Infinity; }
+      else maxHeight = g;
+    }
 
     // 🎯 模型表面碰撞（胶囊 + BVH）：向下射线取上传模型真实表面高度（顶面/斜坡/平台）
     if (window.CapsuleCollision && window.CapsuleCollision.isEnabled()) {
       try {
         const surf = window.CapsuleCollision.getGroundHeight(position.x, position.y, position.z);
-        if (surf !== null && surf > maxHeight) maxHeight = surf;
+        if (surf !== null && surf > maxHeight) { maxHeight = surf; hitObject = true; }
       } catch (e) {
         console.warn('[CapsuleCollision] getGroundHeight 查询异常:', e && e.message);
       }
@@ -1743,10 +1774,13 @@ class World {
         
         if (topHeight > maxHeight && position.y >= topHeight - 1) {
           maxHeight = topHeight;
+          hitObject = true;
         }
       }
     }
 
+    // 既没有地形、也没踩到任何模型 → 没有地面
+    if (!hasBase && !hitObject) return null;
     return maxHeight;
   }
 
@@ -8080,6 +8114,9 @@ class World {
       }
     }
     
+    // 地形系统驱动（瓦片调度/LOD；默认平地形时内部直接 return，开销≈0）
+    if (window.TerrainSystem) window.TerrainSystem.update(delta);
+
     this.updateParticles(delta);
     this.updatePortals(delta);
     this._updateWeatherParticles(delta);

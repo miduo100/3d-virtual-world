@@ -2060,9 +2060,9 @@
             <span class="nav-tooltip" data-i18n="worldEditor.nav.3dgsTooltip">✨ 高斯场景库</span>
         </div>
         <div class="nav-item" id="nav-ground" onclick="switchPanel('ground')">
-            🟩
-            <span class="nav-text" data-i18n="worldEditor.nav.ground">地块</span>
-            <span class="nav-tooltip" data-i18n="worldEditor.nav.groundTooltip">🟩 地块设置</span>
+            🗺️
+            <span class="nav-text">地形</span>
+            <span class="nav-tooltip">🗺️ 地形设置（与后台「3D资产 → 地形」同一份数据）</span>
         </div>
     </div>
 
@@ -2312,40 +2312,71 @@
             </div>
         </div>
 
-        <!-- 地块设置面板 -->
+        <!-- 地形面板（原"地块"：与后台「3D资产 → 🗺️ 地形」同一份数据） -->
         <div id="panel-ground" class="panel-view">
-            <div class="panel-title" data-i18n="worldEditor.panelGround.title">🟩 地块设置</div>
+            <div class="panel-title">🗺️ 地形</div>
 
             <div class="panel-section">
-                <div class="panel-section-title" data-i18n="worldEditor.panelGround.mainTitle">🌍 默认主地块</div>
+                <div class="panel-section-title">📋 地形列表（点击定位）</div>
+                <!-- 地形列表：点一条 → 选中该地形 + 相机飞到它的中心，方便在上面摆模型/图片/视频 -->
+                <div id="terrain-list-box" style="max-height:240px;overflow:auto;border:1px solid #2a3444;border-radius:6px;"></div>
+                <div id="terrain-active-tip" style="font-size:11px;color:#8fb;line-height:1.6;margin-top:6px;"></div>
+                <div style="font-size:11px;color:#888;margin-top:4px;">👆 点击列表中的地形，相机会飞到它的中心位置</div>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#9aa;margin-top:6px;cursor:pointer;">
+                    <input type="checkbox" id="terrain-overlay-chk" onchange="toggleTerrainOverlay(this.checked)" checked>
+                    在场景里显示所有地形边框
+                </label>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-section-title">📐 位置与范围</div>
                 <div class="property-group">
-                    <label class="property-label" data-i18n="worldEditor.panelGround.widthLabel">宽度 (X)</label>
-                    <input type="number" class="property-input" id="ground-width" min="10" max="10000" step="10" value="2000">
+                    <label class="property-label">中心 X (m)</label>
+                    <input type="number" class="property-input" id="terrain-x" step="10" value="0">
                 </div>
                 <div class="property-group">
-                    <label class="property-label" data-i18n="worldEditor.panelGround.depthLabel">深度 (Z)</label>
-                    <input type="number" class="property-input" id="ground-depth" min="10" max="10000" step="10" value="2000">
+                    <label class="property-label">中心 Z (m)</label>
+                    <input type="number" class="property-input" id="terrain-z" step="10" value="0">
                 </div>
                 <div class="property-group">
-                    <label class="property-label" data-i18n="worldEditor.panelGround.gridSizeLabel">网格数量</label>
-                    <input type="number" class="property-input" id="ground-grid" min="1" max="500" step="1" value="100">
+                    <label class="property-label">宽度 (X)</label>
+                    <input type="number" class="property-input" id="terrain-width" min="100" max="20000" step="100" value="2000">
                 </div>
                 <div class="property-group">
-                    <label class="property-label" data-i18n="worldEditor.panelGround.colorLabel">地块颜色</label>
-                    <input type="color" class="property-input" id="ground-color" value="#2d5016" style="height:32px;padding:2px;">
+                    <label class="property-label">深度 (Z)</label>
+                    <input type="number" class="property-input" id="terrain-depth" min="100" max="20000" step="100" value="2000">
+                </div>
+                <div class="property-group">
+                    <label class="property-label">基准高度 Y (m)</label>
+                    <input type="number" class="property-input" id="terrain-baseY" step="10" value="0">
+                </div>
+                <div class="property-group">
+                    <label class="property-label">优先级（重叠时数字大的生效）</label>
+                    <input type="number" class="property-input" id="terrain-priority" step="1" value="0">
+                </div>
+                <div class="property-group">
+                    <label class="property-label">网格数量</label>
+                    <input type="number" class="property-input" id="terrain-grid" min="1" max="500" step="1" value="100">
+                </div>
+                <div class="property-group">
+                    <label class="property-label">颜色</label>
+                    <input type="color" class="property-input" id="terrain-color" value="#2d5016" style="height:32px;padding:2px;">
+                </div>
+                <div class="property-group">
+                    <label class="property-label">渲染距离 (m)　离边界超过它就不渲染</label>
+                    <input type="number" class="property-input" id="terrain-cull" min="64" max="4000" step="16" value="400">
                 </div>
             </div>
 
             <div class="panel-section">
-                <div class="panel-section-title" data-i18n="worldEditor.panelGround.actionsTitle">⚡ 操作</div>
-                <button class="place-btn-save" style="width:100%; margin-bottom:8px;" onclick="applyGroundConfig()" data-i18n="worldEditor.panelGround.applyBtn">✅ 应用（预览）</button>
-                <button class="place-btn-cancel" style="width:100%;" onclick="saveGroundConfig()" data-i18n="worldEditor.panelGround.saveBtn">💾 保存到世界</button>
-            </div>
-
-            <div class="panel-section">
-                <div class="panel-section-title" data-i18n="worldEditor.panelGround.newTitle">🧱 新建地块</div>
-                <button class="tool-btn" style="width:100%;" onclick="showNotification(weT('panelGround.newComingSoon', '🚧 新建地块功能开发中，敬请期待'), 'info')" data-i18n="worldEditor.panelGround.newBtn">➕ 新建地块</button>
-                <div style="margin-top:8px; font-size:11px; color:#888; line-height:1.6;" data-i18n="worldEditor.panelGround.tip">💡 保存后，编辑器与主场景的地块都会按此尺寸生成。默认 2000×2000。</div>
+                <div class="panel-section-title">⚡ 操作</div>
+                <button class="place-btn-save" style="width:100%; margin-bottom:8px;" onclick="applyTerrainToEditor()">✅ 应用（预览）</button>
+                <button class="place-btn-cancel" style="width:100%; margin-bottom:8px;" onclick="saveTerrainFromEditor()">💾 保存到该地形</button>
+                <button class="tool-btn" style="width:100%; margin-bottom:8px;" onclick="refreshTerrainPanel()">🔄 刷新列表</button>
+                <button class="tool-btn" style="width:100%;" onclick="createTerrainInEditor()">➕ 新建地形</button>
+                <div style="margin-top:8px; font-size:11px; color:#888; line-height:1.6;">
+                    💡 这里改的就是后台「3D资产 → 🗺️ 地形」里的那条记录。内置默认地形只读，可复制一份再改。
+                </div>
             </div>
         </div>
 
@@ -2406,9 +2437,9 @@
                         <div class="property-group">
                             <label class="property-label" data-i18n="worldEditor.props.scaleLabel">缩放 (X, Y, Z)</label>
                             <div class="property-row">
-                                <input type="number" step="0.1" class="property-input" id="prop-sx" onchange="updateSelectedProperty()">
-                                <input type="number" step="0.1" class="property-input" id="prop-sy" onchange="updateSelectedProperty()">
-                                <input type="number" step="0.1" class="property-input" id="prop-sz" onchange="updateSelectedProperty()">
+                                <input type="number" step="0.01" class="property-input" id="prop-sx" onchange="updateSelectedProperty()">
+                                <input type="number" step="0.01" class="property-input" id="prop-sy" onchange="updateSelectedProperty()">
+                                <input type="number" step="0.01" class="property-input" id="prop-sz" onchange="updateSelectedProperty()">
                             </div>
                         </div>
 
@@ -2638,9 +2669,9 @@
                         <div class="right-prop-group">
                             <div class="right-prop-label" data-i18n="worldEditor.rightPanel.scaleLabel">缩放 (X, Y, Z)</div>
                             <div class="right-prop-row">
-                                <input type="number" step="0.1" class="right-prop-input" id="right-prop-sx" placeholder="X" min="0.01">
-                                <input type="number" step="0.1" class="right-prop-input" id="right-prop-sy" placeholder="Y" min="0.01">
-                                <input type="number" step="0.1" class="right-prop-input" id="right-prop-sz" placeholder="Z" min="0.01">
+                                <input type="number" step="0.01" class="right-prop-input" id="right-prop-sx" placeholder="X" min="0.0001">
+                                <input type="number" step="0.01" class="right-prop-input" id="right-prop-sy" placeholder="Y" min="0.0001">
+                                <input type="number" step="0.01" class="right-prop-input" id="right-prop-sz" placeholder="Z" min="0.0001">
                             </div>
                         </div>
 
@@ -3082,8 +3113,12 @@
 
     <!-- Three.js r185 本地 bundle（核心 + GLTF/DRACO/OBJ/MTL 加载器 + Orbit/TransformControls + FBX + BufferGeometryUtils 已合并入命名空间） -->
     <script src="js/lib/three.min.js?v=185"></script>
+    <!-- 缩放 Gizmo 增强：默认等比缩放，按住 Shift = 单轴（见模块头注释） -->
+    <script src="js/transformGizmoEnhance.js?v=2"></script>
     <script src="js/lib/VOXLoader.js?v=1"></script>
     <script src="js/meshoptSetup.js"></script>
+    <!-- GLB 解析 Worker 客户端：编辑器解析不再阻塞主线程（见 pumpGlbParse） -->
+    <script src="js/gltfWorkerClient.js?v=3"></script>
     <script src="js/gaussianSplatLoader.js"></script>
     <script src="js/gaussianSplatRenderer.js"></script>
     <script src="js/worldEditorGrouping.js"></script>
@@ -3107,6 +3142,11 @@
     <script src="js/mediaAgentDesc.js?v=1"></script>
     <script src="js/worldEditorRightPanel.js?v=2"></script>
     <script src="js/worldRegionOverlay.js?v=1"></script>
+    <!-- 地形高度函数 + 瓦片几何：编辑器里按真实起伏生成网格（与游戏内同一套函数） -->
+    <script src="js/terrain/terrainNoise.js?v=2"></script>
+    <script src="js/terrain/terrainHeight.js?v=7"></script>
+    <script src="js/terrain/terrainChunk.js?v=2"></script>
+    <script src="js/terrainZoneOverlay.js?v=3"></script>
     <script>
         // ===== 全局变量 =====
         let scene, camera, renderer, controls, transformControls;
@@ -3125,6 +3165,14 @@
         const API_BASE = window.location.origin + '/api/world';
 
         // ===== 世界编辑器 i18n 辅助函数 =====
+        // 数值回填：保留 4 位小数并去掉尾随零
+        // 【2026-10-16 修复】属性面板原先一律用 toFixed(2) 回填位置/缩放，scale=0.022 会显示成 0.02；
+        // 用户点"应用更改/保存更改"时把这个截断值写回数据库 → 缩小操作被四舍五入回原值附近，
+        // 表现为"缩放保存后刷新还是原来的大小"。
+        function weNum(v, digits) {
+            if (v === null || v === undefined || typeof v !== 'number' || !isFinite(v)) return '';
+            return String(parseFloat(v.toFixed(digits === undefined ? 4 : digits)));
+        }
         // 仅英文语言下查翻译，否则返回中文原文（fallback）
         function weT(key, fallback) {
             if (window.i18n && window.i18n.initialized && window.i18n.getCurrentLocale() === 'en-US') {
@@ -3270,26 +3318,54 @@
             // 变换控制器
             transformControls = new THREE.TransformControls(camera, renderer.domElement);
             
+            // 【性能】属性面板刷新分级：
+            //   force=true  → 全量刷新左右面板（松手 / 选中变化时用）
+            //   force=false → 只写变换数值框（updateTransformFieldsOnly，轻量）
+            // 拖动期（dragging=true）在 objectChange 里直接跳过 DOM 写入，见下方实测说明。
+            let _panelRefreshAt = 0;
+            const refreshPropsPanels = function (force) {
+                const t = performance.now();
+                if (!force && t - _panelRefreshAt < 100) return;
+                _panelRefreshAt = t;
+                if (selectedObjects.length === 0) return;
+                if (force) {
+                    updatePropertiesPanel();
+                    updateRightPropsPanel(selectedObjects[0]);
+                } else {
+                    updateTransformFieldsOnly(selectedObjects[0]);
+                }
+            };
+
             // 拖动时禁用相机控制
             transformControls.addEventListener('dragging-changed', (event) => {
                 controls.enabled = !event.value;
-                
+
                 // 拖动结束时自动保存，并抑制紧接着派发的 click（避免被误判为"点击空白处"取消选中）
                 if (!event.value) {
                     _suppressClickUntil = Date.now() + 300;
+                    refreshPropsPanels(true);   // 松手立即刷面板，补齐节流窗口内最后一次
                     if (selectedObjects.length > 0) {
                         autoSaveObjectTransform();
                     }
+                    // 【性能 P0-2】拖动期暂停了范围加载/模型下载/解析，这里兜底 kick 一次，
+                    // 防止队列因拖动而永久停摆（延迟 300ms 让松手后的保存/面板刷新先跑完）。
+                    setTimeout(() => {
+                        try { if (typeof processGlbQueue === 'function') processGlbQueue(); } catch (e) {}
+                        try { if (typeof pumpGlbParse === 'function') pumpGlbParse(); } catch (e) {}
+                    }, 300);
                 }
             });
-            
+
             // 实时更新属性面板显示
+            // 【性能 P0-1】拖动期**完全不写面板 DOM**。实测（本机 GTX960 / 88,762 DOM 节点）：
+            //   · 每帧写右侧 3 个数值框  → 拖动 p50 33.4 / p95 50.1 / 长帧 115/116（掉到 30fps）
+            //   · 每帧写左侧 9 个数值框  → 抖动明显（长帧 0~34，视机器负载）
+            //   · 每帧不写 DOM          → 拖动 p50 16.7 / p95 16.8 / 长帧 0~2
+            // 原因是这些输入框写入会触发全页样式重算/布局（JS 自身仅 0.09ms，成本在浏览器侧）。
+            // 拖动过程中的数值反馈由 gizmo 与实时渲染承担；松手时 dragging-changed 会整刷一次两侧面板。
             transformControls.addEventListener('objectChange', () => {
-                if (selectedObjects.length > 0) {
-                    updatePropertiesPanel();
-                    // 同步更新右侧属性面板
-                    updateRightPropsPanel(selectedObjects[0]);
-                }
+                if (transformControls.dragging) return;
+                refreshPropsPanels(false);
             });
             
             // r169+ TransformControls 不再是 Object3D，gizmo 通过 getHelper() 加入场景（旧版直接 add 自身）
@@ -3374,6 +3450,13 @@
             window.tickWASDCameraMove(); // WASD 相机移动驱动（需在 controls.update 之后）
             updateRangeLoading(); // 范围加载巡检：按相机距离按需加载/隐藏对象
             if (window.onEditorGaussianTick) window.onEditorGaussianTick(camera, renderer); // 渲染前驱动高斯预览更新
+            // 【修复】attach 的对象被范围加载替换/摘出场景后，TransformControls 会每帧刷
+            // "The attached 3D object must be a part of the scene graph."（DevTools 打开时额外拖慢）
+            // 这里把 gizmo 重新挂到选中对象的当前 mesh，或直接摘掉
+            if (transformControls.object && !transformControls.object.parent) {
+                const _cur = (selectedObjects.length === 1 && selectedObjects[0].mesh) ? selectedObjects[0].mesh : null;
+                if (_cur && _cur.parent) transformControls.attach(_cur); else transformControls.detach();
+            }
             renderer.render(scene, camera);
             if (window.onMediaAnimateTick) window.onMediaAnimateTick();
             // Three.js 代码块动画
@@ -3628,33 +3711,335 @@
             }
         }
 
-        // ===== 地块管理 =====
+        // ===== 地形地面（编辑器里把所有地形都画出来；选中的那块高亮） =====
+        let terrainGroundGroup = null;
+        let terrainGroundMeshes = new Map(); // terrainId -> mesh
+
+        // 兼容旧调用：单块配置也按"一块地形"画
         function createGround(cfg) {
-            // 移除旧地块/网格（释放 GPU 资源）
-            if (groundMesh) {
-                scene.remove(groundMesh);
-                groundMesh.geometry.dispose();
-                groundMesh.material.dispose();
-                groundMesh = null;
-            }
-            if (groundGridHelper) {
-                scene.remove(groundGridHelper);
-                groundGridHelper.geometry.dispose();
-                groundGridHelper.material.dispose();
-                groundGridHelper = null;
-            }
+            rebuildEditorTerrains(cfg ? {
+                width: cfg.width, depth: cfg.depth, gridSize: cfg.gridSize, color: cfg.color,
+                x: cfg.x, y: cfg.y, z: cfg.z
+            } : null);
+        }
 
-            const groundGeometry = new THREE.PlaneGeometry(cfg.width, cfg.depth);
-            const groundMaterial = new THREE.MeshLambertMaterial({ color: new THREE.Color(cfg.color) });
-            groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
-            groundMesh.rotation.x = -Math.PI / 2;
-            groundMesh.receiveShadow = true;
-            scene.add(groundMesh);
+        function clearEditorTerrains() {
+            if (!terrainGroundGroup) return;
+            terrainGroundGroup.traverse(function (o) {
+                if (o.geometry) o.geometry.dispose();
+                if (o.material) o.material.dispose();
+            });
+            scene.remove(terrainGroundGroup);
+            terrainGroundGroup = null;
+            terrainGroundMeshes.clear();
+            groundMesh = null;
+            groundGridHelper = null;
+        }
 
-            const gridHelper = new THREE.GridHelper(Math.max(cfg.width, cfg.depth), cfg.gridSize, 0x888888, 0xcccccc);
-            gridHelper.position.y = 0.01;
-            groundGridHelper = gridHelper;
-            scene.add(groundGridHelper);
+        /**
+         * 重画编辑器里的地形地面
+         * @param {object|null} overrideArea 选中地形的"预览值"（表单里还没保存的那份）
+         */
+        function rebuildEditorTerrains(overrideArea) {
+            clearEditorTerrains();
+            const group = new THREE.Group();
+            group.name = '__editorTerrainGrounds__';
+            scene.add(group);
+            terrainGroundGroup = group;
+
+            let list = null;
+            try { list = (terrainList && terrainList.length) ? terrainList : null; } catch (e) { list = null; }
+
+            if (!list) {
+                // 地形列表还没拿到（或接口失败）：至少画一块默认地面，绝不白屏
+                const a = overrideArea || { width: 2000, depth: 2000, gridSize: 100, color: '#2d5016', x: 0, y: 0, z: 0 };
+                addTerrainPlane(group, { id: '__default__', name: '默认地面' }, true, a);
+                return;
+            }
+            list.forEach(function (t) {
+                const sel = String(t.id) === String(terrainSelectedId);
+                const a = (sel && overrideArea) ? overrideArea : (t.area || {});
+                addTerrainSurface(group, t, sel, a);
+            });
+        }
+
+        /**
+         * 画一块地形：有起伏参数时用真实高度场生成网格（与游戏内一致），
+         * 纯平 / 非正方边 / 地形库未加载 → 退回平面
+         */
+        function addTerrainSurface(group, t, selected, a) {
+            const w = Math.max(1, Number(a.width) || 2000);
+            const d = Math.max(1, Number(a.depth) || 2000);
+            const cx = Number(a.x) || 0;
+            const cz = Number(a.z) || 0;
+            const baseY = Number(a.baseY != null ? a.baseY : a.y) || 0;
+            const amp = Number((t.params && t.params.heightScale) || 0);
+            const size = Math.max(w, d);
+            const square = Math.abs(w - d) <= Math.max(2, size * 0.02);
+
+            if (amp > 0 && square && window.TerrainHeight && window.TerrainChunk) {
+                try {
+                    const sampler = window.TerrainHeight.createSampler(t.params || {}, t.seed || 1);
+                    // 编辑器预览精度：约 48m 一格，128 段封顶（一块 6000m 地形 ≈ 1.6 万顶点）
+                    const seg = Math.max(16, Math.min(128, Math.round(size / 48)));
+                    const built = window.TerrainChunk.buildGeometry(
+                        THREE, sampler, cx - size / 2, cz - size / 2, size, seg
+                    );
+                    const mat = new THREE.MeshLambertMaterial({
+                        vertexColors: true,
+                        side: THREE.DoubleSide,
+                        transparent: !selected,
+                        opacity: selected ? 1 : 0.92
+                    });
+                    const mesh = new THREE.Mesh(built.geometry, mat);
+                    mesh.position.set(cx - size / 2, baseY, cz - size / 2);
+                    mesh.receiveShadow = true;
+                    mesh.userData.__editorTerrainGround = t.id;
+                    group.add(mesh);
+                    terrainGroundMeshes.set(t.id, mesh);
+                    if (selected) groundMesh = mesh;
+                    return;
+                } catch (e) {
+                    console.warn('[地形预览] 网格生成失败，退回平面:', e && e.message);
+                }
+            }
+            addTerrainPlane(group, t, selected, a);
+        }
+
+        function addTerrainPlane(group, t, selected, a) {
+            const w = Math.max(1, Number(a.width) || 2000);
+            const d = Math.max(1, Number(a.depth) || 2000);
+            const x = Number(a.x) || 0;
+            const z = Number(a.z) || 0;
+            const y = Number(a.baseY != null ? a.baseY : a.y) || 0;
+            const geo = new THREE.PlaneGeometry(w, d);
+            // 纯平地形保持"实心深绿"，不做半透明（半透明叠在天空上会发青）
+            const mat = new THREE.MeshLambertMaterial({
+                color: new THREE.Color(a.color || '#2d5016'),
+                side: THREE.DoubleSide
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.set(x, y, z);
+            mesh.receiveShadow = true;
+            mesh.userData.__editorTerrainGround = t.id;
+            group.add(mesh);
+            terrainGroundMeshes.set(t.id, mesh);
+            if (selected) groundMesh = mesh;
+
+            // ★ 纯平地形始终画网格（恢复到原来的"深绿底 + 白色网格"观感）
+            const grid = new THREE.GridHelper(
+                Math.max(w, d),
+                Math.max(1, Number(a.gridSize) || 100),
+                0xffffff, selected ? 0xd8ffd8 : 0xbfd8bf
+            );
+            grid.position.set(x, y + 0.02, z);
+            group.add(grid);
+            if (selected) groundGridHelper = grid;
+        }
+
+        // ===== 地形（= 原"地块"）：与后台 /api/terrain 同一份数据 =====
+        let terrainList = [];
+        let terrainDefaults = null;
+        let terrainSelectedId = null;
+
+        async function loadTerrainPanel() {
+            try {
+                // 注意：API_BASE 是 /api/world，地形接口在 /api/terrain
+                const res = await fetch('/api/terrain/list');
+                const data = await res.json();
+                terrainList = (data && data.terrains) || [];
+                terrainDefaults = (data && data.defaults) || null;
+                renderTerrainList();
+                // 同步"显示地形边框"复选框状态（叠层脚本可能晚于本脚本加载）
+                const chk = document.getElementById('terrain-overlay-chk');
+                if (chk && window.TerrainZoneOverlay) chk.checked = window.TerrainZoneOverlay.isVisible();
+                // 默认选中：优先级最高的生效地形；没有生效的选第一条
+                const act = terrainList.filter(t => t.active)
+                    .sort((a, b) => ((b.area.priority || 0) - (a.area.priority || 0)) || (a.id - b.id))[0];
+                const pick = act || terrainList[0];
+                if (pick) selectTerrain(pick.id);
+            } catch (e) {
+                console.warn('加载地形列表失败:', e);
+                showNotification('❌ 加载地形列表失败: ' + e.message, 'error');
+            }
+        }
+
+        function fillTerrainSelect() {
+            const sel = document.getElementById('terrain-select');
+            if (!sel) return;
+            if (!terrainList.length) { sel.innerHTML = '<option value="">（暂无地形）</option>'; return; }
+            sel.innerHTML = terrainList.map(t => {
+                const a = t.area || {};
+                return '<option value="' + t.id + '">' + t.name + (t.builtin ? '（内置·只读）' : '') +
+                    ' · ' + a.width + '×' + a.depth + ' @ (' + a.x + ',' + a.z + ')' + (t.active ? ' · 生效中' : '') + '</option>';
+            }).join('');
+        }
+
+        function getTerrainById(id) {
+            return terrainList.find(t => String(t.id) === String(id)) || null;
+        }
+
+        function onTerrainSelectChange() {
+            const sel = document.getElementById('terrain-select');
+            if (sel && sel.value) selectTerrain(sel.value);
+        }
+
+        function selectTerrain(id) {
+            const t = getTerrainById(id);
+            if (!t) return;
+            terrainSelectedId = t.id;
+            const a = t.area || {};
+            const set = (elId, v) => { const el = document.getElementById(elId); if (el) el.value = v; };
+            set('terrain-x', a.x == null ? 0 : a.x);
+            set('terrain-z', a.z == null ? 0 : a.z);
+            set('terrain-width', a.width == null ? 2000 : a.width);
+            set('terrain-depth', a.depth == null ? 2000 : a.depth);
+            set('terrain-baseY', a.baseY == null ? 0 : a.baseY);
+            set('terrain-priority', a.priority == null ? 0 : a.priority);
+            set('terrain-grid', a.gridSize == null ? 100 : a.gridSize);
+            set('terrain-color', a.color || '#2d5016');
+            set('terrain-cull', (t.params && t.params.cullDistance) || 400);
+            const sel = document.getElementById('terrain-select');
+            if (sel) sel.value = String(t.id);
+            const tip = document.getElementById('terrain-active-tip');
+            if (tip) {
+                tip.innerHTML = t.builtin
+                    ? '内置默认地形：位置与尺寸只读（可复制一份再改）'
+                    : ('seed ' + t.seed + ' · 起伏 ' + ((t.params && t.params.heightScale) || 0) + 'm · ' + (t.active ? '生效中' : '未生效'));
+            }
+            applyTerrainToEditor(true);
+            renderTerrainList();
+        }
+
+        /** 地形列表（点击一条 → 相机飞到该地形中心，方便在上面摆模型/图片/视频） */
+        function renderTerrainList() {
+            const box = document.getElementById('terrain-list-box');
+            if (!box) return;
+            if (!terrainList.length) {
+                box.innerHTML = '<div style="padding:8px;font-size:12px;color:#888;">（暂无地形）</div>';
+                return;
+            }
+            box.innerHTML = terrainList.map(t => {
+                const a = t.area || {};
+                const on = String(t.id) === String(terrainSelectedId);
+                const badge = t.active
+                    ? '<span style="color:#4ade80;">● 生效</span>'
+                    : '<span style="color:#777;">○ 未生效</span>';
+                return '<div data-tid="' + t.id + '" onclick="focusTerrain(' + t.id + ')" ' +
+                    'style="padding:7px 9px;border-bottom:1px solid #222;cursor:pointer;font-size:12px;line-height:1.6;' +
+                    (on ? 'background:rgba(47,139,255,.18);' : '') + '">' +
+                    '<b style="color:' + (on ? '#7dd3fc' : '#ddd') + ';">' + t.name + '</b>' +
+                    (t.builtin ? ' <span style="color:#888;">（内置）</span>' : '') + '<br>' +
+                    '<span style="color:#8a94a6;font-size:11px;">' + a.width + '×' + a.depth +
+                    ' @ (' + a.x + ',' + a.z + ')' + (Number(a.baseY) ? ' · Y=' + a.baseY : '') + '</span> ' + badge +
+                    '</div>';
+            }).join('');
+        }
+
+        /** 相机定位到某块地形中心（含基准高度），并按地形尺寸调整距离与远裁剪面 */
+        function focusTerrain(id) {
+            const t = getTerrainById(id);
+            if (!t) return;
+            selectTerrain(id); // 会回填表单 + 把编辑器地面摆到该地形位置
+            const a = t.area || {};
+            const cx = Number(a.x) || 0;
+            const cz = Number(a.z) || 0;
+            const cy = Number(a.baseY) || 0;
+            const span = Math.max(Number(a.width) || 2000, Number(a.depth) || 2000);
+            // 距离：有起伏时贴近一点（否则远处看不出高低），纯平时看全范围
+            const amp = Number((t.params && t.params.heightScale) || 0);
+            const dist = Math.min(8000, Math.max(60, amp > 0 ? Math.max(span * 0.3, amp * 16) : span * 0.55));
+            camera.position.set(cx + dist, cy + dist * 0.8, cz + dist);
+            // 编辑器相机默认 far=1000，看大地形/浮空地形会被裁掉
+            if (camera.far < dist * 6) { camera.far = dist * 6; camera.updateProjectionMatrix(); }
+            controls.target.set(cx, cy, cz);
+            controls.update();
+            renderTerrainList();
+            showNotification('📷 已定位到地形：' + t.name + ' (' + cx + ', ' + cz + ')', 'success');
+        }
+
+        /** 场景里的地形边框叠层开关（取代原来左下角的悬浮按钮） */
+        function toggleTerrainOverlay(on) {
+            if (!window.TerrainZoneOverlay) return;
+            window.TerrainZoneOverlay.setVisible(!!on);
+        }
+
+        function collectTerrainArea() {
+            const n = (id, d) => { const el = document.getElementById(id); const v = el ? Number(el.value) : NaN; return Number.isFinite(v) ? v : d; };
+            return {
+                x: n('terrain-x', 0), z: n('terrain-z', 0),
+                width: Math.max(100, n('terrain-width', 2000)),
+                depth: Math.max(100, n('terrain-depth', 2000)),
+                baseY: n('terrain-baseY', 0),
+                priority: n('terrain-priority', 0),
+                gridSize: Math.max(1, n('terrain-grid', 100)),
+                color: (document.getElementById('terrain-color') || {}).value || '#2d5016'
+            };
+        }
+
+        // 仅预览：按当前表单把编辑器里的地面摆到对应位置/尺寸
+        function applyTerrainToEditor(silent) {
+            const a = collectTerrainArea();
+            groundConfig = { width: a.width, depth: a.depth, gridSize: a.gridSize, color: a.color, x: a.x, z: a.z, y: a.baseY };
+            // 重画全部地形：选中的这块用表单里的预览值，其余用库里的值
+            rebuildEditorTerrains(a);
+            if (!silent) showNotification('✅ 已按该地形参数预览（未保存）', 'success');
+        }
+
+        // 保存到当前选中的地形（写 /api/terrain/:id）
+        async function saveTerrainFromEditor() {
+            const t = getTerrainById(terrainSelectedId);
+            if (!t) return showNotification('请先选择一个地形', 'error');
+            if (t.builtin) return showNotification('内置默认地形不可修改（可复制一份再改）', 'error');
+            try {
+                const res = await fetch('/api/terrain/' + t.id, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...__editorAuthHeaders() },
+                    body: JSON.stringify({
+                        area: collectTerrainArea(),
+                        params: { cullDistance: Number((document.getElementById('terrain-cull') || {}).value) || 400 }
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok || data.success === false) throw new Error(data.error || ('HTTP ' + res.status));
+                showNotification('✅ 地形已保存：' + data.terrain.name, 'success');
+                await loadTerrainPanel();
+                if (window.TerrainZoneOverlay) window.TerrainZoneOverlay.refresh();
+            } catch (e) {
+                showNotification('❌ 保存失败: ' + e.message, 'error');
+            }
+        }
+
+        function refreshTerrainPanel() { loadTerrainPanel(); }
+
+        // 新建地形：直接复用后台那张地形表单（位置与范围 + 参数 + 俯视预览）
+        async function createTerrainInEditor() {
+            if (!window.adminTerrainForm) {
+                try {
+                    await new Promise((resolve, reject) => {
+                        const s = document.createElement('script');
+                        s.src = 'js/adminTerrainForm.js?v=9';
+                        s.onload = () => resolve();
+                        s.onerror = () => reject(new Error('加载地形表单失败'));
+                        document.head.appendChild(s);
+                    });
+                } catch (e) {
+                    showNotification('❌ ' + e.message, 'error');
+                    return;
+                }
+            }
+            if (!window.adminTerrainForm) return;
+            // 表单需要 defaults 与 terrains（这里给它当前列表与后端基线）
+            window.adminTerrain = { defaults: terrainDefaults, get terrains() { return terrainList; } };
+            window.adminTerrainForm.open({ mode: 'create' }, async (saved, activated) => {
+                await loadTerrainPanel();
+                if (saved) {
+                    selectTerrain(saved.id);
+                    showNotification('✅ 已新建地形：' + saved.name + (activated ? '（已生效）' : '（未生效）'), 'success');
+                }
+                if (window.TerrainZoneOverlay) window.TerrainZoneOverlay.refresh();
+            });
         }
 
         // 从服务器加载地块配置
@@ -4032,7 +4417,16 @@
         }
 
         // 范围巡检：相机 120m 内显示真实模型；超出 240m 切换回占位符；占位符始终可见
+        // 【性能 P0-2】是否正在拖动/缩放 gizmo
+        // 拖动期暂停「取新任务」：模型下载完成回调、GLB 解析、纹理降采样/上传集中在主线程上，
+        // 与拖动叠加就是"手一松才动"的体感。已下载的 buffer 留在队列里，松手后由
+        // dragging-changed 的兜底 kick（300ms）恢复。选中远处对象仍强制加载（selectObject 直接 forceLoadObject）。
+        function isEditorDragging() {
+            return !!(transformControls && transformControls.dragging);
+        }
+
         function updateRangeLoading() {
+            if (isEditorDragging()) return; // 拖动期不做范围巡检（不触发新加载/显隐切换）
             const now = performance.now();
             if (now - _lastRangeScanAt < EDITOR_RANGE_SCAN_MS) return;
             _lastRangeScanAt = now;
@@ -4291,6 +4685,8 @@
             if (selectedObjects.length === 1) {
                 transformControls.attach(selectedObjects[0].mesh);
                 updatePropertiesPanel();
+                updateEventList();                            // 事件列表只在选中集合变化时重建
+                updateRightPropsPanel(selectedObjects[0]);    // 右侧面板随选中变化同步
             } else {
                 transformControls.detach();
             }
@@ -4428,6 +4824,52 @@
             document.getElementById('props-tab-' + tabName).classList.add('active');
         }
 
+        // 【性能 P0-1】拖动期专用：只更新左右两侧共 18 个变换数值框。
+        // DOM 引用延迟缓存（面板结构固定，不会重建），避免每帧 18 次 getElementById。
+        // 数值口径与两个面板完全一致：位置/缩放 4 位小数（weNum）、旋转 2 位小数。
+        let _tfEls = null;
+        function _tfCache() {
+            if (_tfEls && _tfEls.px && _tfEls.rpx) return _tfEls;
+            const $id = (id) => document.getElementById(id);
+            _tfEls = {
+                px: $id('prop-x'), py: $id('prop-y'), pz: $id('prop-z'),
+                prx: $id('prop-rx'), pry: $id('prop-ry'), prz: $id('prop-rz'),
+                psx: $id('prop-sx'), psy: $id('prop-sy'), psz: $id('prop-sz'),
+                rpx: $id('right-prop-x'), rpy: $id('right-prop-y'), rpz: $id('right-prop-z'),
+                rprx: $id('right-prop-rx'), rpry: $id('right-prop-ry'), rprz: $id('right-prop-rz'),
+                rpsx: $id('right-prop-sx'), rpsy: $id('right-prop-sy'), rpsz: $id('right-prop-sz')
+            };
+            return _tfEls;
+        }
+        function updateTransformFieldsOnly(obj) {
+            if (!obj || !obj.mesh) return;
+            const m = obj.mesh;
+            const e = _tfCache();
+            const x = weNum(m.position.x), y = weNum(m.position.y), z = weNum(m.position.z);
+            const sx = weNum(m.scale.x), sy = weNum(m.scale.y), sz = weNum(m.scale.z);
+            const rx = (m.rotation.x * 180 / Math.PI).toFixed(2);
+            const ry = (m.rotation.y * 180 / Math.PI).toFixed(2);
+            const rz = (m.rotation.z * 180 / Math.PI).toFixed(2);
+            if (e.px) e.px.value = x;
+            if (e.py) e.py.value = y;
+            if (e.pz) e.pz.value = z;
+            if (e.prx) e.prx.value = rx;
+            if (e.pry) e.pry.value = ry;
+            if (e.prz) e.prz.value = rz;
+            if (e.psx) e.psx.value = sx;
+            if (e.psy) e.psy.value = sy;
+            if (e.psz) e.psz.value = sz;
+            if (e.rpx) e.rpx.value = x;
+            if (e.rpy) e.rpy.value = y;
+            if (e.rpz) e.rpz.value = z;
+            if (e.rprx) e.rprx.value = rx;
+            if (e.rpry) e.rpry.value = ry;
+            if (e.rprz) e.rprz.value = rz;
+            if (e.rpsx) e.rpsx.value = sx;
+            if (e.rpsy) e.rpsy.value = sy;
+            if (e.rpsz) e.rpsz.value = sz;
+        }
+
         function updatePropertiesPanel() {
             const propsContent = document.getElementById('props-panel-content');
             const noSelectionHint = document.getElementById('no-selection-hint');
@@ -4450,16 +4892,16 @@
             document.getElementById('prop-type').textContent = getObjectIcon(data.type || 'unknown') + ' ' + (data.type || 'unknown').toUpperCase();
             document.getElementById('prop-name').value = data.name || '';
             
-            // 更新变换属性
-            document.getElementById('prop-x').value = mesh.position.x.toFixed(2);
-            document.getElementById('prop-y').value = mesh.position.y.toFixed(2);
-            document.getElementById('prop-z').value = mesh.position.z.toFixed(2);
+            // 更新变换属性（位置/缩放保留 4 位小数，勿再改回 toFixed(2)，否则保存会吞掉精度）
+            document.getElementById('prop-x').value = weNum(mesh.position.x);
+            document.getElementById('prop-y').value = weNum(mesh.position.y);
+            document.getElementById('prop-z').value = weNum(mesh.position.z);
             document.getElementById('prop-rx').value = (mesh.rotation.x * 180 / Math.PI).toFixed(2);
             document.getElementById('prop-ry').value = (mesh.rotation.y * 180 / Math.PI).toFixed(2);
             document.getElementById('prop-rz').value = (mesh.rotation.z * 180 / Math.PI).toFixed(2);
-            document.getElementById('prop-sx').value = mesh.scale.x.toFixed(2);
-            document.getElementById('prop-sy').value = mesh.scale.y.toFixed(2);
-            document.getElementById('prop-sz').value = mesh.scale.z.toFixed(2);
+            document.getElementById('prop-sx').value = weNum(mesh.scale.x);
+            document.getElementById('prop-sy').value = weNum(mesh.scale.y);
+            document.getElementById('prop-sz').value = weNum(mesh.scale.z);
             
             // 更新开关
             document.getElementById('prop-visible').checked = mesh.visible !== false;
@@ -4480,15 +4922,52 @@
                 axisControls.style.display = 'block';
             }
             
-            // 更新交互事件列表
-            updateEventList();
-
-            // 同步更新右侧属性面板
-            updateRightPropsPanel(obj);
+            // 【性能 P0-1】交互事件列表（innerHTML 重建）与右侧面板不再在这里刷新：
+            // 右侧面板由 refreshPropsPanels / updateSelection 统一下发（原来这里又调一次 → 每次刷新做两遍），
+            // 事件列表只在「选中集合变化」时由 updateSelection 调一次。
         }
 
+        // 左侧属性面板输入/开关变化时立即应用并落库
+        // 【2026-10-16 修复】此前是空函数：在左侧"属性"面板里改缩放/位置既不生效也不保存，
+        // 用户以为改完就生效，刷新后自然"还是原来的大小"。
         function updateSelectedProperty() {
-            // 实时更新（可选）
+            if (selectedObjects.length !== 1) return;
+            const obj = selectedObjects[0];
+            const mesh = obj.mesh;
+            const numOr = (id, cur) => {
+                const el = document.getElementById(id);
+                const v = el ? parseFloat(el.value) : NaN;
+                return isFinite(v) ? v : cur;
+            };
+            mesh.position.set(
+                numOr('prop-x', mesh.position.x),
+                numOr('prop-y', mesh.position.y),
+                numOr('prop-z', mesh.position.z)
+            );
+            mesh.rotation.set(
+                THREE.MathUtils.degToRad(numOr('prop-rx', mesh.rotation.x * 180 / Math.PI)),
+                THREE.MathUtils.degToRad(numOr('prop-ry', mesh.rotation.y * 180 / Math.PI)),
+                THREE.MathUtils.degToRad(numOr('prop-rz', mesh.rotation.z * 180 / Math.PI))
+            );
+            const sx = numOr('prop-sx', mesh.scale.x);
+            const sy = numOr('prop-sy', mesh.scale.y);
+            const sz = numOr('prop-sz', mesh.scale.z);
+            if (sx > 0 && sy > 0 && sz > 0) mesh.scale.set(sx, sy, sz);
+
+            // 开关类字段就地生效（持久化仍由"应用更改"按钮负责）
+            const visEl = document.getElementById('prop-visible');
+            if (visEl) mesh.visible = visEl.checked;
+            const castEl = document.getElementById('prop-cast-shadow');
+            if (castEl) mesh.castShadow = castEl.checked;
+            const recvEl = document.getElementById('prop-receive-shadow');
+            if (recvEl) mesh.receiveShadow = recvEl.checked;
+            const cullEl = document.getElementById('prop-frustum-culled');
+            if (cullEl) mesh.frustumCulled = cullEl.checked;
+            const colEl = document.getElementById('prop-collision');
+            if (colEl && obj.data) obj.data.has_collision = colEl.checked;
+
+            updateRightPropsPanel(obj);   // 同步右侧面板显示
+            autoSaveObjectTransform();    // 变换与碰撞立即落库
         }
 
         // 更新视频属性
@@ -4741,22 +5220,29 @@
             const obj = selectedObjects[0];
             const mesh = obj.mesh;
 
+            // 输入框为空/非法时保留当前值（原先 parseFloat 得 NaN，会被写成 null 破坏对象）
+            const numOr = (id, cur) => {
+                const el = document.getElementById(id);
+                const v = el ? parseFloat(el.value) : NaN;
+                return isFinite(v) ? v : cur;
+            };
+            const positiveOr = (id, cur) => { const v = numOr(id, cur); return v > 0 ? v : cur; };
             // 将角度转换为弧度
-            const rxDeg = parseFloat(document.getElementById('prop-rx').value);
-            const ryDeg = parseFloat(document.getElementById('prop-ry').value);
-            const rzDeg = parseFloat(document.getElementById('prop-rz').value);
+            const rxDeg = numOr('prop-rx', mesh.rotation.x * 180 / Math.PI);
+            const ryDeg = numOr('prop-ry', mesh.rotation.y * 180 / Math.PI);
+            const rzDeg = numOr('prop-rz', mesh.rotation.z * 180 / Math.PI);
 
             const updates = {
                 name: document.getElementById('prop-name').value,
-                position_x: parseFloat(document.getElementById('prop-x').value),
-                position_y: parseFloat(document.getElementById('prop-y').value),
-                position_z: parseFloat(document.getElementById('prop-z').value),
+                position_x: numOr('prop-x', mesh.position.x),
+                position_y: numOr('prop-y', mesh.position.y),
+                position_z: numOr('prop-z', mesh.position.z),
                 rotation_x: rxDeg * Math.PI / 180,
                 rotation_y: ryDeg * Math.PI / 180,
                 rotation_z: rzDeg * Math.PI / 180,
-                scale_x: parseFloat(document.getElementById('prop-sx').value),
-                scale_y: parseFloat(document.getElementById('prop-sy').value),
-                scale_z: parseFloat(document.getElementById('prop-sz').value),
+                scale_x: positiveOr('prop-sx', mesh.scale.x),
+                scale_y: positiveOr('prop-sy', mesh.scale.y),
+                scale_z: positiveOr('prop-sz', mesh.scale.z),
                 visible: document.getElementById('prop-visible').checked,
                 castShadow: document.getElementById('prop-cast-shadow').checked,
                 receiveShadow: document.getElementById('prop-receive-shadow').checked,
@@ -5486,16 +5972,16 @@
             // 名称
             document.getElementById('right-prop-name').value = data.name || '';
 
-            // 变换属性
-            document.getElementById('right-prop-x').value = obj.mesh.position.x.toFixed(2);
-            document.getElementById('right-prop-y').value = obj.mesh.position.y.toFixed(2);
-            document.getElementById('right-prop-z').value = obj.mesh.position.z.toFixed(2);
+            // 变换属性（位置/缩放保留 4 位小数，勿再改回 toFixed(2)，否则"保存更改"会吞掉精度）
+            document.getElementById('right-prop-x').value = weNum(obj.mesh.position.x);
+            document.getElementById('right-prop-y').value = weNum(obj.mesh.position.y);
+            document.getElementById('right-prop-z').value = weNum(obj.mesh.position.z);
             document.getElementById('right-prop-rx').value = THREE.MathUtils.radToDeg(obj.mesh.rotation.x).toFixed(2);
             document.getElementById('right-prop-ry').value = THREE.MathUtils.radToDeg(obj.mesh.rotation.y).toFixed(2);
             document.getElementById('right-prop-rz').value = THREE.MathUtils.radToDeg(obj.mesh.rotation.z).toFixed(2);
-            document.getElementById('right-prop-sx').value = obj.mesh.scale.x.toFixed(2);
-            document.getElementById('right-prop-sy').value = obj.mesh.scale.y.toFixed(2);
-            document.getElementById('right-prop-sz').value = obj.mesh.scale.z.toFixed(2);
+            document.getElementById('right-prop-sx').value = weNum(obj.mesh.scale.x);
+            document.getElementById('right-prop-sy').value = weNum(obj.mesh.scale.y);
+            document.getElementById('right-prop-sz').value = weNum(obj.mesh.scale.z);
 
             // 开关
             document.getElementById('right-prop-visible').checked = obj.mesh.visible;
@@ -5520,18 +6006,25 @@
                 advancedTab.style.display = hasCustomConfig ? '' : 'none';
             }
             if (hasCustomConfig && window.CustomConfigPanel) {
-                const self = this;
-                window.CustomConfigPanel.render(type, data.custom_config, function (newConfig) {
-                    // 实时预览：应用配置到当前 mesh
-                    if (obj.mesh && window.CustomConfigApplier) {
-                        window.CustomConfigApplier.apply(obj.mesh, {
-                            type: type,
-                            custom_config: newConfig
-                        });
-                    }
-                    // 将新配置暂存到内存，等待点击"应用更改"时保存
-                    obj.data.custom_config_preview = newConfig;
-                });
+                // 【性能 P0-1】高级页签字段多、一次重建要写几十个 DOM 并重新绑定监听；
+                // 同一对象同一类型只重建一次（对象切换 / 保存后清 key 才会重建）。
+                const _ccKey = obj.id + ':' + type;
+                if (window.__weCCRenderKey !== _ccKey) {
+                    window.__weCCRenderKey = _ccKey;
+                    window.CustomConfigPanel.render(type, data.custom_config, function (newConfig) {
+                        // 实时预览：应用配置到当前 mesh
+                        if (obj.mesh && window.CustomConfigApplier) {
+                            window.CustomConfigApplier.apply(obj.mesh, {
+                                type: type,
+                                custom_config: newConfig
+                            });
+                        }
+                        // 将新配置暂存到内存，等待点击"应用更改"时保存
+                        obj.data.custom_config_preview = newConfig;
+                    });
+                }
+            } else {
+                window.__weCCRenderKey = null;
             }
 
             // ===== 视频属性：根据对象类型控制显示 =====
@@ -5661,6 +6154,7 @@
             }
 
             // 保存到数据库
+            window.__weCCRenderKey = null;   // 配置已落库 → 下次刷新高级页签按最新配置重建
             saveObjectToDatabase(obj);
 
             showNotification(weT('save.propsUpdated', '✅ 属性已更新'), 'success');
@@ -6335,7 +6829,7 @@
         // ===== 初始化 =====
         window.addEventListener('DOMContentLoaded', () => {
             initThreeJS();
-            loadGroundConfig(); // 加载地块配置（默认 2000×2000）
+            loadTerrainPanel(); // 地形（原"地块"）：与后台 /api/terrain 同一份数据
             loadWorldObjects(); // 会自动添加出生点
             loadUploadedModels(); // 加载已上传的模型列表
             loadThreejsCodeBlocks(); // 加载 Three.js 代码库
@@ -7755,7 +8249,8 @@
         function processGlbQueue() {
             glbLoadingActive = true;
             const pump = () => {
-                while (glbLoadQueue.length > 0 && glbActiveCount < GLB_CONCURRENCY) {
+                // 拖动期不再取新任务（在途任务照常收尾，队列保留；松手后由 dragging-changed kick 恢复）
+                while (glbLoadQueue.length > 0 && glbActiveCount < GLB_CONCURRENCY && !isEditorDragging()) {
                     const task = glbLoadQueue.shift();
                     glbActiveCount++;
                     // 60s 超时兜底：任何任务（下载/解析/降级/克隆）异常卡住都不能阻塞队列后续模型
@@ -7798,7 +8293,8 @@
                     catch (e) { console.warn('⚠️ meshopt 解码器未就绪，meshopt 压缩模型可能解析失败:', e); }
                 }
             }
-            while (glbParseActiveCount < GLB_PARSE_CONCURRENCY && glbParseQueue.length > 0) {
+            // 拖动期不再取新任务解析（解析 + 纹理降采样都是主线程重活，会和拖动抢帧）
+            while (glbParseActiveCount < GLB_PARSE_CONCURRENCY && glbParseQueue.length > 0 && !isEditorDragging()) {
                 const { buffer, modelPath, placeholder, loaderMesh } = glbParseQueue.shift();
                 glbParseActiveCount++;
                 let settled = false;
@@ -7819,8 +8315,8 @@
                 const dracoLoader = new THREE.DRACOLoader();
                 dracoLoader.setDecoderPath('/js/libs/draco/');
                 loader.setDRACOLoader(dracoLoader);
-                loader.parse(buffer, modelPath.slice(0, modelPath.lastIndexOf('/') + 1),
-                    (gltf) => {
+                const _resourcePath = modelPath.slice(0, modelPath.lastIndexOf('/') + 1);
+                const _onParsed = (gltf) => {
                         try {
                             console.log('✅ GLTF模型解析成功:', modelPath);
                             // 纹理降级：4K→1K，几何体完全不动，形状轮廓不变。
@@ -7850,13 +8346,23 @@
                             console.error('❌ GLTF解析后处理失败:', e);
                             done();
                         }
-                    },
-                    (error) => {
+                };
+                const _onParseError = (error) => {
                         console.error('❌ GLTF解析失败:', error);
                         if (loaderMesh && loaderMesh.material) loaderMesh.material.color.set(0xff0000);
                         done();
-                    }
-                );
+                };
+                // 【性能】GLB 解析进 Worker（主线程零停顿）
+                // 原先这里是主线程同步 loader.parse，实测单个 GLB 冻结 0.3~2.5s；
+                // 相机移动/点击会触发范围加载（每次巡检 1 个，队列连续），于是连环冻结，
+                // 体感就是"放大/移动视角后特别卡、点击也不流畅"。
+                // worker 不可用、或模型含动画/蒙皮/morph 等不可序列化子集时自动回退主线程 parse。
+                if (window.GltfWorkerClient && window.GltfWorkerClient.parseBuffer) {
+                    window.GltfWorkerClient.parseBuffer(buffer, { resourcePath: _resourcePath, fallbackLoader: loader })
+                        .then(_onParsed, _onParseError);
+                } else {
+                    loader.parse(buffer, _resourcePath, _onParsed, _onParseError);
+                }
             }
         }
 
@@ -8270,6 +8776,8 @@
 
     </script>
     <!-- draw call 降载模块：占位盒实例化 + 几何实例合批（画面零变化） -->
-    <script src="js/editorPerfBatcher.js?v=1"></script>
+    <script src="js/editorPerfBatcher.js?v=3"></script>
+    <!-- 性能现场诊断（默认零开销，控制台 EditorDiag.start()/report() 才启用） -->
+    <script src="js/editorPerfDiag.js?v=1"></script>
 </body>
 </html>

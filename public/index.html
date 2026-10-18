@@ -1472,6 +1472,8 @@
   <!-- WebGL2 能力检测与友好降级（r163 起不再支持 WebGL1，旧设备全屏提示；须先于 three 加载以便 window.stop 省流量） -->
   <script src="js/webgl2Guard.js?v=185"></script>
   <script src="js/lib/three.min.js?v=185"></script>
+  <!-- 缩放 Gizmo 增强（世界内管理员编辑）：默认等比缩放，按住 Shift = 单轴 -->
+  <script src="js/transformGizmoEnhance.js?v=2"></script>
   <script src="js/lib/VOXLoader.js?v=1"></script>
   <script src="js/lib/three-mesh-bvh.min.js?v=1"></script>
   <script src="js/lib/GLTFLoader.js?v=185"></script>
@@ -1523,7 +1525,12 @@
   <script src="js/gltfWorkerClient.js?v=3"></script>
   <script src="js/loadingProgress.js?v=7"></script>
   <script src="js/skyManager.js?v=3"></script>
-  <script src="js/world.js?v=16"></script>
+  <!-- 地形系统（地形=地块：多块地形各有位置/面积/基准高度；无地形处玩家按 -Y 一直下落） -->
+  <script src="js/terrain/terrainNoise.js?v=2"></script>
+  <script src="js/terrain/terrainHeight.js?v=7"></script>
+  <script src="js/terrain/terrainChunk.js?v=2"></script>
+  <script src="js/terrain/terrainSystem.js?v=6"></script>
+  <script src="js/world.js?v=20"></script>
   <script src="js/worldObjectBounds.js?v=3"></script>
   <script src="js/placeholderField.js?v=5"></script>
   <script src="js/worldTextureOptimizer.js"></script>

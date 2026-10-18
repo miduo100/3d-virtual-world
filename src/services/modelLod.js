@@ -354,11 +354,14 @@ async function _generateLow(srcPath, dstPath, sourceTris, force, benefitRef, tar
  * @param {string} absPath 生效模型文件的绝对路径（原文件或 _dec.glb）
  * @param {object} [opts]
  * @param {boolean} [opts.force] 已存在时是否重做（默认 false）
+ * @param {number} [opts.minSourceTris] 源面数门禁覆盖（默认 MIN_SOURCE_TRIS）。
+ *   零件库热点补齐用：零件单件面数普遍 <5000，但被 AI 摆几百次时总开销巨大，
+ *   需要放宽门禁生成小尺寸变体（mid≈源×25%、low=-sa 触底）。
  * @returns {Promise<object>}
  *   { ok, skipped, reason?, source, base, sourceTris, variants:{mid,low} }
  *   skipped 时的 reason：bad-path / format / not-found / lod-variant-source / not-glb-or-empty / low-poly-source / error
  */
-async function generateLodVariants(absPath, { force = false } = {}) {
+async function generateLodVariants(absPath, { force = false, minSourceTris } = {}) {
   const empty = { ok: false, skipped: false, source: absPath || null, base: null, sourceTris: 0, variants: {} };
   try {
     if (!absPath || typeof absPath !== 'string') return { ...empty, skipped: true, reason: 'bad-path' };
@@ -373,7 +376,8 @@ async function generateLodVariants(absPath, { force = false } = {}) {
     const head = { ...empty, base: base.base, sourceTris, sourceUsed: srcPath };
 
     if (sourceTris <= 0) return { ...head, skipped: true, reason: 'not-glb-or-empty' };
-    if (sourceTris < MIN_SOURCE_TRIS) return { ...head, skipped: true, reason: 'low-poly-source' };
+    const minSrc = (Number.isFinite(minSourceTris) && minSourceTris >= 0) ? minSourceTris : MIN_SOURCE_TRIS;
+    if (sourceTris < minSrc) return { ...head, skipped: true, reason: 'low-poly-source' };
 
     // 先中模，再以中模面数作为低模的收益参照（低模必须真的比中模更轻，否则不落盘）
     const variants = {};
