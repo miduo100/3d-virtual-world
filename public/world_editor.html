@@ -6313,6 +6313,7 @@
         // ===== 刷新场景 =====
         async function refreshScene() {
             deselectAll();
+            window.__weCCRenderKey = null;   // 重载后高级页签按最新配置重建（与 CustomConfigPanel 缓存配套）
             await loadWorldObjects();
         }
 
