@@ -3141,6 +3141,8 @@
     <script src="js/uploadMetaDialog.js?v=1"></script>
     <script src="js/mediaAgentDesc.js?v=1"></script>
     <script src="js/worldEditorRightPanel.js?v=2"></script>
+    <!-- 对象列表虚拟化（会话3 P2-1）：只渲染视口内行，DOM 8.6 万 → 约 1 千 -->
+    <script src="js/editorListVirtual.js?v=1"></script>
     <script src="js/worldRegionOverlay.js?v=1"></script>
     <!-- 地形高度函数 + 瓦片几何：编辑器里按真实起伏生成网格（与游戏内同一套函数） -->
     <script src="js/terrain/terrainNoise.js?v=2"></script>
@@ -3553,6 +3555,38 @@
             mesh.userData._vertexCount = null;
         }
 
+        // 【会话3 P2-4】拾取代理空闲预热：首次点击原本要为全场 4318 个对象逐个建代理 +
+        // 算包围球（实测 120~165ms）。这里在加载完成后用空闲分片慢慢建好（不影响帧率、不建几何之外的资源），
+        // 用户真正点下去时只需组织数组 + raycast。
+        let _pickWarmTimer = null, _pickWarmIdx = 0, _pickWarmTotal = -1;
+        function pickWarmSlice() {
+            _pickWarmTimer = null;
+            if (typeof isEditorDragging === 'function' && isEditorDragging()) { schedulePickWarmup(900); return; }
+            if (typeof worldObjects === 'undefined') return;
+            const t0 = performance.now();
+            while (_pickWarmIdx < worldObjects.length && performance.now() - t0 < 4) {
+                const wo = worldObjects[_pickWarmIdx++];
+                if (!wo || !wo.mesh) continue;
+                try { getPickProxy(wo); } catch (e) {}
+            }
+            if (_pickWarmIdx < worldObjects.length) schedulePickWarmup(80);
+        }
+        function schedulePickWarmup(delay) {
+            if (typeof worldObjects === 'undefined') return;
+            if (_pickWarmTotal !== worldObjects.length) { _pickWarmTotal = worldObjects.length; _pickWarmIdx = 0; }
+            if (_pickWarmTimer || _pickWarmIdx >= worldObjects.length) return;
+            _pickWarmTimer = setTimeout(pickWarmSlice, delay == null ? 300 : delay);
+        }
+
+        // 【会话3 P2-4】拾取代理：全场 4318 个对象共用 1 个单位盒几何 + 1 个材质，
+        // 代理尺寸用 scale 表达。原实现每个对象都 new BoxGeometry（4318 次几何分配 + 包围球计算），
+        // 实测首次点击 165ms；共享几何后只建 Mesh 节点。
+        let _pickProxyGeo = null, _pickProxyMat = null;
+        function _ensurePickProxyAssets() {
+            if (!_pickProxyGeo) _pickProxyGeo = new THREE.BoxGeometry(1, 1, 1);
+            if (!_pickProxyMat) _pickProxyMat = new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide });
+        }
+
         function getPickProxy(wo) {
             const mesh = wo.mesh;
             if (!mesh) return null;
@@ -3563,25 +3597,31 @@
                 mesh.userData._pickSphere = sph;
             }
             const r = Math.max(sph.radius, 0.1);
+            _ensurePickProxyAssets();
             let proxy = mesh.userData._pickProxy;
             if (!proxy) {
-                proxy = new THREE.Mesh(
-                    new THREE.BoxGeometry(r, r, r),
-                    new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide })
-                );
-                proxy.visible = false; // 隐藏仍可拾取（r128 不检查 visible）
+                proxy = new THREE.Mesh(_pickProxyGeo, _pickProxyMat);
+                proxy.visible = false; // 隐藏仍可拾取（Raycaster 不检查 visible）
                 proxy.userData.objectId = wo.id;
                 proxy.userData.isPickProxy = true; // 精确判优时跳过代理自身交点（代理是包围盒，轮廓常大于模型）
                 mesh.add(proxy);
                 mesh.userData._pickProxy = proxy;
             }
             proxy.position.copy(sph.center);
-            // 对象加载后包围球变化时重建代理尺寸
-            if (Math.abs(proxy.geometry.parameters.width - r) > 0.01) {
-                proxy.geometry.dispose();
-                proxy.geometry = new THREE.BoxGeometry(r, r, r);
-            }
+            // 共享单位盒 → 用 scale 表达尺寸（不再重建几何）
+            proxy.scale.setScalar(r);
+            proxy.userData.pickRadius = r;          // 局部空间半径（= 边长）
+            proxy.userData.pickCenter = sph.center; // 局部空间中心（世界中心由 mesh.matrixWorld 变换得到）
             return proxy;
+        }
+
+        // 矩阵的最大轴缩放（用列向量长度估算；用于把代理的局部半径换算成世界半径）
+        function _maxWorldScale(m) {
+            const e = m.elements;
+            const sx = Math.sqrt(e[0] * e[0] + e[1] * e[1] + e[2] * e[2]);
+            const sy = Math.sqrt(e[4] * e[4] + e[5] * e[5] + e[6] * e[6]);
+            const sz = Math.sqrt(e[8] * e[8] + e[9] * e[9] + e[10] * e[10]);
+            return Math.max(sx, sy, sz);
         }
 
         function onMouseClick(event) {
@@ -3604,13 +3644,29 @@
 
             // 轻量拾取：只检测每个对象的包围盒代理（12 三角形/个），
             // 不递归真实高模子树，避免全场景三角形相交检测卡死主线程
+            // 【会话3 P2-4】再加一层「相机后方粗筛」：只有整个代理球都在相机平面后方
+            // （(center-camPos)·forward < -世界半径）才跳过——这种对象不可能被射向前方的射线命中，
+            // 因此不改变「最近命中 + ≤3 候选精确检测」的拾取语义。
+            const camFwd = new THREE.Vector3();
+            camera.getWorldDirection(camFwd);
+            const camPos = camera.position;
+            const _pc = new THREE.Vector3();
             const proxies = [];
+            let proxiesCulled = 0;
             for (let i = 0; i < worldObjects.length; i++) {
                 const wo = worldObjects[i];
                 if (!wo || !wo.mesh) continue;
                 const proxy = getPickProxy(wo);
-                if (proxy) proxies.push(proxy);
+                if (!proxy) continue;
+                if (proxy.userData.pickCenter) {
+                    _pc.copy(proxy.userData.pickCenter).applyMatrix4(wo.mesh.matrixWorld);
+                    const wr = (proxy.userData.pickRadius || 0.1) * 0.5 * _maxWorldScale(wo.mesh.matrixWorld);
+                    const dot = (_pc.x - camPos.x) * camFwd.x + (_pc.y - camPos.y) * camFwd.y + (_pc.z - camPos.z) * camFwd.z;
+                    if (dot < -wr) { proxiesCulled++; continue; }
+                }
+                proxies.push(proxy);
             }
+            window.__weLastPick = { total: worldObjects.length, candidates: proxies.length, culled: proxiesCulled };
 
             if (proxies.length === 0) {
                 console.log('⚠️ 没有可选择的对象');
@@ -5635,45 +5691,44 @@
             return iconMap[type?.toLowerCase()] || iconMap['unknown'];
         }
 
-        function updateObjectList(skipScroll) {
-            const listContainer = document.getElementById('scene-object-list');
-            const lockDirty = !!window.__weLockDirty;
-            window.__weLockDirty = false;
+        // ===== 对象列表（虚拟化，会话3 P2-1）=====
+        // 原实现：行数与对象数不一致就整表 innerHTML 重建 4317 行（首次 302ms），
+        // 选中变化要遍历左右各 4317 行改 class（约 8.7ms JS + 全页样式重算，是 selectObject 的大头）。
+        // 现在：左右列表都只渲染视口内约 50 行，行 HTML / onclick 语义与原实现逐字一致
+        // （点击/多选/锁定徽标/落地/删除/搜索/全选等行为零变化，见 editorListVirtual.js）。
+        let _leftVirtualList = null, _rightVirtualList = null;
 
-            if (worldObjects.length === 0) {
-                listContainer.innerHTML = '<div class="loading">' + weT('list.noObjects', '暂无对象') + '</div>';
-                return;
-            }
+        function _listObjName(obj) {
+            return obj.data?.name || weT('props.objectPrefix', '对象 #') + obj.id;
+        }
+        function _listObjLocked(obj) {
+            return window.EditorObjectLock ? window.EditorObjectLock.isLocked(obj) : false;
+        }
+        function _listObjLockBtn(obj) {
+            return window.EditorObjectLock ? window.EditorObjectLock.renderLockButton(obj) : '';
+        }
+        function _destroyVirtualList(vl, container, emptyHtml) {
+            try { if (vl && vl._destroy) vl._destroy(); } catch (e) {}
+            if (container) container.innerHTML = emptyHtml;
+            return null;
+        }
 
-            // 已渲染且数量一致 → 仅切换选中样式，避免每次点击全量 innerHTML 重建（选中卡顿根因之一）
-            // 锁定状态变更（__weLockDirty）时跳过快路径，强制全量重建以刷新锁按钮图标
-            const existingItems = listContainer.querySelectorAll('.scene-object-item');
-            if (!lockDirty && existingItems.length === worldObjects.length && existingItems.length > 0) {
-                existingItems.forEach(el => {
-                    const id = Number(el.getAttribute('data-id'));
-                    el.classList.toggle('selected', selectedObjects.some(o => o.id === id));
-                });
-                document.getElementById('object-count').textContent = worldObjects.length;
-                if (!skipScroll && selectedObjects.length > 0) {
-                    const selectedObj = selectedObjects[0];
-                    const selectedEl = listContainer.querySelector(`[data-id="${selectedObj.id}"]`);
-                    if (selectedEl) {
-                        selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                    }
-                }
-                updateRightObjectList(skipScroll);
-                return;
-            }
+        function ensureLeftList() {
+            if (_leftVirtualList) return _leftVirtualList;
+            const container = document.getElementById('scene-object-list');
+            if (!container || !window.EditorListVirtual) return null;
+            _leftVirtualList = window.EditorListVirtual.create({
+                container: container,
+                overscan: 5,
+                fallbackPitch: 66,
+                renderRow: function (obj, isSelected) {
+                    const type = obj.data?.type || 'unknown';
+                    const name = _listObjName(obj);
+                    const icon = getObjectIcon(type);
+                    const locked = _listObjLocked(obj);
+                    const lockBtn = _listObjLockBtn(obj);
 
-            listContainer.innerHTML = worldObjects.map(obj => {
-                const isSelected = selectedObjects.includes(obj);
-                const type = obj.data?.type || 'unknown';
-                const name = obj.data?.name || weT('props.objectPrefix', '对象 #') + obj.id;
-                const icon = getObjectIcon(type);
-                const locked = window.EditorObjectLock ? window.EditorObjectLock.isLocked(obj) : false;
-                const lockBtn = window.EditorObjectLock ? window.EditorObjectLock.renderLockButton(obj) : '';
-                
-                return `
+                    return `
                     <div class="scene-object-item ${isSelected ? 'selected' : ''} ${locked ? 'locked-row' : ''}" 
                          onclick="selectObjectById(${obj.id}, event)"
                          data-id="${obj.id}">
@@ -5691,17 +5746,40 @@
                         </div>
                     </div>
                 `;
-            }).join('');
-
-            document.getElementById('object-count').textContent = worldObjects.length;
-
-            // 自动滚动到选中的对象
-            if (!skipScroll && selectedObjects.length > 0) {
-                const selectedObj = selectedObjects[0];
-                const selectedEl = listContainer.querySelector(`[data-id="${selectedObj.id}"]`);
-                if (selectedEl) {
-                    selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 }
+            });
+            return _leftVirtualList;
+        }
+
+        function updateObjectList(skipScroll) {
+            const listContainer = document.getElementById('scene-object-list');
+            if (!listContainer) return;
+            // 锁定状态变更（__weLockDirty）→ 行内锁按钮图标要变，需重建视口内行。
+            // 注意：这里不清标志，交给随后必调的 updateRightObjectList 统一清除（两个列表都要刷新）。
+            const lockDirty = !!window.__weLockDirty;
+
+            if (worldObjects.length === 0) {
+                _leftVirtualList = _destroyVirtualList(_leftVirtualList, listContainer,
+                    '<div class="loading">' + weT('list.noObjects', '暂无对象') + '</div>');
+                updateRightObjectList(skipScroll);
+                return;
+            }
+
+            const vl = ensureLeftList();
+            if (!vl) return;    // 虚拟化模块缺失 → 保持容器原样（不破坏页面）
+            vl.setItems(worldObjects);
+            vl.setSelected(selectedObjects);
+            if (lockDirty) vl.invalidate();
+            vl.render(lockDirty);
+
+            const countEl = document.getElementById('object-count');
+            if (countEl) countEl.textContent = worldObjects.length;
+            // 空闲预热拾取代理（延迟 1.2s，避开首屏加载高峰）
+            try { schedulePickWarmup(1200); } catch (e) {}
+
+            // 自动滚动到选中的对象（虚拟化版：仅当目标不在视口内才滚）
+            if (!skipScroll && selectedObjects.length > 0) {
+                vl.scrollToId(selectedObjects[0].id);
             }
 
             // 同时更新右侧面板的对象列表
@@ -5711,55 +5789,23 @@
         // ===== 右侧场景面板 =====
 
         // 更新右侧面板对象列表
-        function updateRightObjectList(skipScroll) {
-            const listContainer = document.getElementById('right-object-list');
-            const countEl = document.getElementById('right-object-count');
-            const lockDirty = !!window.__weLockDirty;
-            window.__weLockDirty = false;
+        // 更新右侧面板对象列表（虚拟化，会话3 P2-1：只渲染视口内约 40 行）
+        function ensureRightList() {
+            if (_rightVirtualList) return _rightVirtualList;
+            const container = document.getElementById('right-object-list');
+            if (!container || !window.EditorListVirtual) return null;
+            _rightVirtualList = window.EditorListVirtual.create({
+                container: container,
+                overscan: 5,
+                fallbackPitch: 58,
+                renderRow: function (obj, isSelected) {
+                    const type = obj.data?.type || 'unknown';
+                    const name = _listObjName(obj);
+                    const icon = getObjectIcon(type);
+                    const locked = _listObjLocked(obj);
+                    const lockBtn = _listObjLockBtn(obj);
 
-            if (worldObjects.length === 0) {
-                listContainer.innerHTML = `
-                    <div style="text-align: center; padding: 30px 15px; color: rgba(255,255,255,0.5);">
-                        <div style="font-size: 32px; margin-bottom: 10px;">📭</div>
-                        <div style="font-size: 12px;">${weT('list.rightEmpty', '暂无场景对象')}</div>
-                    </div>
-                `;
-                countEl.textContent = '0';
-                return;
-            }
-
-            // 已渲染且数量一致 → 仅切换选中样式，避免全量 innerHTML 重建
-            //（选中频繁触发，全量重建两个列表是点击选中的主要开销）
-            // 锁定状态变更（__weLockDirty）时跳过快路径，强制全量重建以刷新锁按钮图标
-            const existingRightItems = listContainer.querySelectorAll('.right-object-item');
-            if (!lockDirty && existingRightItems.length === worldObjects.length && existingRightItems.length > 0) {
-                existingRightItems.forEach(el => {
-                    const id = Number(el.getAttribute('data-id'));
-                    const isSel = selectedObjects.some(o => o.id === id);
-                    el.classList.toggle('selected', isSel);
-                    const check = el.querySelector('.right-object-check');
-                    if (check) check.classList.toggle('checked', isSel);
-                });
-                countEl.textContent = worldObjects.length;
-                if (!skipScroll && selectedObjects.length > 0) {
-                    const selectedObj = selectedObjects[0];
-                    const selectedEl = listContainer.querySelector(`[data-id="${selectedObj.id}"]`);
-                    if (selectedEl) {
-                        selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                    }
-                }
-                return;
-            }
-
-            listContainer.innerHTML = worldObjects.map(obj => {
-                const isSelected = selectedObjects.includes(obj);
-                const type = obj.data?.type || 'unknown';
-                const name = obj.data?.name || weT('props.objectPrefix', '对象 #') + obj.id;
-                const icon = getObjectIcon(type);
-                const locked = window.EditorObjectLock ? window.EditorObjectLock.isLocked(obj) : false;
-                const lockBtn = window.EditorObjectLock ? window.EditorObjectLock.renderLockButton(obj) : '';
-
-                return `
+                    return `
                     <div class="right-object-item ${isSelected ? 'selected' : ''} ${locked ? 'locked-row' : ''}"
                          onclick="selectObjectByIdRightPanel(${obj.id}, event)"
                          data-id="${obj.id}">
@@ -5778,34 +5824,55 @@
                         </div>
                     </div>
                 `;
-            }).join('');
-
-            countEl.textContent = worldObjects.length;
-
-            // 自动滚动到选中的对象
-            if (!skipScroll && selectedObjects.length > 0) {
-                const selectedObj = selectedObjects[0];
-                const selectedEl = listContainer.querySelector(`[data-id="${selectedObj.id}"]`);
-                if (selectedEl) {
-                    selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 }
+            });
+            return _rightVirtualList;
+        }
+
+        function updateRightObjectList(skipScroll) {
+            const listContainer = document.getElementById('right-object-list');
+            if (!listContainer) return;
+            const countEl = document.getElementById('right-object-count');
+            const lockDirty = !!window.__weLockDirty;
+            window.__weLockDirty = false;   // 两个列表共用同一标志，右侧是最后一个消费方
+
+            if (worldObjects.length === 0) {
+                _rightVirtualList = _destroyVirtualList(_rightVirtualList, listContainer, `
+                    <div style="text-align: center; padding: 30px 15px; color: rgba(255,255,255,0.5);">
+                        <div style="font-size: 32px; margin-bottom: 10px;">📭</div>
+                        <div style="font-size: 12px;">${weT('list.rightEmpty', '暂无场景对象')}</div>
+                    </div>
+                `);
+                if (countEl) countEl.textContent = '0';
+                return;
+            }
+
+            const vl = ensureRightList();
+            if (!vl) return;
+            vl.setItems(worldObjects);
+            vl.setSelected(selectedObjects);
+            if (lockDirty) vl.invalidate();
+            vl.render(lockDirty);
+
+            if (countEl) countEl.textContent = worldObjects.length;
+
+            // 自动滚动到选中的对象（仅当目标不在视口内才滚）
+            if (!skipScroll && selectedObjects.length > 0) {
+                vl.scrollToId(selectedObjects[0].id);
             }
         }
 
-        // 搜索右侧对象列表
+        // 搜索右侧对象列表（虚拟化后改为数据级过滤：只渲染命中的行，语义与原「按行文本 contains」一致）
         function filterRightObjectList(searchText) {
-            const listContainer = document.getElementById('right-object-list');
-            searchText = searchText.toLowerCase();
-
-            const items = listContainer.querySelectorAll('.right-object-item');
-            items.forEach(item => {
-                const name = item.querySelector('.right-object-name')?.textContent?.toLowerCase() || '';
-                const type = item.querySelector('.right-object-type')?.textContent?.toLowerCase() || '';
-                if (name.includes(searchText) || type.includes(searchText)) {
-                    item.style.display = 'flex';
-                } else {
-                    item.style.display = 'none';
-                }
+            const vl = ensureRightList();
+            if (!vl) return;
+            const term = String(searchText || '').toLowerCase();
+            if (!term) { vl.setFilter(null); return; }
+            vl.setFilter(function (obj) {
+                const type = (obj.data?.type || 'unknown').toUpperCase();
+                // 原实现匹配的是行内文本：名称（含 🔒 前缀）+ "TYPE · ID: n"
+                const text = ((_listObjLocked(obj) ? '🔒 ' : '') + _listObjName(obj) + ' ' + type + ' · id: ' + obj.id).toLowerCase();
+                return text.indexOf(term) >= 0;
             });
         }
 
@@ -8531,8 +8598,151 @@
             if (mat.dispose) mat.dispose();
         }
 
+        // ===== 大模型按材质合并（会话3 P2-2）=====
+        // 产业园类模型由 205 个独立 mesh 组成 → 205 个 draw call（几何各不相同，无法走实例合批）。
+        // 入缓存前按「材质内容签名 + 属性布局」分组，把局部矩阵烘进几何后合并成约 30 个 mesh
+        // （合并结果进缓存 → 后续所有实例共享合并后的结构）。
+        //
+        // 严格保守：
+        //   · 跳过 SkinnedMesh / morph / 数组材质 / 半透明(opacity<1 或 transparent) / 无 position /
+        //     拾取代理 / 高亮轮廓线 / 占位盒 / 着色器材质；
+        //   · mergeGeometries 返回 null（属性布局不兼容）→ 整组保留原结构，绝不丢几何；
+        //   · 单模型 mesh 数 < MERGE_MODEL_MIN_MESHES 时不做（收益不抵开销）。
+        const MERGE_MODEL_MIN_MESHES = 8;
+
+        function _mergeAttrKey(g) {
+            const names = Object.keys(g.attributes || {}).sort();
+            let s = names.join(',');
+            for (let i = 0; i < names.length; i++) s += ':' + g.attributes[names[i]].itemSize;
+            return s + '|' + (g.index ? 'idx' : 'noidx');
+        }
+
+        // KHR_mesh_quantization：gltfpack/glTF 常见把顶点存成 Uint16(normalized)/Int16 等，
+        // BufferAttribute.applyMatrix4 内部用 setXYZ 直写原数组（**不做量化打包**），
+        // 对整型数组会饱和到 65535 → 合并后模型炸开。故先一律转成普通 Float32 属性再烘焙矩阵。
+        function _dequantizeToFloat(geom) {
+            const attrs = geom.attributes || {};
+            for (const name in attrs) {
+                const a = attrs[name];
+                if (!a || a.array instanceof Float32Array) continue;
+                const itemSize = a.itemSize;
+                const out = new Float32Array(a.count * itemSize);
+                const v = new THREE.Vector4();
+                for (let i = 0; i < a.count; i++) {
+                    v.set(a.getX(i), a.getY(i), itemSize > 2 ? a.getZ(i) : 0, itemSize > 3 ? a.getW(i) : 0);
+                    out[i * itemSize] = v.x;
+                    if (itemSize > 1) out[i * itemSize + 1] = v.y;
+                    if (itemSize > 2) out[i * itemSize + 2] = v.z;
+                    if (itemSize > 3) out[i * itemSize + 3] = v.w;
+                }
+                geom.setAttribute(name, new THREE.BufferAttribute(out, itemSize, false));
+            }
+            return geom;
+        }
+
+        function _mergeMatKey(m) {
+            return [m.type,
+                m.color ? m.color.getHexString() : '-',
+                m.emissive ? m.emissive.getHexString() : '-',
+                m.transparent ? 1 : 0, m.opacity,
+                m.side !== undefined ? m.side : '-',
+                m.flatShading ? 1 : 0, m.vertexColors ? 1 : 0,
+                m.roughness !== undefined ? m.roughness : '-',
+                m.metalness !== undefined ? m.metalness : '-',
+                m.emissiveIntensity !== undefined ? m.emissiveIntensity : '-',
+                m.map ? m.map.uuid : '-',
+                m.normalMap ? m.normalMap.uuid : '-',
+                m.alphaMap ? m.alphaMap.uuid : '-',
+                m.aoMap ? m.aoMap.uuid : '-',
+                m.lightMap ? m.lightMap.uuid : '-',
+                m.emissiveMap ? m.emissiveMap.uuid : '-',
+                m.normalScale ? m.normalScale.x + ',' + m.normalScale.y : '-',
+                m.alphaTest !== undefined ? m.alphaTest : '-',
+                m.depthWrite === false ? 1 : 0,
+                m.envMapIntensity !== undefined ? m.envMapIntensity : '-',
+                m.wireframe ? 1 : 0].join('|');
+        }
+
+        function mergeModelByMaterial(root) {
+            const BGU = THREE.BufferGeometryUtils;
+            if (!root || !BGU || typeof BGU.mergeGeometries !== 'function') return { ok: false, why: 'no-BufferGeometryUtils' };
+
+            const meshes = [];
+            root.traverse((o) => { if (o.isMesh) meshes.push(o); });
+            if (meshes.length < MERGE_MODEL_MIN_MESHES) return { ok: false, why: 'few-meshes', meshes: meshes.length };
+
+            root.updateWorldMatrix(true, true);
+            const invRoot = new THREE.Matrix4().copy(root.matrixWorld).invert();
+            const tmpM = new THREE.Matrix4();
+            const buckets = new Map();
+            const skipped = { skinned: 0, morph: 0, arrayMat: 0, transparent: 0, noPos: 0, special: 0 };
+
+            for (let i = 0; i < meshes.length; i++) {
+                const mesh = meshes[i];
+                const ud = mesh.userData || {};
+                if (ud.isPickProxy || ud.outline || ud.gsPlaceholder || ud.gsProgress || ud._loaderMesh) { skipped.special++; continue; }
+                if (mesh.isSkinnedMesh) { skipped.skinned++; continue; }
+                const g = mesh.geometry;
+                if (!g || !g.attributes || !g.attributes.position) { skipped.noPos++; continue; }
+                if (g.morphAttributes && Object.keys(g.morphAttributes).length) { skipped.morph++; continue; }
+                const mat = mesh.material;
+                if (Array.isArray(mat)) { skipped.arrayMat++; continue; }
+                if (!mat || mat.transparent === true || (mat.opacity !== undefined && mat.opacity < 1) ||
+                    mat.isShaderMaterial || mat.isRawShaderMaterial) { skipped.transparent++; continue; }
+                const key = _mergeMatKey(mat) + '||' + _mergeAttrKey(g);
+                let b = buckets.get(key);
+                if (!b) { b = { mat: mat, items: [] }; buckets.set(key, b); }
+                b.items.push(mesh);
+            }
+
+            let mergedGroups = 0, mergedMeshes = 0, newMeshes = 0;
+            buckets.forEach((b) => {
+                if (b.items.length < 2) return;
+                const geoms = [];
+                for (let i = 0; i < b.items.length; i++) {
+                    const mesh = b.items[i];
+                    mesh.updateWorldMatrix(true, false);
+                    tmpM.multiplyMatrices(invRoot, mesh.matrixWorld);
+                    let cg = null;
+                    try {
+                        cg = _dequantizeToFloat(mesh.geometry.clone());
+                        cg.applyMatrix4(tmpM);
+                    } catch (e) { cg = null; }
+                    if (!cg) { geoms.length = 0; break; }
+                    geoms.push(cg);
+                }
+                if (!geoms.length) return;
+                let mergedGeo = null;
+                try { mergedGeo = BGU.mergeGeometries(geoms, false); } catch (e) { mergedGeo = null; }
+                geoms.forEach((g) => { try { g.dispose(); } catch (e) {} });   // 副本已无用（未上传过 GPU）
+                if (!mergedGeo) return;   // 失败 → 整组保留原结构
+                const nm = new THREE.Mesh(mergedGeo, b.mat);
+                nm.name = 'merged_' + mergedGroups;
+                nm.userData.mergedByMaterial = true;
+                root.add(nm);
+                // 原 mesh 从图里摘除（层级扁平化；几何/材质引用由 GC 回收）
+                for (let i = 0; i < b.items.length; i++) {
+                    const mesh = b.items[i];
+                    if (mesh.parent) mesh.parent.remove(mesh);
+                }
+                mergedGroups++;
+                mergedMeshes += b.items.length;
+                newMeshes++;
+            });
+
+            const after = meshes.length - mergedMeshes + newMeshes;
+            if (mergedMeshes > 0) {
+                console.log('🧩 [mergeModelByMaterial] ' + meshes.length + ' mesh → ' + after +
+                    '（合并 ' + mergedGroups + ' 组 / ' + mergedMeshes + ' 个' +
+                    (skipped.transparent ? '，跳过半透明 ' + skipped.transparent : '') + '）');
+            }
+            return { ok: true, before: meshes.length, after: after, mergedGroups: mergedGroups, mergedMeshes: mergedMeshes, skipped: skipped };
+        }
+
         // 入缓存（统一入口：GLB/OBJ 共用），超限时淘汰最旧并释放其资源
         function addToEditorModelCache(modelPath, scene) {
+            // 【会话3 P2-2】入缓存前按材质合并（缓存里即合并后的结构 → 后续所有实例共享合并结果）
+            try { mergeModelByMaterial(scene); } catch (e) { console.warn('⚠️ mergeModelByMaterial 失败（保留原结构）:', e); }
             if (editorModelCache.size >= MAX_EDITOR_MODEL_CACHE) {
                 const oldestKey = editorModelCache.keys().next().value;
                 const old = editorModelCache.get(oldestKey);
@@ -8777,7 +8987,7 @@
 
     </script>
     <!-- draw call 降载模块：占位盒实例化 + 几何实例合批（画面零变化） -->
-    <script src="js/editorPerfBatcher.js?v=4"></script>
+    <script src="js/editorPerfBatcher.js?v=5"></script>
     <!-- 性能现场诊断（默认零开销，控制台 EditorDiag.start()/report() 才启用） -->
     <script src="js/editorPerfDiag.js?v=1"></script>
 </body>

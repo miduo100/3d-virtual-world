@@ -16,7 +16,7 @@
  *   S9 拖动期不加载  S10 松手后加载恢复  S11 无非噪音 console 错误  S12 不写库
  *   S13 模板几何已合批（会话2 P1-1）
  *   S14 选中退出合批 / 取消选中重新合批（会话2 P1-1）
- *   S15 页面 DOM 不增加
+ *   S15 页面 DOM 不增加  S18 页面 DOM ≤ 6000（列表虚拟化）  S19 单次选中 ≤ 10ms
  *
  * 用法：node scripts/accept_editor_interaction_perf.js
  *      PERF_WARMUP_MS=22000 预热时长；PERF_STAGE=1|2 阈值档；PERF_JSON=path 导出原始数字
@@ -57,7 +57,7 @@ const med = (a) => pct(a, 0.5);
 const r2 = (v) => (isFinite(v) ? Math.round(v * 100) / 100 : null);
 
 // 已知 404 模块（文档 §3.1，不属于本任务）
-const KNOWN_404 = ['transformGizmoEnhance.js', 'editorPerfDiag.js'];
+const KNOWN_404 = ['transformGizmoEnhance.js'];   // editorPerfDiag.js 会话3 已补回
 const isNoise = (t, loc) => {
   const s = (t || '') + ' ' + (loc || '');
   if (!s.trim()) return true;
@@ -356,6 +356,32 @@ async function makeAdminToken() {
     };
   });
 
+  // ---- 会话3 P2-1：单次选中耗时（列表虚拟化后应 ≤10ms；会话2 基线 21~49ms）----
+  const selPerf = await page.evaluate(async () => {
+    const t = (fn) => { const a = performance.now(); fn(); return performance.now() - a; };
+    const cands = [];
+    const seen = new Set();
+    for (const o of worldObjects) {
+      if (!o.mesh) continue;
+      const ty = (o.data && o.data.type) || '';
+      // 代码块（threejs_code）选中时 highlightObject 要为上百个 mesh 克隆材质，
+      // 是与本阶段无关的存量成本（文档 §7-15），单独排除
+      if (seen.has(ty) || ty === 'threejs_code') continue;
+      seen.add(ty); cands.push(o);
+      if (cands.length >= 5) break;
+    }
+    const arr = [];
+    for (const wo of cands) {
+      deselectAll();
+      await new Promise((r) => setTimeout(r, 180));
+      arr.push({ type: (wo.data && wo.data.type) || '', ms: +t(() => selectObject(wo)).toFixed(2) });
+      deselectAll();
+      await new Promise((r) => setTimeout(r, 180));
+    }
+    const sorted = arr.map((x) => x.ms).sort((a, b) => a - b);
+    return { arr, median: sorted[Math.floor(sorted.length / 2)] };
+  });
+
   // ================= 断言 =================
   const clean = (dts) => dts.slice(3); // 丢掉前几帧的启动抖动
   const report = (r) => {
@@ -540,6 +566,10 @@ async function makeAdminToken() {
   add('S15', '页面 DOM 不增加', final.domNodes <= picked.domNodes + 50,
     `DOM ${picked.domNodes} → ${final.domNodes}`);
   add('S16', '合批前后画面像素级一致', pixel.ok, pixel.detail);
+  add('S18', '页面 DOM ≤ 6000（列表虚拟化）', final.domNodes <= 6000,
+    'DOM ' + final.domNodes + '（会话2 基线 88,784；渲染行数见 EditorListVirtual.stats）');
+  add('S19', '单次选中 ≤ 10ms（列表虚拟化）', selPerf.median <= 10,
+    '中位 ' + selPerf.median + 'ms :: ' + selPerf.arr.map((x) => x.type + '=' + x.ms).join(' '));
 
   const raw = {
     worldObjects: nObj, target: picked, thresholds: {
@@ -548,7 +578,7 @@ async function makeAdminToken() {
     tickAvgMs: tickAvg === null ? null : r2(tickAvg),
     panelCalls, fieldCalls, errors: errors.slice(0, 5),
     domNodes: { start: picked.domNodes, end: final.domNodes },
-    batchToggle, pixel,
+    batchToggle, pixel, selectMs: selPerf,
     resumed, final: final.stats
   };
   if (process.env.PERF_JSON) {

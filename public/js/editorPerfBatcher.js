@@ -81,10 +81,34 @@
         var ent = { size: size, material: m, getIntent: null, slot: -1, pend: false };
         if (!takeOverVisibility(mesh, ent)) return;
         phEntries.set(mesh, ent);
+        freezeStatic(mesh);    // 【P2-3】占位盒局部变换不变 → 免每帧 compose
         phLayoutDirty = true; // 索引布局变化 → 下一次整块重写
     }
 
     function rootOf(obj) { var n = obj; while (n.parent) n = n.parent; return n; }
+
+    // ===== 【会话3 P2-3】静态节点免每帧 compose =====
+    // 占位盒（3939 个）与合批源（1300+ 个）的**局部**变换创建后不再变化，只有父节点会移动。
+    // 冻结 matrixAutoUpdate 后，updateMatrixWorld 不再对它们做 compose；
+    // 父节点移动时 three 会把 force 传给子节点，matrixWorld 仍会正确重算（不是"冻结世界矩阵"）。
+    var statFrozen = 0;
+    function freezeStatic(obj) {
+        if (!obj || obj.__epFrozen) return false;
+        try {
+            obj.updateMatrix();          // 先落一次正确的局部矩阵（同时置 matrixWorldNeedsUpdate）
+            obj.matrixAutoUpdate = false;
+            obj.__epFrozen = true;
+            statFrozen++;
+            return true;
+        } catch (e) { return false; }
+    }
+    function thawStatic(obj) {
+        if (!obj || !obj.__epFrozen) return;
+        obj.matrixAutoUpdate = true;
+        obj.matrixWorldNeedsUpdate = true;
+        obj.__epFrozen = false;
+        statFrozen--;
+    }
 
     function ensurePhIM(need, scene) {
         if (phIM && phCap >= need) return true;
@@ -392,7 +416,7 @@
             src.__epRealGroup = rec.realGroup;
             // 接管渲染，源保留在场景树（拾取/包围球/释放链路不变）
             if (rec.realGroup === src) takeOverSourceVisibility(src);
-            else src.visible = false;
+            else { src.visible = false; freezeStatic(src); }   // 【P2-3】子源局部变换不变
         });
         rec.batched = true;
         forceMatrices(rec.realGroup);   // 首写前强制刷新父子矩阵（防实例停在原点）
@@ -413,6 +437,7 @@
             src.__epRec = null;
             // 还原为独立渲染（选中编辑态），保留用户此前的显隐意图
             releaseSourceVisibility(src);
+            thawStatic(src);
         });
         rec.batched = false;
         _syncBPending = true;   // 拆批后立即清掉旧实例矩阵
@@ -531,6 +556,7 @@
         batches.clear();
         keepUnbatched.clear();
         phLayoutDirty = true;
+        statFrozen = 0;   // 条目已全部丢弃（冻结标记随对象一起失效）
         phList.length = 0; phPend.length = 0; phCursor = 0; focusRoots.clear();
         if (phIM) { var sc2 = gScene(); if (sc2) sc2.remove(phIM); phIM.dispose(); phIM = null; phCap = 0; }
     }
@@ -694,6 +720,7 @@
                 tickMaxMs: statTickMax, tickLastMs: statTickLast,
                 phDirtyTotal: statPhDirtyWrites, phWriteTotal: statPhWriteWrites, syncP: statSyncP, syncB: statSyncB, syncN: statSyncN,
                 syncBG: statSyncBG, syncBS: statSyncBS,
+                frozen: statFrozen,
                 batchDirtyTotal: statBatchDirtyWrites
             };
         },

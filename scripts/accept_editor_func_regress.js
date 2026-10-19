@@ -40,7 +40,7 @@ const add = (id, name, pass, d) => { results.push({ id, name, pass: !!pass, deta
     const loc = (m.location && m.location().url) || '';
     const s = m.text() + ' ' + loc;
     // favicon / 已知 404 模块 / 某模型内嵌贴图损坏 / 库里残留的缺失模型文件
-    if (/favicon|runtime\.lastError|index\.global\.js|Couldn't load texture data|transformGizmoEnhance|editorPerfDiag/.test(s)) return;
+    if (/favicon|runtime\.lastError|index\.global\.js|Couldn't load texture data|transformGizmoEnhance/.test(s)) return;
     if (/404/.test(s) && /\/models\/uploaded\//.test(s)) return;
     errs.push(s.slice(0, 200));
   });
