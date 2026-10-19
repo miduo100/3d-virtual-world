@@ -23,6 +23,11 @@ public/uploads/
 public/gallery_content/
 public/models/uploaded/
 
+# LDraw 零件库模型（2026-10-19：模型文件不随代码分发，仅本地保留）
+# 转换工具仍入库（scripts/ldraw_*.js + ldraw_parts_manifest.json + public/ldraw_convert.html），
+# 需要时用 scripts/ldraw_batch.js 从本地 LDraw 源库（.tmp_ldraw/）重新生成。
+public/models/builtin/ldraw/
+
 # Logs
 *.log
 
