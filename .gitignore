@@ -212,3 +212,36 @@ public/models/generated/
 
 # LDraw parts library source (139MB, re-download: https://library.ldraw.org/library/updates/complete.zip)
 public/ldraw_lib/
+
+# Skill / expert product planning docs (internal, not for distribution)
+技能开发规划/
+
+# 发布用精简仓库（独立 git 仓库，推送到 Gitee）
+_publish/
+
+# 世界资产包（体积大，放服务器分发，不入库）
+world-assets-*.tar.gz
+world-assets-*.manifest.json
+_assets/
+_assets_list.txt
+.tmp_gitee_*/
+
+# ---- 技能 / 专家：只在本地，绝不入库、不推送 Gitee ----
+# 技能源码（已在 .codebuddy/ 整体忽略之下，这里再兜一层，防规则顺序变动）
+.codebuddy/skills/genesis-world-deploy/
+.codebuddy/skills/genesis-world-*/
+# 专家包源码目录
+genesis-world-advisor/
+# 发布物 zip 与将来可能放在根目录的技能目录
+genesis-world-*/
+genesis-world-*.zip
+
+# ---- 密钥相关备份：含明文，绝不可入库 ----
+.env.bak.*
+.env.new
+
+# ---- 技能/发布配套工具与临时目录：只在本地，不推送 ----
+scripts/validate_skill.js
+scripts/build_asset_pack.js
+scripts/strip_dump_data.js
+.tmp_*/
