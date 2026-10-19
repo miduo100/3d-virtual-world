@@ -128,12 +128,18 @@ scripts/gen_desc_todo.js
 scripts/import_desc_todo.js
 
 # 验收脚本与维护工具（2026-10-08 起不再入库）
-# 理由：它们只在本地复现验证用，不随代码分发，也不该在 clone 后的仓库里占位。
-# 说明：此前已入库的 93 个 accept_*.js 保持不动（规则只影响未跟踪的新文件）。
+# 理由：它们只在本地复现验证用（含 localhost/测试账号等本地凭据），不随代码分发。
+# 2026-10-19：推送前已把「待推送区间新增的 29 个 accept_*.js」从索引移除（磁盘保留）；
+#            更早入库、远端已存在的 76 个暂保持不动（如需一并清理可另行处理）。
 scripts/accept_*.js
 scripts/audit_*.js
 scripts/cleanup_*.js
 scripts/_agent_desc_audit.md
+
+# 2026-10-19 推送前清理：未跟踪的大型临时副本 / 内部设计文档 / 一次性备份数据
+.tmp_ldraw/
+零件索引体系设计.md
+scripts/_backup_*.json
 
 # Agent 联测运行时产物（events.jsonl / state.json / follow.log / inbox / done）
 # 每个驻场客户端用独立目录：live/、live-deepseek/、live-miduo/ ...
