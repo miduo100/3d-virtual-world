@@ -172,11 +172,109 @@
     }
   }
 
+  // ========== 1.5 自发光（模型级，2026-10-23） ==========
+  //
+  // 用途：给"指定模型"整体打亮（室内空间、灯罩、霓虹招牌等）。
+  // 关键约束：
+  //  · 只写本来就有 emissive 的材质（Standard/Phong/Lambert/Toon）。
+  //    MeshBasicMaterial / ShaderMaterial 没有 emissive uniform，硬塞会在
+  //    refreshMaterialUniforms 里崩（world_editor 里有同样注释的教训）。
+  //  · 不改灯数、不替换材质 → 不触发着色器重编译，成本≈0。
+  //  · 未配置 emissive 字段时完全不碰材质（零回归）。
+
+  /** 把配置值解析成 THREE.Color；无法解析返回 null */
+  function parseColorValue(value) {
+    if (value === undefined || value === null || value === '') return null;
+    try {
+      if (typeof value === 'number') return new THREE.Color(value);
+      let s = String(value).trim();
+      if (!s) return null;
+      if (s.charAt(0) !== '#') s = '#' + s;
+      return new THREE.Color().setStyle(s);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /** 配置里是否显式出现过自发光字段（决定"要不要动材质"） */
+  function hasEmissiveConfig(config) {
+    if (!config) return false;
+    return Object.prototype.hasOwnProperty.call(config, 'emissive') ||
+      Object.prototype.hasOwnProperty.call(config, 'emissiveIntensity');
+  }
+
+  /**
+   * 给整棵模型写自发光
+   *
+   * 两种模式：
+   *  A. 用贴图发光（emissiveUseMap !== false，默认）：
+   *     emissiveMap = 模型自己的 map（共享同一个纹理对象，不额外占显存）
+   *     → 发光量来自贴图本身，纹理细节完整，只是整体变亮。**推荐**。
+   *  B. 纯色发光（emissiveUseMap === false）：
+   *     emissive 是一个常量颜色 → 会盖住贴图细节，强度稍高就像"贴图没了"。
+   *
+   * @returns {{applied:number, skipped:number, useMap:number}}
+   */
+  function applyModelEmissive(root, config) {
+    let color = parseColorValue(config.emissive);
+    const hasInt = config.emissiveIntensity !== undefined && config.emissiveIntensity !== null;
+    const intensity = hasInt ? parseFloat(config.emissiveIntensity) : null;
+    const useMap = config.emissiveUseMap !== false;
+    // 兼容旧配置：上一版默认色是 #000000，若用户只把强度拉起来会"设了没效果"
+    // → 强度 >0 时黑色按白色处理（发光量 = 贴图/本色）。
+    if (color && intensity !== null && intensity > 0 && color.getHex() === 0x000000) {
+      color = new THREE.Color(0xffffff);
+    }
+    if (!color && !hasInt) return { applied: 0, skipped: 0, useMap: 0 };
+
+    const wantGlow = (intensity === null) || intensity > 0;
+    let applied = 0;
+    let skipped = 0;
+    let usedMap = 0;
+    const done = new Set(); // 同一材质可能被多个 mesh 共用，只写一次
+
+    root.traverse(function (obj) {
+      if (!obj.isMesh || !obj.material) return;
+      const list = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (let i = 0; i < list.length; i++) {
+        const m = list[i];
+        if (!m) continue;
+        const key = m.uuid || m;
+        if (done.has(key)) continue;
+        done.add(key);
+
+        if (!m.emissive || typeof m.emissive.copy !== 'function') { skipped++; continue; }
+        if (color) m.emissive.copy(color);
+        if (intensity !== null && isFinite(intensity)) {
+          m.emissiveIntensity = Math.max(0, intensity);
+        }
+        // 模式 A：拿模型自己的贴图当发光贴图（同一 texture 对象，零额外显存）
+        // 注意：强度为 0 时不加 emissiveMap，避免白白多一套着色器变体
+        if (wantGlow && useMap && m.map && m.emissiveMap !== m.map) {
+          m.emissiveMap = m.map;
+        }
+        if (wantGlow && useMap && m.map) usedMap++;
+        m.needsUpdate = true; // 触发一次材质刷新（改 emissiveMap 会换程序变体，程序缓存命中）
+        applied++;
+      }
+    });
+
+    if (applied || skipped) {
+      console.log('[CustomConfigApplier] 💡 自发光已应用：' + applied + ' 个材质' +
+        '（其中用自身贴图发光 ' + usedMap + ' 个）' +
+        (skipped ? '；跳过 ' + skipped + ' 个不支持自发光的材质（不受光/自定义着色器）' : ''));
+    }
+    return { applied: applied, skipped: skipped, useMap: usedMap };
+  }
+
   /**
    * 应用 custom_config 到上传模型
    */
   function applyUploadedModel(root, config) {
     if (!root || !config) return;
+
+    // 自发光（室内打亮等）：只有配置里显式写了才动
+    if (hasEmissiveConfig(config)) applyModelEmissive(root, config);
 
     if (config.castShadow !== undefined) {
       root.traverse(function (child) {
@@ -275,6 +373,9 @@
     apply,
     autoFix,
     autoFixParticles,
+    // 自发光：单独导出，方便后台/批量工具直接调用
+    applyModelEmissive,
+    hasEmissiveConfig,
     getCircleTexture
   };
 
