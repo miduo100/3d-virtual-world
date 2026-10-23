@@ -3502,10 +3502,15 @@ class World {
    * 处理加载队列，实现并行加载
    */
   processLoadingQueue(currentTime) {
-    // 过滤掉已经加载的对象
+    /* 【注意】本方法是"加载泵"本身（4 处 setTimeout(0) 自链靠它续命，一次只启动一个批次），
+       实测给它加 100ms 节流会把几何体加载速度砍到 1/10（366 个几何体 6s → 12s 还没完，
+       连带 WorldReadyGate 迟迟不就绪），因此**不能节流**。这里只把高频日志挂开关：
+       DevTools 打开时每条 console 输出都是同步开销。window.__debugQueueLog = true 可打开。 */
     const filteredQueue = this.loadingQueue.filter(obj => !this.loadedObjects.has(obj.id));
     
-    console.log(`[Queue] 当前队列长度: ${this.loadingQueue.length}, 过滤后: ${filteredQueue.length}, 加载中: ${this.loadingBatch.length}`);
+    if (this._debugQueueLog) {
+      console.log(`[Queue] 当前队列长度: ${this.loadingQueue.length}, 过滤后: ${filteredQueue.length}, 加载中: ${this.loadingBatch.length}`);
+    }
     if (filteredQueue.length === 0) {
       // 清空队列，所有对象都已加载
       this.loadingQueue = [];
@@ -8057,8 +8062,12 @@ class World {
         const diffX = window.MOUSE.targetRotationX - window.MOUSE.rotationX;
         const diffY = window.MOUSE.targetRotationY - window.MOUSE.rotationY;
         const s = window.MOUSE.smoothness || 0.05;
-        window.MOUSE.rotationX += diffX * s;
-        window.MOUSE.rotationY += diffY * s;
+        /* 【帧率解耦 2026-10-22 重做】指数平滑按真实帧间隔收敛：
+           60fps（delta=16.667）时 k === s，逐字节等价；帧率掉到 10fps 时 k 自动变大，
+           视角不会"追不上鼠标"（旧实现按帧固定 s，掉帧就变成迟钝+一顿一顿）。 */
+        const k = 1 - Math.pow(1 - s, Math.min(delta, 100) / 16.667);
+        window.MOUSE.rotationX += diffX * k;
+        window.MOUSE.rotationY += diffY * k;
       }
       // 玩家物理+摄像机更新（必须在渲染前完成，确保视锥体剔除使用最新相机矩阵）
       playerRef.update(delta, this.camera);

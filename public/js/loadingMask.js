@@ -2,7 +2,13 @@
  * 济宁米多信息科技有限公司 版权所有
  * 如需获取软件授权请联系：888@miduo100.com / 15660440944
  *
- * loadingMask.js v3 — 主世界首屏加载遮罩「光之门户」（自注入）+ 老玩家免遮档（零痕迹）
+ * loadingMask.js v4 — 主世界首屏加载遮罩「光之门户」（自注入）+ 老玩家免遮档直通
+ *
+ * ── v4：把「免遮档」从"不显示遮罩"升级为"真直通"──────────────────────
+ * v3 只是让遮罩不显示，但 playerModelScheduler / skyManager 仍按"等 WorldReadyGate
+ * 就绪才放行"的让路策略扣住玩家的角色模型与 HDR 天空 → 免遮档后这段扣留直接暴露：
+ * 实测二次进入自己角色被扣到 12.2s、天空 13s 还是灰渐变（首访有遮罩掩盖所以看不出）。
+ * v4 增加 isFastEntry() 作为唯一判据来源，上述模块在直通模式下不再等闸门。
  *
  * 为什么自注入：index.html 已超 500 行（项目红线：大文件禁止追加），本次只在其中加
  * 1 行 <script>，遮罩的 CSS 与 DOM 全部在本模块生成（项目既有惯例：adminIssueRegistry.js /
@@ -65,7 +71,11 @@
     SYNTH_MS: 9000,         // 合成进度爬升到上限所需时间
     SYNTH_CAP: 92,          // 合成进度上限（余量留给真实进度收尾）
     READY_GRACE_MS: 800,    // 就绪后再等，让延迟天空先换上，避免"遮罩一撤就灰天"
-    MAX_VISIBLE_MS: 15000,  // 硬兜底（画布已出画时）
+    /* 硬兜底（画布已出画时）。【v4 调整 15s→12.5s】
+       worldReadyGate v2 修好分母后，"真实就绪"通常早于 12s；但在大模型（本次实测 62MB）
+       较慢时会晚到 15~17s，若照旧等就绪反而比原来的 12s 兜底撤得更晚（实测 17.9s）。
+       首访观感定调是"约 12 秒"，故把它当上限：就绪早就早撤，超过就按兜底撤。 */
+    MAX_VISIBLE_MS: 12500,
     MAX_VISIBLE_STALL_MS: 30000, // 画布始终没出画时的兜底（防遮罩永久遮挡）
     MIN_FRAMES: 3,          // 认为"画布已出画"所需的最小帧数
     FADE_MS: 620            // 与 CSS transition 时长保持一致
@@ -327,14 +337,20 @@
     if (window.__WEBGL2_UNSUPPORTED) { _finish('webgl2'); return; }
 
     var alive = _renderAlive();   // 每 tick 只探一次（内部推进 _lastFrames）
+    /* 【v4 修正】门槛用「出画过」的锁存态而非"本 tick 帧号在推进"：
+       主线程被大模型解析长时间占用时 tick 会被饿死，恢复后的那一次 tick 里
+       alive 与上次 tick 的帧号差可能被判成"没在出画"，于是硬上限被误放宽到 30s
+       （实测首访撤罩被拖到 17.9s，比改前的 12s 兜底还晚）。既然已经出过画，
+       撤罩前 _forceRenderOnce() 还会再补一帧，露纯黑的窗口不存在。 */
+    var drawn = alive || _aliveSeen;
 
     if (_gateReady()) {
       if (!readyAt) readyAt = Date.now();
       // 就绪 + 画面已真的在出（否则会把纯黑露出来）→ 再等宽限期后撤
-      if (alive && Date.now() - readyAt >= CFG.READY_GRACE_MS) { _finish('ready'); return; }
+      if (drawn && Date.now() - readyAt >= CFG.READY_GRACE_MS) { _finish('ready'); return; }
     }
-    // 硬兜底：画布没出画时放宽（宁可多盖一会儿，也不让用户盯纯黑屏）
-    if (elapsed >= (alive ? CFG.MAX_VISIBLE_MS : CFG.MAX_VISIBLE_STALL_MS)) _finish('timeout');
+    // 硬兜底：画布从未出过画时放宽（宁可多盖一会儿，也不让用户盯纯黑屏）
+    if (elapsed >= (drawn ? CFG.MAX_VISIBLE_MS : CFG.MAX_VISIBLE_STALL_MS)) _finish('timeout');
   }
 
   function show() {
@@ -382,6 +398,12 @@
   window.LoadingMask = {
     show: show,
     hide: hide,
+    /* 【v4】本次是否为「免遮档直通」进入（老玩家刷新 / 本机有缓存）。
+       其它模块（playerModelScheduler / skyManager）用它决定还要不要「等就绪闸门才放行」：
+       有遮罩时让路是为了别和场景抢资源；没遮罩时这段等待会直接暴露成「进了世界但角色/天空
+       半天不出来」，所以直通模式必须一进来就开始拉。
+       跨世界传送到达时 show() 会把 mode 改回 'full'，这里随之为 false（恢复让路）。 */
+    isFastEntry: function () { return mode === 'skip'; },
     isVisible: function () { return phase === 'running' || phase === 'fading'; },
     setProgress: function (v) { _setPct(v); _render(); },
     // 手动恢复完整遮罩（清掉"曾进过世界"标记，下次刷新生效）：线上若出现"免遮档但加载很慢"

@@ -7,6 +7,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- 实验开关（都不带参数时零开销）：?stall=1 卡顿探针 / ?prewarm=1 预热闸门原型 -->
+  <script>if (/[?&]stall=1(&|$)/.test(location.search)) { document.write('<script src="js/stallProbe.js?v=1"><\/script>'); }
+  if (/[?&]prewarm=1(&|$)/.test(location.search)) { document.write('<script src="js/prewarmPreview.js?v=1"><\/script>'); }
+  if (/[?&]skipgate=1(&|$)/.test(location.search)) { document.write('<script src="js/skipGatePreview.js?v=1"><\/script>'); }</script>
   <!-- ⚠️ 下面 title/meta 的内容由**服务端注入**覆盖（src/services/seoHtmlInjector.js），
        权威数据源是后台「🔍 SEO TDK 配置」（system_config: seo_title / seo_description / seo_keywords）。
        这里的硬编码值是**兜底文案**：只有服务端注入失败（回退静态文件）时才会被看到。
@@ -734,7 +738,7 @@
   <canvas id="canvas"></canvas>
   <!-- 首屏加载遮罩「光之门户」：CSS/DOM 全部由该模块自注入（本文件已超 500 行，不在此加代码）。
        位置必须在旧 #loadingScreen 之前解析，首帧才直接是门户、不闪黑屏。 -->
-  <script src="js/loadingMask.js?v=4"></script>
+  <script src="js/loadingMask.js?v=5"></script>
   <div id="ui-overlay">
     <!-- Health Bar -->
     <div class="health-bar" id="health-bar">
@@ -1520,19 +1524,22 @@
   <script src="js/preloadSweeper.js?v=2"></script>
   <script src="js/loadFacing.js?v=1"></script>
   <script src="js/geometryBatcher.js?v=4"></script>
-  <script src="js/capsuleCollision.js?v=6"></script>
+  <script src="js/capsuleCollision.js?v=7"></script>
   <!-- 【2026-09-08 会话2】GLB 解析 Worker 客户端（worker 内 parse，主线程零停顿） -->
   <script src="js/gltfWorkerClient.js?v=3"></script>
-  <script src="js/loadingProgress.js?v=7"></script>
-  <script src="js/skyManager.js?v=3"></script>
+  <script src="js/loadingProgress.js?v=8"></script>
+  <script src="js/skyManager.js?v=6"></script>
   <!-- 地形系统（地形=地块：多块地形各有位置/面积/基准高度；无地形处玩家按 -Y 一直下落） -->
   <script src="js/terrain/terrainNoise.js?v=2"></script>
   <script src="js/terrain/terrainHeight.js?v=7"></script>
   <script src="js/terrain/terrainChunk.js?v=2"></script>
   <script src="js/terrain/terrainSystem.js?v=6"></script>
-  <script src="js/world.js?v=20"></script>
+  <script src="js/world.js?v=21"></script>
   <script src="js/worldObjectBounds.js?v=3"></script>
   <script src="js/placeholderField.js?v=5"></script>
+  <!-- 【2026-10-22】加载期着色器程序预热闸门：把"首次绘制同步建程序"摊到每帧 1 个对象，
+       消除加载期转视角/走动时 2~3 秒的画面冻结（原 prewarmGate/compileBudget 丢失后重建） -->
+  <script src="js/loadingPrewarm.js?v=1"></script>
   <script src="js/worldTextureOptimizer.js"></script>
   <script src="js/worldLodAssets.js?v=8"></script>
   <script src="js/worldInstanceMerger_v2.js?v=12"></script>
@@ -1542,10 +1549,10 @@
   <script src="js/worldLoadingOptimizer.js"></script>
   <script src="js/worldSpatialManager.js?v=1"></script>
   <!-- 【首屏丝滑化 Step1】环境就绪闸门：几何体全上屏 + 队列无<15MB对象（或12s兜底） -->
-  <script src="js/worldReadyGate.js?v=1"></script>
+  <script src="js/worldReadyGate.js?v=2"></script>
   <!-- 【首屏丝滑化 Step3 + 二期B】同模板多玩家复用（解析/显存 N→1，miss 走 Worker）+ 玩家模型调度（就绪放行/视野过滤/让路） -->
   <script src="js/gltfTemplateCache.js?v=2"></script>
-  <script src="js/playerModelScheduler.js?v=2"></script>
+  <script src="js/playerModelScheduler.js?v=3"></script>
   <script src="js/gaussianSplatLoader.js"></script>
   <script src="js/gaussianSplatRenderer.js"></script>
   <script src="js/world3dgs.js?v=2"></script>
@@ -1554,12 +1561,12 @@
   <script src="js/threejsIssueRegistry.js?v=4"></script>
   <script src="js/threejsWorldSanitizer.js?v=185fix3"></script>
   <script src="js/threejsCodeRunner.js?v=1"></script>
-  <script src="js/customConfigRegistry.js"></script>
-  <script src="js/customConfigApplier.js"></script>
+  <script src="js/customConfigRegistry.js?v=3"></script>
+  <script src="js/customConfigApplier.js?v=3"></script>
   <script src="js/galleryRenderer.js?v=1"></script>
   <script src="js/debug_controls.js"></script>
   
-  <script src="js/player.js?v=8"></script>
+  <script src="js/player.js?v=9"></script>
   <script src="js/voice.js?v=2"></script>
   <script src="js/websocket.js?v=11"></script>
   <script src="js/wsPresenceGuard.js?v=1"></script>

@@ -1,9 +1,17 @@
 /**
- * worldReadyGate.js v1 — 环境就绪闸门（首屏加载丝滑化 Step 1）
+ * worldReadyGate.js v2 — 环境就绪闸门（首屏加载丝滑化 Step 1）
  *
- * 判据（实用口径，§4）：
- *   ready = (几何体对象全部已上屏) && (loadingQueue/loadingBatch 中已无 <15MB 对象)
+ * 判据（实用口径，v2 修正）：
+ *   ready = (加载半径内的几何体全部已上屏) && (loadingQueue/loadingBatch 中已无 <15MB 对象)
  *           || sinceEnter >= 12000ms   // 硬兜底，防某些世界永不就绪
+ *
+ * 【v2 就绪口径修正（2026-10-22）】
+ * v1 的分母是「全图所有 geometry_* 对象」，与加载半径无关。而 world.js 只加载
+ * loadDistance（默认 200m）内的对象 —— 世界里有 4300m 外的几何体（例：#10355
+ * 冷区激活地标）永远不会被加载，于是 366/367 恒成立不了，判据只能靠 12s 兜底。
+ * 首访被品牌遮罩掩盖看不出；老玩家免遮档后表现为「角色/天空 12 秒不出现」。
+ * v2 口径：**已在场景内的 + 位于加载半径内的** 才算分母（半径外且未加载的直接排除，
+ * 与「本来就不加载它」保持一致）。已加载的对象无论多远都算分子/分母（无害）。
  *
  * 数据来源（只读）：window.gameWorld 的 allWorldObjects / loadedObjects /
  * loadingQueue / loadingBatch。本模块【零写操作】，不改 world.js 任何状态。
@@ -38,7 +46,7 @@
     return {
       ready: false, reason: null, tReadyMs: null, sinceEnterMs: 0,
       geometryDone: false, pendingSmallMedium: 0, queueLen: 0, batchLen: 0,
-      geometryTotal: 0, geometryLoaded: 0, listReady: false,
+      geometryTotal: 0, geometryLoaded: 0, geometryOutOfRange: 0, listReady: false,
       stableCount: 0, timeoutMs: timeoutMs
     };
   }
@@ -60,17 +68,27 @@
       w.loadedObjects);
     if (!d.listReady) return d;
 
-    // ① 几何体全部已上屏（全零个几何体视为满足——清单已回且非空）
-    var total = 0, loaded = 0;
+    // ① 加载半径内的几何体全部已上屏（全零个视为满足——清单已回且非空）
+    //    【v2 口径】分母 = 已加载的 ∪ 当前加载半径内的；半径外且未加载的（例：4300m 外的
+    //    地标）永远不该被加载，若算进分母会让判据永不成立，只能等 12s 兜底。
+    var rawPL = (window.player && window.player.position) || null;
+    if (!rawPL) return d;            // 玩家尚未创建：几何体口径无法判定，保持未就绪
+    var radius = Math.max(w.loadDistance || 0, w.baseLoadDistance || 200);
+    var radiusSq = radius * radius;
+    var total = 0, loaded = 0, outOfRange = 0;
     for (var i = 0; i < w.allWorldObjects.length; i++) {
       var o = w.allWorldObjects[i];
-      if (o && o.type && o.type.indexOf('geometry_') === 0) {
-        total++;
-        if (w.loadedObjects.has(o.id)) loaded++;
-      }
+      if (!(o && o.type && o.type.indexOf('geometry_') === 0)) continue;
+      if (w.loadedObjects.has(o.id)) { total++; loaded++; continue; }   // 已上屏：一律计入
+      var ox = (o.position_x != null ? o.position_x : 0);
+      var oz = (o.position_z != null ? o.position_z : 0);
+      var ddx = ox - rawPL.x, ddz = oz - rawPL.z;
+      if (ddx * ddx + ddz * ddz > radiusSq) { outOfRange++; continue; }  // 半径外：本来就不加载
+      total++;
     }
     d.geometryTotal = total;
     d.geometryLoaded = loaded;
+    d.geometryOutOfRange = outOfRange;
     d.geometryDone = loaded >= total;
 
     // ② 队列 + 批次中 <15MB 的对象数（媒体不走主队列，天然不参与）

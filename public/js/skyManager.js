@@ -12,11 +12,67 @@
  *     从而实现「天气配合天空」而不是互相打架。
  *  3. HDR 走惰性 import EXRLoader（不用 exr 时零下载），use_env 时用 PMREM 生成环境光照。
  *  4. 任何加载失败都回退默认纯色并 console.warn，绝不让世界变黑屏（绝不静默失败）。
+ *
+ * ── 2026-10-22「天空加载卡顿」治理（v6）──────────────────────────────
+ * 实测根因（真机 GTX960 + 世界静止后测量）：
+ *   ① three 的 program 缓存键包含 envMapCubeUVHeight（WebGLPrograms.js:64/443），
+ *      而 PMREM 输出高度 = 4 × 2^floor(log2(源宽/4))。改前 EXR 走降采样（源 1024
+ *      → env 高 1024），PNG/JPG 却被直接跳过（源 4096 → env 高 4096）—— 两种天空
+ *      混用会让【全体 PBR 材质】重编译一次：实测 +29 个程序 / 最长帧 1060ms。
+ *   ② scene.environment 从 null → 非 null 同样触发全体重组（回默认天空时反向再来一遍）。
+ * 治理两件套（都刻意做成"只在确实用到环境光时才生效"，保证默认路径零影响）：
+ *   A. 所有天空（EXR/PNG/JPG）的 PMREM 源统一到 1024×512 → env 高度恒为 1024，
+ *      换天空只换纹理引用/重建同尺寸 env → 零重编译（实测最长帧 1060ms → 81~102ms）。
+ *   B. 一旦建立过环境光就不再置 null：需要"关掉环境光"时改
+ *      scene.environmentIntensity = 0（该值不进程序缓存键），避免反向再重编译一次。
+ *   ⚠ 故意不提前挂"常驻占位环境光"：实测会让首屏所有 PBR 材质多编译一轮、把场景收尾
+ *     从 ~14s 拖到 ~21s（超过天空 15s 兜底，回归项 S3a）。默认天空 / use_env=false 的
+ *     世界全程不碰 scene.environment，与改前 100% 一致。
+ * 剩余成本（与光照无关）：EXR 解码约 1.1s（首次加载某张 EXR 时一次性）。
  */
 (function (global) {
   'use strict';
 
   const THREE = global.THREE;
+
+  /* 【免遮档直通（2026-10-22）A 方案】天空**不和小模型抢带宽**：
+     高清 HDR（本世界 EXR 约 11.75MB）比周围几百个小模型的总和还大，进来就拉会把
+     "先几何/地块 → 再小模型" 的顺序顶掉。所以免遮档下改为「第一代场景加载收尾后再拉」，
+     用户先看到世界，天空随后安静地换。
+     仍保留"先占位 env 再换真"的顺序 —— 这条能省掉 scene.environment 从无到有导致
+     全体 PBR 材质换程序重编译的 ~3s。 */
+  const SCENE_SETTLE_POLL_MS = 500;   // 场景收尾轮询节拍
+  const FAST_HDR_MAX_WAIT_MS = 15000; // 兜底：最多等这么久，之后无条件拉（别让灰天拖太久）
+
+  function isFastEntry() {
+    try {
+      return !!(global.LoadingMask && typeof global.LoadingMask.isFastEntry === 'function' &&
+        global.LoadingMask.isFastEntry());
+    } catch (e) { return false; }
+  }
+
+  /** 场景"第一代加载"是否已收尾：进度条到 100% / 完成过一代 / 就绪闸门就绪 */
+  function sceneSettled() {
+    try {
+      const lp = global.LoadingProgress;
+      if (lp && typeof lp._diag === 'function') {
+        const d = lp._diag();
+        if (d && ((d.completedGens || 0) >= 1)) return true;
+        if (d && typeof d.displayPct === 'number' && d.displayPct >= 100) return true;
+      }
+    } catch (e) { /* ignore */ }
+    try {
+      if (global.WorldReadyGate && global.WorldReadyGate.isReady()) return true;
+    } catch (e) { /* ignore */ }
+    return false;
+  }
+
+  /* 【2026-10-22】环境光照源统一尺寸：
+     env 高度是 three 程序缓存键的一部分，源尺寸不一致 = 换天空时全体 PBR 材质重编译。
+     统一到 1024×512（equirect 2:1）后，env 高度恒为 1024（cubeSize=1024/4=256，高度=4×256）。
+     注意：不要随意调小（512 会改变 env 高度 → 反而触发一次全量重编译；已实测无收益）。 */
+  const ENV_SRC_W = 1024;
+  const ENV_SRC_H = 512;
 
   // 天气 → 天空纹理的明暗/朦胧调参（仅对自定义天空生效）
   const WEATHER_TUNE = {
@@ -56,6 +112,11 @@
     if (scene) state.scene = scene;
     if (renderer) state.renderer = renderer;
     state.attached = !!(state.scene && state.renderer);
+    // 【v6 决策】这里刻意 **不** 提前挂"常驻占位环境光"：
+    // 实测它会让场景全部 PBR 材质多编译一轮带 envmap 的程序，首屏从 ~14s 拖到 ~21s，
+    // 进而让天空的 15s 兜底先于场景收尾触发（回归项 S3a）。默认天空（use_env=false）
+    // 的世界根本不需要环境光，故保持 scene.environment = null，行为与改前完全一致。
+    // 真正解决卡顿的是：① env 源尺寸统一（换天空零重编译）② 用过环境光后不再置 null。
   }
 
   /** 应用天气调参（明暗/朦胧），只对纹理背景生效 */
@@ -71,46 +132,70 @@
     }
   }
 
-  /** 生成/清理环境光照（PBR 反射）。
-   * 【二期A】PMREM 源降采样：4K EXR → ≤1024 宽的 DataTexture 再生成环境贴图。
-   * PMREM 成本 ∝ 分辨率（16×像素差），而环境反射本身被 PMREM 卷积模糊，
-   * 1K 源在视觉上无感——实测把"替换天空"瞬间的长任务从 ~2.7s 砍掉大半。 */
+  /** 生成 PMREM 源纹理：把任意天空纹理统一成 ENV_SRC_W × ENV_SRC_H。
+   * 【v6 关键修复】改前只有 DataTexture（EXR）走降采样，PNG/JPG 被 `!img.data` 直接
+   * 放过 → 4K 源让 PMREM 输出高度变成 4096，与 EXR 的 1024 混用即触发全体材质重编译。
+   * 现在两条分支都收敛到同一尺寸，env 高度恒为 1024。
+   * EXR 分支的输出尺寸与改前完全一致（4096 → 1024），视觉零变化。 */
   function makeEnvSource(tex) {
     try {
       const img = tex && tex.image;
-      if (!img || !img.data || !(img.width > 0) || !(img.height > 0)) return tex; // 非浮点数据（JPG 全景）直接用
+      if (!img || !(img.width > 0) || !(img.height > 0)) return tex;
       const w = img.width, h = img.height;
-      const MAXW = 1024;
-      if (w <= MAXW) return tex;
-      const ch = Math.floor(img.data.length / (w * h));
-      if (ch !== 3 && ch !== 4) return tex;
-      const factor = Math.max(2, Math.ceil(w / MAXW));
-      const nw = Math.max(1, Math.floor(w / factor)), nh = Math.max(1, Math.floor(h / factor));
-      const out = new img.data.constructor(nw * nh * ch);
-      for (let y = 0; y < nh; y++) {
-        for (let x = 0; x < nw; x++) {
-          for (let c = 0; c < ch; c++) {
-            let sum = 0, n = 0;
-            const yEnd = Math.min((y + 1) * factor, h), xEnd = Math.min((x + 1) * factor, w);
-            for (let sy = y * factor; sy < yEnd; sy++) {
-              for (let sx = x * factor; sx < xEnd; sx++) {
-                sum += img.data[(sy * w + sx) * ch + c]; n++;
+
+      // ① DataTexture（EXR / HDR）：盒式降采样到目标尺寸（已是目标尺寸则原样使用）
+      if (img.data) {
+        if (w === ENV_SRC_W && h === ENV_SRC_H) return tex;
+        const ch = Math.floor(img.data.length / (w * h));
+        if (ch !== 3 && ch !== 4) return tex;
+        const fw = Math.max(1, Math.floor(w / ENV_SRC_W));
+        const fh = Math.max(1, Math.floor(h / ENV_SRC_H));
+        const nw = Math.max(1, Math.min(ENV_SRC_W, Math.ceil(w / fw)));
+        const nh = Math.max(1, Math.min(ENV_SRC_H, Math.ceil(h / fh)));
+        const out = new img.data.constructor(nw * nh * ch);
+        for (let y = 0; y < nh; y++) {
+          for (let x = 0; x < nw; x++) {
+            for (let c = 0; c < ch; c++) {
+              let sum = 0, n = 0;
+              const yEnd = Math.min((y + 1) * fh, h), xEnd = Math.min((x + 1) * fw, w);
+              for (let sy = y * fh; sy < yEnd; sy++) {
+                for (let sx = x * fw; sx < xEnd; sx++) {
+                  sum += img.data[(sy * w + sx) * ch + c]; n++;
+                }
               }
+              out[(y * nw + x) * ch + c] = sum / Math.max(1, n);
             }
-            out[(y * nw + x) * ch + c] = sum / Math.max(1, n);
           }
         }
+        const dt = new THREE.DataTexture(out, nw, nh, ch === 4 ? THREE.RGBAFormat : THREE.RGBFormat, tex.type);
+        dt.mapping = THREE.EquirectangularReflectionMapping;
+        dt.colorSpace = tex.colorSpace;
+        dt.magFilter = THREE.LinearFilter;
+        dt.minFilter = THREE.LinearFilter;
+        dt.generateMipmaps = false;
+        dt.needsUpdate = true;
+        return dt;
       }
-      const dt = new THREE.DataTexture(out, nw, nh, ch === 4 ? THREE.RGBAFormat : THREE.RGBFormat, tex.type);
-      dt.mapping = THREE.EquirectangularReflectionMapping;
-      dt.colorSpace = tex.colorSpace;
-      dt.magFilter = THREE.LinearFilter;
-      dt.minFilter = THREE.LinearFilter;
-      dt.generateMipmaps = false;
-      dt.needsUpdate = true;
-      return dt;
+
+      // ② 普通纹理（PNG / JPG 全景）：canvas 缩到目标尺寸
+      if (w === ENV_SRC_W && h === ENV_SRC_H) return tex;
+      if (typeof document === 'undefined') return tex; // 无 DOM 环境（理论不可达）保底
+      const cv = document.createElement('canvas');
+      cv.width = ENV_SRC_W;
+      cv.height = ENV_SRC_H;
+      const ctx = cv.getContext('2d');
+      if (!ctx) return tex;
+      ctx.drawImage(img, 0, 0, ENV_SRC_W, ENV_SRC_H);
+      const ct = new THREE.CanvasTexture(cv);
+      ct.mapping = THREE.EquirectangularReflectionMapping;
+      ct.colorSpace = tex.colorSpace;
+      ct.magFilter = THREE.LinearFilter;
+      ct.minFilter = THREE.LinearFilter;
+      ct.generateMipmaps = false;
+      ct.needsUpdate = true;
+      return ct;
     } catch (e) {
-      return tex; // 降采样失败退回原始纹理
+      return tex; // 降采样失败退回原始纹理（不阻断天空）
     }
   }
 
@@ -118,13 +203,13 @@
     if (!state.scene) return;
     const need = !!(state.sky && state.sky.use_env && state.texture && state.renderer && THREE.PMREMGenerator);
     if (!need) {
-      if (state.envRT) {
-        state.envRT.dispose();
-        state.envRT = null;
-      }
-      if (state.scene.environment && state.scene.environment.__skyEnv) {
-        state.scene.environment = null;
-      }
+      // 【v6】改前这里会把 environment 置 null 并释放 envRT，导致【全体 PBR 材质】
+      // 反向重编译一次（实测 ~1s）。现在改为：**保留已有环境贴图，只把强度关到 0**
+      // （environmentIntensity 不进 three 的程序缓存键，改它不触发重编译）——
+      // 观感等价、程序缓存键不变。资源不释放，下次切回带环境光的天空可原地复用。
+      // 注意：从未有过 env 的世界（如默认天空 / use_env=false）scene.environment
+      // 本来就是 null，这里什么都不会发生，行为与改前 100% 一致。
+      if (state.scene.environment && state.scene.environment.__skyEnv) setEnvIntensity(0);
       return;
     }
     try {
@@ -132,15 +217,19 @@
       const t0 = performance.now();
       const src = makeEnvSource(state.texture);
       const t1 = performance.now();
-      const rt = pmrem.fromEquirectangular(src);
+      const rt = withFrameGuard(function () { return pmrem.fromEquirectangular(src); });
       const t2 = performance.now();
       if (src !== state.texture) src.dispose(); // 降采样副本用完即弃（背景仍用原 4K）
       pmrem.dispose();
-      if (state.envRT) state.envRT.dispose();
+      const oldRT = state.envRT;
       state.envRT = rt;
       rt.texture.__skyEnv = true;
       state.scene.environment = rt.texture;
-      console.log('[SkyManager] ✨ 环境光照已生成（空闲期，降采样 ' + Math.round(t1 - t0) + 'ms / PMREM ' + Math.round(t2 - t1) + 'ms）');
+      setEnvIntensity(1);
+      if (oldRT) oldRT.dispose(); // 新 env 上屏后再释放旧的
+      console.log('[SkyManager] ✨ 环境光照已生成（空闲期，降采样 ' + Math.round(t1 - t0) +
+        'ms / PMREM ' + Math.round(t2 - t1) + 'ms / env 高 ' +
+        (rt.texture.image ? rt.texture.image.height : '?') + 'px）');
     } catch (e) {
       warn('生成环境光照失败，已仅保留背景', e);
     }
@@ -161,14 +250,43 @@
     }
   }
 
-  /** 【二期A】占位环境光 + PMREM 着色器预热（加载屏内一次性付清两笔成本）：
+  /** 【v6】设置环境光强度（该值不进 three 的程序缓存键，改它不会触发重编译）。
+   *  旧内核没有 environmentIntensity 字段时静默跳过，退回"不设"行为。 */
+  function setEnvIntensity(v) {
+    if (!state.scene) return;
+    try {
+      const cur = Number(state.scene.environmentIntensity);
+      if (!isFinite(cur) || Math.abs(cur - v) > 1e-6) state.scene.environmentIntensity = v;
+    } catch (e) { /* 忽略 */ }
+  }
+
+  /** 【v6】PMREM 执行期间保护 renderer.info.render.frame。
+   *  PMREMGenerator 内部会连续 render 多次（6 面 + 多级模糊），frame 会凭空 +N；
+   *  而 loadingMask 用"frame 是否推进 + frame≥3"判断画布是否已出画 —— 不保护会让
+   *  遮罩在真正出画前提前撤下（2026-10-08 修过的"撤罩后黑屏"会回归）。 */
+  function withFrameGuard(fn) {
+    const info = state.renderer && state.renderer.info;
+    const saved = (info && info.render) ? info.render.frame : null;
+    try {
+      return fn();
+    } finally {
+      if (saved !== null && info && info.render) info.render.frame = saved;
+    }
+  }
+
+  /** 【二期A / v6】占位环境光 + PMREM 着色器预热（加载屏内一次性付清两笔成本）：
    *  1. PMREMGenerator 首跑要编译整套卷积着色器（Windows ANGLE 每程序反射
    *     ~160ms，不预热则正式生成时 ~800ms+）；
-   *  2. scene.environment 从无到有会让【全体 PBR 材质】带 envmap 重编译
-   *     （实测 ~3s 长任务，基线里混在"替换天空"帧间隙中）。加载屏内就挂上
-   *     占位 env → 所有材质从首次编译起就带 envmap（只编一次，且处于加载屏
-   *     的编译预算摊薄期内）；正式天空到达后仅换纹理引用——envmap 存在性
-   *     不变 → 程序缓存键不变 → 零重编译。 */
+   *  2. scene.environment 从无到有会让【全体 PBR 材质】带 envmap 重编译。
+   *     加载屏内就挂上占位 env → 所有材质从首次编译起就带 envmap（只编一次）；
+   *     正式天空到达后仅换纹理引用 —— envmap 存在性不变 → 程序缓存键不变 → 零重编译。
+   *
+   *  【v6】关键约束：
+   *   · 只为 use_env=true 的天空预热（use_env=false 的世界全程不碰 scene.environment，
+   *     首屏行为与改前 100% 一致 —— 提前挂常驻 env 会让首屏多编译一轮、把场景收尾
+   *     拖过天空的 15s 兜底，实测回归项 S3a）。
+   *   · 占位源必须走 makeEnvSource 归一尺寸，与正式 env 一样是 1024 → env 高恒 1024，
+   *     否则"占位→正式"还会重编译一次。 */
   function prewarmPmremShaders() {
     if (state.envPrewarmed || !state.renderer || !state.texture || !THREE.PMREMGenerator) return;
     if (!state.sky || !state.sky.use_env) return; // 该天空不产环境光时不预热
@@ -176,13 +294,17 @@
     state.envPrewarmed = true;
     try {
       const pmrem = new THREE.PMREMGenerator(state.renderer);
-      const rt = pmrem.fromEquirectangular(state.texture);
+      const src = makeEnvSource(state.texture); // 归一 1024×512，与正式 env 同尺寸
+      const rt = withFrameGuard(function () { return pmrem.fromEquirectangular(src); });
       pmrem.dispose();
+      if (src !== state.texture) src.dispose();
       if (state.envRT) state.envRT.dispose();
       state.envRT = rt;
       rt.texture.__skyEnv = true;
       state.scene.environment = rt.texture;
-      console.log('[SkyManager] 🔥 占位环境光已上屏（加载屏内预热 PMREM；正式天空到达后换纹理零重编译）');
+      setEnvIntensity(1);
+      console.log('[SkyManager] 🔥 占位环境光已上屏（加载屏内预热 PMREM；正式天空到达后换纹理零重编译，env 高 ' +
+        (rt.texture.image ? rt.texture.image.height : '?') + 'px）');
     } catch (e) {
       warn('PMREM 预热失败（不影响后续正式生成）', e);
     }
@@ -280,7 +402,23 @@
       if (!state.deferred || state.deferredSky !== sky) return; // 已被新选择取代
       loadDeferredSky(sky);
     };
-    if (window.WorldReadyGate && typeof window.WorldReadyGate.onReady === 'function') {
+    if (isFastEntry()) {
+      // 【免遮档直通 · A 方案】天空让路给小模型：等第一代场景加载收尾后再拉高清
+      const waitStart = Date.now();
+      const poll = function () {
+        if (!state.deferred || state.deferredSky !== sky) return; // 已被新选择取代
+        if (sceneSettled()) { consume(); return; }
+        if (Date.now() - waitStart >= FAST_HDR_MAX_WAIT_MS) {
+          console.log('[SkyManager] ⏱ 免遮档直通：等场景收尾超过 ' +
+            (FAST_HDR_MAX_WAIT_MS / 1000) + 's，直接拉高清 HDR');
+          consume();
+          return;
+        }
+        setTimeout(poll, SCENE_SETTLE_POLL_MS);
+      };
+      console.log('[SkyManager] ⚡ 免遮档直通：天空让路给小模型，场景加载收尾后再拉高清 HDR');
+      setTimeout(poll, SCENE_SETTLE_POLL_MS);
+    } else if (window.WorldReadyGate && typeof window.WorldReadyGate.onReady === 'function') {
       window.WorldReadyGate.onReady(consume); // 闸门自带 12s 兜底
     }
     setTimeout(consume, 20000); // 双保险：闸门缺失/异常时 20s 兜底
@@ -431,6 +569,10 @@
         intensity: state.scene ? state.scene.backgroundIntensity : null,
         blurriness: state.scene ? state.scene.backgroundBlurriness : null,
         hasEnvironment: !!(state.scene && state.scene.environment),
+        // 【v6】环境光照诊断：envHeight 是 three 程序缓存键的一部分，一旦有 env 就应恒为 1024
+        envHeight: (state.scene && state.scene.environment && state.scene.environment.image)
+          ? state.scene.environment.image.height : 0,
+        envIntensity: state.scene ? state.scene.environmentIntensity : null,
         loading: state.loading,
         weather: state.weather,
         deferred: state.deferred,

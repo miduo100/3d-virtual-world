@@ -105,6 +105,15 @@ class Player {
   }
 
   update(delta, camera) {
+    /* 【帧率解耦 2026-10-22 重做】所有"每帧固定增量"的控制量统一乘以 fs：
+       fs = 本帧毫秒 / 16.667（60fps 时恰为 1，逐字节等价；帧率掉到 10fps 时 = 6）。
+       为什么必须：加载期主线程会被建模/预热占用，帧率会掉到 10~30fps。旧实现按帧加
+       0.15 的位移在 10fps 下只有正常速度的 1/6 —— 表现为"走不动、转向迟钝、一顿一顿"，
+       而玩家感知到的是"卡"，不是"帧率低"。补偿后无论帧率如何，每秒位移/转角都一致。
+       （这块逻辑在 2026-09-14 的未提交改动丢失事故中丢过，本次重建。） */
+    const fs = Math.max(0.05, Math.min(6, (delta || 16.667) / 16.667));
+    this._fs = fs;
+
     // 同步目标旋转角度（当鼠标拖拽时）
     if (MOUSE.isDragging) {
       this.targetRotationY = MOUSE.targetRotationY;
@@ -136,17 +145,21 @@ class Player {
   }
 
   handleMovement(delta) {
+    // 帧率解耦：本帧步长 = 60fps 时的一帧步长 × fs（见 update() 里的说明）
+    const fs = this._fs || 1;
+    const step = this.moveSpeed * fs;
+
     // Calculate movement
     let moveForward = 0;
     let moveRight = 0;
 
     // W/S: Forward/Backward
-    if (KEYS.w) moveForward += this.moveSpeed;
-    if (KEYS.s) moveForward -= this.moveSpeed;
+    if (KEYS.w) moveForward += step;
+    if (KEYS.s) moveForward -= step;
     
     // A/D: Left/Right strafe (A左移，D右移)
-    if (KEYS.a) moveRight += this.moveSpeed;  // A向左
-    if (KEYS.d) moveRight -= this.moveSpeed;  // D向右
+    if (KEYS.a) moveRight += step;  // A向左
+    if (KEYS.d) moveRight -= step;  // D向右
 
     // Apply sprint modifier (increased speed)
     if (KEYS.shift) {
@@ -215,7 +228,7 @@ class Player {
         }
         
         // 应用旋转
-        this.targetRotationY += config.speed;
+        this.targetRotationY += config.speed * (this._fs || 1);
         config.lastPressed = true;
       } else {
         // 松开键，重置状态
@@ -275,8 +288,8 @@ class Player {
           }
         }
         
-        // 应用旋转
-        this.targetRotationY -= config.speed;
+        // 应用旋转（× fs：帧率无关，60fps 时等价）
+        this.targetRotationY -= config.speed * (this._fs || 1);
         config.lastPressed = true;
       } else {
         // 松开键，重置状态
@@ -286,12 +299,12 @@ class Player {
         this.rotationAcceleration.e.lastPressed = false;
       }
       
-      // 平滑插值到目标旋转角度
+      // 平滑插值到目标旋转角度（1-pow(1-s,fs)：帧率无关的指数平滑）
       const rotationDiff = this.targetRotationY - MOUSE.rotationY;
-      MOUSE.rotationY += rotationDiff * this.rotationSmoothness;
+      MOUSE.rotationY += rotationDiff * (1 - Math.pow(1 - this.rotationSmoothness, fs));
 
       // Auto-rotate camera slightly when strafing left/right
-      const strafeRotationSpeed = 0.008; // Subtle rotation when strafing
+      const strafeRotationSpeed = 0.008 * fs; // Subtle rotation when strafing
       if (KEYS.a && !KEYS.d) {
         MOUSE.rotationY += strafeRotationSpeed; // Turn left when moving left
       }
@@ -402,7 +415,7 @@ class Player {
         // 应用旋转：驱动持久目标角 MOUSE.targetRotationY（不是 MOUSE.rotationY）
         // 游戏主循环每帧会把 MOUSE.rotationY 拉回 MOUSE.targetRotationY，
         // 若只改 rotationY 则一松手即被拉回原位（弹回）。改目标角则松手后停留新角度。
-        MOUSE.targetRotationY += config.speed;
+        MOUSE.targetRotationY += config.speed * fs;
         this.rotation = MOUSE.targetRotationY; // 保持字段同步，避免从旧值跳变
         config.lastPressed = true;
       } else {
@@ -464,7 +477,7 @@ class Player {
         }
         
         // 应用旋转：驱动持久目标角 MOUSE.targetRotationY（见上方 Q 键说明）
-        MOUSE.targetRotationY -= config.speed;
+        MOUSE.targetRotationY -= config.speed * fs;
         this.rotation = MOUSE.targetRotationY;
         config.lastPressed = true;
       } else {
@@ -589,13 +602,14 @@ class Player {
   }
 
   handleVerticalMovement(delta) {
+    const fs = this._fs || 1;   // 帧率解耦（跳跃/重力同样按真实时间推进）
     if (this.isFlying) {
       // Flying mode
       if (KEYS.space) {
-        this.position.y += CONFIG.PLAYER_SPEED * 2;
+        this.position.y += CONFIG.PLAYER_SPEED * 2 * fs;
       }
       if (KEYS.shift) {
-        this.position.y -= CONFIG.PLAYER_SPEED * 2;
+        this.position.y -= CONFIG.PLAYER_SPEED * 2 * fs;
       }
     } else {
       // Get ground height at current position (includes stairs and platforms)
@@ -606,11 +620,11 @@ class Player {
       // groundHeight === null：脚下没有任何地形 → targetY = -Infinity，走"空中"分支一直往下掉
       const targetY = (groundHeight === null) ? -Infinity : groundHeight + playerHeight;
 
-      // Gravity and jumping
+      // Gravity and jumping（重力积分 × fs：帧率无关，60fps 时等价）
       if (this.position.y > targetY + 0.1) {
         // Player is in the air, apply gravity
-        this.velocity.y -= this.gravity;
-        this.position.y += this.velocity.y;
+        this.velocity.y -= this.gravity * fs;
+        this.position.y += this.velocity.y * fs;
         this.isGrounded = false;
       } else {
         // Player is on the ground (or close enough)
@@ -619,7 +633,7 @@ class Player {
         // Jump with stronger force - check BEFORE resetting position
         if (KEYS.space) {
           this.velocity.y = 0.8;  // Increased from 0.5 to 0.8 for higher jump
-          this.position.y += this.velocity.y;  // Apply velocity immediately
+          this.position.y += this.velocity.y * fs;  // Apply velocity immediately
           this.isGrounded = false;  // Player is now jumping
         } else {
           // Only snap to ground if not jumping
@@ -661,7 +675,7 @@ class Player {
       if (!this.worldObject.userData.animTime) {
         this.worldObject.userData.animTime = 0;
       }
-      const animSpeed = KEYS.shift ? 0.45 : 0.3;
+      const animSpeed = (KEYS.shift ? 0.45 : 0.3) * (this._fs || 1);
       this.worldObject.userData.animTime += animSpeed;
       const time = this.worldObject.userData.animTime;
       const swingMultiplier = KEYS.shift ? 1.3 : 1.0;
@@ -720,9 +734,10 @@ class Player {
     if (GAME_STATE.cameraMode === 'third-person') {
       // Auto-level camera pitch in third-person ONLY when not dragging
       if (!MOUSE.isDragging) {
-        const levelingSpeed = 0.05;
-        MOUSE.rotationX *= (1 - levelingSpeed);
-        MOUSE.targetRotationX *= (1 - levelingSpeed);
+        // 帧率无关的回正：60fps 时等价于 ×0.95/帧
+        const keep = Math.pow(1 - 0.05, this._fs || 1);
+        MOUSE.rotationX *= keep;
+        MOUSE.targetRotationX *= keep;
       }
       
       // Show player model in third-person
@@ -760,9 +775,10 @@ class Player {
     } else {
       // Auto-level camera pitch in first-person ONLY when not dragging
       if (!MOUSE.isDragging) {
-        const levelingSpeed = 0.05;
-        MOUSE.rotationX *= (1 - levelingSpeed);
-        MOUSE.targetRotationX *= (1 - levelingSpeed);
+        // 帧率无关的回正：60fps 时等价于 ×0.95/帧
+        const keep = Math.pow(1 - 0.05, this._fs || 1);
+        MOUSE.rotationX *= keep;
+        MOUSE.targetRotationX *= keep;
       }
       
       // Hide player model in first-person
@@ -786,7 +802,8 @@ class Player {
         targetCameraPos = this.position.clone().add(cameraOffset);
       }
       
-      camera.position.lerp(targetCameraPos, 0.1);
+      // 帧率无关的相机跟随（60fps 时等价 0.1/帧）
+      camera.position.lerp(targetCameraPos, 1 - Math.pow(0.9, this._fs || 1));
       
       // Set camera rotation directly from mouse rotation
       // 视角连续性：第三人称相机在人物背后 (player − (sinθ,cosθ)·d, θ=MOUSE.rotationY)，

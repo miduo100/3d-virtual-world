@@ -1,7 +1,12 @@
 /**
- * playerModelScheduler.js v1 — 玩家模型/动画调度（首屏加载丝滑化 Step 3.3）
+ * playerModelScheduler.js v2 — 玩家模型/动画调度（首屏加载丝滑化 Step 3.3）
  * ------------------------------------------------------------------
  * 做法照 worldTextureOptimizer 既有模式：包装原型，world.js 文件内容零改动。
+ *
+ * 【v2 · 免遮档直通（2026-10-22）】loadingMask 判定本次免遮档（有缓存/老玩家刷新）时，
+ *   「等 WorldReadyGate 就绪才放行」的让路策略全部取消：自己的模型进世界立刻拉、远端不再
+ *   等闸门（仍守 60m 视野 + 并发 1）、>15MB 场景对象的让路也取消（场景与角色并行）。
+ *   原因：没有遮罩掩盖时，这段扣留表现为"进了世界但自己 12 秒不出来"。
  *
  * 包装 2 个入口（§6）：
  *   - World.prototype._loadPlayerGlb   （main.js 首载/REST补载、websocket.js 三路径、
@@ -67,6 +72,17 @@
 
   // ---------------- 工具 ----------------
   function log(msg) { console.log('[PMS] ' + msg); }
+
+  /* 【免遮档直通（2026-10-22）】loadingMask 判定本次是「有缓存 / 老玩家刷新」进入，
+     此时没有品牌遮罩掩盖等待，再按"等 WorldReadyGate 就绪才放行"扣住玩家模型就会变成
+     用户眼里的"进了世界但自己半天不出来"（实测被扣到 12.2s）。
+     动态读取：跨世界传送到达时 loadingMask.show() 会把档位切回完整遮罩，这里随之为 false。 */
+  function isFastEntry() {
+    try {
+      return !!(window.LoadingMask && typeof window.LoadingMask.isFastEntry === 'function' &&
+        window.LoadingMask.isFastEntry());
+    } catch (e) { return false; }
+  }
 
   /** 复刻 world.js 的最终 URL 解析（apiBase 拼接 + 协议表头修正） */
   function finalUrl(rawUrl) {
@@ -226,6 +242,9 @@
       return origLoadPlayerGlb.apply(this, arguments);
     }
 
+    // 【直通】远端入队判定依赖 gateReady；直通模式下直接置位（仍受 60m 视野 + 并发 1 约束）
+    if (isFastEntry()) gateReady = true;
+
     var self = isSelfId(characterId);
 
     if (self) {
@@ -238,7 +257,9 @@
         cid: characterId, group: characterGroup, nameSprite: nameSprite,
         rawUrl: glbUrl, url: url, state: 'held', world: this, releasedAt: 0, stale: false
       };
-      if (window.WorldReadyGate.isReady()) {
+      if (isFastEntry() || window.WorldReadyGate.isReady()) {
+        // 直通模式：进世界立刻拉自己的模型（用户要求"有什么渲染什么，边走边加载"）
+        if (isFastEntry()) log('直通模式：自己模型立即放行（不等就绪闸门）');
         releaseTask(selfTask);
       } else {
         window.WorldReadyGate.onReady(function () {
@@ -308,8 +329,10 @@
   };
 
   // ---------------- 包装 3：processLoadingQueue 让路（§0.1-B） ----------------
+  // 直通模式下取消让路：没有遮罩掩盖，场景与角色必须并行"有什么渲染什么"，
+  // 否则大场景对象会被玩家模型档长期顶住（用户明确要求边走边加载）。
   WorldProto.processLoadingQueue = function (currentTime) {
-    if (hasActiveLoad()) {
+    if (!isFastEntry() && hasActiveLoad()) {
       var head = this.loadingQueue && this.loadingQueue[0];
       if (head) {
         var sz = (head.fileSize || head.file_size) || 0;

@@ -28,6 +28,10 @@
     ORPHAN_MS: 20000,             // 【2026-09-11】孤儿任务宽限期：任务不在队列/批次且无渲染确认
                                   // 超过此时长 → 强制完成。兜住一切漏挂确认钩子/被清理放弃的
                                   // 加载路径（每扫常清、重试放弃、未覆盖分支），进度条永不假卡死
+    RENDER_CONFIRM_GRACE_MS: 3000,// 【2026-10-22】下载已完成（bytes 满 total）却 3s 等不到
+                                  // "渲染确认" → 按完成计。实测免遮档二次进入时进度条在
+                                  // 96.7% 假卡 8~10s（0.3 的渲染分量在等 reveal 分帧确认），
+                                  // 用户观感就是"卡住了"。仅对下载满的任务生效，不影响下载中。
     SHOW_MIN_TASKS: 3,            // 重现阈值：未完成任务数 ≥ 3
     SHOW_MIN_WEIGHT: 2 * 1024 * 1024,   // 或未完成字节总量 ≥ 2MB
     SHOW_SINGLE_WEIGHT: 8 * 1024 * 1024,// 或单个对象 ≥ 8MB 立即弹
@@ -91,6 +95,15 @@
             'id=' + t.id, 'name=' + (t.obj && t.obj.name), 'type=' + (t.obj && t.obj.type),
             'phase=' + (t.inBatch ? 'loading' : 'queued'),
             'bytes=' + t.bytes + '/' + t.total);
+        } catch (e) { /* ignore */ }
+      }
+      // 【2026-10-22】下载已完成但等不到渲染确认（reveal 分帧/合批确认未覆盖到）→ 别假卡在 96%
+      if (!t.rendered && !t.forced && t.total > 0 && t.bytes >= t.total &&
+          now - t.startedAt > CFG.RENDER_CONFIRM_GRACE_MS) {
+        t.forced = true;
+        try {
+          console.warn('[LoadingProgress] download done but no render-confirm -> count as done:',
+            'id=' + t.id, 'name=' + (t.obj && t.obj.name), 'type=' + (t.obj && t.obj.type));
         } catch (e) { /* ignore */ }
       }
       var done = t.rendered || t.forced;
