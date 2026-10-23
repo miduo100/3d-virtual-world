@@ -14,6 +14,26 @@ const { compressTextures } = require('../services/textureCompress');
 const { decimateIfNeeded } = require('../services/modelDecimate');
 const { generateLodVariants } = require('../services/modelLod');
 
+/**
+ * 上传压缩总开关（2026-10-23 定稿）
+ *
+ * 'on'（默认）→ 减面（面数控制）+ 贴图 WebP q92/4:4:4 重编码。
+ *   贴图从**原始上传文件**取（sourcePath），不继承 gltfpack 减面时对贴图的量化损失。
+ *   实测同一机器人模型：28.59MB → 2.87MB，贴图保持 4096 原分辨率，文字清晰。
+ * 'off' → 减面 / 几何压缩 / 贴图压缩全部跳过，落库即原始上传文件（体积大，仅用于排查）。
+ *
+ * 单次上传可用表单字段 compress=on|off 覆盖（便于临时对比）。
+ * 注意：LOD 变体（_mid/_lod）**不属于此开关**——它不改变原文件质量，
+ *       只用于"远处降级渲染"，关掉会让远处全用高模、GPU 压力显著上升。
+ */
+const UPLOAD_COMPRESS_DEFAULT = String(process.env.UPLOAD_COMPRESS || 'on').toLowerCase() !== 'off';
+function uploadCompressEnabled(req) {
+  const v = req && req.body ? req.body.compress : undefined;
+  if (v === 'on' || v === 'true' || v === true) return true;
+  if (v === 'off' || v === 'false' || v === false) return false;
+  return UPLOAD_COMPRESS_DEFAULT;
+}
+
 // 配置文件上传
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
@@ -114,8 +134,10 @@ router.post('/upload-model', upload.single('model'), async (req, res) => {
       }
     }
 
-    // 减面：默认自动（>15万面才减），用户上传时可选择 off 跳过
-    const decimateMode = req.body.decimate || 'auto';
+    // 上传压缩总开关（默认 off = 不压缩，见文件头 uploadCompressEnabled）
+    const doCompress = uploadCompressEnabled(req);
+    // 减面：仅压缩开启时执行；关闭时强制 off，绝不生成 _dec 版本
+    const decimateMode = doCompress ? (req.body.decimate || 'auto') : 'off';
     let decimation = null;
     if (fileType === 'glb') {
       decimation = await decimateIfNeeded(req.file.path, { mode: decimateMode });
@@ -157,19 +179,30 @@ router.post('/upload-model', upload.single('model'), async (req, res) => {
     if (fileType === 'glb') {
       // 压缩目标是实际生效的文件（减面版则压缩减面版，原始 .glb 保留原质量供还原）
       const modelAbs = decimation && decimation.decimated ? decimation.decimatedPath : req.file.path;
-      const compression = await compressIfNeeded(modelAbs, fileSize);
-      let finalSize = compression.compressed ? compression.compressedSize : fileSize;
-      const texture = await compressTextures(modelAbs, { maxSize: 2048 });
-      if (texture.compressed) finalSize = texture.newSize;
-      if (finalSize !== fileSize) {
-        await pool.query('UPDATE uploaded_models SET file_size = $1 WHERE id = $2',
-          [finalSize, result.rows[0].id]);
-        result.rows[0].file_size = finalSize;
+      if (doCompress) {
+        const compression = await compressIfNeeded(modelAbs, fileSize);
+        let finalSize = compression.compressed ? compression.compressedSize : fileSize;
+        // WebP q92 + 4:4:4；贴图从原始上传文件取（sourcePath），避免继承减面时的量化损失
+        const texture = await compressTextures(modelAbs, {
+          maxSize: 4096,
+          format: 'webp',
+          sourcePath: req.file.path,
+        });
+        if (texture.compressed) finalSize = texture.newSize;
+        if (finalSize !== fileSize) {
+          await pool.query('UPDATE uploaded_models SET file_size = $1 WHERE id = $2',
+            [finalSize, result.rows[0].id]);
+          result.rows[0].file_size = finalSize;
+        }
+        result.rows[0].compression = compression;
+        result.rows[0].textureCompression = { compressed: texture.compressed, reason: texture.reason, originalSize: texture.originalSize, newSize: texture.newSize };
+      } else {
+        // 不压缩：落库即原始文件（保留 originalSize 便于诊断）
+        result.rows[0].compression = { compressed: false, skipped: true, reason: 'disabled' };
+        result.rows[0].textureCompression = { compressed: false, skipped: true, reason: 'disabled', originalSize: fileSize, newSize: fileSize };
       }
-      result.rows[0].compression = compression;
-      result.rows[0].textureCompression = { compressed: texture.compressed, reason: texture.reason, originalSize: texture.originalSize, newSize: texture.newSize };
 
-      // LOD 三版：纹理压缩后生成中/低模（_mid.glb / _lod.glb）；失败自动跳过，绝不阻断上传
+      // LOD 三版：生成中/低模（_mid.glb / _lod.glb）供远处渲染；不改变原文件质量，失败自动跳过
       result.rows[0].lod = await generateLodVariants(modelAbs).catch((e) => ({
         ok: false, skipped: true, reason: 'error', error: e.message,
       }));
@@ -255,8 +288,10 @@ router.post('/upload-models-batch', upload.array('models', 20), async (req, res)
           }
         }
 
-        // 减面：默认自动（>15万面才减），用户上传时可选择 off 跳过（批量统一模式）
-        const decimateMode = req.body.decimate || 'auto';
+        // 上传压缩总开关（默认 off = 不压缩，批量上传与单传同口径）
+        const doCompress = uploadCompressEnabled(req);
+        // 减面：仅压缩开启时执行；关闭时强制 off，绝不生成 _dec 版本
+        const decimateMode = doCompress ? (req.body.decimate || 'auto') : 'off';
         let decimation = null;
         if (fileType === 'glb') {
           decimation = await decimateIfNeeded(file.path, { mode: decimateMode });
@@ -316,17 +351,27 @@ router.post('/upload-models-batch', upload.array('models', 20), async (req, res)
         if (fileType === 'glb') {
           // 压缩目标是实际生效的文件（减面版则压缩减面版，原始 .glb 保留原质量供还原）
           const modelAbs = decimation && decimation.decimated ? decimation.decimatedPath : file.path;
-          compression = await compressIfNeeded(modelAbs, fileSize);
-          let finalSize = compression.compressed ? compression.compressedSize : fileSize;
-          textureCompression = await compressTextures(modelAbs, { maxSize: 2048 });
-          if (textureCompression.compressed) finalSize = textureCompression.newSize;
-          if (finalSize !== fileSize) {
-            await pool.query('UPDATE uploaded_models SET file_size = $1 WHERE id = $2',
-              [finalSize, result.rows[0].id]);
-            result.rows[0].file_size = finalSize;
+          if (doCompress) {
+            compression = await compressIfNeeded(modelAbs, fileSize);
+            let finalSize = compression.compressed ? compression.compressedSize : fileSize;
+            // WebP q92 + 4:4:4；贴图从原始上传文件取（sourcePath），避免继承减面时的量化损失
+            textureCompression = await compressTextures(modelAbs, {
+              maxSize: 4096,
+              format: 'webp',
+              sourcePath: file.path,
+            });
+            if (textureCompression.compressed) finalSize = textureCompression.newSize;
+            if (finalSize !== fileSize) {
+              await pool.query('UPDATE uploaded_models SET file_size = $1 WHERE id = $2',
+                [finalSize, result.rows[0].id]);
+              result.rows[0].file_size = finalSize;
+            }
+          } else {
+            compression = { compressed: false, skipped: true, reason: 'disabled' };
+            textureCompression = { compressed: false, skipped: true, reason: 'disabled', originalSize: fileSize, newSize: fileSize };
           }
 
-          // LOD 三版：纹理压缩后生成中/低模（_mid.glb / _lod.glb）；失败自动跳过，绝不阻断上传
+          // LOD 三版：生成中/低模（_mid.glb / _lod.glb）供远处渲染；不改变原文件质量，失败自动跳过
           lod = await generateLodVariants(modelAbs).catch((e) => ({
             ok: false, skipped: true, reason: 'error', error: e.message,
           }));

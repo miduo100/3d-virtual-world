@@ -278,7 +278,7 @@ async function generateGltfVariants(absGltfPath, opts = {}) {
  *   - 幂等：完成后写 <dir>/.texopt-done.json 标记，重跑直接跳过（--force 可重压）。
  */
 async function compressExternalTextures(dir, opts = {}) {
-  const maxDim = opts.maxDim || 2048;
+  const maxDim = opts.maxDim || 4096;   // 只钳超大图，不主动 4K→2K（2026-10-23）
   const marker = path.join(dir, TEX_MARKER);
   if (!opts.force && fs.existsSync(marker)) {
     try {
@@ -306,9 +306,12 @@ async function compressExternalTextures(dir, opts = {}) {
         if ((meta.width || 0) > maxDim || (meta.height || 0) > maxDim) {
           pipe = pipe.resize({ width: maxDim, height: maxDim, fit: 'inside', withoutEnlargement: true });
         }
-        if (ext === '.png') pipe = pipe.png({ palette: true, quality: 80 });
-        else if (ext === '.webp') pipe = pipe.webp({ quality: 80 });
-        else pipe = pipe.jpeg({ quality: 80, mozjpeg: true });
+        // 【2026-10-23】不再 palette 量化 / 不再 q80 有损：贴图上的小字会被压出缺笔与色带。
+        // 外置贴图保持原扩展名（避免改写 gltf 的 uri），PNG 走无损重编码；
+        // JPEG/WebP 提到 q92 + 4:4:4（不做色度下采样，文字边缘不发彩色噪点）。
+        if (ext === '.png') pipe = pipe.png({ compressionLevel: 9, effort: 9, palette: false });
+        else if (ext === '.webp') pipe = pipe.webp({ quality: 92, chromaSubsampling: '4:4:4' });
+        else pipe = pipe.jpeg({ quality: 92, mozjpeg: true, chromaSubsampling: '4:4:4' });
       }
       const out = await pipe.toBuffer();
       if (out.length < before) {

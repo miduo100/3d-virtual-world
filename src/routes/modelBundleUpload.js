@@ -107,7 +107,10 @@ function checkGltfRefs(absGltfPath) {
  */
 async function ingestBundle(bundleName, opts = {}) {
   const target = opts.target === 'part' ? 'part' : 'model';
-  const doCompress = opts.compressTextures !== false;
+  // 【2026-10-23】外置贴图重编码与 ZIP/文件夹导入统一受 UPLOAD_COMPRESS 控制（与 /api/upload-model 同口径）。
+  // 默认 on：PNG 无损重编码（不 palette 量化）、JPEG/WebP q92 4:4:4；设 UPLOAD_COMPRESS=off 可整体关闭。
+  const UPLOAD_COMPRESS = String(process.env.UPLOAD_COMPRESS || 'on').toLowerCase() !== 'off';
+  const doCompress = UPLOAD_COMPRESS && opts.compressTextures !== false;
   const doVariants = opts.variants !== false;
   const bundleDir = path.join(UPLOAD_ROOT, bundleName);
   const rels = await listFilesRecursive(bundleDir);
