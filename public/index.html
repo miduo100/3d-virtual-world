@@ -10,7 +10,11 @@
   <!-- 实验开关（都不带参数时零开销）：?stall=1 卡顿探针 / ?prewarm=1 预热闸门原型 -->
   <script>if (/[?&]stall=1(&|$)/.test(location.search)) { document.write('<script src="js/stallProbe.js?v=1"><\/script>'); }
   if (/[?&]prewarm=1(&|$)/.test(location.search)) { document.write('<script src="js/prewarmPreview.js?v=1"><\/script>'); }
-  if (/[?&]skipgate=1(&|$)/.test(location.search)) { document.write('<script src="js/skipGatePreview.js?v=1"><\/script>'); }</script>
+  if (/[?&]skipgate=1(&|$)/.test(location.search)) { document.write('<script src="js/skipGatePreview.js?v=1"><\/script>'); }
+  /* ?hang=1 回归开关：人为造一个"永不返回"的子资源，让 window.load 永不触发，
+     用来验证"世界初始化已与 load 解绑"（配合本地 node 的 hang server，端口 8899）。
+     没有该 server 时连接会立即被拒（error），不阻塞 load，属无害状态。 */
+  if (/[?&]hang=1(&|$)/.test(location.search)) { var __hangImg = new Image(); __hangImg.src = 'http://localhost:8899/hang.png?t=' + Date.now(); }</script>
   <!-- ⚠️ 下面 title/meta 的内容由**服务端注入**覆盖（src/services/seoHtmlInjector.js），
        权威数据源是后台「🔍 SEO TDK 配置」（system_config: seo_title / seo_description / seo_keywords）。
        这里的硬编码值是**兜底文案**：只有服务端注入失败（回退静态文件）时才会被看到。
@@ -739,6 +743,9 @@
   <!-- 首屏加载遮罩「光之门户」：CSS/DOM 全部由该模块自注入（本文件已超 500 行，不在此加代码）。
        位置必须在旧 #loadingScreen 之前解析，首帧才直接是门户、不闪黑屏。 -->
   <script src="js/loadingMask.js?v=5"></script>
+  <!-- 操作指南延后显示闸门：解析期先把 #controls-hint 藏起来，等世界真有内容再显示
+       （免遮档刷新时指南会压在一片空背景上，观感像"卡死"）。零侵入，只注入一条 CSS。 -->
+  <script src="js/controlsHintGate.js?v=1"></script>
   <div id="ui-overlay">
     <!-- Health Bar -->
     <div class="health-bar" id="health-bar">
@@ -1496,7 +1503,7 @@
   <script src="js/geometryTemplates.js"></script>
   <script src="js/geometryRenderer.js"></script>
   <script src="js/modelCacheDB.js"></script>
-  <script src="js/model-detector.js"></script>
+  <script src="js/model-detector.js?v=1"></script>
   
   <!-- 骨骼平台适配器 + 动画重定向 -->
   <script src="js/bone-platforms-config.js"></script>
@@ -1573,7 +1580,7 @@
   <script src="js/agentPositionSmoother.js?v=4"></script>
   <script src="js/ui.js?v=1"></script>
   <script src="js/portalManager.js"></script>
-  <script src="js/mobileControls.js"></script>
+  <script src="js/mobileControls.js?v=1"></script>
   <script src="js/buildingCopyLoader.js?v=1"></script>
   <script src="js/buildingCollisionToggle.js?v=2"></script>
   <script src="js/buildingManager.js?v=5"></script>
@@ -1587,7 +1594,7 @@
   <script src="js/worldInteractions.js?v=1"></script><!-- Phase 6: 真人玩法交互（E键互动/任务/活动/兑换） -->
   <script src="js/voiceChat.js?v=2"></script>
   <script src="js/uiControlManager.js"></script>
-  <script src="js/main.js?v=3"></script>
+  <script src="js/main.js?v=4"></script><!-- v4：初始化改在 DOMContentLoaded（不再等可能永不触发的 window.load） -->
   <script src="js/worldGroundSync.js"></script>
   
   <!-- 国际化语言初始化 -->

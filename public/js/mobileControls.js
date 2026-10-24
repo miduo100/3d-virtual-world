@@ -498,7 +498,8 @@ class MobileControls {
 // 初始化移动控制（在页面加载时自动创建）
 let mobileControls = null;
 
-window.addEventListener('load', () => {
+// 【2026-10-24】改在 DOMContentLoaded 启动：window.load 可能被第三方扩展/外部资源挂起而永不触发
+function bootMobileControls() {
   mobileControls = new MobileControls();
   
   // 监听窗口大小变化，动态显示/隐藏控制
@@ -512,4 +513,9 @@ window.addEventListener('load', () => {
       }
     }
   });
-});
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootMobileControls, { once: true });
+} else {
+  bootMobileControls();
+}

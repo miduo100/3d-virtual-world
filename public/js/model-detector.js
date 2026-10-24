@@ -274,8 +274,8 @@ if (typeof window !== 'undefined') {
     window.ModelDetector = ModelDetector;
 }
 
-// 自动初始化
-window.addEventListener('load', () => {
+// 自动初始化（【2026-10-24】改在 DOMContentLoaded 启动：window.load 可能被第三方资源挂起而永不触发）
+function bootModelDetector() {
     setTimeout(() => {
         if (window.world) {
             window.modelDetector = new ModelDetector(window.world);
@@ -283,4 +283,9 @@ window.addEventListener('load', () => {
             console.log('🔍 角色模型检测工具已自动初始化');
         }
     }, 1000);
-});
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootModelDetector, { once: true });
+} else {
+    bootModelDetector();
+}

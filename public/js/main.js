@@ -74,7 +74,12 @@ if (typeof window !== 'undefined') {
   else setInterval(debugFn, 100);
 })();
 
-window.addEventListener('load', async () => {
+/* 【2026-10-24 修复】不再等 window.load。
+   实测：360 等 Chromium 套壳浏览器的扩展会在页面里创建隐形子资源（qhres2.com 的 svg），
+   一旦其中某个请求 pending，浏览器就永远不 fire load → 整个世界初始化一步不执行
+   （表现为"空世界卡十几秒"，且 gameWorld 恒为 null）。
+   DOMContentLoaded 只等 HTML 解析 + 同步脚本（本机实测 211ms），不受任何子资源影响。 */
+const bootGame = async () => {
   try {
     // 优先检测跨世界传送参数
     const urlParams = new URLSearchParams(window.location.search);
@@ -101,7 +106,14 @@ window.addEventListener('load', async () => {
     console.error('Initialization error:', error);
     UI.showNotification('错误', '初始化失败：' + error.message);
   }
-});
+};
+
+// 启动入口：DOM 就绪即跑（不再等 load）。脚本被延后执行（readyState 已过 loading）时直接跑。
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootGame, { once: true });
+} else {
+  bootGame();
+}
 
 // 处理从其他世界传送过来的到达流程
 async function handleTeleportArrival(teleportToken) {
@@ -2749,15 +2761,20 @@ function showItemDetail(item) {
   });
 }
 
-// 在页面加载完成后初始化
-window.addEventListener('load', () => {
+// 在 DOM 就绪后初始化（不等 window.load：第三方扩展/外部资源挂起会让 load 永不触发）
+function bootUserQuickActions() {
   // 延迟初始化，确保其他组件已加载
   setTimeout(() => {
     initializeUserQuickActions();
     initializeProfilePage();
     initializeInventoryPage();
   }, 1000);
-});
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootUserQuickActions, { once: true });
+} else {
+  bootUserQuickActions();
+}
 
 /**
  * 初始化个人资料面板事件
