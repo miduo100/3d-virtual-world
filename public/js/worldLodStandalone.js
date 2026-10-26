@@ -315,7 +315,8 @@
     if (!url) return;                                           // 几何建筑/媒体/threejs 代码等
     if (M && M.isMergedUrl && M.isMergedUrl(url)) return;       // 合批组管理
     if (M && M.isCandidateUrl && M.isCandidateUrl(url)) return; // 合批候选（cullUnmerged 预接管）
-    if (entry.data && entry.data.custom_config) return;
+    if (entry.data && entry.data.custom_config &&
+        !(window.ModelLighting && window.ModelLighting.canInstance(entry.data.custom_config))) return;
     if (entry.data && entry.data.model_path && entry.data.model_path !== url) return;
     if (m.userData && m.userData.__excludeFromMerge) return;    // 编辑中模型
 
@@ -483,7 +484,7 @@
         var url2 = o.userData.__texOptSource;
         if (M2 && url2 && lodOn() && !editing() &&
             !o.userData.__excludeFromMerge &&
-            !(entry.data && entry.data.custom_config) &&
+            (!entry.data.custom_config || (window.ModelLighting && window.ModelLighting.canInstance(entry.data.custom_config))) &&
             !(entry.data && entry.data.model_path && entry.data.model_path !== url2)) {
           var takeover = (M2.isMergedUrl && M2.isMergedUrl(url2)) ||
                          (M2.isCandidateUrl && M2.isCandidateUrl(url2));

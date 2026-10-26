@@ -270,8 +270,14 @@
   /**
    * 应用 custom_config 到上传模型
    */
-  function applyUploadedModel(root, config) {
-    if (!root || !config) return;
+  function applyUploadedModel(root, config, modelData) {
+    if (!root) return;
+
+    // 世界内走固定灯池；编辑器预览由 ModelLightingEditor 自己管理。
+    if (window.ModelLighting && !(modelData && modelData.editor)) {
+      window.ModelLighting.apply(root, config, { world: true });
+    }
+    if (!config) return;
 
     // 自发光（室内打亮等）：只有配置里显式写了才动
     if (hasEmissiveConfig(config)) applyModelEmissive(root, config);
@@ -353,7 +359,7 @@
     const config = modelData.custom_config;
     if (config && APPLIERS[type]) {
       try {
-        APPLIERS[type](root, config);
+        APPLIERS[type](root, config, modelData);
       } catch (e) {
         console.error('[CustomConfigApplier] 应用配置失败:', type, e);
       }

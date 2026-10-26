@@ -3131,8 +3131,11 @@
     <script src="js/threejsWorldSanitizer.js?v=185fix3"></script>
     <script src="js/threejsCodeRunner.js?v=1"></script>
     <script src="js/customConfigRegistry.js?v=3"></script>
-    <script src="js/customConfigApplier.js?v=3"></script>
+    <script src="js/customConfigApplier.js?v=4"></script>
     <script src="js/customConfigPanel.js"></script>
+    <script src="js/modelLighting.js?v=3"></script>
+    <script src="js/modelHaloField.js?v=2"></script>
+    <script src="js/modelLightingEditor.js?v=3"></script>
     <script src="js/worldEditorThreejsCode.js"></script>
     <script src="js/worldEditor3dgs.js"></script>
     <script src="js/worldEditorCameraMove.js"></script>
@@ -6083,6 +6086,7 @@
                         if (obj.mesh && window.CustomConfigApplier) {
                             window.CustomConfigApplier.apply(obj.mesh, {
                                 type: type,
+                                editor: true,
                                 custom_config: newConfig
                             });
                         }

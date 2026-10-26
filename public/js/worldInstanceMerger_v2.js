@@ -131,7 +131,8 @@
       const url = model.userData && model.userData.__texOptSource;
       if (!url) return;
       if (model.userData && model.userData.__excludeFromMerge) return; // 已排除编辑的模型不参与合批
-      if (entry.data && entry.data.custom_config) return;
+      if (entry.data && entry.data.custom_config &&
+          !(window.ModelLighting && window.ModelLighting.canInstance(entry.data.custom_config))) return;
       if (entry.data && entry.data.model_path && entry.data.model_path !== url) return;
       if (!groups.has(url)) groups.set(url, []);
       groups.get(url).push({ id, model });

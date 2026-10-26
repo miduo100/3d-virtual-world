@@ -16,6 +16,13 @@
  *   - 不复用玩家相机（防状态互扰），不进 world.js（黑名单大文件），零钩子自启动；
  *   - updateFrustumCulling 隐藏的组在扫掠帧临时置可见、渲染后立即还原；
  *   - 编辑模式（buildingManager 管理态）暂停，避免干扰合批/还原流程。
+ *
+ * 2026-10-26 走路顿挫治理（v3）：卡顿探针实测本扫掠在玩家走动期每 500ms 侵占
+ *   一帧 84~341ms（iV 标签），是走路顿挫主因。三项调整：
+ *   ① STEP_MS 500→1500、RENDER_SLOW_MS 100→50（84~99ms 扫掠也退避）；
+ *   ② 玩家移动（1500ms 内位移 >0.5m）时跳过扫掠步，只在真正站定时扫；
+ *   ③ stats() 新增 moveSkips 供诊断验证。代价：边走边加载时部分程序首绘
+ *   编译回落到首次真实绘制（与无扫掠时的行为一致），静止后扫掠会补齐。
  */
 (function () {
   'use strict';
@@ -23,11 +30,12 @@
 
   var DIRS = 8;                 // 水平方位数
   var VIS_CHUNK = 2;            // 每次扫掠只强制显示 2 个隐藏对象（ANGLE 下每程序反射 ~160ms，必须摊薄）
-  var STEP_MS = 500;            // 每个方位的间隔
+  var STEP_MS = 1500;           // 每个方位的间隔（2026-10-26 走路顿挫治理：500→1500，降低扫掠对交互帧的侵占）
   var ROUND_GAP_MS = 2000;      // 两个整轮之间的间隔
   var SUPERVISOR_MS = 3000;     // 状态巡检间隔
   var BACKOFF_MS = 1500;        // 单次渲染过慢时的退避
-  var RENDER_SLOW_MS = 100;     // 单次扫掠渲染耗时阈值
+  var RENDER_SLOW_MS = 50;      // 单次扫掠渲染耗时阈值（2026-10-26：100→50，84~99ms 的扫掠同样会卡手，也要退避）
+  var MOVE_EPS = 0.5;           // 玩家移动判定阈值（米）：距上次扫掠位移超该值 = 在移动，本步跳过
   var RT_SIZE = 256;            // 离屏渲染目标尺寸（程序编译与尺寸无关）
 
   var st = {
@@ -38,6 +46,8 @@
     cleanRounds: 0,
     roundPrograms: 0,          // 本轮累计的新程序数
     lastLoadedCount: -1,
+    lastX: null,               // 上次扫掠时的玩家位置（移动检测：玩家走路时暂停扫掠）
+    lastZ: null,
     cam: null,
     rt: null,
     stepTimer: null,
@@ -144,6 +154,17 @@
     st.cleanRounds = 0;
     st.stepTimer = setInterval(function () {
       if (st.busy || !ready() || document.hidden || editing()) return;
+      // 2026-10-26 玩家移动暂停：走路时每半秒一次的离屏编译渲染正是顿挫元凶，
+      // 扫掠只在玩家真正站定时进行（v4 卡顿探针实证：iV 标签单次 84~341ms）。
+      try {
+        var pp = window.player.position;
+        if (st.lastX !== null && (Math.abs(pp.x - st.lastX) > MOVE_EPS || Math.abs(pp.z - st.lastZ) > MOVE_EPS)) {
+          st.lastX = pp.x; st.lastZ = pp.z;
+          st.moveSkips = (st.moveSkips || 0) + 1; // 诊断口：因玩家移动跳过的步数
+          return; // 玩家在移动：本步跳过（步进计时器继续跑，静止后自动恢复扫掠）
+        }
+        st.lastX = pp.x; st.lastZ = pp.z;
+      } catch (e) { /* 位置读取失败按静止处理 */ }
       st.busy = true;
       var added = 0;
       try { added = sweepOne(); } catch (e) { /* 不让扫掠杀死主循环 */ }
@@ -192,7 +213,7 @@
       return { newPrograms: gw().renderer.info.programs.length - before, lastRenderMs: Math.round(st.lastRenderMs) };
     },
     stats: function () {
-      return { active: st.active, dir: st.dir, cleanRounds: st.cleanRounds, lastRenderMs: Math.round(st.lastRenderMs) };
+      return { active: st.active, dir: st.dir, cleanRounds: st.cleanRounds, lastRenderMs: Math.round(st.lastRenderMs), moveSkips: st.moveSkips || 0 };
     },
   };
 })();
