@@ -257,17 +257,24 @@
         cid: characterId, group: characterGroup, nameSprite: nameSprite,
         rawUrl: glbUrl, url: url, state: 'held', world: this, releasedAt: 0, stale: false
       };
-      if (isFastEntry() || window.WorldReadyGate.isReady()) {
+      // 【2026-10-28】WorldReadyGate 可能尚未加载（脚本顺序/加载失败/直通模式首帧），
+      // 旧代码裸调 .isReady() 会抛 "Cannot read properties of undefined (reading 'isReady')"
+      // 并中断这里，导致自己的角色既不放行也不排队（表现为角色不出现）。
+      var gate = window.WorldReadyGate;
+      var gateReadyNow = !!(gate && typeof gate.isReady === 'function' && gate.isReady());
+      if (isFastEntry() || gateReadyNow) {
         // 直通模式：进世界立刻拉自己的模型（用户要求"有什么渲染什么，边走边加载"）
         if (isFastEntry()) log('直通模式：自己模型立即放行（不等就绪闸门）');
         releaseTask(selfTask);
       } else {
-        window.WorldReadyGate.onReady(function () {
-          gateReady = true;
-          if (selfTask && selfTask.state === 'held' && playerExists(selfTask.world, selfTask.cid)) {
-            releaseTask(selfTask);
-          }
-        });
+        if (gate && typeof gate.onReady === 'function') {
+          gate.onReady(function () {
+            gateReady = true;
+            if (selfTask && selfTask.state === 'held' && playerExists(selfTask.world, selfTask.cid)) {
+              releaseTask(selfTask);
+            }
+          });
+        }
         setTimeout(function () { // 双保险（规则 4）：闸门异常时 13s 强制放行自己
           if (selfTask && selfTask.state === 'held') {
             gateReady = true;

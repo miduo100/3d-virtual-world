@@ -295,7 +295,11 @@ class World {
     this.scene.background = window.SkyManager
       ? SkyManager.getBackground(0x87ceeb)
       : new THREE.Color(0x87ceeb);
-    this.scene.fog = new THREE.Fog(0x87ceeb, CONFIG.DRAW_DISTANCE, 10000);
+    /* 【2026-10-28】雾类型恒定用 FogExp2（晴天=极小密度），不要再用 THREE.Fog：
+       在 Fog ↔ FogExp2 之间切换会改变着色器宏（FOG_EXP2），触发全场景材质重编译
+       （实测切雾单帧 408ms、切回晴天 4301ms；期间一帧位移可达 7m，会把角色抖穿地形）。
+       固定类型后 setWeather 只改 color/density（uniform），零重编译。 */
+    this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.00012);
 
     // 天气系统初始化
     this._weather = 'clear'; // clear / rain / snow / fog
@@ -343,21 +347,29 @@ class World {
       ? SkyManager.getBackground(SKY_COLORS[type] ?? 0x87ceeb)
       : new THREE.Color(SKY_COLORS[type] ?? 0x87ceeb);
 
-    if (type === 'fog') {
-      // 强度影响雾密度
-      this.scene.fog = new THREE.FogExp2(FOG_COLORS.fog, 0.008 + intensity * 0.025);
-    } else if (type === 'storm') {
-      this.scene.fog = new THREE.FogExp2(FOG_COLORS.storm, 0.012 + intensity * 0.015);
-    } else {
-      this.scene.fog = new THREE.Fog(
-        FOG_COLORS[type] ?? FOG_COLORS.clear,
-        CONFIG.DRAW_DISTANCE, 10000
-      );
+    /* 【2026-10-28】只改 uniform（color/density），绝不重建 fog 对象：
+       重建会换类型（Fog ↔ FogExp2）→ 着色器宏 FOG_EXP2 变化 → 全场景材质重编译
+       （实测单帧 408~4301ms），那几帧里角色一帧位移可达 7m，直接抖穿地形。
+       复用同一 FogExp2 实例还有个附带好处：SkyManager 雾天把 background 指向
+       fog.color（引用），雾色变化时天空自动跟随。 */
+    if (!this.scene.fog || this.scene.fog.isFogExp2 !== true) {
+      this.scene.fog = new THREE.FogExp2(FOG_COLORS[type] ?? FOG_COLORS.clear, 0.00012);
     }
+    const fog = this.scene.fog;
+    fog.color.setHex(FOG_COLORS[type] ?? FOG_COLORS.clear);
+    fog.density = type === 'fog'   ? 0.008 + intensity * 0.025
+                : type === 'storm' ? 0.012 + intensity * 0.015
+                :                    0.00012;   // 晴天/雨/雪：近似无雾
+
 
     if (type === 'rain')  this._createRain(intensity, wind);
     if (type === 'snow')  this._createSnow(intensity, wind);
     if (type === 'storm') this._createRain(Math.min(1, intensity * 1.5), wind); // 暴雨
+
+    // 【2026-10-28 雾天天空对齐】three 的 scene.background 不参与 scene.fog（雾只作用于物体
+    // 材质），所以大雾时会出现"地上/远景全是雾、天上还是原来的天空"的硬分界。
+    // 这里在 scene.fog 赋值之后再通知一次 SkyManager：雾/暴风雨天用雾色接管天空，雾散后交还。
+    if (window.SkyManager && typeof SkyManager.setWeather === 'function') SkyManager.setWeather(type);
 
     console.log(`🌤️ 天气切换: ${type} 强度:${Math.round(intensity*100)}% 风力:${Math.round(wind*100)}%`);
   }

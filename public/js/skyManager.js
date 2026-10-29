@@ -101,7 +101,8 @@
     placeholderKind: 'none',  // 'gradient' | 'none'
     _placeholderTex: null,    // 占位纹理（替换/重置时 dispose，不进 cache）
     envToken: 0,              // 【二期A】空闲期 PMREM 任务令牌（防旧任务覆盖）
-    envPrewarmed: false       // 【二期A】PMREM 着色器是否已预热
+    envPrewarmed: false,      // 【二期A】PMREM 着色器是否已预热
+    _fogCovered: false        // 【雾天】当前背景是否被雾色接管（雾散时要交还天空）
   };
 
   function warn(msg, err) {
@@ -119,9 +120,43 @@
     // 真正解决卡顿的是：① env 源尺寸统一（换天空零重编译）② 用过环境光后不再置 null。
   }
 
-  /** 应用天气调参（明暗/朦胧），只对纹理背景生效 */
+  /**
+   * 【2026-10-28 雾天天空对齐】雾 / 暴风雨天用【雾色】接管天空背景。
+   *
+   * 为什么必须单独处理：three 的 scene.background 是"清屏背景"，完全不参与 scene.fog
+   * （雾只对场景内物体材质生效）。于是大雾时远景被雾吞成灰白、天空却仍是原来那张
+   * 全景/HDR（本世界是偏深色的天空，反差尤其明显），地平线出现一条"地上有雾、天上没雾"
+   * 的硬分界 —— 详见用户截图。
+   *
+   * 做法：直接把 background 指向 scene.fog.color 这个 Color 对象本身 ——
+   *   · 与远景被雾染成的颜色逐像素同源，天然无缝，无需手工对色；
+   *   · 引用同一对象，之后谁改了雾色（例如编辑器昼夜模式改 fog.color）天空自动跟随；
+   *   · 雾散后由 applyTuning 交还给 state.texture（或 world.js 重设的纯色）。
+   * 只在 FogExp2（雾/暴风雨一定是指数雾）时生效，避免天气切换过程中
+   * "weather 已是 fog、scene.fog 还是旧的线性雾"的中间态误用晴天雾色上屏。
+   */
+  function applyFogCover() {
+    if (!state.scene) return false;
+    const w = state.weather;
+    if (w !== 'fog' && w !== 'storm') return false;
+    const fog = state.scene.fog;
+    if (!fog || fog.isFogExp2 !== true || !fog.color) return false;
+    state.scene.background = fog.color;   // 引用而非克隆：雾色变则天空变
+    state.scene.backgroundIntensity = 1;  // 天空已是雾色，不要再压暗/糊化
+    state.scene.backgroundBlurriness = 0;
+    state._fogCovered = true;
+    return true;
+  }
+
+  /** 应用天气调参（明暗/朦胧）；雾天改为雾色接管天空（见 applyFogCover） */
   function applyTuning() {
     if (!state.scene) return;
+    if (applyFogCover()) return;
+    // 刚从雾天出来：把天空交还给真实纹理（默认天空由 world.js 每帧/每次切天气重设纯色）
+    if (state._fogCovered) {
+      state._fogCovered = false;
+      if (state.texture) state.scene.background = state.texture;
+    }
     const tune = WEATHER_TUNE[state.weather] || WEATHER_TUNE.clear;
     if (state.scene.background && state.scene.background.isTexture) {
       state.scene.backgroundIntensity = tune.intensity;
@@ -575,6 +610,11 @@
         envIntensity: state.scene ? state.scene.environmentIntensity : null,
         loading: state.loading,
         weather: state.weather,
+        // 【雾天天空对齐】背景是否正被雾色接管 + 当前雾色（十六进制，供验收/诊断比对）
+        fogCovered: state._fogCovered,
+        fogColor: (state._fogCovered && state.scene && state.scene.fog && state.scene.fog.color)
+          ? '#' + state.scene.fog.color.getHexString() : null,
+        backgroundIsColor: !!(state.scene && state.scene.background && state.scene.background.isColor),
         deferred: state.deferred,
         deferredSince: state.deferred ? Math.round(performance.now() - state.deferredSince) : null,
         placeholderKind: state.placeholderKind

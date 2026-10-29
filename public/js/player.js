@@ -642,6 +642,21 @@ class Player {
         }
       }
     }
+
+    // 【2026-10-28】掉出世界兜底：地形之外没有地面（设计如此），离开地形边界后会一直往下掉，
+    // 旧版只能刷新页面。这里送回出生点，避免"卡在虚空里没法自救"。
+    // 注意必须同时要求"脚下确实没有地面"：地形内允许有很深的坑（山地 heightScale 可到 60+，
+    // 低洼处 y 为负），只看 y 阈值会把站在深坑里的玩家误传回出生点。
+    if (this.position.y < -50 && this.world.getGroundHeight(this.position) === null) {
+      const sp = this.world.getSpawnPosition();
+      this.position.set(sp.x, sp.y, sp.z);
+      this.velocity.set(0, 0, 0);
+      this.isGrounded = false;
+      console.warn('[Player] 掉出世界边界，已送回出生点:', sp);
+      if (typeof UI !== 'undefined' && UI.addChatMessage) {
+        UI.addChatMessage('系统', '你掉出了世界边界，已送回出生点');
+      }
+    }
   }
 
   updateWalkingAnimation(isMoving) {

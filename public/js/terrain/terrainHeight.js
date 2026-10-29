@@ -223,15 +223,25 @@
       },
 
       /**
-       * 物理用：脚下（<= fromY）能站的地面高度
-       * 返回 null = 该点没有地形（玩家一直往下掉）
+       * 物理用：脚下能站的地面高度
+       * 返回 null = 该点没有地形（玩家一直往下掉，这是"地形=离散地块"的设计）
+       *
+       * 【2026-10-28 修复：高处跳下 / 低帧率穿地后永不落地】
+       * 旧实现在 h > fromY + 0.6 时返回 null（本意"地形在头顶上方时不算脚下地面"），
+       * 但一帧的下落位移超过 0.6m 时，这一帧会直接跨过地面落到地面以下；下一帧
+       * h > y + 0.6 恒成立 → 又返回 null → 玩家永久自由落体，只能刷新页面。
+       * 触发条件（实测 60fps）：登录角色(GLB，脚底=position.y) 约 17~20m 落差即穿；
+       * 低帧率下更敏感（fs=6 时 1m 落差就会穿），因此"加载期刷新后一移动就掉""切大雾
+       * 掉帧必掉"都是同一个漏洞。
+       * 现在：只要水平位置在这块地形矩形内就返回高度，穿透后下一帧会被
+       * player.handleVerticalMovement 的贴地分支自然拉回地表。地形边界之外仍返回 null。
+       * 注：若将来做"上下重叠的浮空岛"，这里会把人吸到较高那块上，届时需改用
+       *     "上一帧脚底高度"做跨面判定（prevY >= h 才托住）；当前两块地形不重叠，无此问题。
        */
-      groundAt: function (x, z, fromY) {
+      groundAt: function (x, z) {
         const it = pick(x, z);
         if (!it) return null;
-        const h = it.baseY + it.sampler.heightAt(x, z);
-        if (fromY != null && Number.isFinite(Number(fromY)) && h > Number(fromY) + 0.6) return null;
-        return h;
+        return it.baseY + it.sampler.heightAt(x, z);
       },
 
       slopeAt: function (x, z, e) {
