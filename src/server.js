@@ -151,9 +151,11 @@ const galleryRoutes = require('./routes/gallery');
 const modelGuardRoutes = require('./routes/modelGuard');
 const threejsCodeBlocksRoutes = require('./routes/threejsCodeBlocks');
 const threejsImportRoutes = require('./routes/threejsImport');
+const freeAssetRoutes = require('./routes/freeAssets');  // 🌐 互联网免费模型库（源白名单 + 下载入库）
 const securityQuestionsRoutes = require('./routes/securityQuestions');
 const subscriptionRoutes = require('./routes/subscription');
 const worldSpatialRoutes = require('./routes/worldSpatial');
+const worldDoorsRoutes = require('./routes/worldDoors');  // 🚪 世界门的开关（按 E 开门，状态落 custom_config）
 const skyRoutes = require('./routes/sky');
 const { worldWriteGuard } = require('./middleware/worldWriteGuard');
 const agentApiRoutes = require('./routes/agent');  // AI Agent 接入 API（/api/agent/v1）
@@ -171,6 +173,8 @@ app.use('/api/world/spatial', worldSpatialRoutes);
 app.use('/api/world', worldWriteGuard, worldRoutes);
 app.use('/api/world', worldWriteGuard, worldLockRoutes);
 app.use('/api/world', worldWriteGuard, worldGroundRoutes);
+// 🚪 门的开关：登录玩家级（守卫 + 路由内双重鉴权），状态写 world_objects.custom_config.doors
+app.use('/api/world-doors', apiWriteGuard.forMount('/api/world-doors'), worldDoorsRoutes);
 app.use('/api/shop', apiWriteGuard.forMount('/api/shop'), shopRoutes);
 app.use('/api/plot', apiWriteGuard.forMount('/api/plot'), plotRoutes);
 app.use('/api/skills', apiWriteGuard.forMount('/api/skills'), skillRoutes);
@@ -214,6 +218,7 @@ app.use('/api/world-ai', require('./worldai/routes/worldAiRegions'));  // Phase 
 app.use('/api/gameplay', require('./routes/gameplay'));  // Phase 6: 真人玩法交互（领任务/交互/活动；写请求玩家 JWT）
 app.use('/api/world-feedback', apiWriteGuard.forMount('/api/world-feedback'), require('./worldai/routes/worldFeedback'));  // Phase 7: 真人反馈（玩家 JWT；策略 user 见 apiWriteGuard PATH_RULES）
 app.use('/api/threejs-blocks', apiWriteGuard.forMount('/api/threejs-blocks'), threejsImportRoutes);    // Three.js URL导入路由（管理员）
+app.use('/api/free-assets', apiWriteGuard.forMount('/api/free-assets'), freeAssetRoutes);   // 🌐 互联网免费模型库（providers 公开读 / import 需管理员）
 app.use('/api/subscription', subscriptionRoutes);  // 订阅管理路由
 app.use('/api/sky', skyRoutes.router);  // 天空库路由（列表公开读，上传/删除需管理员）
 app.use('/api/agent/v1', agentApiRoutes);

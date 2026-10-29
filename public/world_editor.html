@@ -8743,10 +8743,28 @@
             return { ok: true, before: meshes.length, after: after, mergedGroups: mergedGroups, mergedMeshes: mergedMeshes, skipped: skipped };
         }
 
+        /**
+         * 第三方在线资产（互联网免费模型库）：绝对 http(s) URL 且不是本站域名。
+         * 本站资源一律是 / 开头的相对路径，所以"跨域绝对 URL"即可判定为第三方。
+         */
+        function isThirdPartyAssetUrl(p) {
+            if (typeof p !== 'string' || !/^https?:\/\//i.test(p)) return false;
+            try { return new URL(p, location.href).origin !== location.origin; } catch (e) { return true; }
+        }
+
         // 入缓存（统一入口：GLB/OBJ 共用），超限时淘汰最旧并释放其资源
         function addToEditorModelCache(modelPath, scene) {
             // 【会话3 P2-2】入缓存前按材质合并（缓存里即合并后的结构 → 后续所有实例共享合并结果）
-            try { mergeModelByMaterial(scene); } catch (e) { console.warn('⚠️ mergeModelByMaterial 失败（保留原结构）:', e); }
+            // 【2026-10-29】例外：第三方在线资产（polyfork 等）**不合并**。
+            //   它们的"可动部件"靠命名节点定位（wheel-fl / steer-fl / door-fl / hatch…），
+            //   按材质合并会把 9 个 mesh 压成 1 个、层级整体扁平化 → 铰接结构消失，
+            //   后续"轮子随口转动、门可开合"就无从下手。这类资产单件仅几百 KB、单材质，
+            //   少合并损失的 8 个 draw call 可忽略，保留层级远比省 draw call 值钱。
+            if (isThirdPartyAssetUrl(modelPath)) {
+                console.log('🌐 [编辑器] 第三方在线资产，跳过按材质合并（保留可动部件层级）:', modelPath);
+            } else {
+                try { mergeModelByMaterial(scene); } catch (e) { console.warn('⚠️ mergeModelByMaterial 失败（保留原结构）:', e); }
+            }
             if (editorModelCache.size >= MAX_EDITOR_MODEL_CACHE) {
                 const oldestKey = editorModelCache.keys().next().value;
                 const old = editorModelCache.get(oldestKey);
@@ -8994,5 +9012,7 @@
     <script src="js/editorPerfBatcher.js?v=5"></script>
     <!-- 性能现场诊断（默认零开销，控制台 EditorDiag.start()/report() 才启用） -->
     <script src="js/editorPerfDiag.js?v=1"></script>
+    <!-- 🌐 互联网免费模型库（Polyfork 等第三方在线资产，按需热链；默认不下载、不落盘） -->
+    <script src="js/freeAssetLibrary.js?v=3"></script>
 </body>
 </html>

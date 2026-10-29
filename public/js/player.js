@@ -620,8 +620,23 @@ class Player {
       // groundHeight === null：脚下没有任何地形 → targetY = -Infinity，走"空中"分支一直往下掉
       const targetY = (groundHeight === null) ? -Infinity : groundHeight + playerHeight;
 
+      // 【下台阶吸附 2026-10-29】站在地面上而脚下地面只低一点点（≤0.5m）时直接贴地：
+      // 旧逻辑会先落进"空中"分支（失重飘 80~100ms + isGrounded=false 触发跳跃动画），
+      // 下台阶一顿一顿。targetY=-Infinity 时 dropToGround=Infinity，不会命中此分支。
+      // 【可调高度联动】上台阶的"可跨越高度"用 window.__STEP_UP_MAX 现场调（见
+      // capsuleCollision.resolveStepOver）；下台阶吸附上限跟着它走，改一处两边对称。
+      const stepOverCfg = (typeof window.__STEP_UP_MAX === 'number' && isFinite(window.__STEP_UP_MAX) && window.__STEP_UP_MAX >= 0)
+        ? window.__STEP_UP_MAX : 1.0;
+      const STEP_DOWN_MAX = Math.max(0.5, stepOverCfg + 0.05);
+      const dropToGround = this.position.y - targetY;
+
       // Gravity and jumping（重力积分 × fs：帧率无关，60fps 时等价）
-      if (this.position.y > targetY + 0.1) {
+      if (this.isGrounded && this.velocity.y <= 0 && dropToGround > 0.1 && dropToGround <= STEP_DOWN_MAX) {
+        // 下台阶：平滑跟随地面，不进入空中阶段
+        this.position.y = targetY;
+        this.velocity.y = 0;
+        this.isGrounded = true;
+      } else if (this.position.y > targetY + 0.1) {
         // Player is in the air, apply gravity
         this.velocity.y -= this.gravity * fs;
         this.position.y += this.velocity.y * fs;

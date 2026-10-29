@@ -47,7 +47,9 @@ const MOUNT_DEFAULT = {
   '/api/ai-providers': 'admin',
   '/api/character-templates': 'admin',  // 修 S2-04d：templates 子路由此前挂在鉴权之前
   '/api/threejs-blocks': 'admin',       // 仅挂在 threejsImport 那一行（import-url 的 SSRF 面）
+  '/api/free-assets': 'admin',          // 互联网免费模型库：/import 会落盘+写 uploaded_models（GET providers 放行）
   '/api/gameplay': 'user',              // Phase 6：真人玩法（interact/claim/join；GET 公开读不拦）
+  '/api/world-doors': 'user',           // 🚪 门开关（登录玩家；游客只读看别人开）
   '/api': 'admin',                      // uploadedModels / uploadedModelMeta / modelBundleUpload 三个挂载
   '/api/ai-scene': 'quota',             // 生成类=花钱；写库类见 PATH_RULES
   '/api/ai-factory': 'quota',

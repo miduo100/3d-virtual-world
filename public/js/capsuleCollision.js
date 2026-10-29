@@ -44,6 +44,22 @@
   var RAY_UP = 1.2;                  // 射线起点高于脚底的偏移
   var RAY_LOOKAHEAD = 4;             // 脚底向下的探测距离（覆盖帧内下落位移）
   var STEP_UP = 1.0;                 // 登步容差（与旧 AABB 逻辑一致）
+  // 【2026-10-29 可跨越矮障碍 step-over】矮于"脚底 + 该值"的侧向面不阻挡。
+  // 为什么需要：胶囊半径 0.3，角色会在离台阶踢面 0.3m 处就被判侧碰，水平移动被
+  // 整体回滚 → 贴地逻辑（getGroundHeight 支持 ≤1m 登步）永远轮不到执行，表现为
+  // "上不去台阶、又没有小跳"。豁免后角色能贴到台阶边，靠贴地吸附自动登高。
+  // 判据用"整个三角面最高点"，不能用接触点（垂直墙面与胶囊线段平行，接触点 y
+  // 恒在脚底+半径附近，用它判会随机放行穿墙 —— 历史踩坑）。
+  // 可用 window.__STEP_UP_MAX 覆盖（测试/调参），设 0 关闭豁免。
+  function resolveStepOver() {
+    var v = (typeof window !== 'undefined') ? window.__STEP_UP_MAX : undefined;
+    // 默认 1.0（用户 2026-10-29 定：高台阶也要能直接走上去）；上限受贴地吸附能力约束，
+    // getGroundHeight 只接受"脚底 + STEP_UP"以内的面，设更大既不会登更高，
+    // 反而会放行更高的墙面（可穿墙）→ 钳住。
+    if (typeof v !== 'number' || !isFinite(v) || v < 0) v = 1.0;
+    if (v > STEP_UP) v = STEP_UP;
+    return v;
+  }
   // 单模型三角面数上限：超限则跳过 BVH（走 AABB 大方盒兜底，代价＝整栋楼变成一个实心方块，走不进去）
   // 【2026-10-23】60万 → 80万：实测全库"开碰撞的上传模型"只有 1 个超 60 万
   //   （id=30021「医疗」629,233 面 / 176 mesh），它当年被这道闸门判成大方盒，
@@ -68,6 +84,7 @@
   var _v1 = new THREE.Vector3();
   var _v2 = new THREE.Vector3();
   var _v3 = new THREE.Vector3();
+  var _v4 = new THREE.Vector3();
   var _n1 = new THREE.Vector3();
   var _triPoint = new THREE.Vector3();
   var _capPoint = new THREE.Vector3();
@@ -519,7 +536,9 @@
 
     var midY = feetY + height / 2;
     var candidates = _collectNear(x, midY, z, height);
-    _lastCheck = { x: x, feetY: feetY, z: z, candidates: candidates.length, tris: 0, filtered: 0, minDist: 99 };
+    var stepOver = resolveStepOver();
+    var stepOverY = feetY + stepOver;
+    _lastCheck = { x: x, feetY: feetY, z: z, candidates: candidates.length, tris: 0, filtered: 0, steppedOver: 0, stepOver: stepOver, minDist: 99 };
     if (candidates.length === 0) return false;
 
     for (var i = 0; i < candidates.length; i++) {
@@ -558,6 +577,20 @@
           if (_n1.y > 0.5) {
             if (_lastCheck) _lastCheck.filtered++;
             return false;
+          }
+          // 可跨越矮障碍（台阶踢面/矮台沿）：整片三角面都低于"脚底+stepOver"时不阻挡，
+          // 角色因此能贴到台阶边，再由贴地吸附（getGroundHeight）自动登高。
+          // 高墙/高台沿的三角面会一直延伸到 feetY+stepOver 以上，不满足此条件 → 照旧挡。
+          if (stepOver > 0) {
+            var maxY = -Infinity;
+            for (var k = 0; k < 3; k++) {
+              _v4.copy(k === 0 ? tri.a : (k === 1 ? tri.b : tri.c)).applyMatrix4(mr.worldMatrix);
+              if (_v4.y > maxY) maxY = _v4.y;
+            }
+            if (maxY <= stepOverY) {
+              if (_lastCheck) _lastCheck.steppedOver++;
+              return false;
+            }
           }
           hit = true;
           return true; // 命中即短路
@@ -782,6 +815,7 @@
       buildQueue: buildQueue.length,
       bvhRefs: BVH_REFS.size,
       stepUp: STEP_UP,
+      stepOver: resolveStepOver(),
       rayUp: RAY_UP,
       lastCheck: _lastCheck
     };

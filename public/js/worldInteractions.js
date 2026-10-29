@@ -3,7 +3,7 @@
  * 济宁米多信息科技有限公司 版权所有 · 888@miduo100.com / 15660440944
  * ------------------------------------------------------------------
  * 能力（world.js 零改动，独立旁路模块）：
- *   ① 走近交互点（world_interactions）显示「按 E 互动」提示，E 键触发 POST /api/gameplay/interact
+ *   ① 走近交互点（world_interactions）显示「按 F 互动」提示，F 键触发 POST /api/gameplay/interact
  *      —— 服务端判定口径与 Agent 完全一致（同一 findNearby + reachable）；
  *   ② 任务面板（T 键 / 右上按钮）：领取公开任务、查看我的任务进度、兑换码入背包（方案 A 闭环）；
  *   ③ 活动面板：可加入的活动（announced/running）一键加入；
@@ -125,12 +125,12 @@
     if (!state.nearby.length) { promptEl.style.display = 'none'; state.nearest = null; return; }
     const t = state.nearby.slice().sort((a, b) => a.distance - b.distance)[0];
     state.nearest = t;
-    promptEl.innerHTML = '<b>E</b>' + esc(t.label || t.key || '互动') +
+    promptEl.innerHTML = '<b>F</b>' + esc(t.label || t.key || '互动') +
       ' <span style="opacity:.6">(' + t.distance + 'm)</span>';
     promptEl.style.display = 'block';
   }
 
-  // ── E 键交互 ─────────────────────────────────────────────────────────
+  // ── F 键交互（2026-10-29 由 E 统一到 F）──────────────────────────────
   async function doInteract() {
     const t = state.nearest;
     if (!t) return;
@@ -231,7 +231,17 @@
   }
   function onKeyDown(e) {
     if (isTyping(e)) return;
-    if (e.key === 'e' || e.key === 'E') { if (state.nearest) doInteract(); }
+    // 2026-10-29 统一到 F（与操作指南「F - 交互」一致）：
+    //   优先级 = 门（worldDoors 在 capture 阶段先处理，命中就吞掉）→ 交互点（这里）→ 视频声音（main.js）。
+    //   命中交互点时用 stopImmediatePropagation，避免同一次按键又把附近视频声音开起来。
+    if (e.key === 'f' || e.key === 'F') {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (state.nearest) {
+        e.preventDefault();
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+        doInteract();
+      }
+    }
     else if (e.key === 't' || e.key === 'T') { if (!e.ctrlKey && !e.metaKey) togglePanel(); }
   }
 

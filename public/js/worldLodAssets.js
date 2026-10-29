@@ -41,6 +41,10 @@
   /** 变体 URL 推导（与服务端 modelLod.lodPaths 同一规则） */
   function lodUrl(url, level) {
     if (!url || typeof url !== 'string') return null;
+    // 🌐 第三方在线资产（互联网免费模型库，如 polyfork.dev）：其 CDN 上没有 _mid/_lod 变体，
+    // 且单件仅 800~4000 面、单材质，不需要 LOD。这里直接返回 null → 不再对它发
+    // 必然 404 的 HEAD 探测（否则每件进世界都白烧一次请求并进入"缺失"冷却）。
+    if (/^https?:\/\/([a-z0-9-]+\.)*polyfork\.dev\//i.test(url)) return null;
     const m = /^(.*?)(?:_dec)?\.glb$/i.exec(url);
     if (!m) return null;
     return m[1] + (level === 'low' ? LOW_SUFFIX : MID_SUFFIX);
