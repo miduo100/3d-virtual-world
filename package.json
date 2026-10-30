@@ -15,6 +15,7 @@
     "check:samples": "node scripts/syncAgentSamples.js --check"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1135.0",
     "@types/three": "~0.185.4",
     "adm-zip": "^0.5.16",
     "axios": "^1.13.6",
@@ -24,8 +25,10 @@
     "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
+    "exifr": "^7.1.3",
     "express": "^4.18.2",
     "gltfpack": "^0.24.0",
+    "image-size": "^1.2.1",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.294.0",
     "multer": "^2.1.1",

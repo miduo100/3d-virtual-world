@@ -87,8 +87,9 @@ async function initializeDatabase() {
     'migrations/add_world_gen3d_jobs.sql',         // Phase 8: 3D 生成任务账本（★落表，重启后仍可轮询 —— aiSceneGenerator:2310 内存 Map 的教训）
     'migrations/add_world_missions.sql',           // Phase 7b: 长期使命（§I.6；每世界同时最多 1 个 active）
     'migrations/add_terrains.sql',                 // 地形配置（一组参数 + seed，含内置"默认地形（平地）"）
-    'migrations/add_terrain_zones.sql',            // 地形区域化（全局兜底 + N 个矩形区域，边界硬接）
-    'migrations/add_terrain_areas.sql'             // 地形 = 地块：位置(中心 X/Z)、宽深、基准高度 base_y
+    'migrations/add_terrain_zones_columns.sql',    // 地形区域化（补回丢失的 add_terrain_zones.sql 的 zone_* 兼容列）
+    'migrations/add_terrain_areas.sql',            // 地形 = 地块：位置(中心 X/Z)、宽深、基准高度 base_y
+    'migrations/add_maintenance_logs.sql'          // 系统维护执行日志（历史库靠运行时创建，新环境缺表 → 维护页 500）
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);
