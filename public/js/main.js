@@ -198,7 +198,18 @@ async function handleTeleportArrival(teleportToken) {
       const cleanUrl = window.location.origin + window.location.pathname;
       window.history.replaceState({}, document.title, cleanUrl);
 
-      await initializeGame();
+      // 兜底看门狗：initializeGame 内部若有某个 await 长期挂起（既不 resolve 也不 reject），
+      // 遮罩会一直挂着 —— 表现为「传送成功、世界已经能跑，但一直卡在加载画面」。
+      // 12 秒后强制收起遮罩，保证玩家能操作（正常情况下 finally 会先清掉它）。
+      const maskWatchdog = setTimeout(() => {
+        console.warn('[Teleport] 初始化超过 12s 未完成，强制收起加载遮罩');
+        try { UI.hideLoadingScreen(); } catch (_) {}
+      }, 12000);
+      try {
+        await initializeGame();
+      } finally {
+        clearTimeout(maskWatchdog);
+      }
 
       // 游戏初始化后显示欢迎消息
       setTimeout(() => {
@@ -796,6 +807,8 @@ async function initializeGame() {
     }, 500);
   } catch (error) {
     console.error('Game initialization failed:', error);
+    // 兜底：初始化失败时也必须把遮罩收起，否则页面会停在加载画面（看起来像卡死/反复刷新）
+    try { UI.hideLoadingScreen(); } catch (_) {}
     throw error;
   }
 }
