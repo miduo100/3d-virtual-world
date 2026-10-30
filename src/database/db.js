@@ -132,7 +132,8 @@ async function initializeDatabase() {
     'migrations/add_terrains.sql',                 // 地形配置（一组参数 + seed，含内置"默认地形（平地）"）
     'migrations/add_terrain_zones_columns.sql',    // 地形区域化（补回丢失的 add_terrain_zones.sql 的 zone_* 兼容列）
     'migrations/add_terrain_areas.sql',            // 地形 = 地块：位置(中心 X/Z)、宽深、基准高度 base_y
-    'migrations/add_maintenance_logs.sql'          // 系统维护执行日志（历史库靠运行时创建，新环境缺表 → 维护页 500）
+    'migrations/add_maintenance_logs.sql',         // 系统维护执行日志（历史库靠运行时创建，新环境缺表 → 维护页 500）
+    'migrations/fix_actor_id_cols_to_integer.sql'  // 操作人字段 uuid→integer（init.sql 与代码不一致 → 批量保存报 uuid 语法错）
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);

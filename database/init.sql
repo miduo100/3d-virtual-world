@@ -198,7 +198,7 @@ CREATE TABLE IF NOT EXISTS portals (
   cooldown_seconds INT DEFAULT 0,
   required_level INT DEFAULT 1,
   required_role VARCHAR(20) DEFAULT 'user',
-  created_by UUID REFERENCES users(id),
+  created_by INTEGER,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -454,7 +454,7 @@ CREATE TABLE IF NOT EXISTS ai_provider_configs (
   config_value TEXT,
   is_sensitive BOOLEAN DEFAULT false,
   display_order INTEGER DEFAULT 0,
-  updated_by UUID REFERENCES users(id),
+  updated_by INTEGER,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(provider_id, config_key)
 );
@@ -466,7 +466,7 @@ CREATE TABLE IF NOT EXISTS ai_provider_audit_log (
   config_key VARCHAR(200),
   old_value TEXT,
   new_value TEXT,
-  changed_by UUID REFERENCES users(id),
+  changed_by INTEGER,
   ip_address INET,
   changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -835,8 +835,8 @@ CREATE TABLE IF NOT EXISTS ui_controls (
   description TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  created_by UUID REFERENCES users(id),
-  updated_by UUID REFERENCES users(id)
+  created_by INTEGER,
+  updated_by INTEGER
 );
 
 -- =====================================================================
