@@ -73,6 +73,7 @@ async function initializeDatabase() {
   // 第2步：执行迁移脚本（独立于 init.sql，即使 init.sql 失败也会执行）
   const migrations = [
     // 'add_ui_controls_alignment.sql',  // 已执行完毕，重复执行会覆盖用户配置的 h_align/v_align
+    'migrations/add_ui_controls_landscape_cols.sql',  // 补 landscape_* 横屏列（缺列会让「UI 控件」初始化静默失败、编辑器空白）
     'gallery_init.sql',
     'migrations/add_ad_slot_portal_fields.sql',
     'add_security_questions.sql',
