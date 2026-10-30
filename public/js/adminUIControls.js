@@ -888,6 +888,10 @@ const AdminUIControls = {
    * 创建预览元素 - 优化版本，更接近实际UI
    */
   createPreviewElement(control) {
+    // 修复：本方法内 6 处使用 isMobile，但从未定义（其它方法是各自局部的同名变量）。
+    // 一旦有控件进入渲染（尤其 performance_monitor 分支）就抛 ReferenceError，
+    // 中断 loadControls 的后续渲染 → 「UI 控件」页面空白 / 列表不全。
+    const isMobile = this.previewMode === 'mobile';
     const el = document.createElement('div');
     el.className = 'ui-preview-control';
     el.dataset.controlId = control.control_id;
