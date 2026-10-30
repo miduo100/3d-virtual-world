@@ -5,6 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../database/db');
+const { parseJsonValue } = require('../utils/jsonValue');
 const { resolveSky } = require('./sky');
 // SEO 默认值同源（首页服务端注入器）：避免"后台看到一套、页面注入另一套"
 const { DEFAULT_SEO } = require('../services/seoHtmlInjector');
@@ -260,6 +261,7 @@ router.put('/world-settings', authenticateAdminToken, async (req, res) => {
       await upsert(key, value, LOD_FACE_DESC[key]);
     }
 
+    let fedSyncWarning = null;
     // 同步更新联邦系统的 world_config 表（保持两者一致）
     try {
       const FederationSystem = require('../federationSystem');
@@ -268,7 +270,7 @@ router.put('/world-settings', authenticateAdminToken, async (req, res) => {
         ['federation_config']
       );
       if (existing.rows.length > 0) {
-        const fedConfig = JSON.parse(existing.rows[0].value);
+        const fedConfig = parseJsonValue(existing.rows[0].value);
         fedConfig.worldName  = world_name;
         fedConfig.worldUrl   = worldUrl;
         fedConfig.url_source = 'manual';  // 标记：管理员手工设置，重启时 autoFixWorldUrl 跳过覆盖
@@ -303,7 +305,11 @@ router.put('/world-settings', authenticateAdminToken, async (req, res) => {
         fs.worldUrl  = worldUrl;
       }
     } catch (syncErr) {
-      console.error('同步联邦配置失败（不影响保存结果）:', syncErr.message);
+      console.error('同步联邦配置失败:', syncErr.message);
+      // 原来只打日志 → 前端只看到保存成功，而「本世界联邦信息」仍是旧地址，极难排查。
+      // 现在把失败原因回传给前端展示，避免再出现「提示成功但没生效」。
+      fedSyncWarning = `世界设置已保存到基础配置，但同步到联邦系统失败：${syncErr.message}。`
+        + '「本世界联邦信息」可能仍显示旧地址，请重启服务后再保存一次。';
     }
 
     // URL变更后：1) 广播通知所有已连接世界  2) 重新注册到中心世界
@@ -337,7 +343,7 @@ router.put('/world-settings', authenticateAdminToken, async (req, res) => {
     }
 
     // 回传清洗后的地址：前端可据此把输入框同步为规范值
-    res.json({ success: true, message: '世界设置已保存', world_url: worldUrl, federationWarning });
+    res.json({ success: true, message: '世界设置已保存', world_url: worldUrl, federationWarning, fedSyncWarning });
   } catch (error) {
     console.error('保存世界设置失败:', error);
     res.status(500).json({ error: '保存世界设置失败', details: error.message });

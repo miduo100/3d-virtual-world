@@ -10,6 +10,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const { query } = require('../database/db');
+const { parseJsonValue } = require('../utils/jsonValue');
 const {
   API_KEY_PREFIX,
   API_KEY_RANDOM_BYTES,
@@ -207,7 +208,7 @@ async function getWorldId() {
     const result = await query(`SELECT value FROM world_config WHERE key = 'federation_config'`);
     let value = null;
     if (result.rows.length > 0) {
-      const cfg = JSON.parse(result.rows[0].value);
+      const cfg = parseJsonValue(result.rows[0].value);
       value = cfg.worldId || null;
     }
     worldIdCache = { value, at: Date.now() };

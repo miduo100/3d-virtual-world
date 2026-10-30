@@ -7,6 +7,7 @@ const cors = require('cors');
 const compression = require('compression');
 const dotenv = require('dotenv');
 const path = require('path');
+const { parseJsonValue } = require('./utils/jsonValue');
 
 // 加载环境变量 - 明确指定.env路径
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
@@ -462,7 +463,28 @@ async function autoFixWorldUrl() {
     );
 
     if (result.rows.length === 0 || !result.rows[0].config_value) {
-      // 没有记录，稍后 initFederation 会生成默认值
+      // 全新部署（干净库）：system_config 里没有 world_url 时主动写入本机地址。
+      // 历史问题：此处直接 return，导致干净库部署永远拿不到本机地址，只能回落到
+      // .env 的 WORLD_URL（可能是别人的域名），联邦回拨必然失败。
+      const port = process.env.PORT || 3002;
+      const cands = new Set();
+      for (const [, addrs] of Object.entries(os.networkInterfaces())) {
+        if (!addrs) continue;
+        for (const a of addrs) {
+          if (a.family === 'IPv4' && !a.internal) cands.add(a.address);
+        }
+      }
+      const ip = cands.values().next().value || '127.0.0.1';
+      const fallbackUrl = `http://${ip}:${port}`;
+      await query(
+        `INSERT INTO system_config (config_key, config_value, description, updated_at)
+         VALUES ('world_url', $1, '世界访问URL（首次部署自动生成）', NOW())
+         ON CONFLICT (config_key) DO UPDATE SET config_value = $1, updated_at = NOW()`,
+        [fallbackUrl]
+      );
+      console.log(`\n🔧 [自检] 首次部署：已写入初始世界地址 ${fallbackUrl}`);
+      console.log('🔧 [自检] 这是本机地址（云服务器公网 IP 不在网卡上，这里是内网 IP）');
+      console.log('🔧 [自检] 请在管理后台「系统设置 → 世界URL（对外域名）」改为公网域名/公网 IP\n');
       return;
     }
 
@@ -500,7 +522,7 @@ async function autoFixWorldUrl() {
       `SELECT value FROM world_config WHERE key = 'federation_config'`
     );
     if (urlCheck.rows.length > 0) {
-      const fedCfg = JSON.parse(urlCheck.rows[0].value);
+      const fedCfg = parseJsonValue(urlCheck.rows[0].value);
       if (fedCfg.url_source === 'manual') {
         console.log(`\n🔧 [自检] world_url 由管理员手动设置为 "${currentUrl}"，跳过自动修正\n`);
         return;
@@ -534,7 +556,7 @@ async function autoFixWorldUrl() {
       `SELECT value FROM world_config WHERE key = 'federation_config'`
     );
     if (fedResult.rows.length > 0) {
-      const fedConfig = JSON.parse(fedResult.rows[0].value);
+      const fedConfig = parseJsonValue(fedResult.rows[0].value);
       if (fedConfig.worldUrl && fedConfig.worldUrl !== correctedUrl) {
         fedConfig.worldUrl = correctedUrl;
         await query(

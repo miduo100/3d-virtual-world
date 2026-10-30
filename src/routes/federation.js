@@ -12,6 +12,7 @@ const router = express.Router();
 const FederationSystem = require('../federationSystem');
 const CentralWorldConnector = require('../centralWorldConnector');
 const { query } = require('../database/db');
+const { parseJsonValue } = require('../utils/jsonValue');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const { authenticateToken } = require('../middleware/auth');
@@ -51,10 +52,28 @@ async function initFederation() {
       const { publicKey, privateKey } = FederationSystem.generateKeyPair();
       const worldId = generateWorldId();
       
+      // 世界地址优先级：后台配过的 system_config.world_url → .env WORLD_URL → 本机地址。
+      // 历史问题：只看 .env，导致后台已配好公网地址后，重建身份又被 .env 的旧域名覆盖。
+      let initialWorldUrl = '';
+      let initialWorldName = '';
+      try {
+        const sc = await query(
+          `SELECT config_key, config_value FROM system_config WHERE config_key IN ('world_url','world_name')`
+        );
+        for (const row of sc.rows) {
+          const v = String(row.config_value || '').trim();
+          if (row.config_key === 'world_url' && v) initialWorldUrl = v;
+          if (row.config_key === 'world_name' && v) initialWorldName = v;
+        }
+      } catch (_) { /* 配置表异常时不阻断首次初始化 */ }
+      if (!initialWorldUrl) initialWorldUrl = String(process.env.WORLD_URL || '').trim();
+      if (!initialWorldUrl) initialWorldUrl = `http://localhost:${process.env.PORT || 3002}`;
+      if (!initialWorldName) initialWorldName = String(process.env.WORLD_NAME || '').trim() || '虚拟世界';
+
       config = {
         worldId,
-        worldName: process.env.WORLD_NAME || '虚拟世界',
-        worldUrl: process.env.WORLD_URL || 'http://localhost:3002',
+        worldName: initialWorldName,
+        worldUrl: initialWorldUrl,
         privateKey,
         publicKey
       };
@@ -100,7 +119,7 @@ async function initFederation() {
         throw dbError;
       }
     } else {
-      config = JSON.parse(configResult.rows[0].value);
+      config = parseJsonValue(configResult.rows[0].value);
       console.log('✅ 联邦系统加载完成，世界ID:', config.worldId);
     }
 

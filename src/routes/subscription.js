@@ -11,6 +11,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
 const { query } = require('../database/db');
+const { parseJsonValue } = require('../utils/jsonValue');
 const { authenticateAdminToken } = require('../middleware/adminAuth');
 const subscriptionPricing = require('../services/subscriptionPricing');
 const { getUsdRate } = require('../services/exchangeRateService');
@@ -82,7 +83,7 @@ router.get('/status', authenticateAdminToken, async (req, res) => {
         `SELECT value, created_at FROM world_config WHERE key = 'federation_config'`
       );
       if (fedResult.rows.length > 0) {
-        const fedConfig = JSON.parse(fedResult.rows[0].value);
+        const fedConfig = parseJsonValue(fedResult.rows[0].value);
         federationWorldId = fedConfig.worldId || null;
         worldUrl = fedConfig.worldUrl || null;
         deployDate = fedResult.rows[0].created_at 
@@ -303,7 +304,7 @@ router.post('/buy', authenticateAdminToken, uploadProof.single('proof'), async (
         `SELECT value FROM world_config WHERE key = 'federation_config'`
       );
       if (fedResult.rows.length > 0) {
-        const fedConfig = JSON.parse(fedResult.rows[0].value);
+        const fedConfig = parseJsonValue(fedResult.rows[0].value);
         federationWorldId = fedConfig.worldId || null;
       }
     } catch (e) {

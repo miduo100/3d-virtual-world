@@ -5,6 +5,7 @@
  */
 
 const { query } = require('../database/db');
+const { parseJsonValue } = require('../utils/jsonValue');
 
 const CONFIG_KEY = 'federation_config';
 // 安全修复 D5②（审计 S2-02a）：默认**要求管理员审批**再建立信任。
@@ -27,7 +28,7 @@ async function getTrustSettings() {
     if (result.rows.length === 0) {
       return { ...DEFAULT_SETTINGS };
     }
-    const config = JSON.parse(result.rows[0].value);
+    const config = parseJsonValue(result.rows[0].value);
     return {
       trustRequiresApproval: config.trustRequiresApproval === true
     };
@@ -50,7 +51,7 @@ async function setTrustSettings(trustRequiresApproval) {
 
     let config;
     if (existing.rows.length > 0) {
-      config = JSON.parse(existing.rows[0].value);
+      config = parseJsonValue(existing.rows[0].value);
     } else {
       config = {};
     }

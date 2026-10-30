@@ -5,15 +5,47 @@
 const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs').promises;
-require('dotenv').config();
+// 与 src/server.js 保持同一口径：按文件位置定位 .env，而不是依赖 process.cwd()
+// （宝塔/pm2 的工作目录未必是项目根；原来不带 path 会让 db.js 读不到 .env，
+//  进而被迫使用默认值或面板注入的环境变量，排查时极易误判为"权限问题"）
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
-const pool = new Pool({
+// 统一清洗配置值：Windows 记事本保存的 .env 常带 \r（CRLF），或在 = 两侧留空格，
+// 会让库名/用户名/密码多出不可见字符，最终表现为「角色不存在 / 库不存在 / 密码错误」
+// 这类极具误导性的报错（部署时最容易误判成权限问题）。
+for (const _k of ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'PORT']) {
+  if (typeof process.env[_k] === 'string') process.env[_k] = process.env[_k].trim();
+}
+
+const DB_CFG = {
   host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT || 5432,
   database: process.env.DB_NAME || 'virtual_world',
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || 'password',
-});
+};
+
+/**
+ * 把 PostgreSQL 原始错误码翻译成可执行的中文诊断。
+ * 部署最常见的四类：库名大小写、角色不存在、密码错、连不上。
+ */
+function diagnoseDbError(err) {
+  const code = err && err.code;
+  const map = {
+    '3D000': `数据库 "${DB_CFG.database}" 不存在。请确认已建库，且库名大小写完全一致`
+      + `（PostgreSQL 建库不加引号会转小写，例如面板显示 Miduo200、实际库名是 miduo200）。`,
+    '28000': `角色（数据库用户名）"${DB_CFG.user}" 不存在。请创建该用户或改用 postgres。`,
+    '28P01': `用户 "${DB_CFG.user}" 密码错误。请让 .env 的 DB_PASSWORD 与 PostgreSQL 中该用户密码一致。`,
+    'ECONNREFUSED': `连不上 PostgreSQL（${DB_CFG.host}:${DB_CFG.port}）。请确认服务已启动、端口正确、未被防火墙拦截。`,
+    'ENOTFOUND': `解析不到数据库主机 "${DB_CFG.host}"。建议 DB_HOST 写 127.0.0.1（写 localhost 可能走 IPv6 被拒）。`,
+  };
+  return map[code] || null;
+}
+
+const pool = new Pool(DB_CFG);
+
+// 启动时打印实际生效的连接目标（密码只报长度）：部署排障第一现场
+console.log(`[DB] ${DB_CFG.user}@${DB_CFG.host}:${DB_CFG.port}/${DB_CFG.database} (pwdLen=${String(DB_CFG.password).length})`);
 
 pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
@@ -30,7 +62,11 @@ async function initializeDatabase() {
     await pool.query(initSQL);
     console.log('Database initialized from database/init.sql');
   } catch (error) {
-    console.error('Database initialization error:', error);
+    const hint = diagnoseDbError(error);
+    console.error('Database initialization error:', hint || error);
+    if (hint) {
+      console.error(`[DB] 当前目标：${DB_CFG.user}@${DB_CFG.host}:${DB_CFG.port}/${DB_CFG.database}`);
+    }
     // 不抛出错误，让服务器继续运行
   }
 
