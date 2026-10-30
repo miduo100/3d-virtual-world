@@ -44,6 +44,11 @@ function diagnoseDbError(err) {
 
 const pool = new Pool(DB_CFG);
 
+// 初始化阶段的问题清单：原来各类失败只 console 一行，部署时几乎发现不了
+// （典型：缺列导致 ensureDefaultControls 全失败 → UI 控件页空白，没有任何可见报错）。
+// 由 server.js 在启动末尾统一汇总打印，登录后也可通过模块读取。
+const dbInitIssues = [];
+
 // 启动时打印实际生效的连接目标（密码只报长度）：部署排障第一现场
 console.log(`[DB] ${DB_CFG.user}@${DB_CFG.host}:${DB_CFG.port}/${DB_CFG.database} (pwdLen=${String(DB_CFG.password).length})`);
 
@@ -62,6 +67,7 @@ async function initializeDatabase() {
     await pool.query(initSQL);
     console.log('Database initialized from database/init.sql');
   } catch (error) {
+    dbInitIssues.push({ step: 'database/init.sql', error: error.message });
     const hint = diagnoseDbError(error);
     console.error('Database initialization error:', hint || error);
     if (hint) {
@@ -136,6 +142,9 @@ async function initializeDatabase() {
       console.log('迁移脚本已执行:', migFile);
     } catch (migErr) {
       console.log('迁移脚本跳过（可能已执行或文件不存在）:', migFile, migErr.message);
+      if (migErr && migErr.code !== 'ENOENT') {
+        dbInitIssues.push({ step: 'migration:' + migFile, error: migErr.message });
+      }
     }
   }
 }
@@ -154,4 +163,5 @@ module.exports = {
   query,
   pool,
   initializeDatabase,
+  dbInitIssues,
 };

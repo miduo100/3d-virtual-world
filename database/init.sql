@@ -823,6 +823,10 @@ CREATE TABLE IF NOT EXISTS ui_controls (
   mobile_position_y VARCHAR(20),
   mobile_width VARCHAR(20),
   mobile_height VARCHAR(20),
+  landscape_position_x VARCHAR(20),
+  landscape_position_y VARCHAR(20),
+  landscape_width VARCHAR(20),
+  landscape_height VARCHAR(20),
   style_config JSONB DEFAULT '{}',
   is_visible BOOLEAN DEFAULT true,
   is_enabled BOOLEAN DEFAULT true,
@@ -846,6 +850,11 @@ ALTER TABLE geometry_buildings ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEF
 ALTER TABLE geometry_buildings ADD COLUMN IF NOT EXISTS auto_tags JSONB DEFAULT '{}';
 ALTER TABLE uploaded_models ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'uploaded';
 ALTER TABLE uploaded_models ADD COLUMN IF NOT EXISTS auto_tags JSONB DEFAULT '{}';
+-- UI 控件横屏定位字段（旧表补齐；缺失会让 ensureDefaultControls 的 20 列 INSERT 报 42703，且错误被吞）
+ALTER TABLE ui_controls ADD COLUMN IF NOT EXISTS landscape_position_x VARCHAR(20);
+ALTER TABLE ui_controls ADD COLUMN IF NOT EXISTS landscape_position_y VARCHAR(20);
+ALTER TABLE ui_controls ADD COLUMN IF NOT EXISTS landscape_width VARCHAR(20);
+ALTER TABLE ui_controls ADD COLUMN IF NOT EXISTS landscape_height VARCHAR(20);
 ALTER TABLE federation_templates ADD COLUMN IF NOT EXISTS category VARCHAR(50);
 ALTER TABLE model_tags ADD COLUMN IF NOT EXISTS category VARCHAR(50) NOT NULL DEFAULT 'general';
 ALTER TABLE ui_controls ADD COLUMN IF NOT EXISTS category VARCHAR(50) NOT NULL DEFAULT 'general';

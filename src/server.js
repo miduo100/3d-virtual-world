@@ -109,7 +109,7 @@ app.use(express.static(path.join(__dirname, '../public'), staticCacheOptions));
 app.use('/i18n', express.static(path.join(__dirname, '../public/i18n'), staticCacheOptions));
 
 // Database initialization
-const { initializeDatabase, query } = require('./database/db');
+const { initializeDatabase, query, dbInitIssues } = require('./database/db');
 
 // Routes
 const authRoutes = require('./routes/auth');
@@ -574,14 +574,39 @@ async function autoFixWorldUrl() {
 
 async function start() {
   try {
-    // 尝试初始化数据库，但失败时不阻止服务器启动
+    // 初始化分三步独立执行：任一步失败都不再阻断后面两步
+    // （原先是同一个 try，第一步抛错后 ensureDefaultControls 被静默跳过，
+    //   表现为「UI 控件页空白」这类看不见报错的故障）
     try {
       await initializeDatabase();
       console.log('Database initialized');
-      await ensureDefaultControls();
-      await autoFixWorldUrl();  // 自检修正 world_url（导入他人数据库后自动修正）
     } catch (dbError) {
-      console.warn('Database initialization failed, continuing without database:', dbError.message);
+      dbInitIssues.push({ step: 'initializeDatabase', error: dbError.message });
+      console.error('❌ 数据库初始化失败（继续启动）:', dbError.message);
+    }
+
+    try {
+      await ensureDefaultControls();
+    } catch (e) {
+      dbInitIssues.push({ step: 'ensureDefaultControls（默认 UI 控件）', error: e.message });
+      console.error('❌ 默认 UI 控件初始化失败（「UI 控件」页会缺数据）:', e.message);
+    }
+
+    try {
+      await autoFixWorldUrl();  // 自检修正 world_url（导入他人数据库后自动修正）
+    } catch (e) {
+      console.warn('[自检] world_url 自检失败（不影响启动）:', e.message);
+    }
+
+    // 启动自检汇总：一次性把「哪些初始化没成功」摆到日志最显眼处
+    if (dbInitIssues.length) {
+      console.error('');
+      console.error('========== 启动自检：' + dbInitIssues.length + ' 项未通过（对应功能可能缺失）==========');
+      for (const it of dbInitIssues) console.error('  ❌ ' + it.step + ' → ' + it.error);
+      console.error('==========================================================');
+      console.error('');
+    } else {
+      console.log('✅ 启动自检：数据库建表与默认数据全部正常');
     }
 
     const PORT = process.env.PORT || 3000;
