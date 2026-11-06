@@ -242,10 +242,14 @@ async function solve(spec, ctx) {
       return fail('SLOT_PART_UNDEFINED', 'roof.mode=whole 但没有 roof 件', '模板 parts.roof 必须指向整块屋顶件');
     }
     const dropY = Number(RF.dropY) || 0;
+    // ★ originOffsetY：模型原点到底面的距离（模板按 GLB 实测填，缺省 0 = 原点在底面）
+    //   踩过的坑（2026-11-06 E2E 截图实证）：Roof_RoundTiles_6x10 的原点在屋檐**上方** 0.782m，
+    //   按「原点在底面」放 y=H-dropY 会让整片屋顶陷进墙里 0.93m，墙只剩 2.2m 露在外面。
+    const rOff = Number(RF.originOffsetY) || 0;
     push({
       group: 'roof', slot: 'roof_whole', key: rw.key, path: rw.path,
       edge: null, row: 0, seq: 0, dir: 0,
-      x: 0, y: rules.r3(H - dropY), z: 0, ry: Number(RF.ry) || 0,
+      x: 0, y: rules.r3(H - dropY + rOff), z: 0, ry: Number(RF.ry) || 0,
       libW: rw.w, useW: rw.w,
     });
     const eave = rules.eaveOf(spec, rw);
@@ -290,9 +294,16 @@ async function solve(spec, ctx) {
     if (!(sy > 1) && spec.gable.stretchToRidge && spec.parts.roof) {
       const rp = PART('roof');
       const dropY = Number((spec.roof && spec.roof.dropY) || 0);
+      // 屋脊高度 = 屋檐高度 + 屋顶 bbox 高（与 roof 段的 originOffsetY 无关：
+      // 原点抬高 rOff、可见高度少 rOff，两者抵消，故这里沿用 bbox 高即对）
       const roofTop = (H - dropY) + (rp && rp.h ? rp.h : 0);
       const need = roofTop - (Number(spec.gable.y) || H);
-      if (need > 0 && gb.h > 0) sy = rules.r3(need / gb.h);
+      // ★ 分母要用「原点到底边之上还剩多少可见高度」：山墙件原点也在底边上方
+      //   （Roof_Front_Brick6 = 0.132m）。用整 bbox 高（4.516）会少算 3%，
+      //   实测拉伸 1.223 时山墙尖冲出屋脊 0.63m —— 正确值是 1.2597。
+      const gOff = Number(spec.gable.originOffsetY) || 0;
+      const gableVisibleH = (gb.h || 0) - gOff;
+      if (need > 0 && gableVisibleH > 0) sy = rules.r3(need / gableVisibleH);
     }
     const gy = rules.r3(Number(spec.gable.y) || H);
     const zOff = Number(spec.gable.zOffset) || 0.5;

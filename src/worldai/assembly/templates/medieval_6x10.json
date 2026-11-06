@@ -24,31 +24,57 @@
     "gable": "Roof_Front_Brick6"
   },
   "layout": {
-    "south": ["window", "door", "window"],
-    "east": ["wall", "window", "wall", "wall", "wall"],
-    "north": ["wall", "window", "wall"],
-    "west": ["wall", "wall", "window", "wall", "wall"]
+    "south": [
+      "window",
+      "door",
+      "window"
+    ],
+    "east": [
+      "wall",
+      "window",
+      "wall",
+      "wall",
+      "wall"
+    ],
+    "north": [
+      "wall",
+      "window",
+      "wall"
+    ],
+    "west": [
+      "wall",
+      "wall",
+      "window",
+      "wall",
+      "wall"
+    ]
   },
   "roof": {
     "mode": "whole",
     "dropY": 0.15,
-    "ry": 0
+    "ry": 0,
+    "originOffsetY": 0.782
   },
   "gable": {
     "y": 3.12,
     "zOffset": 0.55,
-    "stretch": 1.223
+    "originOffsetY": 0.132,
+    "stretchToRidge": true
   },
   "metrics": {
     "seamMax": 0,
-    "eave": { "x": 0.922, "z": 0.723 },
+    "eave": {
+      "x": 0.922,
+      "z": 0.723
+    },
     "gableVsRidge": 0.001,
     "pieceCount": 34,
     "verifiedAt": "2026-11-06"
   },
   "notes": [
     "屋顶件比例固定（X 8.25 × Z 11.85），房子 6×10 是为它倒推的尺寸",
-    "山墙件坡高 4.52m 与屋顶坡高 5.67m 不配套，stretch 1.223 是垂直拉伸填满屋脊的实测值",
+    "屋顶件原点在屋檐上方 0.782m、山墙件原点在底边上方 0.132m（GLB 顶点实测）—— 模板显式记下，别按「原点在底面」算",
+    "山墙坡高 4.38m 与屋顶坡高 5.67m 不配套，用 stretchToRidge 现算垂直拉伸（≈1.2597）填满屋脊",
     "墙/门墙/窗墙三者尺寸完全相同（2.00×3.12×0.41），零误差互换"
   ]
 }

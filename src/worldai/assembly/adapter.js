@@ -98,10 +98,21 @@ function anchorOf(region) {
 
 /**
  * 求解器局部坐标 → 可落库的 world_objects 参数（纯函数，不查库）。
- * @param {Array} placements solver 返回的 parts
+ *
+ * ★ 旋转单位换算（2026-11-06 灰度 E2E 实测发现的真 bug）：
+ *   `world_objects.rotation_y` 存的是**弧度**——客户端 world.js 直接 `model.rotation.set(...)`，
+ *   后台 adminBuildings.js 显示时才 `×180/π`。人工摆的物件也是这样存的（0.8457、1.1781…）。
+ *   而求解器内部按**度数**算边方向（0/90/180/270）。原先直接透传的后果：
+ *   `90` 被当成 90 弧度 ≈ 117°，`180` ≈ 233°，`270` ≈ 350° —— 一栋楼只有 ry=0 的那面墙
+ *   是对的，其余墙板全部歪着站、北山墙穿出屋顶（E2E 截图实证）。
+ *   换算只在这里做一次，求解器保持"度数"这一人类可读口径。
+ *
+ * @param {Array} placements solver 返回的 parts（ry 为度数）
  * @param {object} opts { region, anchor?:{x,z} }
- * @returns {Array<{partKey,x,z,level,ry,scaleY,group,slot,edge,row,seq}>}
+ * @returns {Array<{partKey,x,z,level,ry,scaleY,group,slot,edge,row,seq}>} ry 为弧度
  */
+const DEG2RAD = Math.PI / 180;
+
 function placementsToWorldObjects(placements, opts) {
   const o = opts || {};
   const a = o.anchor || anchorOf(o.region);
@@ -111,7 +122,7 @@ function placementsToWorldObjects(placements, opts) {
     level: num(p.y, 0),
     x: num(a.x, 0) + num(p.x, 0),
     z: num(a.z, 0) + num(p.z, 0),
-    ry: num(p.ry, 0),
+    ry: num(p.ry, 0) * DEG2RAD,   // ★ 度数 → 弧度（见上方说明）
     scaleY: num(p.scaleY, 1),
     group: p.group,
     slot: p.slot,
