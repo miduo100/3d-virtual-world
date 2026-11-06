@@ -23,11 +23,20 @@ const gridsnap = require('../regions/gridsnap');
 
 /** 3 个动词的参数白名单（P35-5 的落点） */
 const PARAM_SCHEMA = {
-  place_part: ['partKey', 'modelId', 'x', 'z', 'ry', 'level', 'name', 'type'],
+  // ★ scale_*：M1-4 灰度需要（山墙填屋脊要垂直拉伸 1.223，见 assembly/runnerIntegration）。
+  //   不能改成"先 place 再 move_object 补 scale"——move_object 会用米级 gridsnap 重吸附 x/z，
+  //   把求解器算出的 0.05 米级坐标吸到米级（2m 墙件 x=-3 → -4），整圈错位。
+  //   数值护栏见 verbPlacePart 的 SCALE_OUT_OF_RANGE。
+  place_part: ['partKey', 'modelId', 'x', 'z', 'ry', 'level', 'name', 'type',
+    'scale_x', 'scale_y', 'scale_z'],
   move_object: ['id', 'x', 'z', 'ry', 'scale_x', 'scale_y', 'scale_z'],
   delete_object: ['id'],
 };
 const VERBS = Object.keys(PARAM_SCHEMA);
+
+/** 缩放允许范围：只放行"微调"量级（山墙 1.223 / 找平 0.98 这类），防止一件被拉成 50 倍糊掉整栋 */
+const SCALE_MIN = 0.1;
+const SCALE_MAX = 5;
 
 function reject(code, reason, extra) {
   return Object.assign({ ok: false, code, reason }, extra || {});
@@ -46,32 +55,61 @@ function validateParams(verb, params) {
   }
   return { ok: true };
 }
-/** 解析零件：partKey → 零件行 + 可渲染的 model_path（只认active 库，pending_review 对 AI 隐身） */
-async function resolvePart(params) {
+/**
+ * 解析零件：partKey → 零件行 + 可渲染的 model_path（只认 active 库，pending_review 对 AI 隐身）
+ *
+ * ★ ctx.packKey（可选，M1-4 新增）：套件锁定。
+ *   求解器按模板 `pack` 取尺寸（adapter.resolvePartsFromDb），落库时若再按"全库随便找一件"
+ *   取模型，就会出现「按 A 套件算、用 B 套件的模型建」——同名件尺寸一旦不同，
+ *   建筑会在接缝处肉眼可见地裂开，且两者都"看起来正常"，极难排查。
+ *   走 ctx 而不是 params：**不开新参数**，白名单（P35-5）不受影响；
+ *   legacy 调用方不传 → 不过滤，行为不变。
+ *
+ * ★ ORDER BY 固定：原来是 `LIMIT 1` 无排序，取哪一行取决于执行计划（物理上通常是最小 id）。
+ *   各库 priority 目前全是 100，故 `priority DESC, i.id` 与原先"取最小 id"结果一致，
+ *   但从此是**确定行为**，不再随 vacuum / 计划变化而漂移。
+ */
+async function resolvePart(params, ctx) {
+  const pack = ctx && ctx.packKey ? String(ctx.packKey) : null;
   if (params.partKey) {
     const r = await query(
-      `SELECT i.id, i.part_key, i.part_role, i.grid_w, i.grid_h, i.grid_d, i.metadata,
-              l.id AS library_id, l.style_family, l.status AS library_status,
-              u.path AS model_path, u.display_name AS model_name
-         FROM part_library_items i
-         JOIN part_libraries l ON l.id = i.library_id
-         JOIN uploaded_models u ON u.id = i.model_id
-        WHERE i.part_key = $1 AND l.status = 'active' AND (l.deleted_at IS NULL)
-        LIMIT 1`,
-      [String(params.partKey)]
+      pack
+        ? `SELECT i.id, i.part_key, i.part_role, i.grid_w, i.grid_h, i.grid_d, i.metadata,
+                  l.id AS library_id, l.style_family, l.pack_key, l.status AS library_status,
+                  u.path AS model_path, u.display_name AS model_name
+             FROM part_library_items i
+             JOIN part_libraries l ON l.id = i.library_id
+             JOIN uploaded_models u ON u.id = i.model_id
+            WHERE i.part_key = $1 AND l.pack_key = $2 AND l.status = 'active' AND (l.deleted_at IS NULL)
+            ORDER BY l.priority DESC NULLS LAST, i.id
+            LIMIT 1`
+        : `SELECT i.id, i.part_key, i.part_role, i.grid_w, i.grid_h, i.grid_d, i.metadata,
+                  l.id AS library_id, l.style_family, l.pack_key, l.status AS library_status,
+                  u.path AS model_path, u.display_name AS model_name
+             FROM part_library_items i
+             JOIN part_libraries l ON l.id = i.library_id
+             JOIN uploaded_models u ON u.id = i.model_id
+            WHERE i.part_key = $1 AND l.status = 'active' AND (l.deleted_at IS NULL)
+            ORDER BY l.priority DESC NULLS LAST, i.id
+            LIMIT 1`,
+      pack ? [String(params.partKey), pack] : [String(params.partKey)]
     );
-    if (!r.rows.length) return reject('PART_NOT_FOUND', '零件库中没有可用的 partKey=' + params.partKey + '（pending_review 的库对 AI 隐身）');
+    if (!r.rows.length) {
+      return reject('PART_NOT_FOUND', '零件库中没有可用的 partKey=' + params.partKey
+        + (pack ? '（套件 ' + pack + ' 内）' : '') + '（pending_review 的库对 AI 隐身）');
+    }
     return { ok: true, part: r.rows[0] };
   }
   if (params.modelId) {
     const r = await query(
       `SELECT i.id, i.part_key, i.part_role, i.grid_w, i.grid_h, i.grid_d, i.metadata,
-              l.id AS library_id, l.style_family, l.status AS library_status,
+              l.id AS library_id, l.style_family, l.pack_key, l.status AS library_status,
               u.path AS model_path, u.display_name AS model_name
          FROM part_library_items i
          JOIN part_libraries l ON l.id = i.library_id
          JOIN uploaded_models u ON u.id = i.model_id
         WHERE i.model_id = $1 AND l.status = 'active' AND (l.deleted_at IS NULL)
+        ORDER BY l.priority DESC NULLS LAST, i.id
         LIMIT 1`,
       [Number(params.modelId)]
     );
@@ -83,7 +121,23 @@ async function resolvePart(params) {
 
 // ── 动词 1：place_part（low）─────────────────────────────────────────
 async function verbPlacePart(params, ctx) {
-  const p = await resolvePart(params);
+  // ★ 缩放护栏先行（不查库、不吸附）：AI 可以微调，但不能把一件拉成 50 倍糊掉整栋。
+  //   负数/0 会让 footprint 归零 → 碰撞检测失效，所以必须在这里拦，不能靠下游。
+  const scale = { x: 1, y: 1, z: 1 };
+  for (const axis of ['x', 'y', 'z']) {
+    const raw = params['scale_' + axis];
+    if (raw === undefined) continue;
+    const n = Number(raw);
+    if (!isFinite(n) || n < SCALE_MIN || n > SCALE_MAX) {
+      return reject('SCALE_OUT_OF_RANGE',
+        'scale_' + axis + '=' + raw + ' 超出允许范围 ' + SCALE_MIN + '~' + SCALE_MAX +
+        '（山墙填屋脊这类只需 1.2 左右的微拉伸；0 或负数会让碰撞检测失效）',
+        { axis, value: raw, min: SCALE_MIN, max: SCALE_MAX });
+    }
+    scale[axis] = n;
+  }
+
+  const p = await resolvePart(params, ctx);
   if (!p.ok) return p;
   const part = p.part;
   const region = ctx.region || {};
@@ -103,7 +157,12 @@ async function verbPlacePart(params, ctx) {
     : (hint > 0 ? [hint, hint, hint] : (gridsnap.unitOfPart(part) || gridsnap.unitOf(region.gridsnap)));
   const snapped = gridsnap.snap({ x: params.x, z: params.z, y: 0 }, unit, params.level);
 
-  const footprint = { w: Number(part.grid_w) || boundsGuard.DEFAULT_FOOTPRINT.w, d: Number(part.grid_d) || boundsGuard.DEFAULT_FOOTPRINT.d };
+  // ★ footprint 按缩放后的实际占地算：拉伸过的件比原尺寸占地方，用原尺寸判碰撞会让它压到邻居。
+  //   （ry 会交换 w/d，这是既有行为，本次不动——solver 的件按对角线对称布局，不做这件事的是老路径。）
+  const footprint = {
+    w: (Number(part.grid_w) || boundsGuard.DEFAULT_FOOTPRINT.w) * Math.abs(scale.x),
+    d: (Number(part.grid_d) || boundsGuard.DEFAULT_FOOTPRINT.d) * Math.abs(scale.z),
+  };
   const obstacles = await boundsGuard.loadObstacles(bounds, ctx);
 
   // ★ 幂等先行（判据 P35-11b）：重跑同一委托的同一条指令必须复用上次那件，
@@ -136,6 +195,8 @@ async function verbPlacePart(params, ctx) {
     model_path: part.model_path,
     position_x: spot.x, position_y: snapped.y, position_z: spot.z,
     rotation_y: Number(params.ry) || 0,
+    // ★ 不传时 scale=1，与 aiRow 的默认值一致 → 老路径落库行逐字段不变
+    scale_x: scale.x, scale_y: scale.y, scale_z: scale.z,
     has_collision: part.collidable !== false,
   }, ctx);
 
@@ -143,6 +204,8 @@ async function verbPlacePart(params, ctx) {
     ok: row.ok, id: row.id, code: row.code, reason: row.reason,
     partKey: part.part_key, partRole: part.part_role, modelPath: part.model_path,
     x: spot.x, y: snapped.y, z: spot.z,
+    scale: { x: scale.x, y: scale.y, z: scale.z },
+    packKey: part.pack_key || null,
     requested: { x: snapped.x, z: snapped.z },
     relocated: !first.ok,
     skippedByCollision: !first.ok,

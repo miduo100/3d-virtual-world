@@ -17,9 +17,11 @@
  *   x/z 细格（0.05m 能整除 2m / 1m / 0.5m 所有实测模数），y 仍按 1m 格 → level 语义=米。
  *   同理传 ignoreSelfBatch：同一栋楼的件本来就是贴合设计的，互判碰撞会被「换位」挪歪。
  *
- * ★ 本轮已知能力缺口（不是 bug，是参数不存在）：
- *   place_part 的参数白名单里没有 scale_*，山墙的垂直拉伸（scaleY≠1）落不了库。
- *   本轮硬边界不允许改 missionTools.js，故按「未拉伸」落地，并在 stats.scalePending 与 notes 里写明。
+ * ★ 山墙拉伸（2026-11-06 补齐）：missionTools 的 place_part 已支持 scale_x/y/z（带 0.1~5 护栏），
+ *   山墙 gable.stretch=1.223 现在**能真落库**。若将来工具层又收窄白名单（UNKNOWN_PARAM），
+ *   本文件会退回未拉伸并累加 stats.scalePending，不丢件、不静默。
+ * ★ 套件锁定：ctx.packKey = spec.pack，保证「算尺寸的套件」和「取模型的套件」是同一套
+ *   （此前 resolvePart 不看 pack_key，同名件在两套件尺寸不同时会裂开）。
  */
 'use strict';
 
@@ -166,11 +168,11 @@ async function runInner(mission, region, opts, progress) {
 
   // ── 4) 局部坐标 → 世界坐标 ────────────────────────────────────────
   const objects = adapter.placementsToWorldObjects(solved.parts, { region });
-  const scalePending = objects.filter((p) => Math.abs(p.scaleY - 1) > 1e-9).length;
-  if (scalePending) {
-    notes.push(`有 ${scalePending} 件需要垂直拉伸（scale_y≠1，山墙填屋脊）：place_part 没有 scale 参数，`
-      + '本轮按未拉伸落地 —— 已记入 stats.scalePending，需在 missionTools 增加 scale 白名单后补写');
-  }
+  // 需要垂直拉伸的件数（山墙填屋脊）。★ 这只是"需要"，不表示"落不了库"——
+  //   missionTools 已支持 place_part 的 scale_*，若某天工具层又收窄了白名单，
+  //   落位循环会退回未拉伸并累加 stats.scalePending（不丢件）。
+  const stretchNeeded = objects.filter((p) => Math.abs(p.scaleY - 1) > 1e-9).length;
+  let scalePending = 0;
   notes.push(...solved.notes);
 
   // 预演：只算不写（与 legacy 的 dryRun 语义一致：不落库、不改状态）
@@ -178,7 +180,9 @@ async function runInner(mission, region, opts, progress) {
     return {
       ok: true, status: 'planned', dryRun: true, mode: 'solver',
       placements: objects, notes,
-      stats: Object.assign(adapter.assemblyStatsOf(solved, { plannedParts: objects.length, scalePending }), { dryRun: true }),
+      stats: Object.assign(adapter.assemblyStatsOf(solved, {
+        plannedParts: objects.length, stretchNeeded, scalePending: 0,
+      }), { dryRun: true }),
     };
   }
 
@@ -195,6 +199,7 @@ async function runInner(mission, region, opts, progress) {
     protectedSpawnRadius: 0,
     snapUnit: SNAP_UNIT,      // ★ 保接缝，见文件头
     ignoreSelfBatch: true,    // ★ 同栋设计内贴合，不互判碰撞
+    packKey: spec.pack || null, // ★ 落库按同一套件取件（否则「按 A 套件算尺寸、用 B 套件建模型」）
   };
 
   // ★ 直接用外层 progress 对象计数：中途抛异常时，兜底还能报出已经落了几个
@@ -203,10 +208,19 @@ async function runInner(mission, region, opts, progress) {
   stats.notes = notes;
   stats.mode = 'solver';
   const deniedSamples = [];
+  let scaleDropped = 0;
   for (const p of objects) {
+    const base = { partKey: p.partKey, x: p.x, z: p.z, ry: p.ry, level: p.level };
+    const stretched = Math.abs(p.scaleY - 1) > 1e-9;
     let r;
     try {
-      r = await tools.execute('place_part', { partKey: p.partKey, x: p.x, z: p.z, ry: p.ry, level: p.level }, ctx);
+      r = await tools.execute('place_part',
+        stretched ? Object.assign({ scale_y: p.scaleY }, base) : base, ctx);
+      // 兼容：若工具层还是老白名单（没有 scale_*），不丢件——退回未拉伸并记账
+      if (stretched && r && !r.ok && r.code === 'UNKNOWN_PARAM') {
+        r = await tools.execute('place_part', base, ctx);
+        if (r && r.ok) scaleDropped++;
+      }
     } catch (e) {
       stats.failed++;
       continue;
@@ -226,6 +240,14 @@ async function runInner(mission, region, opts, progress) {
     }
   }
   if (deniedSamples.length) notes.push('落位异常样本（前 5 条）：' + JSON.stringify(deniedSamples));
+  scalePending = scaleDropped;
+  if (stretchNeeded && !scaleDropped) {
+    notes.push(`山墙垂直拉伸已落库：${stretchNeeded} 件带 scale_y（1.223 填屋脊）`);
+  }
+  if (scaleDropped) {
+    notes.push(`★ 有 ${stretchNeeded} 件需要垂直拉伸，但工具层拒绝了 scale_* 参数（UNKNOWN_PARAM）`
+      + `，已退回未拉伸落地 ${scaleDropped} 件 —— 记入 stats.scalePending，屋顶山墙会有缺口`);
+  }
 
   // ── 6) 记账：库里实际有多少本批对象（防「以为建了其实没建」）────────────
   if (typeof o.listObjects === 'function') {
