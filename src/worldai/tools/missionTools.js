@@ -38,6 +38,28 @@ const VERBS = Object.keys(PARAM_SCHEMA);
 const SCALE_MIN = 0.1;
 const SCALE_MAX = 5;
 
+/**
+ * ★ 结构性角色：无论库里标什么，一律可碰撞（2026-11-06）
+ *
+ * 为什么要这层护栏：`part_library_items.collidable` 是导入各套件时按件标的，
+ * 但 window 角色有 158 件标了 false —— 因为多数套件的窗是"嵌进墙洞的玻璃片"、
+ * 本身不该挡人。可本项目的模块化模板里，`Wall_Plaster_Window_Wide_Round` 这类
+ * 是**整片替换墙板**的窗墙件，落在墙位上占满整个开间。
+ * 照抄 false 的结果就是：AI 盖的房子在 5 处窗户位置能整片穿出去 ——
+ * 正是"穿墙"。墙/门/地板/楼梯同理，一旦可穿过，建筑就不再是"enterable"。
+ *
+ * 所以：结构角色由引擎兜底为 true；road / awning / cornice / roof / trim / ground
+ * 这些装饰角色才尊重库标记（路面贴片、头顶檐口本来就不该拦人）。
+ */
+const STRUCTURAL_ROLES = new Set(['wall', 'window', 'door', 'floor', 'stairs', 'column', 'foundation', 'base']);
+
+/** 零件的最终碰撞开关：结构角色恒 true，其余按库标记（undefined → true，保持老行为） */
+function collideOf(part) {
+  const role = String((part && part.part_role) || '').toLowerCase();
+  if (STRUCTURAL_ROLES.has(role)) return true;
+  return part.collidable !== false;
+}
+
 function reject(code, reason, extra) {
   return Object.assign({ ok: false, code, reason }, extra || {});
 }
@@ -68,6 +90,14 @@ function validateParams(verb, params) {
  * ★ ORDER BY 固定：原来是 `LIMIT 1` 无排序，取哪一行取决于执行计划（物理上通常是最小 id）。
  *   各库 priority 目前全是 100，故 `priority DESC, i.id` 与原先"取最小 id"结果一致，
  *   但从此是**确定行为**，不再随 vacuum / 计划变化而漂移。
+ *
+ * ★ collidable 透传（2026-11-06）：`part_library_items.collidable` 是 NOT NULL DEFAULT true，
+ *   库作者逐件手工标过（road/awning/cornice/ground 标 false，wall/floor/door/stairs 全 true）。
+ *   但原 SELECT 没取这一列 → `part.collidable` 恒为 undefined → `undefined !== false` 恒为 true，
+ *   于是 981 件本该无碰撞的路面、檐口、线脚全被当成实心障碍。
+ *   补上这一列即恢复库作者意图；但**不是无脑照抄**——结构角色（墙/窗/门/地板/楼梯）
+ *   由 collideOf() 兜底为 true，否则窗墙件（库里 158 件标 false）会让 AI 的房子
+ *   在窗户位置整片可穿过。判据见 accept_m1_5_collidable.js。
  */
 async function resolvePart(params, ctx) {
   const pack = ctx && ctx.packKey ? String(ctx.packKey) : null;
@@ -75,6 +105,7 @@ async function resolvePart(params, ctx) {
     const r = await query(
       pack
         ? `SELECT i.id, i.part_key, i.part_role, i.grid_w, i.grid_h, i.grid_d, i.metadata,
+                  i.collidable,
                   l.id AS library_id, l.style_family, l.pack_key, l.status AS library_status,
                   u.path AS model_path, u.display_name AS model_name
              FROM part_library_items i
@@ -84,6 +115,7 @@ async function resolvePart(params, ctx) {
             ORDER BY l.priority DESC NULLS LAST, i.id
             LIMIT 1`
         : `SELECT i.id, i.part_key, i.part_role, i.grid_w, i.grid_h, i.grid_d, i.metadata,
+                  i.collidable,
                   l.id AS library_id, l.style_family, l.pack_key, l.status AS library_status,
                   u.path AS model_path, u.display_name AS model_name
              FROM part_library_items i
@@ -103,6 +135,7 @@ async function resolvePart(params, ctx) {
   if (params.modelId) {
     const r = await query(
       `SELECT i.id, i.part_key, i.part_role, i.grid_w, i.grid_h, i.grid_d, i.metadata,
+              i.collidable,
               l.id AS library_id, l.style_family, l.pack_key, l.status AS library_status,
               u.path AS model_path, u.display_name AS model_name
          FROM part_library_items i
@@ -197,7 +230,7 @@ async function verbPlacePart(params, ctx) {
     rotation_y: Number(params.ry) || 0,
     // ★ 不传时 scale=1，与 aiRow 的默认值一致 → 老路径落库行逐字段不变
     scale_x: scale.x, scale_y: scale.y, scale_z: scale.z,
-    has_collision: part.collidable !== false,
+    has_collision: collideOf(part),
   }, ctx);
 
   return {
@@ -205,6 +238,7 @@ async function verbPlacePart(params, ctx) {
     partKey: part.part_key, partRole: part.part_role, modelPath: part.model_path,
     x: spot.x, y: snapped.y, z: spot.z,
     scale: { x: scale.x, y: scale.y, z: scale.z },
+    collidable: collideOf(part),
     packKey: part.pack_key || null,
     requested: { x: snapped.x, z: snapped.z },
     relocated: !first.ok,
