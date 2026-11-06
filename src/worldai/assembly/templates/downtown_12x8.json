@@ -1,0 +1,75 @@
+{
+  "id": "downtown_12x8",
+  "name": "现代平层 · 12×8m",
+  "version": 1,
+  "capability": "enterable",
+  "style": "modern",
+  "material": "metal",
+  "pack": "downtown_city_megakit",
+  "dimensions": {
+    "width": 12,
+    "depth": 8,
+    "wallHeight": 3
+  },
+  "module": {
+    "wallWidth": 2,
+    "wallPieceHeight": 3,
+    "rows": 1
+  },
+  "parts": {
+    "wall": "Metal_FirstFloor_Wall",
+    "door": "DoorFrame_Metal_Single",
+    "window": "Metal_FullWindow",
+    "floor": "Floor_2x2",
+    "roof": "Roof_2x2"
+  },
+  "layout": {
+    "south": [
+      "wall",
+      "window",
+      "door",
+      "wall",
+      "window",
+      "wall"
+    ],
+    "east": [
+      "wall",
+      "window",
+      "wall",
+      "wall"
+    ],
+    "north": [
+      "wall",
+      "window",
+      "wall",
+      "wall",
+      "window",
+      "wall"
+    ],
+    "west": [
+      "wall",
+      "window",
+      "wall",
+      "wall"
+    ]
+  },
+  "roof": {
+    "mode": "tile",
+    "dropY": 0.05,
+    "eave": 0.31
+  },
+  "notes": [
+    "平顶铺瓦：同 downtown_8x6，无山墙（平顶不需要）",
+    "12m 面宽是 tiles 平铺的整倍数（2m 件 × 6），出檐取整后 14m，实出檐 X/Z 均 0.795",
+    "件数约 79（墙 20 + 地板 24 + 屋顶 35），委托预算需 ≥ 90"
+  ],
+  "metrics": {
+    "seamMax": 0,
+    "eave": {
+      "x": 0.795,
+      "z": 0.795
+    },
+    "pieceCount": 79,
+    "verifiedAt": "2026-11-06"
+  }
+}

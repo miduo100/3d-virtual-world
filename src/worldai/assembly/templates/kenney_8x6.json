@@ -11,7 +11,7 @@
     "wallHeight": 2.5
   },
   "module": {
-    "wallWidth": 1.0,
+    "wallWidth": 1,
     "wallPieceHeight": 0.625,
     "rows": 4
   },
@@ -21,15 +21,52 @@
     "roof": "roof_flat_center"
   },
   "layout": {
-    "south": ["wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall"],
-    "east": ["wall", "wall", "wall", "wall", "wall", "wall"],
-    "north": ["wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall"],
-    "west": ["wall", "wall", "wall", "wall", "wall", "wall"]
+    "south": [
+      "wall",
+      "wall",
+      "wall",
+      "wall",
+      "wall",
+      "wall",
+      "wall",
+      "wall"
+    ],
+    "east": [
+      "wall",
+      "wall",
+      "wall",
+      "wall",
+      "wall",
+      "wall"
+    ],
+    "north": [
+      "wall",
+      "wall",
+      "wall",
+      "wall",
+      "wall",
+      "wall",
+      "wall",
+      "wall"
+    ],
+    "west": [
+      "wall",
+      "wall",
+      "wall",
+      "wall",
+      "wall",
+      "wall"
+    ]
   },
   "doorSlot": {
     "edge": "南 +X",
     "index": 3,
-    "rows": [0, 1, 2, 3]
+    "rows": [
+      0,
+      1,
+      2,
+      3
+    ]
   },
   "roof": {
     "mode": "tile",
@@ -38,7 +75,10 @@
   },
   "metrics": {
     "seamMax": 0,
-    "eave": { "x": 0.5, "z": 0.5 },
+    "eave": {
+      "x": 0.795,
+      "z": 0.795
+    },
     "pieceCount": 192,
     "verifiedAt": "2026-11-06"
   },

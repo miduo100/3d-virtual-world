@@ -1,0 +1,77 @@
+{
+  "id": "medieval_6x6",
+  "name": "石砌小屋 · 6×6m",
+  "version": 1,
+  "capability": "enterable",
+  "style": "medieval",
+  "material": "plaster",
+  "pack": "gltf_2",
+  "dimensions": {
+    "width": 6,
+    "depth": 6,
+    "wallHeight": 3.12
+  },
+  "module": {
+    "wallWidth": 2,
+    "wallPieceHeight": 3.1248,
+    "rows": 1
+  },
+  "parts": {
+    "wall": "Wall_Plaster_Straight",
+    "door": "Wall_Plaster_Door_Flat",
+    "window": "Wall_Plaster_Window_Wide_Round",
+    "floor": "Floor_WoodDark",
+    "roof": "Roof_RoundTiles_6x6",
+    "gable": "Roof_Front_Brick6"
+  },
+  "layout": {
+    "south": [
+      "window",
+      "door",
+      "window"
+    ],
+    "east": [
+      "wall",
+      "window",
+      "wall"
+    ],
+    "north": [
+      "wall",
+      "window",
+      "wall"
+    ],
+    "west": [
+      "wall",
+      "window",
+      "wall"
+    ]
+  },
+  "roof": {
+    "mode": "whole",
+    "dropY": 0.15,
+    "ry": 0,
+    "originOffsetY": 0.782
+  },
+  "gable": {
+    "y": 3.12,
+    "zOffset": 0.55,
+    "originOffsetY": 0.132,
+    "stretchToRidge": true
+  },
+  "notes": [
+    "最小号可进入建筑：单开间 6×6，适合当村口小屋 / 岗亭 / 储物棚",
+    "屋顶件 Roof_RoundTiles_6x6 实测 8.2498×8.0322，给 6×6 的房子出檐 X 0.92 / Z 0.811（判据 M1-2-2 要求 0.6~1.2，均通过）",
+    "原点实测：Roof_RoundTiles_6x6 原点在屋檐上方 0.7821m、Roof_Front_Brick6 原点在底边上方 0.1318m —— 与 6xN 全族一致",
+    "山墙坡高 4.384m 而屋顶坡高 5.672m，用 stretchToRidge 现算垂直拉伸填满屋脊"
+  ],
+  "metrics": {
+    "seamMax": 0,
+    "eave": {
+      "x": 0.92,
+      "z": 0.811
+    },
+    "gableVsRidge": 0.002,
+    "pieceCount": 24,
+    "verifiedAt": "2026-11-06"
+  }
+}

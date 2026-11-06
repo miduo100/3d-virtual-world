@@ -1,0 +1,81 @@
+{
+  "id": "medieval_8x8",
+  "name": "砖砌民居 · 8×8m",
+  "version": 1,
+  "capability": "enterable",
+  "style": "medieval",
+  "material": "brick",
+  "pack": "gltf_2",
+  "dimensions": {
+    "width": 8,
+    "depth": 8,
+    "wallHeight": 3.12
+  },
+  "module": {
+    "wallWidth": 2,
+    "wallPieceHeight": 3.1248,
+    "rows": 1
+  },
+  "parts": {
+    "wall": "Wall_UnevenBrick_Straight",
+    "door": "Wall_UnevenBrick_Door_Round",
+    "window": "Wall_UnevenBrick_Window_Wide_Round",
+    "floor": "Floor_UnevenBrick",
+    "roof": "Roof_RoundTiles_8x8",
+    "gable": "Roof_Front_Brick8"
+  },
+  "layout": {
+    "south": [
+      "wall",
+      "door",
+      "window",
+      "wall"
+    ],
+    "east": [
+      "wall",
+      "window",
+      "wall",
+      "wall"
+    ],
+    "north": [
+      "wall",
+      "wall",
+      "window",
+      "wall"
+    ],
+    "west": [
+      "wall",
+      "window",
+      "wall",
+      "wall"
+    ]
+  },
+  "roof": {
+    "mode": "whole",
+    "dropY": 0.15,
+    "ry": 0,
+    "originOffsetY": 0.78
+  },
+  "gable": {
+    "y": 3.12,
+    "zOffset": 0.55,
+    "originOffsetY": 0.132,
+    "stretchToRidge": true
+  },
+  "notes": [
+    "★ 8xN 是另一族屋顶：Roof_RoundTiles_8x8 实测 9.952×10.3322、原点在屋檐上方 0.7800m（与 6xN 的 0.7821 不同，不能混用）",
+    "山墙必须换 Roof_Front_Brick8（8.5108 宽、原点 0.1318、坡高 5.4459）；用 Brick6 会窄 1.8m 露出三角缺口",
+    "出檐 X 0.771 / Z 0.961 —— 8xN 族出檐比 6xN 更宽，视觉上屋檐更突出",
+    "砖材质全套：UnevenBrick 墙 + 砖门 + 砖窗 + 砖地，与 plaster 版形成两种外观选择"
+  ],
+  "metrics": {
+    "seamMax": 0,
+    "eave": {
+      "x": 0.771,
+      "z": 0.961
+    },
+    "gableVsRidge": 0.001,
+    "pieceCount": 35,
+    "verifiedAt": "2026-11-06"
+  }
+}

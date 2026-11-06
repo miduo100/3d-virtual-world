@@ -1,0 +1,78 @@
+{
+  "id": "medieval_6x8",
+  "name": "临街商铺 · 6×8m",
+  "version": 1,
+  "capability": "enterable",
+  "style": "medieval",
+  "material": "plaster",
+  "pack": "gltf_2",
+  "dimensions": {
+    "width": 6,
+    "depth": 8,
+    "wallHeight": 3.12
+  },
+  "module": {
+    "wallWidth": 2,
+    "wallPieceHeight": 3.1248,
+    "rows": 1
+  },
+  "parts": {
+    "wall": "Wall_Plaster_Straight",
+    "door": "Wall_Plaster_Door_Flat",
+    "window": "Wall_Plaster_Window_Wide_Flat",
+    "floor": "Floor_WoodDark",
+    "roof": "Roof_RoundTiles_6x8",
+    "gable": "Roof_Front_Brick6"
+  },
+  "layout": {
+    "south": [
+      "window",
+      "door",
+      "window"
+    ],
+    "east": [
+      "wall",
+      "window",
+      "wall",
+      "wall"
+    ],
+    "north": [
+      "wall",
+      "window",
+      "wall"
+    ],
+    "west": [
+      "wall",
+      "wall",
+      "window",
+      "wall"
+    ]
+  },
+  "roof": {
+    "mode": "whole",
+    "dropY": 0.15,
+    "ry": 0,
+    "originOffsetY": 0.782
+  },
+  "gable": {
+    "y": 3.12,
+    "zOffset": 0.55,
+    "originOffsetY": 0.132,
+    "stretchToRidge": true
+  },
+  "notes": [
+    "商铺版：窗用 Wide_Flat（平顶大方窗，采光面更大），与民居的 Wide_Round 区分",
+    "屋顶件 Roof_RoundTiles_6x8 实测 8.2498×9.6827，出檐 X 0.92 / Z 0.636（贴 M1-2-2 下限，不能再缩短房子）",
+    "★ 若把 depth 改小到 6，屋顶件必须换成 6x6；改尺寸不改屋顶件会直接出檐超界或屋顶悬空"
+  ],
+  "metrics": {
+    "seamMax": 0,
+    "eave": {
+      "x": 0.92,
+      "z": 0.636
+    },
+    "gableVsRidge": 0.002,
+    "pieceCount": 29,
+    "verifiedAt": "2026-11-06"
+  }
+}

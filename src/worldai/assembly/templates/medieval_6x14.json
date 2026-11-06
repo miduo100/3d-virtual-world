@@ -1,0 +1,84 @@
+{
+  "id": "medieval_6x14",
+  "name": "长厅 · 6×14m",
+  "version": 1,
+  "capability": "enterable",
+  "style": "medieval",
+  "material": "plaster",
+  "pack": "gltf_2",
+  "dimensions": {
+    "width": 6,
+    "depth": 14,
+    "wallHeight": 3.12
+  },
+  "module": {
+    "wallWidth": 2,
+    "wallPieceHeight": 3.1248,
+    "rows": 1
+  },
+  "parts": {
+    "wall": "Wall_Plaster_Straight",
+    "door": "Wall_Plaster_Door_Flat",
+    "window": "Wall_Plaster_Window_Wide_Round",
+    "floor": "Floor_WoodDark",
+    "roof": "Roof_RoundTiles_6x14",
+    "gable": "Roof_Front_Brick6"
+  },
+  "layout": {
+    "south": [
+      "window",
+      "door",
+      "window"
+    ],
+    "east": [
+      "wall",
+      "window",
+      "wall",
+      "window",
+      "wall",
+      "window",
+      "wall"
+    ],
+    "north": [
+      "wall",
+      "window",
+      "wall"
+    ],
+    "west": [
+      "wall",
+      "window",
+      "wall",
+      "wall",
+      "window",
+      "wall",
+      "wall"
+    ]
+  },
+  "roof": {
+    "mode": "whole",
+    "dropY": 0.15,
+    "ry": 0,
+    "originOffsetY": 0.782
+  },
+  "gable": {
+    "y": 3.12,
+    "zOffset": 0.55,
+    "originOffsetY": 0.132,
+    "stretchToRidge": true
+  },
+  "notes": [
+    "gltf_2 套件里最长的整块屋顶（6x14）对应的最大单体建筑，适合酒馆 / 集会厅 / 长屋",
+    "出檐 X 0.92 / Z 0.648",
+    "长边 7 段，两端与门侧各留墙，窗只开在奇数索引，避开转角"
+  ],
+  "metrics": {
+    "seamMax": 0,
+    "eave": {
+      "x": 0.92,
+      "z": 0.648
+    },
+    "gableVsRidge": 0.002,
+    "pieceCount": 44,
+    "verifiedAt": "2026-11-06"
+  }
+}

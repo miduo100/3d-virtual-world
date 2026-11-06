@@ -8,11 +8,11 @@
   "dimensions": {
     "width": 8,
     "depth": 6,
-    "wallHeight": 3.0
+    "wallHeight": 3
   },
   "module": {
-    "wallWidth": 2.0,
-    "wallPieceHeight": 3.0,
+    "wallWidth": 2,
+    "wallPieceHeight": 3,
     "rows": 1
   },
   "parts": {
@@ -23,10 +23,28 @@
     "roof": "Roof_2x2"
   },
   "layout": {
-    "south": ["window", "door", "window", "wall"],
-    "east": ["wall", "window", "wall"],
-    "north": ["window", "wall", "wall", "window"],
-    "west": ["wall", "window", "wall"]
+    "south": [
+      "window",
+      "door",
+      "window",
+      "wall"
+    ],
+    "east": [
+      "wall",
+      "window",
+      "wall"
+    ],
+    "north": [
+      "window",
+      "wall",
+      "wall",
+      "window"
+    ],
+    "west": [
+      "wall",
+      "window",
+      "wall"
+    ]
   },
   "roof": {
     "mode": "tile",
@@ -35,7 +53,10 @@
   },
   "metrics": {
     "seamMax": 0,
-    "eave": { "x": 0.879, "z": 0.879 },
+    "eave": {
+      "x": 0.795,
+      "z": 0.795
+    },
     "pieceCount": 46,
     "verifiedAt": "2026-11-06"
   },

@@ -1,0 +1,84 @@
+{
+  "id": "medieval_8x12",
+  "name": "砖砌大屋 · 8×12m",
+  "version": 1,
+  "capability": "enterable",
+  "style": "medieval",
+  "material": "brick",
+  "pack": "gltf_2",
+  "dimensions": {
+    "width": 8,
+    "depth": 12,
+    "wallHeight": 3.12
+  },
+  "module": {
+    "wallWidth": 2,
+    "wallPieceHeight": 3.1248,
+    "rows": 1
+  },
+  "parts": {
+    "wall": "Wall_UnevenBrick_Straight",
+    "door": "Wall_UnevenBrick_Door_Round",
+    "window": "Wall_UnevenBrick_Window_Wide_Round",
+    "floor": "Floor_UnevenBrick",
+    "roof": "Roof_RoundTiles_8x12",
+    "gable": "Roof_Front_Brick8"
+  },
+  "layout": {
+    "south": [
+      "wall",
+      "door",
+      "window",
+      "wall"
+    ],
+    "east": [
+      "wall",
+      "window",
+      "wall",
+      "wall",
+      "window",
+      "wall"
+    ],
+    "north": [
+      "wall",
+      "window",
+      "wall",
+      "wall"
+    ],
+    "west": [
+      "wall",
+      "wall",
+      "window",
+      "wall",
+      "window",
+      "wall"
+    ]
+  },
+  "roof": {
+    "mode": "whole",
+    "dropY": 0.15,
+    "ry": 0,
+    "originOffsetY": 0.78
+  },
+  "gable": {
+    "y": 3.12,
+    "zOffset": 0.55,
+    "originOffsetY": 0.132,
+    "stretchToRidge": true
+  },
+  "notes": [
+    "现有模板里最大的单体：8×12 砖房，适合庄园主屋 / 市政厅 / 大仓库",
+    "屋顶件 Roof_RoundTiles_8x12 实测 9.952×14.1322，出檐 X 0.771 / Z 0.861",
+    "件数较多（约 60 件），委托预算 max_objects 需 ≥ 70 才能盖起来"
+  ],
+  "metrics": {
+    "seamMax": 0,
+    "eave": {
+      "x": 0.771,
+      "z": 0.861
+    },
+    "gableVsRidge": 0.001,
+    "pieceCount": 47,
+    "verifiedAt": "2026-11-06"
+  }
+}

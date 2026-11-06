@@ -11,7 +11,7 @@
     "wallHeight": 3.12
   },
   "module": {
-    "wallWidth": 2.0,
+    "wallWidth": 2,
     "wallPieceHeight": 3.1248,
     "rows": 1
   },
@@ -64,10 +64,10 @@
   "metrics": {
     "seamMax": 0,
     "eave": {
-      "x": 0.922,
-      "z": 0.723
+      "x": 0.92,
+      "z": 0.721
     },
-    "gableVsRidge": 0.001,
+    "gableVsRidge": 0.002,
     "pieceCount": 34,
     "verifiedAt": "2026-11-06"
   },

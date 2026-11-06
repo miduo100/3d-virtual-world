@@ -1,0 +1,82 @@
+{
+  "id": "medieval_6x12",
+  "name": "长排民居 · 6×12m",
+  "version": 1,
+  "capability": "enterable",
+  "style": "medieval",
+  "material": "plaster",
+  "pack": "gltf_2",
+  "dimensions": {
+    "width": 6,
+    "depth": 12,
+    "wallHeight": 3.12
+  },
+  "module": {
+    "wallWidth": 2,
+    "wallPieceHeight": 3.1248,
+    "rows": 1
+  },
+  "parts": {
+    "wall": "Wall_Plaster_Straight",
+    "door": "Wall_Plaster_Door_Flat",
+    "window": "Wall_Plaster_Window_Wide_Round",
+    "floor": "Floor_WoodDark",
+    "roof": "Roof_RoundTiles_6x12",
+    "gable": "Roof_Front_Brick6"
+  },
+  "layout": {
+    "south": [
+      "window",
+      "door",
+      "window"
+    ],
+    "east": [
+      "wall",
+      "window",
+      "wall",
+      "wall",
+      "window",
+      "wall"
+    ],
+    "north": [
+      "wall",
+      "window",
+      "wall"
+    ],
+    "west": [
+      "wall",
+      "wall",
+      "window",
+      "wall",
+      "window",
+      "wall"
+    ]
+  },
+  "roof": {
+    "mode": "whole",
+    "dropY": 0.15,
+    "ry": 0,
+    "originOffsetY": 0.782
+  },
+  "gable": {
+    "y": 3.12,
+    "zOffset": 0.55,
+    "originOffsetY": 0.132,
+    "stretchToRidge": true
+  },
+  "notes": [
+    "排屋版：6m 面宽 / 12m 进深，适合沿街连排民居或长条仓库",
+    "出檐 X 0.92 / Z 0.624（6x12 是 gltf_2 里出檐最紧的一档，仍高于 0.6 下限）",
+    "两侧长边各开 2 扇窗（索引 1 和 4），避开两端转角"
+  ],
+  "metrics": {
+    "seamMax": 0,
+    "eave": {
+      "x": 0.92,
+      "z": 0.624
+    },
+    "gableVsRidge": 0.002,
+    "pieceCount": 39,
+    "verifiedAt": "2026-11-06"
+  }
+}
