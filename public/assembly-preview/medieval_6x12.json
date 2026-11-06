@@ -1,0 +1,727 @@
+{
+  "generatedAt": "2026-11-06T15:04:50.791Z",
+  "preset": "medieval_6x12",
+  "spec": {
+    "templateId": "medieval_6x12",
+    "name": "长排民居 · 6×12m",
+    "capability": "enterable",
+    "width": 6,
+    "depth": 12,
+    "wallHeight": 3.12,
+    "pack": "gltf_2",
+    "module": {
+      "wallWidth": 2,
+      "wallPieceHeight": 3.1248,
+      "rows": 1
+    },
+    "parts": {
+      "wall": "Wall_Plaster_Straight",
+      "door": "Wall_Plaster_Door_Flat",
+      "window": "Wall_Plaster_Window_Wide_Round",
+      "floor": "Floor_WoodDark",
+      "roof": "Roof_RoundTiles_6x12",
+      "gable": "Roof_Front_Brick6"
+    },
+    "edges": [
+      {
+        "name": "南 +X",
+        "key": "south",
+        "a": [
+          -3,
+          -6
+        ],
+        "b": [
+          3,
+          -6
+        ],
+        "plan": [
+          "window",
+          "door",
+          "window"
+        ]
+      },
+      {
+        "name": "东 +Z",
+        "key": "east",
+        "a": [
+          3,
+          -6
+        ],
+        "b": [
+          3,
+          6
+        ],
+        "plan": [
+          "wall",
+          "window",
+          "wall",
+          "wall",
+          "window",
+          "wall"
+        ]
+      },
+      {
+        "name": "北 −X",
+        "key": "north",
+        "a": [
+          3,
+          6
+        ],
+        "b": [
+          -3,
+          6
+        ],
+        "plan": [
+          "wall",
+          "window",
+          "wall"
+        ]
+      },
+      {
+        "name": "西 −Z",
+        "key": "west",
+        "a": [
+          -3,
+          6
+        ],
+        "b": [
+          -3,
+          -6
+        ],
+        "plan": [
+          "wall",
+          "wall",
+          "window",
+          "wall",
+          "window",
+          "wall"
+        ]
+      }
+    ],
+    "roof": {
+      "mode": "whole",
+      "dropY": 0.15,
+      "ry": 0,
+      "originOffsetY": 0.782
+    },
+    "gable": {
+      "y": 3.12,
+      "zOffset": 0.55,
+      "originOffsetY": 0.132,
+      "stretchToRidge": true
+    }
+  },
+  "parts": {
+    "Floor_WoodDark": {
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "role": "floor",
+      "subtype": "floor",
+      "w": 2,
+      "h": 0.02,
+      "d": 2
+    },
+    "Roof_Front_Brick6": {
+      "key": "Roof_Front_Brick6",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_Front_Brick6.gltf",
+      "role": "roof",
+      "subtype": "roof",
+      "w": 6.6944,
+      "h": 4.5158,
+      "d": 1.1291
+    },
+    "Roof_RoundTiles_6x12": {
+      "key": "Roof_RoundTiles_6x12",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_6x12.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 8.2498,
+      "h": 5.6722,
+      "d": 13.6575
+    },
+    "Wall_Plaster_Door_Flat": {
+      "key": "Wall_Plaster_Door_Flat",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Door_Flat.gltf",
+      "role": "door",
+      "subtype": "door",
+      "w": 2,
+      "h": 3.1227,
+      "d": 0.4065
+    },
+    "Wall_Plaster_Straight": {
+      "key": "Wall_Plaster_Straight",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Straight.gltf",
+      "role": "wall",
+      "subtype": "wall",
+      "w": 2,
+      "h": 3.1248,
+      "d": 0.4065
+    },
+    "Wall_Plaster_Window_Wide_Round": {
+      "key": "Wall_Plaster_Window_Wide_Round",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Window_Wide_Round.gltf",
+      "role": "window",
+      "subtype": "window_arched",
+      "w": 2,
+      "h": 3.1227,
+      "d": 0.4065
+    }
+  },
+  "placements": [
+    {
+      "group": "wall",
+      "slot": "window",
+      "key": "Wall_Plaster_Window_Wide_Round",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Window_Wide_Round.gltf",
+      "edge": "南 +X",
+      "seq": 0,
+      "row": 0,
+      "dir": 0,
+      "x": -2,
+      "y": 0,
+      "z": -6,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "wall",
+      "slot": "door",
+      "key": "Wall_Plaster_Door_Flat",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Door_Flat.gltf",
+      "edge": "南 +X",
+      "seq": 1,
+      "row": 0,
+      "dir": 0,
+      "x": 0,
+      "y": 0,
+      "z": -6,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "wall",
+      "slot": "window",
+      "key": "Wall_Plaster_Window_Wide_Round",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Window_Wide_Round.gltf",
+      "edge": "南 +X",
+      "seq": 2,
+      "row": 0,
+      "dir": 0,
+      "x": 2,
+      "y": 0,
+      "z": -6,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "wall",
+      "slot": "wall",
+      "key": "Wall_Plaster_Straight",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Straight.gltf",
+      "edge": "东 +Z",
+      "seq": 0,
+      "row": 0,
+      "dir": 90,
+      "x": 3,
+      "y": 0,
+      "z": -5,
+      "ry": 90,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "wall",
+      "slot": "window",
+      "key": "Wall_Plaster_Window_Wide_Round",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Window_Wide_Round.gltf",
+      "edge": "东 +Z",
+      "seq": 1,
+      "row": 0,
+      "dir": 90,
+      "x": 3,
+      "y": 0,
+      "z": -3,
+      "ry": 90,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "wall",
+      "slot": "wall",
+      "key": "Wall_Plaster_Straight",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Straight.gltf",
+      "edge": "东 +Z",
+      "seq": 2,
+      "row": 0,
+      "dir": 90,
+      "x": 3,
+      "y": 0,
+      "z": -1,
+      "ry": 90,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "wall",
+      "slot": "wall",
+      "key": "Wall_Plaster_Straight",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Straight.gltf",
+      "edge": "东 +Z",
+      "seq": 3,
+      "row": 0,
+      "dir": 90,
+      "x": 3,
+      "y": 0,
+      "z": 1,
+      "ry": 90,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "wall",
+      "slot": "window",
+      "key": "Wall_Plaster_Window_Wide_Round",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Window_Wide_Round.gltf",
+      "edge": "东 +Z",
+      "seq": 4,
+      "row": 0,
+      "dir": 90,
+      "x": 3,
+      "y": 0,
+      "z": 3,
+      "ry": 90,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "wall",
+      "slot": "wall",
+      "key": "Wall_Plaster_Straight",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Straight.gltf",
+      "edge": "东 +Z",
+      "seq": 5,
+      "row": 0,
+      "dir": 90,
+      "x": 3,
+      "y": 0,
+      "z": 5,
+      "ry": 90,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "wall",
+      "slot": "wall",
+      "key": "Wall_Plaster_Straight",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Straight.gltf",
+      "edge": "北 −X",
+      "seq": 0,
+      "row": 0,
+      "dir": 180,
+      "x": 2,
+      "y": 0,
+      "z": 6,
+      "ry": 180,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "wall",
+      "slot": "window",
+      "key": "Wall_Plaster_Window_Wide_Round",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Window_Wide_Round.gltf",
+      "edge": "北 −X",
+      "seq": 1,
+      "row": 0,
+      "dir": 180,
+      "x": 0,
+      "y": 0,
+      "z": 6,
+      "ry": 180,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "wall",
+      "slot": "wall",
+      "key": "Wall_Plaster_Straight",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Straight.gltf",
+      "edge": "北 −X",
+      "seq": 2,
+      "row": 0,
+      "dir": 180,
+      "x": -2,
+      "y": 0,
+      "z": 6,
+      "ry": 180,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "wall",
+      "slot": "wall",
+      "key": "Wall_Plaster_Straight",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Straight.gltf",
+      "edge": "西 −Z",
+      "seq": 0,
+      "row": 0,
+      "dir": 270,
+      "x": -3,
+      "y": 0,
+      "z": 5,
+      "ry": 270,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "wall",
+      "slot": "wall",
+      "key": "Wall_Plaster_Straight",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Straight.gltf",
+      "edge": "西 −Z",
+      "seq": 1,
+      "row": 0,
+      "dir": 270,
+      "x": -3,
+      "y": 0,
+      "z": 3,
+      "ry": 270,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "wall",
+      "slot": "window",
+      "key": "Wall_Plaster_Window_Wide_Round",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Window_Wide_Round.gltf",
+      "edge": "西 −Z",
+      "seq": 2,
+      "row": 0,
+      "dir": 270,
+      "x": -3,
+      "y": 0,
+      "z": 1,
+      "ry": 270,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "wall",
+      "slot": "wall",
+      "key": "Wall_Plaster_Straight",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Straight.gltf",
+      "edge": "西 −Z",
+      "seq": 3,
+      "row": 0,
+      "dir": 270,
+      "x": -3,
+      "y": 0,
+      "z": -1,
+      "ry": 270,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "wall",
+      "slot": "window",
+      "key": "Wall_Plaster_Window_Wide_Round",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Window_Wide_Round.gltf",
+      "edge": "西 −Z",
+      "seq": 4,
+      "row": 0,
+      "dir": 270,
+      "x": -3,
+      "y": 0,
+      "z": -3,
+      "ry": 270,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "wall",
+      "slot": "wall",
+      "key": "Wall_Plaster_Straight",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Wall_Plaster_Straight.gltf",
+      "edge": "西 −Z",
+      "seq": 5,
+      "row": 0,
+      "dir": 270,
+      "x": -3,
+      "y": 0,
+      "z": -5,
+      "ry": 270,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": -2,
+      "y": 0,
+      "z": -5,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": -2,
+      "y": 0,
+      "z": -3,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": -2,
+      "y": 0,
+      "z": -1,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": -2,
+      "y": 0,
+      "z": 1,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": -2,
+      "y": 0,
+      "z": 3,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": -2,
+      "y": 0,
+      "z": 5,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": 0,
+      "y": 0,
+      "z": -5,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": 0,
+      "y": 0,
+      "z": -3,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": 0,
+      "y": 0,
+      "z": -1,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": 0,
+      "y": 0,
+      "z": 1,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": 0,
+      "y": 0,
+      "z": 3,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": 0,
+      "y": 0,
+      "z": 5,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": 2,
+      "y": 0,
+      "z": -5,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": 2,
+      "y": 0,
+      "z": -3,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": 2,
+      "y": 0,
+      "z": -1,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": 2,
+      "y": 0,
+      "z": 1,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": 2,
+      "y": 0,
+      "z": 3,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "floor",
+      "slot": "floor",
+      "key": "Floor_WoodDark",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Floor_WoodDark.gltf",
+      "x": 2,
+      "y": 0,
+      "z": 5,
+      "ry": 0,
+      "libW": 2,
+      "useW": 2
+    },
+    {
+      "group": "roof",
+      "slot": "roof_whole",
+      "key": "Roof_RoundTiles_6x12",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_6x12.gltf",
+      "x": 0,
+      "y": 2.97,
+      "z": 0,
+      "ry": 0,
+      "libW": 8.2498,
+      "useW": 8.2498
+    },
+    {
+      "group": "gable",
+      "slot": "gable",
+      "key": "Roof_Front_Brick6",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_Front_Brick6.gltf",
+      "x": 0,
+      "y": 3.12,
+      "z": -6.55,
+      "ry": 0,
+      "scaleY": 1.223,
+      "libW": 6.6944,
+      "useW": 6.6944
+    },
+    {
+      "group": "gable",
+      "slot": "gable",
+      "key": "Roof_Front_Brick6",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_Front_Brick6.gltf",
+      "x": 0,
+      "y": 3.12,
+      "z": 6.55,
+      "ry": 180,
+      "scaleY": 1.223,
+      "libW": 6.6944,
+      "useW": 6.6944
+    }
+  ],
+  "stats": {
+    "total": 39,
+    "byGroup": {
+      "wall": 18,
+      "floor": 18,
+      "roof": 1,
+      "gable": 2
+    }
+  },
+  "notes": [
+    "屋顶：整块 Roof_RoundTiles_6x12（8.2498×13.6575m）—— 出檐 X 0.92m / Z 0.624m",
+    "山墙：Roof_Front_Brick6（6.6944×4.5158）× 2——垂直拉伸 1.223× 填满屋脊"
+  ]
+}

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<!--
+  模板库 v1 对比页（M1-2 交付物 · 由 scripts/preview_template_gallery.js 生成，勿手改）
+  每格复用 public/assembly-preview.html（接缝检测 / 出檐标尺 / 分组开关都在那边）
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>模板库 v1 · 10 个模板对比</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0d1117; color:#e6edf3; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .top { position:sticky; top:0; z-index:10; background:rgba(13,17,23,.96); border-bottom:1px solid rgba(0,255,0,.18);
+         padding:14px 20px; display:flex; align-items:baseline; gap:16px; backdrop-filter:blur(8px); flex-wrap:wrap; }
+  .top h1 { font-size:16px; font-weight:600; color:#00ff00; }
+  .top .sum { font-size:12px; color:#8b949e; }
+  .top a { color:#58a6ff; font-size:12px; text-decoration:none; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(480px,1fr)); gap:14px; padding:14px 20px 40px; }
+  .card { border:1px solid rgba(0,255,0,.16); border-radius:12px; overflow:hidden; background:#11151c; }
+  .card header { padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.06); }
+  .card h2 { font-size:13px; font-weight:600; color:#e6edf3; margin-bottom:6px; }
+  .meta { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+  .tag { font-size:10px; padding:1px 6px; border:1px solid rgba(88,166,255,.35); border-radius:99px; color:#58a6ff; }
+  table { width:100%; border-collapse:collapse; font-size:11px; }
+  th { text-align:left; color:#8b949e; font-weight:400; padding:1px 4px 1px 0; white-space:nowrap; }
+  td { padding:1px 10px 1px 0; font-variant-numeric:tabular-nums; }
+  .view { position:relative; width:100%; aspect-ratio:16/10; background:#0d1117; }
+  .view iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>模板库 v1 · 10 个模板</h1>
+  <span class="sum">每格 = 同一个 preview 页面换 plan 文件；接缝/出檐判据与 accept_m1_2 同源</span>
+  <a href="/assembly-preview.html?plan=medieval_6x10.json" target="_blank">单开中世纪小屋 ↗</a>
+</div>
+<div class="grid">
+  <section class="card">
+    <header>
+      <h2>现代平层 · 12×8m</h2>
+      <div class="meta">
+        <span class="tag">downtown_12x8</span>
+        <span class="tag">enterable</span>
+        <span class="tag">modern / metal</span>
+        <span class="tag">屋顶 tile</span>
+      </div>
+      <table>
+        <tr><th>尺寸</th><td>12 × 8 × 3m</td><th>件数</th><td>79</td></tr>
+        <tr><th>出檐 X/Z</th><td>0.795 / 0.795 m</td><th>接缝</th><td>0 m</td></tr>
+        <tr><th>山墙 vs 屋脊</th><td colspan="3">无（平顶）</td></tr>
+      </table>
+    </header>
+    <div class="view"><iframe loading="lazy" src="/assembly-preview.html?plan=downtown_12x8.json" title="downtown_12x8"></iframe></div>
+  </section>
+
+  <section class="card">
+    <header>
+      <h2>现代平房 · 8×6m</h2>
+      <div class="meta">
+        <span class="tag">downtown_8x6</span>
+        <span class="tag">enterable</span>
+        <span class="tag">modern / —</span>
+        <span class="tag">屋顶 tile</span>
+      </div>
+      <table>
+        <tr><th>尺寸</th><td>8 × 6 × 3m</td><th>件数</th><td>46</td></tr>
+        <tr><th>出檐 X/Z</th><td>0.795 / 0.795 m</td><th>接缝</th><td>0 m</td></tr>
+        <tr><th>山墙 vs 屋脊</th><td colspan="3">无（平顶）</td></tr>
+      </table>
+    </header>
+    <div class="view"><iframe loading="lazy" src="/assembly-preview.html?plan=downtown_8x6.json" title="downtown_8x6"></iframe></div>
+  </section>
+
+  <section class="card">
+    <header>
+      <h2>Kenney 模块化体块 · 8×6m</h2>
+      <div class="meta">
+        <span class="tag">kenney_8x6</span>
+        <span class="tag">blockout</span>
+        <span class="tag">blocky / —</span>
+        <span class="tag">屋顶 tile</span>
+      </div>
+      <table>
+        <tr><th>尺寸</th><td>8 × 6 × 2.5m</td><th>件数</th><td>192</td></tr>
+        <tr><th>出檐 X/Z</th><td>0.795 / 0.795 m</td><th>接缝</th><td>0 m</td></tr>
+        <tr><th>山墙 vs 屋脊</th><td colspan="3">无（平顶）</td></tr>
+      </table>
+    </header>
+    <div class="view"><iframe loading="lazy" src="/assembly-preview.html?plan=kenney_8x6.json" title="kenney_8x6"></iframe></div>
+  </section>
+
+  <section class="card">
+    <header>
+      <h2>中世纪小屋 · 6×10m</h2>
+      <div class="meta">
+        <span class="tag">medieval_6x10</span>
+        <span class="tag">enterable</span>
+        <span class="tag">medieval / —</span>
+        <span class="tag">屋顶 whole</span>
+      </div>
+      <table>
+        <tr><th>尺寸</th><td>6 × 10 × 3.12m</td><th>件数</th><td>34</td></tr>
+        <tr><th>出檐 X/Z</th><td>0.92 / 0.721 m</td><th>接缝</th><td>0 m</td></tr>
+        <tr><th>山墙 vs 屋脊</th><td colspan="3">0.002m</td></tr>
+      </table>
+    </header>
+    <div class="view"><iframe loading="lazy" src="/assembly-preview.html?plan=medieval_6x10.json" title="medieval_6x10"></iframe></div>
+  </section>
+
+  <section class="card">
+    <header>
+      <h2>长排民居 · 6×12m</h2>
+      <div class="meta">
+        <span class="tag">medieval_6x12</span>
+        <span class="tag">enterable</span>
+        <span class="tag">medieval / plaster</span>
+        <span class="tag">屋顶 whole</span>
+      </div>
+      <table>
+        <tr><th>尺寸</th><td>6 × 12 × 3.12m</td><th>件数</th><td>39</td></tr>
+        <tr><th>出檐 X/Z</th><td>0.92 / 0.624 m</td><th>接缝</th><td>0 m</td></tr>
+        <tr><th>山墙 vs 屋脊</th><td colspan="3">0.002m</td></tr>
+      </table>
+    </header>
+    <div class="view"><iframe loading="lazy" src="/assembly-preview.html?plan=medieval_6x12.json" title="medieval_6x12"></iframe></div>
+  </section>
+
+  <section class="card">
+    <header>
+      <h2>长厅 · 6×14m</h2>
+      <div class="meta">
+        <span class="tag">medieval_6x14</span>
+        <span class="tag">enterable</span>
+        <span class="tag">medieval / plaster</span>
+        <span class="tag">屋顶 whole</span>
+      </div>
+      <table>
+        <tr><th>尺寸</th><td>6 × 14 × 3.12m</td><th>件数</th><td>44</td></tr>
+        <tr><th>出檐 X/Z</th><td>0.92 / 0.648 m</td><th>接缝</th><td>0 m</td></tr>
+        <tr><th>山墙 vs 屋脊</th><td colspan="3">0.002m</td></tr>
+      </table>
+    </header>
+    <div class="view"><iframe loading="lazy" src="/assembly-preview.html?plan=medieval_6x14.json" title="medieval_6x14"></iframe></div>
+  </section>
+
+  <section class="card">
+    <header>
+      <h2>石砌小屋 · 6×6m</h2>
+      <div class="meta">
+        <span class="tag">medieval_6x6</span>
+        <span class="tag">enterable</span>
+        <span class="tag">medieval / plaster</span>
+        <span class="tag">屋顶 whole</span>
+      </div>
+      <table>
+        <tr><th>尺寸</th><td>6 × 6 × 3.12m</td><th>件数</th><td>24</td></tr>
+        <tr><th>出檐 X/Z</th><td>0.92 / 0.811 m</td><th>接缝</th><td>0 m</td></tr>
+        <tr><th>山墙 vs 屋脊</th><td colspan="3">0.002m</td></tr>
+      </table>
+    </header>
+    <div class="view"><iframe loading="lazy" src="/assembly-preview.html?plan=medieval_6x6.json" title="medieval_6x6"></iframe></div>
+  </section>
+
+  <section class="card">
+    <header>
+      <h2>临街商铺 · 6×8m</h2>
+      <div class="meta">
+        <span class="tag">medieval_6x8</span>
+        <span class="tag">enterable</span>
+        <span class="tag">medieval / plaster</span>
+        <span class="tag">屋顶 whole</span>
+      </div>
+      <table>
+        <tr><th>尺寸</th><td>6 × 8 × 3.12m</td><th>件数</th><td>29</td></tr>
+        <tr><th>出檐 X/Z</th><td>0.92 / 0.636 m</td><th>接缝</th><td>0 m</td></tr>
+        <tr><th>山墙 vs 屋脊</th><td colspan="3">0.002m</td></tr>
+      </table>
+    </header>
+    <div class="view"><iframe loading="lazy" src="/assembly-preview.html?plan=medieval_6x8.json" title="medieval_6x8"></iframe></div>
+  </section>
+
+  <section class="card">
+    <header>
+      <h2>砖砌大屋 · 8×12m</h2>
+      <div class="meta">
+        <span class="tag">medieval_8x12</span>
+        <span class="tag">enterable</span>
+        <span class="tag">medieval / brick</span>
+        <span class="tag">屋顶 whole</span>
+      </div>
+      <table>
+        <tr><th>尺寸</th><td>8 × 12 × 3.12m</td><th>件数</th><td>47</td></tr>
+        <tr><th>出檐 X/Z</th><td>0.771 / 0.861 m</td><th>接缝</th><td>0 m</td></tr>
+        <tr><th>山墙 vs 屋脊</th><td colspan="3">0.001m</td></tr>
+      </table>
+    </header>
+    <div class="view"><iframe loading="lazy" src="/assembly-preview.html?plan=medieval_8x12.json" title="medieval_8x12"></iframe></div>
+  </section>
+
+  <section class="card">
+    <header>
+      <h2>砖砌民居 · 8×8m</h2>
+      <div class="meta">
+        <span class="tag">medieval_8x8</span>
+        <span class="tag">enterable</span>
+        <span class="tag">medieval / brick</span>
+        <span class="tag">屋顶 whole</span>
+      </div>
+      <table>
+        <tr><th>尺寸</th><td>8 × 8 × 3.12m</td><th>件数</th><td>35</td></tr>
+        <tr><th>出檐 X/Z</th><td>0.771 / 0.961 m</td><th>接缝</th><td>0 m</td></tr>
+        <tr><th>山墙 vs 屋脊</th><td colspan="3">0.001m</td></tr>
+      </table>
+    </header>
+    <div class="view"><iframe loading="lazy" src="/assembly-preview.html?plan=medieval_8x8.json" title="medieval_8x8"></iframe></div>
+  </section>
+</div>
+</body>
+</html>

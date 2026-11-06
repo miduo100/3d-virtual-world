@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T11:00:30.850Z",
+  "generatedAt": "2026-11-06T15:04:50.510Z",
   "preset": "medieval_6x10",
   "spec": {
     "templateId": "medieval_6x10",
@@ -99,12 +99,14 @@
     "roof": {
       "mode": "whole",
       "dropY": 0.15,
-      "ry": 0
+      "ry": 0,
+      "originOffsetY": 0.782
     },
     "gable": {
       "y": 3.12,
       "zOffset": 0.55,
-      "stretch": 1.223
+      "originOffsetY": 0.132,
+      "stretchToRidge": true
     }
   },
   "parts": {
