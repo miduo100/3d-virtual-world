@@ -1,0 +1,51 @@
+{
+  "id": "kenney_8x6",
+  "name": "Kenney 模块化体块 · 8×6m",
+  "version": 1,
+  "capability": "blockout",
+  "style": "blocky",
+  "pack": "kenney_modular_buildings",
+  "dimensions": {
+    "width": 8,
+    "depth": 6,
+    "wallHeight": 2.5
+  },
+  "module": {
+    "wallWidth": 1.0,
+    "wallPieceHeight": 0.625,
+    "rows": 4
+  },
+  "parts": {
+    "wall": "building_block",
+    "door": "building_door",
+    "roof": "roof_flat_center"
+  },
+  "layout": {
+    "south": ["wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+    "east": ["wall", "wall", "wall", "wall", "wall", "wall"],
+    "north": ["wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+    "west": ["wall", "wall", "wall", "wall", "wall", "wall"]
+  },
+  "doorSlot": {
+    "edge": "南 +X",
+    "index": 3,
+    "rows": [0, 1, 2, 3]
+  },
+  "roof": {
+    "mode": "tile",
+    "dropY": 0.02,
+    "eave": 0.8
+  },
+  "metrics": {
+    "seamMax": 0,
+    "eave": { "x": 0.5, "z": 0.5 },
+    "pieceCount": 192,
+    "verifiedAt": "2026-11-06"
+  },
+  "notes": [
+    "capability=blockout：building_door 是带门贴图的实心方块，不是门洞，做不出可进入的门",
+    "适合景观构筑物 / 背景体块，不要当可进入建筑用",
+    "墙块仅 0.625m 高，层高 2.5m 需沿高度堆 4 排；接缝检测必须按「边×排」分组",
+    "该套件无 floor 类零件"
+  ]
+}

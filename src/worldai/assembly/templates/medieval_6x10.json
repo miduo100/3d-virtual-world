@@ -1,0 +1,54 @@
+{
+  "id": "medieval_6x10",
+  "name": "中世纪小屋 · 6×10m",
+  "version": 1,
+  "capability": "enterable",
+  "style": "medieval",
+  "pack": "gltf_2",
+  "dimensions": {
+    "width": 6,
+    "depth": 10,
+    "wallHeight": 3.12
+  },
+  "module": {
+    "wallWidth": 2.0,
+    "wallPieceHeight": 3.1248,
+    "rows": 1
+  },
+  "parts": {
+    "wall": "Wall_Plaster_Straight",
+    "door": "Wall_Plaster_Door_Flat",
+    "window": "Wall_Plaster_Window_Wide_Round",
+    "floor": "Floor_WoodDark",
+    "roof": "Roof_RoundTiles_6x10",
+    "gable": "Roof_Front_Brick6"
+  },
+  "layout": {
+    "south": ["window", "door", "window"],
+    "east": ["wall", "window", "wall", "wall", "wall"],
+    "north": ["wall", "window", "wall"],
+    "west": ["wall", "wall", "window", "wall", "wall"]
+  },
+  "roof": {
+    "mode": "whole",
+    "dropY": 0.15,
+    "ry": 0
+  },
+  "gable": {
+    "y": 3.12,
+    "zOffset": 0.55,
+    "stretch": 1.223
+  },
+  "metrics": {
+    "seamMax": 0,
+    "eave": { "x": 0.922, "z": 0.723 },
+    "gableVsRidge": 0.001,
+    "pieceCount": 34,
+    "verifiedAt": "2026-11-06"
+  },
+  "notes": [
+    "屋顶件比例固定（X 8.25 × Z 11.85），房子 6×10 是为它倒推的尺寸",
+    "山墙件坡高 4.52m 与屋顶坡高 5.67m 不配套，stretch 1.223 是垂直拉伸填满屋脊的实测值",
+    "墙/门墙/窗墙三者尺寸完全相同（2.00×3.12×0.41），零误差互换"
+  ]
+}

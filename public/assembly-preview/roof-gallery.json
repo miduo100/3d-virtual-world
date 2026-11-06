@@ -1,0 +1,440 @@
+{
+  "generatedAt": "2026-11-06T10:16:37.825Z",
+  "spec": {
+    "name": "roof 件普查（19 件）",
+    "width": 0,
+    "depth": 0,
+    "wallHeight": 0
+  },
+  "parts": {
+    "Roof_2x4_RoundTile": {
+      "key": "Roof_2x4_RoundTile",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_2x4_RoundTile.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 3.2934,
+      "h": 2.6657,
+      "d": 4.2322
+    },
+    "Roof_Dormer_RoundTile": {
+      "key": "Roof_Dormer_RoundTile",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_Dormer_RoundTile.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 1.9664,
+      "h": 2.6731,
+      "d": 2.4392
+    },
+    "Roof_Modular_RoundTiles": {
+      "key": "Roof_Modular_RoundTiles",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_Modular_RoundTiles.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 0.6632,
+      "h": 0.5055,
+      "d": 2.2517
+    },
+    "Roof_RoundTile_2x1": {
+      "key": "Roof_RoundTile_2x1",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTile_2x1.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 3.297,
+      "h": 2.6589,
+      "d": 1.9522
+    },
+    "Roof_RoundTile_2x1_Long": {
+      "key": "Roof_RoundTile_2x1_Long",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTile_2x1_Long.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 4.3473,
+      "h": 3.3254,
+      "d": 1.9522
+    },
+    "Roof_RoundTiles_4x4": {
+      "key": "Roof_RoundTiles_4x4",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_4x4.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 5.5131,
+      "h": 4.2494,
+      "d": 5.5615
+    },
+    "Roof_RoundTiles_4x6": {
+      "key": "Roof_RoundTiles_4x6",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_4x6.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 5.5131,
+      "h": 4.2336,
+      "d": 7.5723
+    },
+    "Roof_RoundTiles_4x8": {
+      "key": "Roof_RoundTiles_4x8",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_4x8.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 5.5131,
+      "h": 4.2292,
+      "d": 9.6827
+    },
+    "Roof_RoundTiles_6x10": {
+      "key": "Roof_RoundTiles_6x10",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_6x10.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 8.2498,
+      "h": 5.6722,
+      "d": 11.8522
+    },
+    "Roof_RoundTiles_6x12": {
+      "key": "Roof_RoundTiles_6x12",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_6x12.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 8.2498,
+      "h": 5.6722,
+      "d": 13.6575
+    },
+    "Roof_RoundTiles_6x14": {
+      "key": "Roof_RoundTiles_6x14",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_6x14.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 8.2498,
+      "h": 5.6722,
+      "d": 15.7059
+    },
+    "Roof_RoundTiles_6x4": {
+      "key": "Roof_RoundTiles_6x4",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_6x4.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 8.2498,
+      "h": 5.6722,
+      "d": 4.9922
+    },
+    "Roof_RoundTiles_6x6": {
+      "key": "Roof_RoundTiles_6x6",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_6x6.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 8.2498,
+      "h": 5.6722,
+      "d": 8.0322
+    },
+    "Roof_RoundTiles_6x8": {
+      "key": "Roof_RoundTiles_6x8",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_6x8.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 8.2498,
+      "h": 5.6722,
+      "d": 9.6827
+    },
+    "Roof_RoundTiles_8x10": {
+      "key": "Roof_RoundTiles_8x10",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_8x10.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 9.952,
+      "h": 6.7813,
+      "d": 11.8594
+    },
+    "Roof_RoundTiles_8x12": {
+      "key": "Roof_RoundTiles_8x12",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_8x12.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 9.952,
+      "h": 6.7813,
+      "d": 14.1322
+    },
+    "Roof_RoundTiles_8x14": {
+      "key": "Roof_RoundTiles_8x14",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_8x14.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 9.952,
+      "h": 6.7813,
+      "d": 15.7059
+    },
+    "Roof_RoundTiles_8x8": {
+      "key": "Roof_RoundTiles_8x8",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_8x8.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 9.952,
+      "h": 6.7813,
+      "d": 10.3322
+    },
+    "Roof_Tower_RoundTiles": {
+      "key": "Roof_Tower_RoundTiles",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_Tower_RoundTiles.gltf",
+      "role": "roof",
+      "subtype": "roof_dome",
+      "w": 5.6505,
+      "h": 7.3608,
+      "d": 5.4271
+    }
+  },
+  "placements": [
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_2x4_RoundTile",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_2x4_RoundTile.gltf",
+      "label": "Roof_2x4_RoundTile",
+      "x": -66,
+      "z": -22,
+      "y": 0,
+      "ry": 0,
+      "libW": 3.2934,
+      "useW": 3.2934
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_Dormer_RoundTile",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_Dormer_RoundTile.gltf",
+      "label": "Roof_Dormer_RoundTile",
+      "x": -44,
+      "z": -22,
+      "y": 0,
+      "ry": 0,
+      "libW": 1.9664,
+      "useW": 1.9664
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_Modular_RoundTiles",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_Modular_RoundTiles.gltf",
+      "label": "Roof_Modular_RoundTiles",
+      "x": -22,
+      "z": -22,
+      "y": 0,
+      "ry": 0,
+      "libW": 0.6632,
+      "useW": 0.6632
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_RoundTile_2x1",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTile_2x1.gltf",
+      "label": "Roof_RoundTile_2x1",
+      "x": 0,
+      "z": -22,
+      "y": 0,
+      "ry": 0,
+      "libW": 3.297,
+      "useW": 3.297
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_RoundTile_2x1_Long",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTile_2x1_Long.gltf",
+      "label": "Roof_RoundTile_2x1_Long",
+      "x": 22,
+      "z": -22,
+      "y": 0,
+      "ry": 0,
+      "libW": 4.3473,
+      "useW": 4.3473
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_RoundTiles_4x4",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_4x4.gltf",
+      "label": "Roof_RoundTiles_4x4",
+      "x": 44,
+      "z": -22,
+      "y": 0,
+      "ry": 0,
+      "libW": 5.5131,
+      "useW": 5.5131
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_RoundTiles_4x6",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_4x6.gltf",
+      "label": "Roof_RoundTiles_4x6",
+      "x": 66,
+      "z": -22,
+      "y": 0,
+      "ry": 0,
+      "libW": 5.5131,
+      "useW": 5.5131
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_RoundTiles_4x8",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_4x8.gltf",
+      "label": "Roof_RoundTiles_4x8",
+      "x": -66,
+      "z": 0,
+      "y": 0,
+      "ry": 0,
+      "libW": 5.5131,
+      "useW": 5.5131
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_RoundTiles_6x10",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_6x10.gltf",
+      "label": "Roof_RoundTiles_6x10",
+      "x": -44,
+      "z": 0,
+      "y": 0,
+      "ry": 0,
+      "libW": 8.2498,
+      "useW": 8.2498
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_RoundTiles_6x12",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_6x12.gltf",
+      "label": "Roof_RoundTiles_6x12",
+      "x": -22,
+      "z": 0,
+      "y": 0,
+      "ry": 0,
+      "libW": 8.2498,
+      "useW": 8.2498
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_RoundTiles_6x14",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_6x14.gltf",
+      "label": "Roof_RoundTiles_6x14",
+      "x": 0,
+      "z": 0,
+      "y": 0,
+      "ry": 0,
+      "libW": 8.2498,
+      "useW": 8.2498
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_RoundTiles_6x4",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_6x4.gltf",
+      "label": "Roof_RoundTiles_6x4",
+      "x": 22,
+      "z": 0,
+      "y": 0,
+      "ry": 0,
+      "libW": 8.2498,
+      "useW": 8.2498
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_RoundTiles_6x6",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_6x6.gltf",
+      "label": "Roof_RoundTiles_6x6",
+      "x": 44,
+      "z": 0,
+      "y": 0,
+      "ry": 0,
+      "libW": 8.2498,
+      "useW": 8.2498
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_RoundTiles_6x8",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_6x8.gltf",
+      "label": "Roof_RoundTiles_6x8",
+      "x": 66,
+      "z": 0,
+      "y": 0,
+      "ry": 0,
+      "libW": 8.2498,
+      "useW": 8.2498
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_RoundTiles_8x10",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_8x10.gltf",
+      "label": "Roof_RoundTiles_8x10",
+      "x": -66,
+      "z": 22,
+      "y": 0,
+      "ry": 0,
+      "libW": 9.952,
+      "useW": 9.952
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_RoundTiles_8x12",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_8x12.gltf",
+      "label": "Roof_RoundTiles_8x12",
+      "x": -44,
+      "z": 22,
+      "y": 0,
+      "ry": 0,
+      "libW": 9.952,
+      "useW": 9.952
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_RoundTiles_8x14",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_8x14.gltf",
+      "label": "Roof_RoundTiles_8x14",
+      "x": -22,
+      "z": 22,
+      "y": 0,
+      "ry": 0,
+      "libW": 9.952,
+      "useW": 9.952
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_RoundTiles_8x8",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_RoundTiles_8x8.gltf",
+      "label": "Roof_RoundTiles_8x8",
+      "x": 0,
+      "z": 22,
+      "y": 0,
+      "ry": 0,
+      "libW": 9.952,
+      "useW": 9.952
+    },
+    {
+      "group": "part",
+      "slot": "roof",
+      "key": "Roof_Tower_RoundTiles",
+      "path": "/models/uploaded/bundle-1791374093662-xqlf/Roof_Tower_RoundTiles.gltf",
+      "label": "Roof_Tower_RoundTiles",
+      "x": 22,
+      "z": 22,
+      "y": 0,
+      "ry": 0,
+      "libW": 5.6505,
+      "useW": 5.6505
+    }
+  ],
+  "stats": {
+    "total": 19,
+    "byGroup": {
+      "part": 19
+    }
+  },
+  "notes": [
+    "按 w×d 面积升序排放；标签显示实测 bbox 宽×高×深"
+  ]
+}

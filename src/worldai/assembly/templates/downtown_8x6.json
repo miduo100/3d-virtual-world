@@ -1,0 +1,47 @@
+{
+  "id": "downtown_8x6",
+  "name": "现代平房 · 8×6m",
+  "version": 1,
+  "capability": "enterable",
+  "style": "modern",
+  "pack": "downtown_city_megakit",
+  "dimensions": {
+    "width": 8,
+    "depth": 6,
+    "wallHeight": 3.0
+  },
+  "module": {
+    "wallWidth": 2.0,
+    "wallPieceHeight": 3.0,
+    "rows": 1
+  },
+  "parts": {
+    "wall": "Metal_FirstFloor_Wall",
+    "door": "DoorFrame_Metal_Single",
+    "window": "Metal_FullWindow",
+    "floor": "Floor_2x2",
+    "roof": "Roof_2x2"
+  },
+  "layout": {
+    "south": ["window", "door", "window", "wall"],
+    "east": ["wall", "window", "wall"],
+    "north": ["window", "wall", "wall", "window"],
+    "west": ["wall", "window", "wall"]
+  },
+  "roof": {
+    "mode": "tile",
+    "dropY": 0.05,
+    "eave": 0.31
+  },
+  "metrics": {
+    "seamMax": 0,
+    "eave": { "x": 0.879, "z": 0.879 },
+    "pieceCount": 46,
+    "verifiedAt": "2026-11-06"
+  },
+  "notes": [
+    "DoorFrame_Metal_Single 是带门洞的门框墙（2×3×0.2），与墙同尺寸可整段替换",
+    "平顶 Roof_2x2 按 1m 网格铺，eave 0.31 用于补足墙厚 0.41 造成的缩进",
+    "无山墙（平顶不需要）"
+  ]
+}

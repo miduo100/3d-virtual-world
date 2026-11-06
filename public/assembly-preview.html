@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<!--
+  零件装配预览 —— 最小验证页（只读，不改世界）
+  济宁米多信息科技有限公司 版权所有 · 888@miduo100.com / 15660440944
+  用途：读取 plan.json，用 Three.js 加载真实 GLB，检验「按实际尺寸累计推进」能否拼出零接缝墙面
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>零件装配预览 · 中世纪小屋 8×6m</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0d1117; color:#e6edf3; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; overflow:hidden; }
+  #c { display:block; width:100vw; height:100vh; }
+  .panel { position:fixed; background:rgba(22,27,34,.94); border:1px solid rgba(0,255,0,.18);
+           border-radius:10px; padding:12px 14px; font-size:12px; line-height:1.65; backdrop-filter:blur(6px); }
+  #info { top:14px; left:14px; width:310px; max-height:calc(100vh - 28px); overflow:auto; }
+  #ctrl { top:14px; right:14px; width:200px; }
+  #seam { bottom:14px; left:14px; right:14px; max-height:150px; overflow:auto; }
+  h3 { font-size:13px; font-weight:500; margin-bottom:8px; color:#00ff00; }
+  h4 { font-size:12px; font-weight:500; margin:10px 0 5px; color:#8b949e; }
+  table { width:100%; border-collapse:collapse; font-size:11px; }
+  th,td { text-align:left; padding:2px 4px; border-bottom:1px solid rgba(255,255,255,.06); }
+  th { color:#8b949e; font-weight:400; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .ok { color:#00ff00; } .warn { color:#ffd700; } .bad { color:#ff4444; } .muted { color:#8b949e; }
+  label.sw { display:flex; align-items:center; gap:7px; cursor:pointer; padding:3px 0; font-size:12px; }
+  input[type=checkbox] { accent-color:#00ff00; }
+  .row { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  button { background:rgba(0,255,0,.1); border:1px solid rgba(0,255,0,.3); color:#00ff00;
+           border-radius:6px; padding:5px 10px; font-size:12px; cursor:pointer; }
+  button:hover { background:rgba(0,255,0,.2); }
+  #load { position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+          background:#0d1117; z-index:99; font-size:14px; color:#00ff00; }
+  .seamline { font-size:11px; padding:2px 0; }
+</style>
+</head>
+<body>
+<div id="load">正在加载零件…</div>
+<canvas id="c"></canvas>
+
+<div id="info" class="panel">
+  <h3>装配验证</h3>
+  <div id="stat"></div>
+  <h4>零件实际尺寸（浏览器实测 bbox）</h4>
+  <table id="sizeTable"><thead><tr><th>零件</th><th class="num">宽</th><th class="num">高</th><th class="num">厚</th><th class="num">库内差</th></tr></thead><tbody></tbody></table>
+</div>
+
+<div id="ctrl" class="panel">
+  <h3>显示</h3>
+  <label class="sw"><input type="checkbox" id="sw-wall" checked> 墙体（14 段）</label>
+  <label class="sw"><input type="checkbox" id="sw-floor" checked> 地板（12 块）</label>
+  <label class="sw"><input type="checkbox" id="sw-roof" checked> 屋顶（整块 1 件）</label>
+  <label class="sw"><input type="checkbox" id="sw-wire"> 线框</label>
+  <div class="row">
+    <button id="btn-top">俯视</button>
+    <button id="btn-iso">透视</button>
+    <button id="btn-in">屋内</button>
+  </div>
+</div>
+
+<div id="seam" class="panel">
+  <h3>接缝实测（相邻件的真实 bbox 间隙）</h3>
+  <div id="seamOut" class="muted">加载中…</div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "/assembly-preview/vendor/three/three.module.js",
+  "three/addons/": "/assembly-preview/vendor/three/addons/"
+}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d1117);
+scene.fog = new THREE.Fog(0x0d1117, 30, 70);
+
+const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 400);
+camera.position.set(11, 9, 13);
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 1.6, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI * 0.495;
+
+scene.add(new THREE.AmbientLight(0xffffff, 1.15));
+const hemi = new THREE.HemisphereLight(0xa8c8ff, 0x30281c, 0.9);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff2d8, 2.1);
+sun.position.set(14, 20, 9);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+const sc = sun.shadow.camera;
+sc.left = -18; sc.right = 18; sc.top = 18; sc.bottom = -18; sc.near = 1; sc.far = 60;
+scene.add(sun);
+
+const grid = new THREE.GridHelper(40, 40, 0x1f3b2a, 0x152820);
+grid.position.y = -0.001;
+scene.add(grid);
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(60, 60),
+  new THREE.MeshStandardMaterial({ color: 0x11201a, roughness: 1 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -0.01;
+ground.receiveShadow = true;
+scene.add(ground);
+
+const GROUPS = { wall: new THREE.Group(), floor: new THREE.Group(), roof: new THREE.Group() };
+Object.values(GROUPS).forEach((g) => scene.add(g));
+
+const loader = new GLTFLoader();
+const cache = new Map();
+const measured = new Map();   // key -> 实测 bbox 尺寸
+let wallRecords = [];
+
+function loadGltfOnce(url) {
+  if (!cache.has(url)) {
+    cache.set(url, new Promise((res, rej) => loader.load(url, (g) => res(g), undefined, rej)));
+  }
+  return cache.get(url);
+}
+
+/** 用实测 bbox 重新锚定：XZ 中心归零、底面归零 —— 不信任模型原点 */
+function placePart(gltf, p) {
+  const inner = gltf.scene.clone(true);
+  inner.traverse((o) => {
+    if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
+  });
+  const box = new THREE.Box3().setFromObject(inner);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+
+  inner.position.set(-center.x, -box.min.y, -center.z);
+
+  const holder = new THREE.Group();
+  holder.add(inner);
+  holder.rotation.y = THREE.MathUtils.degToRad(p.ry || 0);
+  holder.position.set(p.x, p.y || 0, p.z);
+  // 底面已重锚到 y=0，故 scale.y 以底边为基准向上拉伸（山墙填满屋脊用）
+  if (p.scaleY && Math.abs(p.scaleY - 1) > 1e-6) holder.scale.set(1, p.scaleY, 1);
+  holder.userData.part = p;
+  holder.userData.size = size.clone();
+  return { holder, size };
+}
+
+(async function main() {
+  const planFile = new URLSearchParams(location.search).get('plan') || 'medieval_6x10.json';
+  const plan = await (await fetch('/assembly-preview/' + planFile + '?t=' + Date.now())).json();
+
+  // 按 key 加载一次
+  const uniq = new Map();
+  plan.placements.forEach((p) => uniq.set(p.key, p.path));
+  await Promise.all([...uniq.keys()].map(async (k) => {
+    try { await loadGltfOnce(uniq.get(k)); } catch (e) { console.warn('加载失败 ' + k, e); }
+  }));
+
+  for (const p of plan.placements) {
+    const gltf = cache.has(p.path) ? await cache.get(p.path).catch(() => null) : null;
+    if (!gltf) continue;
+    const { holder, size } = placePart(gltf, p);
+    if (!GROUPS[p.group]) { GROUPS[p.group] = new THREE.Group(); scene.add(GROUPS[p.group]); }
+    GROUPS[p.group].add(holder);
+    if (p.label) {
+      const sp = makeLabel(p.label + '  ' + size.x.toFixed(2) + '×' + size.y.toFixed(2) + '×' + size.z.toFixed(2));
+      sp.position.set(p.x, (p.y || 0) + size.y + 0.8, p.z);
+      scene.add(sp);
+    }
+    if (!measured.has(p.key)) measured.set(p.key, size.clone());
+    if (p.group === 'wall') wallRecords.push({ p, holder, size: size.clone() });
+  }
+
+  renderStats(plan);
+  renderSizes(plan);
+  checkSeams(wallRecords);
+  renderEaves();
+
+  const qs = new URLSearchParams(location.search);
+  if (qs.get('cam')) {
+    const c = qs.get('cam').split(',').map(Number);
+    const t = (qs.get('tgt') || '0,1,0').split(',').map(Number);
+    camera.position.set(c[0], c[1], c[2]);
+    controls.target.set(t[0], t[1], t[2]);
+    controls.update();
+    const d = camera.position.distanceTo(controls.target);
+    scene.fog.near = d * 1.2; scene.fog.far = d * 4;
+  } else if (qs.get('fit') === '1') autoFrame();
+
+  document.getElementById('load').style.display = 'none';
+
+  // ── 交互 ──
+  const bind = (id, g) => {
+    const el = document.getElementById(id);
+    el.addEventListener('change', () => { GROUPS[g].visible = el.checked; });
+  };
+  bind('sw-wall', 'wall'); bind('sw-floor', 'floor'); bind('sw-roof', 'roof');
+
+  document.getElementById('sw-wire').addEventListener('change', (e) => {
+    scene.traverse((o) => {
+      if (o.isMesh && o.material) {
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach((m) => { m.wireframe = e.target.checked; });
+      }
+    });
+  });
+
+  const flyTo = (pos, tgt) => {
+    camera.position.set(...pos);
+    controls.target.set(...tgt);
+    controls.update();
+  };
+  document.getElementById('btn-top').onclick = () => flyTo([0, 26, 0.01], [0, 0, 0]);
+  document.getElementById('btn-iso').onclick = () => flyTo([11, 9, 13], [0, 1.6, 0]);
+  document.getElementById('btn-in').onclick = () => flyTo([0, 1.7, 1.2], [0, 1.7, -3]);
+
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  (function tick() {
+    requestAnimationFrame(tick);
+    controls.update();
+    renderer.render(scene, camera);
+  })();
+})();
+
+function renderEaves() {
+  const out = document.getElementById('seamOut');
+  if (!out || !GROUPS.roof || !GROUPS.wall) return;
+  const wb = new THREE.Box3().setFromObject(GROUPS.wall);
+  const rb = new THREE.Box3().setFromObject(GROUPS.roof);
+  if (wb.isEmpty() || rb.isEmpty()) return;
+
+  const sides = [
+    { n: '西 (−X)', v: wb.min.x - rb.min.x },
+    { n: '东 (+X)', v: rb.max.x - wb.max.x },
+    { n: '南 (−Z)', v: wb.min.z - rb.min.z },
+    { n: '北 (+Z)', v: rb.max.z - wb.max.z },
+  ];
+  let bad = 0;
+  let html = '<div style="margin-top:12px"><h3 style="margin-bottom:6px">屋檐出挑（屋顶 bbox 超出墙外沿的距离）</h3><table><thead><tr><th>方向</th><th class="num">出挑</th><th>判定</th></tr></thead><tbody>';
+  for (const s of sides) {
+    const cls = s.v < -0.01 ? 'bad' : s.v < 0.15 ? 'warn' : 'ok';
+    if (s.v < -0.01) bad++;
+    const label = s.v < -0.01 ? '屋顶缩进墙内（反常识）' : s.v < 0.15 ? '几乎无出檐' : '正常出檐';
+    html += `<tr><td>${s.n}</td><td class="num ${cls}">${s.v.toFixed(3)}m</td><td class="${cls}">${label}</td></tr>`;
+  }
+  html += '</tbody></table>';
+  html += `<div style="margin-top:5px;font-size:11px" class="${bad ? 'bad' : 'ok'}">${bad ? '有 ' + bad + ' 边屋顶缩进墙内，需换更大的屋顶件或缩小房子' : '四边均为正出檐 —— 符合「屋檐压墙」的建筑常识'}</div>`;
+
+  // 山墙尖 vs 屋脊：正数 = 山墙冒出屋顶（穿模），负数 = 山墙缩在屋顶下方
+  if (GROUPS.gable && GROUPS.gable.children.length) {
+    const gb = new THREE.Box3().setFromObject(GROUPS.gable);
+    const dTop = gb.max.y - rb.max.y;
+    const cls = Math.abs(dTop) < 0.03 ? 'ok' : dTop > 0 ? 'bad' : 'warn';
+    const txt = Math.abs(dTop) < 0.03 ? '齐平（±3cm 内）'
+      : dTop > 0 ? `山墙尖冒出屋脊 ${dTop.toFixed(3)}m（穿模）`
+      : `山墙比屋脊矮 ${(-dTop).toFixed(3)}m（缺口）`;
+    html += `<div style="margin-top:8px;font-size:11px">山墙 vs 屋脊：<span class="${cls}">${txt}</span>
+      <span class="muted">（屋顶顶 ${rb.max.y.toFixed(3)}m / 山墙顶 ${gb.max.y.toFixed(3)}m）</span></div>`;
+  }
+
+  html += '</div>';
+  out.insertAdjacentHTML('beforeend', html);
+}
+
+function autoFrame() {
+  const box = new THREE.Box3();
+  scene.traverse((o) => { if (o.userData && o.userData.part) box.expandByObject(o); });
+  if (box.isEmpty()) return;
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.z, size.y, 4);
+  const dist = (maxDim / (2 * Math.tan((camera.fov * Math.PI) / 360))) * 1.35;
+  camera.position.set(center.x + dist * 0.62, center.y + dist * 0.55, center.z + dist * 0.78);
+  controls.target.set(center.x, center.y * 0.4, center.z);
+  controls.update();
+  // 雾必须退到相机之后，否则大场景会整片变黑
+  const d = camera.position.distanceTo(controls.target);
+  scene.fog.near = d * 0.95;
+  scene.fog.far = d * 3.4;
+}
+
+function makeLabel(text) {
+  const c = document.createElement('canvas');
+  c.width = 640; c.height = 72;
+  const x = c.getContext('2d');
+  x.fillStyle = 'rgba(13,17,23,0.85)'; x.fillRect(0, 0, 640, 72);
+  x.strokeStyle = 'rgba(0,255,0,0.4)'; x.lineWidth = 2; x.strokeRect(1, 1, 638, 70);
+  x.fillStyle = '#7ee787'; x.font = '26px system-ui,sans-serif';
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText(text.slice(0, 46), 320, 36);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+  sp.scale.set(4.6, 0.52, 1);
+  return sp;
+}
+
+function renderStats(plan) {
+  const g = plan.stats.byGroup;
+  document.getElementById('stat').innerHTML =
+    `<div>目标：${plan.spec.name}</div>
+     <div class="muted">墙中线 ${plan.spec.width}×${plan.spec.depth}m · 层高 ${plan.spec.wallHeight}m</div>
+     <div style="margin-top:6px">共 <b class="ok">${plan.stats.total}</b> 件
+       <span class="muted">（墙 ${g.wall} / 地板 ${g.floor} / 屋顶 ${g.roof || 0}）</span></div>
+     <div class="muted" style="margin-top:4px;font-size:11px">${plan.notes.map((n) => '· ' + n).join('<br>')}</div>`;
+}
+
+function renderSizes(plan) {
+  const tb = document.querySelector('#sizeTable tbody');
+  tb.innerHTML = '';
+  for (const [k, s] of measured) {
+    const lib = plan.parts[k];
+    const diff = Math.max(
+      Math.abs(s.x - lib.w), Math.abs(s.y - lib.h), Math.abs(s.z - lib.d)
+    );
+    const cls = diff > 0.05 ? 'bad' : diff > 0.005 ? 'warn' : 'ok';
+    tb.insertAdjacentHTML('beforeend',
+      `<tr><td title="${k}">${k.replace(/^(Wall_|Floor_)/, '').slice(0, 16)}</td>
+       <td class="num">${s.x.toFixed(3)}</td>
+       <td class="num">${s.y.toFixed(3)}</td>
+       <td class="num">${s.z.toFixed(3)}</td>
+       <td class="num ${cls}">${diff < 0.0005 ? '0' : diff.toFixed(3)}</td></tr>`);
+  }
+}
+
+function checkSeams(records) {
+  const byEdge = {};
+  records.forEach((r) => {
+    // ★ 按「边 + 排」分组：墙件矮于层高时会有多排堆叠，
+    //   混在一起算相邻会把跨排距离当成缝（实测 4 排时报出 6m 假缝）。
+    const e = (r.p.edge || '?') + ((r.p.row || 0) ? ' 第' + ((r.p.row) + 1) + '排' : '');
+    (byEdge[e] = byEdge[e] || []).push(r);
+  });
+  let html = '<table><thead><tr><th>墙边</th><th class="num">段数</th><th class="num">最大间隙</th><th class="num">最大重叠</th><th>判定</th></tr></thead><tbody>';
+  let worst = 0;
+  for (const [edge, list] of Object.entries(byEdge)) {
+    list.sort((a, b) => a.p.seq - b.p.seq);
+    let maxGap = 0, maxOverlap = 0;
+    for (let i = 0; i < list.length - 1; i++) {
+      const A = list[i], B = list[i + 1];
+      // 墙件宽度恒在模型原始 X 轴；旋转 90° 后沿世界 Z 展开，但跨度仍是 size.x
+      const spanA = A.size.x;
+      const spanB = B.size.x;
+      const alongX = ((A.p.dir || 0) % 180) === 0;
+      const dist = alongX ? Math.abs(B.p.x - A.p.x) : Math.abs(B.p.z - A.p.z);
+      const gap = dist - (spanA + spanB) / 2;
+      if (gap > 0) maxGap = Math.max(maxGap, gap); else maxOverlap = Math.max(maxOverlap, -gap);
+    }
+    worst = Math.max(worst, maxGap);
+    const cls = maxGap > 0.02 ? 'bad' : maxGap > 0.005 ? 'warn' : 'ok';
+    const label = maxGap > 0.02 ? '有缝' : maxGap > 0.005 ? '微缝' : '严丝合缝';
+    html += `<tr><td>${edge}</td><td class="num">${list.length}</td>
+      <td class="num ${cls}">${maxGap.toFixed(4)}m</td>
+      <td class="num muted">${maxOverlap.toFixed(4)}m</td>
+      <td class="${cls}">${label}</td></tr>`;
+  }
+  html += '</tbody></table>';
+  html += `<div style="margin-top:6px;font-size:11px" class="${worst > 0.02 ? 'bad' : 'ok'}">
+    最大接缝 ${worst.toFixed(4)}m —— ${worst > 0.02 ? '存在可见缝隙，需修正' : '肉眼不可见（<2cm），通过'}</div>`;
+  document.getElementById('seamOut').innerHTML = html;
+}
+</script>
+</body>
+</html>
