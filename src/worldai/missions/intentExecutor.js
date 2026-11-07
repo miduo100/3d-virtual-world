@@ -56,6 +56,10 @@ async function executeIntent(plan, ctx, opts) {
     await run('scatter', {
       partKey: p.partKey, x: p.x, z: p.z,
       width: p.width, depth: p.depth, count: p.count,
+      // 缩放由 plan 里给定（代码定的，不是模型给的）；没有就不传，scatter 默认 1
+      //   scaleY 单独给：树的 X/Z 要比 Y 宽，否则窄锥形的树看着像细杆
+      scale: p.scale,
+      scaleY: p.scaleY,
     }, p.partKey + '×' + p.count);
   }
 

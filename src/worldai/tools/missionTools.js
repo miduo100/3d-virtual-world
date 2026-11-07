@@ -37,7 +37,7 @@ const PARAM_SCHEMA = {
   //   AI 只需要说「哪个模板、放在哪、朝哪」，坐标换算与批量落库由代码做死。
   build_from_template: ['template', 'x', 'z', 'facing', 'name'],
   pave: ['partKey', 'x', 'z', 'width', 'depth'],
-  scatter: ['partKey', 'x', 'z', 'width', 'depth', 'count', 'scale', 'collision'],
+  scatter: ['partKey', 'x', 'z', 'width', 'depth', 'count', 'scale', 'scaleY', 'collision'],
   // ★ 精确摆一批（路灯=杆+灯头这种组合件、广场放水井这类"指定位置"的装饰）
   place_props: ['items'],
 };
@@ -456,6 +456,8 @@ async function verbScatter(params, ctx) {
   if (!p.ok) return p;
   const part = p.part;
   const scale = Math.max(SCALE_MIN, Math.min(SCALE_MAX, Number(params.scale) || 1));
+  // scaleY 可选：树的 X/Z 需要比 Y 宽（Kenney 的树是窄锥形，等比放大会像细杆）
+  const scaleY = Math.max(SCALE_MIN, Math.min(SCALE_MAX, Number(params.scaleY) || scale));
   const collision = params.collision === undefined ? true : params.collision === true;
 
   const b = adapter.boundsOf(ctx.region);
@@ -502,7 +504,7 @@ async function verbScatter(params, ctx) {
         model_path: part.model_path,
         position_x: px, position_y: groundY, position_z: pz,
         rotation_y: r3(seedOf(seed + 500) * Math.PI * 2),
-        scale_x: scale, scale_y: scale, scale_z: scale,
+        scale_x: scale, scale_y: scaleY, scale_z: scale,
         has_collision: collision,
       });
     }

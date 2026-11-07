@@ -50,14 +50,14 @@ function buildContract(region, opts) {
   const lines = [
     '【模板契约】只输出 JSON：',
     '{"style":"","summary":"","buildings":[{"template":"id","x":0,"z":0,"facing":0}],'
-      + '"props":[{"partKey":"键","x":0,"z":0,"count":1,"width":0,"depth":0}]}',
+      + '"props":[{"kind":"trees","count":8}]}',
     `区域左上角 (${x0}, ${z0})，宽 ${w}m 深 ${d}m。x/z 是世界坐标（米），须在区域内且距边界 ≥2m。`,
     '模板（id(件数)）：',
     catalogue,
     '1. facing 取 0/90/180/270（0=门朝−Z，90=+X，180=+Z，270=−X）；街道两侧的房子面对面。',
     '2. 建筑按「占地+2m 出檐」占位，相邻中心距 ≥(两者宽和/2+3)m，否则互相穿插。',
     '3. **不要给 roads**：街道由引擎按房屋排布自动生成（位置、长度、宽度全部引擎算）。',
-    '4. props 的 partKey 只能取：tree_default tree_cone tree_blocks plant_bush flower_redA flower_yellowA rock_smallA log（别的键不存在）。',
+    '4. props 只给 kind + count（kind ∈ trees / bushes / flowers / rocks），**不要给坐标**：位置由引擎按建筑之外的空带生成。',
     '5. 房屋要成排（同一排的 z 相同或相近），把排与排之间留 8~20m 当街——引擎会在那里铺街。',
     '6. 禁止编造模板 id / partKey。' + (budget > 0 ? `总件数（含铺装）≤${budget}。` : ''),
     '【村庄骨架示例】设区域中心 (cx,cz)=' + ((x0 + w / 2) | 0) + ',' + ((z0 + d / 2) | 0) + '，沿 X 轴建街：',
@@ -147,26 +147,40 @@ function validateIntent(intent, region, opts) {
     const swap = Math.abs(Math.round(facing / 90) % 2) === 1;
     const halfW = (swap ? t.dimensions.depth : t.dimensions.width) / 2 + 1;
     const halfD = (swap ? t.dimensions.width : t.dimensions.depth) / 2 + 1;
-    if (x - halfW < minX + EDGE || x + halfW > maxX - EDGE || z - halfD < minZ + EDGE || z + halfD > maxZ - EDGE) {
+
+    // ★ 越界不拒，**挪进来**（2026-11-07 30 次统计实测：BUILDING_OUT_OF_BOUNDS 占了
+    //   改完街道之后仅剩的 2 次失败）。模型常把边排房"贴着边界"摆，探出去 1~3m ——
+    //   这是坐标问题，不是设计意图，跟越界的路/道具一样交给代码。
+    //   只有「区域本身装不下这栋」才拒（那时挪也挪不进来）。
+    let bx = x, bz = z;
+    const loX = minX + EDGE + halfW, hiX = maxX - EDGE - halfW;
+    const loZ = minZ + EDGE + halfD, hiZ = maxZ - EDGE - halfD;
+    if (loX > hiX || loZ > hiZ) {
       return {
-        ok: false, code: 'BUILDING_OUT_OF_BOUNDS',
+        ok: false, code: 'BUILDING_TOO_BIG',
         reason: `buildings[${i}]（${id}，facing=${facing}）含出檐需要 ${(halfW * 2).toFixed(0)}×${(halfD * 2).toFixed(0)}m，`
-          + `在 (${x},${z}) 放不下（区域可用范围 ${minX + EDGE}~${maxX - EDGE} / ${minZ + EDGE}~${maxZ - EDGE}）`,
-        hints: { need: { width: halfW * 2, depth: halfD * 2 }, allowance: { x: [minX + EDGE, maxX - EDGE], z: [minZ + EDGE, maxZ - EDGE] } },
+          + `比区域可用范围 ${(maxX - minX - EDGE * 2).toFixed(0)}×${(maxZ - minZ - EDGE * 2).toFixed(0)}m 还大 —— 换小模板`,
+        hints: { need: { width: halfW * 2, depth: halfD * 2 }, available: { width: maxX - minX - EDGE * 2, depth: maxZ - minZ - EDGE * 2 } },
       };
     }
+    if (bx < loX) { notes.push(`buildings[${i}] 左移 ${r3(loX - bx)}m 使其完整落在区域内`); bx = loX; }
+    if (bx > hiX) { notes.push(`buildings[${i}] 右移 ${r3(bx - hiX)}m 使其完整落在区域内`); bx = hiX; }
+    if (bz < loZ) { notes.push(`buildings[${i}] 下移 ${r3(loZ - bz)}m 使其完整落在区域内`); bz = loZ; }
+    if (bz > hiZ) { notes.push(`buildings[${i}] 上移 ${r3(bz - hiZ)}m 使其完整落在区域内`); bz = hiZ; }
+    bx = r3(bx); bz = r3(bz);
+
     // 互撞：只拦"真的重叠"，留 1m 容差（契约要求 3m 间距，这里不苛求）
     for (const p of placed) {
-      if (Math.abs(p.x - x) < (p.halfW + halfW - 1) && Math.abs(p.z - z) < (p.halfD + halfD - 1)) {
+      if (Math.abs(p.x - bx) < (p.halfW + halfW - 1) && Math.abs(p.z - bz) < (p.halfD + halfD - 1)) {
         return {
           ok: false, code: 'BUILDING_OVERLAP',
           reason: `buildings[${i}] 与 buildings[${p.i}] 重叠（中心距 ${Math.hypot(p.x - x, p.z - z).toFixed(1)}m 太近）`,
         };
       }
     }
-    placed.push({ i, x, z, halfW, halfD });
+    placed.push({ i, x: bx, z: bz, halfW, halfD });
     pieces += Number((t.metrics && t.metrics.pieceCount) || 0);
-    out.buildings.push({ template: id, x, z, facing });
+    out.buildings.push({ template: id, x: bx, z: bz, facing });
   }
 
   // ── 街道：完全由代码生成（2026-11-07 结构性决定）───────────────────
@@ -227,37 +241,145 @@ function validateIntent(intent, region, opts) {
     }
   }
 
-  // props：范围散布
-  // ★ 注意：下面用 forEach，回调里的 return 只退出这一次迭代、不会退出 validateIntent。
-  //   所以错误必须先收集到 propErr，循环结束后再抛（2026-11-07 实测：越界道具被静默丢弃）。
-  let propErr = null;
-  (Array.isArray(it.props) ? it.props : []).forEach((p) => {
-    if (propErr) return;
-    const key = String((p && p.partKey) || '').trim();
-    let x = num(p && p.x, NaN), z = num(p && p.z, NaN);
-    if (!key || !isFinite(x) || !isFinite(z)) return;
-    let pw = Math.max(0.2, num(p && p.width, 2));
-    let pd = Math.max(0.2, num(p && p.depth, 2));
-    // 同路一样：越界的散布矩形裁到区域内（植被放哪不改变设计意图）
-    if (x - pw / 2 < minX || x + pw / 2 > maxX || z - pd / 2 < minZ || z + pd / 2 > maxZ) {
-      const nx0 = Math.max(minX, x - pw / 2), nx1 = Math.min(maxX, x + pw / 2);
-      const nz0 = Math.max(minZ, z - pd / 2), nz1 = Math.min(maxZ, z + pd / 2);
-      if (nx1 - nx0 < 0.5 || nz1 - nz0 < 0.5) return;   // 裁没了就不放（不报错）
-      notes.push(`props（${key}）越界，散布范围裁到 ${r3(nx1 - nx0)}×${r3(nz1 - nz0)}m`);
-      x = r3((nx0 + nx1) / 2); z = r3((nz0 + nz1) / 2);
-      pw = r3(nx1 - nx0); pd = r3(nz1 - nz0);
-    }
-    out.props.push({
-      partKey: key,
-      x, z,
-      count: Math.max(1, Math.round(num(p && p.count, 1))),
-      width: pw,
-      depth: pd,
+  // ── 房屋「拉近街道」（2026-11-07 实建实测）──────────────────────────
+  //   模型把两排房摆到区域两端，实测相距 60m —— 村口变成一片空地，不像街。
+  //   契约里写的"排间 8~20m"它不遵守（同一类问题第三次出现），所以由代码统一退线：
+  //   房前留 FRONT 米院子，明显偏远（>SNAP_OVER）才拉，避免把正常布局也拧动。
+  if (out.roads.length && placed.length) {
+    const st0 = out.roads[0];
+    const FRONT = 4;        // 房前院子
+    const SNAP_OVER = 10;   // 只处理明显偏远的
+    const stN = st0.z - st0.depth / 2, stS = st0.z + st0.depth / 2;
+    let moved = 0;
+    placed.forEach((p) => {
+      const solidN = p.z - p.halfD + 1, solidS = p.z + p.halfD - 1;
+      if (solidS < stN && stN - solidS > SNAP_OVER) {            // 北侧：向南拉
+        const nz = r3(stN - FRONT - p.halfD + 1);
+        if (nz - p.halfD + 1 >= minZ) { p.z = nz; out.buildings[p.i].z = nz; moved++; }
+      } else if (solidN > stS && solidN - stS > SNAP_OVER) {     // 南侧：向北拉
+        const nz = r3(stS + FRONT + p.halfD - 1);
+        if (nz + p.halfD - 1 <= maxZ) { p.z = nz; out.buildings[p.i].z = nz; moved++; }
+      }
     });
-    pieces += Math.max(1, Math.round(num(p && p.count, 1)));
-  });
+    if (moved) {
+      notes.push('有 ' + moved + ' 栋房离街太远（>' + SNAP_OVER + 'm），已按房前 ' + FRONT + 'm 退线拉近街道');
+    }
+  }
 
-  if (propErr) return propErr;
+  // ── 绿化：模型只给「种类 + 数量」，位置由代码在空带里生成 ─────────────
+  //   2026-11-07 实建实测：模型给的 props 矩形基本压在房子上，15 组树只落下 1 棵。
+  //   和街道/坐标同一结论 —— **几何归代码**。所以 props 不再接受 x/z/width/depth，
+  //   只接受 {kind, count}；具体放哪由代码按"建筑之外的空带"算。
+  //
+  //   空带规则（越自然越好）：
+  //     trees / rocks → 两排房的**外侧**各一条带（房后种树最自然）
+  //     bushes / flowers → **街道两侧**各一条窄带（沿街花坛）
+  //   每条带交给 scatter 去撒（它已有多倍采样 + 饱和扩容 + 与已有对象避让）。
+  // 种类 → 零件 + 缩放（2026-11-07 实建实测：Kenney 的树件只有 1.7m，
+  //   站在 3m 墙边像灌木；缩放在这里定死，别指望模型给）
+  //   ★ 非等比缩放（2026-11-07 树件对照实测）：Kenney 的树全是窄锥形（tree_default 宽高比 0.4），
+  //     等比放大到 3m 高就是一根细杆。把 X/Z 拉到比 Y 大 1.4 倍，树冠才像树 ——
+  //     这是这批素材上唯一有效的办法，换成 tree_plateau/tree_thin 同样是窄的。
+  const KIND_PARTS = {
+    trees: { key: 'tree_default', scale: 3.4, scaleY: 2.4 },
+    bushes: { key: 'plant_bush', scale: 1.6 },
+    flowers: { key: 'flower_redA', scale: 1.3 },
+    rocks: { key: 'rock_smallA', scale: 1.6 },
+  };
+  const KINDS = Object.keys(KIND_PARTS);
+
+  // 密度下限（2026-11-07 实建实测：模型只给 8 棵树 + 12 丛花，1148 件的村子里几乎看不见）。
+  //   **数量也属于「代码该兜的事」**：每栋房至少这么多，模型要得多就按模型的。
+  //   密度目标 ≈ 全村的 10%（10 栋房 ≈ 1000 件 → 约 120 件绿化）。
+  //   2026-11-07 两轮实建校准：2 棵/栋 时 100m 长的街只有 20 棵，看着还是荒。
+  const MIN_PER_BUILDING = { trees: 3, bushes: 4, flowers: 4, rocks: 1 };
+  const nB = out.buildings.length;
+
+  // 模型一件绿化都没给，但房子 ≥3 栋 → 自动补最基础的树 + 灌木（记 note，不静默）
+  let propList = Array.isArray(it.props) ? it.props.slice() : [];
+  if (!propList.length && nB >= 3) {
+    propList = [{ kind: 'trees' }, { kind: 'bushes' }];
+    notes.push('模型未给任何绿化 → 按村庄规模自动补「树 + 灌木」');
+  }
+
+  if (propList.length) {
+    // 房子的 z 分布与街的位置决定空带
+    const szs = placed.map((p) => p.z).sort((a, b) => a - b);
+    const northEdge = placed.length ? Math.min.apply(null, placed.map((p) => solidOf(p).z0)) : null;
+    const southEdge = placed.length ? Math.max.apply(null, placed.map((p) => solidOf(p).z1)) : null;
+    const xsAll2 = placed.map((p) => p.x);
+    const bandW = placed.length ? (Math.max.apply(null, xsAll2) - Math.min.apply(null, xsAll2)) + 12 : (maxX - minX) - 8;
+    const bandCx = placed.length ? (Math.min.apply(null, xsAll2) + Math.max.apply(null, xsAll2)) / 2 : (minX + maxX) / 2;
+    const st = out.roads[0] || null;
+    const stHalf = st ? st.depth / 2 : 2.5;
+    const stZ = st ? st.z : (northEdge !== null ? (northEdge + southEdge) / 2 : (minZ + maxZ) / 2);
+
+    /** 生成若干条可用的散布带（clamp 到区域，太薄就丢） */
+    const bandsFor = (kind) => {
+      const raw = [];
+      if (kind === 'trees' || kind === 'rocks') {
+        const depth = kind === 'trees' ? 12 : 7;
+        if (northEdge !== null) raw.push([northEdge - depth - 2, northEdge - 2]);
+        if (southEdge !== null) raw.push([southEdge + 2, southEdge + 2 + depth]);
+      } else {
+        const depth = 2.5;
+        raw.push([stZ - stHalf - 1 - depth, stZ - stHalf - 1]);
+        raw.push([stZ + stHalf + 1, stZ + stHalf + 1 + depth]);
+      }
+      const outBands = [];
+      for (const [z0, z1] of raw) {
+        const a = Math.max(minZ + 1, z0), b = Math.min(maxZ - 1, z1);
+        if (b - a < 1.5) continue;
+        outBands.push({ x: r3(bandCx), z: r3((a + b) / 2), width: r3(bandW), depth: r3(b - a) });
+      }
+      return outBands;
+    };
+
+    let propErr2 = null;
+    propList.forEach((p) => {
+      if (propErr2) return;
+      const rawKind = String((p && p.kind) || '').trim().toLowerCase();
+      // 兼容老格式：模型若还给 partKey，按名字反推种类（位置仍然不用它的）
+      let kind = rawKind;
+      if (!kind && p && p.partKey) {
+        const k2 = String(p.partKey);
+        if (/tree/i.test(k2)) kind = 'trees';
+        else if (/bush|plant/i.test(k2)) kind = 'bushes';
+        else if (/flower/i.test(k2)) kind = 'flowers';
+        else if (/rock/i.test(k2)) kind = 'rocks';
+      }
+      if (KINDS.indexOf(kind) < 0) {
+        propErr2 = {
+          ok: false, code: 'PROP_KIND_INVALID',
+          reason: `props 只接受 kind ∈ ${KINDS.join('/')}（位置由引擎按空带生成，不要给坐标）`,
+        };
+        return;
+      }
+      // 数量 = max(模型给的数量, 密度下限)。必须在 kind 确定之后算（踩过：放前面报 TDZ 错）
+      const asked = Math.max(0, Math.round(num(p && p.count, 0)));
+      const floor = MIN_PER_BUILDING[kind] * nB;
+      const count = Math.max(1, Math.max(asked, floor));
+      if (count > asked) {
+        notes.push(`绿化「${kind}」模型给 ${asked} → 低于密度下限（${MIN_PER_BUILDING[kind]}×${nB} 栋=${floor}）→ 提到 ${count}`);
+      }
+      const bands = bandsFor(kind);
+      if (!bands.length) {
+        notes.push(`props（${kind}）附近没有可用空带 → 本批不种`);
+        return;
+      }
+      // 数量按空带均分，至少每带 1 件
+      const per = Math.max(1, Math.round(count / bands.length));
+      bands.forEach((b, bi) => {
+        const n = bi === bands.length - 1 ? Math.max(1, count - per * (bands.length - 1)) : per;
+        out.props.push(Object.assign(
+          { partKey: KIND_PARTS[kind].key, kind, scale: KIND_PARTS[kind].scale, scaleY: KIND_PARTS[kind].scaleY },
+          b, { count: n }));
+        pieces += n;
+      });
+      notes.push(`绿化「${kind}」×${count} → 由代码放在 ${bands.length} 条空带（不采用模型给的矩形）`);
+    });
+    if (propErr2) return propErr2;
+  }
 
   const maxObjects = num(o.maxObjects, 0);
   if (maxObjects > 0 && pieces > maxObjects) {
