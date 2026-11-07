@@ -115,6 +115,10 @@ const encPath = (p) => String(p).split('/').map(encodeURIComponent).join('/');
             && SPEC.parts.door) {
           slot = 'door';
         }
+        // ★ doorRow（两层建筑）：门只放地上那排，其余排换窗 —— 与 solver 同口径
+        if (slot === 'door' && SPEC.doorRow != null && row !== Number(SPEC.doorRow)) {
+          slot = SPEC.upperDoorSlot || 'window';
+        }
         const p = PART(slot);
         if (!p) { notes.push(`${edge.name}[${i}] 槽位 ${slot} 无对应零件，跳过`); i++; continue; }
         const remain = len - cursor;
@@ -146,17 +150,23 @@ const encPath = (p) => String(p).split('/').map(encodeURIComponent).join('/');
   } else {
     const nx = Math.round(SPEC.width / fl.w);
     const nz = Math.round(SPEC.depth / fl.d);
-    for (let ix = 0; ix < nx; ix++) {
-      for (let iz = 0; iz < nz; iz++) {
-        placements.push({
-          group: 'floor', slot: 'floor', key: fl.key, path: fl.path,
-          x: r3(-SPEC.width / 2 + (ix + 0.5) * (SPEC.width / nx)),
-          y: 0,
-          z: r3(-SPEC.depth / 2 + (iz + 0.5) * (SPEC.depth / nz)),
-          ry: 0, libW: fl.w, useW: fl.w,
-        });
+    // ★ floorLevels：与 src/worldai/assembly/solver.js 同口径（两层建筑铺夹层）
+    const lvRaw = Array.isArray(SPEC.floorLevels) ? SPEC.floorLevels : [0];
+    const levels = Array.from(new Set(lvRaw.map(Number).filter((v) => isFinite(v) && v >= 0))).sort((a, b) => a - b);
+    if (!levels.length) levels.push(0);
+    levels.forEach((fy) => {
+      for (let ix = 0; ix < nx; ix++) {
+        for (let iz = 0; iz < nz; iz++) {
+          placements.push({
+            group: 'floor', slot: 'floor', key: fl.key, path: fl.path,
+            x: r3(-SPEC.width / 2 + (ix + 0.5) * (SPEC.width / nx)),
+            y: r3(fy),
+            z: r3(-SPEC.depth / 2 + (iz + 0.5) * (SPEC.depth / nz)),
+            ry: 0, libW: fl.w, useW: fl.w,
+          });
+        }
       }
-    }
+    });
     if (nx * fl.w < SPEC.width - 1e-6 || nz * fl.d < SPEC.depth - 1e-6) {
       notes.push(`楼板未铺满：${nx}×${nz} 块覆盖 ${r3(nx * fl.w)}×${r3(nz * fl.d)}m，房子 ${SPEC.width}×${SPEC.depth}m`);
     }

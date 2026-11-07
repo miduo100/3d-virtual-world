@@ -1,0 +1,85 @@
+{
+  "id": "medieval_6x8_town",
+  "name": "两层联排 · 6×8m",
+  "version": 1,
+  "capability": "enterable",
+  "style": "medieval_town",
+  "material": "plaster",
+  "pack": "gltf_2",
+  "dimensions": {
+    "width": 6,
+    "depth": 8,
+    "wallHeight": 6.24
+  },
+  "module": {
+    "wallWidth": 2,
+    "wallPieceHeight": 3.1248,
+    "rows": 2
+  },
+  "parts": {
+    "wall": "Wall_Plaster_Straight",
+    "door": "Wall_Plaster_Door_Flat",
+    "window": "Wall_Plaster_Window_Wide_Round",
+    "floor": "Floor_WoodDark",
+    "roof": "Roof_RoundTiles_6x8",
+    "gable": "Roof_Front_Brick6"
+  },
+  "layout": {
+    "south": [
+      "window",
+      "door",
+      "window"
+    ],
+    "east": [
+      "wall",
+      "window",
+      "wall",
+      "wall"
+    ],
+    "north": [
+      "wall",
+      "window",
+      "wall"
+    ],
+    "west": [
+      "wall",
+      "wall",
+      "window",
+      "wall"
+    ]
+  },
+  "roof": {
+    "mode": "whole",
+    "dropY": 0.15,
+    "ry": 0,
+    "originOffsetY": 0.782
+  },
+  "gable": {
+    "y": 6.24,
+    "zOffset": 0.55,
+    "originOffsetY": 0.132,
+    "stretchToRidge": true
+  },
+  "floorLevels": [
+    0,
+    3.125
+  ],
+  "doorRow": 0,
+  "upperDoorSlot": "window",
+  "notes": [
+    "★ 两层做法：层高 6.24 = 墙件高 3.1248 × 2 排，求解器自动沿高度堆两排墙；屋顶随之落到 6.872",
+    "★ gable.y 必须同步改成 6.24 —— 求解器不会自动推导山墙高度，写 3.12 会让山墙停在半腰、屋脊露三角洞",
+    "floorLevels [0, 3.125] = 地面 + 夹层楼板，否则两层是个通高壳子",
+    "doorRow=0：门只放在地面那排，二楼同位置换成窗（否则二楼开门就是悬空）"
+  ],
+  "metrics": {
+    "seamMax": 0,
+    "eave": {
+      "x": 0.92,
+      "z": 0.636
+    },
+    "gableVsRidge": 0.002,
+    "pieceCount": 55,
+    "verifiedAt": "2026-11-06"
+  }
+}

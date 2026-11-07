@@ -110,6 +110,11 @@ function buildSpec(id, overrides) {
       roof: Object.assign({}, t.roof),
       gable: t.gable ? Object.assign({}, t.gable) : undefined,
       doorSlot: t.doorSlot ? Object.assign({}, t.doorSlot) : undefined,
+      // 楼板分层（可选）：[0, 3.125] = 地面层 + 夹层；不传 = 只铺地面（历史行为）
+      floorLevels: Array.isArray(t.floorLevels) ? t.floorLevels.slice() : undefined,
+      // 门只放哪一排（两层建筑用；不设 = 每排都放门，历史行为）
+      doorRow: t.doorRow == null ? undefined : Number(t.doorRow),
+      upperDoorSlot: t.upperDoorSlot || undefined,
     },
   };
 }
@@ -187,6 +192,36 @@ function validate(t) {
     warnings.push('capability=blockout：产出为封闭体块，不可进入（这是设计定位，非缺陷）');
   }
   if (!t.metrics || t.metrics.verifiedAt == null) warnings.push('缺 metrics.verifiedAt，说明尚未实测');
+
+  // 楼板分层（两层建筑）
+  if (t.floorLevels !== undefined) {
+    if (!Array.isArray(t.floorLevels) || !t.floorLevels.length) {
+      errors.push('floorLevels 必须是非空数组（如 [0, 3.125]）');
+    } else {
+      for (const v of t.floorLevels) {
+        const n = Number(v);
+        if (!isFinite(n) || n < 0) errors.push(`floorLevels 含非法值 ${v}（必须是 ≥0 的数字，单位米）`);
+        else if (h > 0 && n >= h) errors.push(`floorLevels 的 ${n} 不低于层高 ${h}（楼板会穿出屋顶）`);
+      }
+      if (t.floorLevels.map(Number).indexOf(0) < 0) {
+        warnings.push('floorLevels 里没有 0 —— 地面层不铺楼板，进门会看到空洞');
+      }
+    }
+  }
+
+  // 多层建筑：门只放地上那排，其余排换成窗（否则二楼出现悬空门）
+  const rowN = Math.max(1, Number(t.module && t.module.rows) || 1);
+  // ★ 例外：kenney 那类用 doorSlot.rows 显式声明"门跨哪几排"（4 块拼一扇高门），
+  //   这是有意为之，不该按"二楼悬空门"警告。
+  if (rowN > 1 && t.parts && t.parts.door && !t.doorSlot) {
+    if (t.doorRow == null) {
+      warnings.push(`module.rows=${rowN} 但没设 doorRow —— 每排都会放门，二楼会出现悬空门`);
+    } else if (Number(t.doorRow) !== 0 && Number(t.doorRow) !== rowN - 1) {
+      warnings.push(`doorRow=${t.doorRow} 不是地面排（应为 0），进门会踩空`);
+    }
+    const up = t.upperDoorSlot || 'window';
+    if (!t.parts[up]) warnings.push(`上层门位槽「${up}」在 parts 里没有对应件，会报 SLOT_PART_UNDEFINED`);
+  }
 
   return { ok: errors.length === 0, errors, warnings };
 }

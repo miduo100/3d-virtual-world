@@ -1,0 +1,78 @@
+{
+  "id": "downtown_8x8_two",
+  "name": "现代两层 · 8×8m",
+  "version": 1,
+  "capability": "enterable",
+  "style": "modern",
+  "material": "metal",
+  "pack": "downtown_city_megakit",
+  "dimensions": {
+    "width": 8,
+    "depth": 8,
+    "wallHeight": 6
+  },
+  "module": {
+    "wallWidth": 2,
+    "wallPieceHeight": 3,
+    "rows": 2
+  },
+  "parts": {
+    "wall": "Metal_FirstFloor_Wall",
+    "door": "DoorFrame_Metal_Single",
+    "window": "Metal_FullWindow",
+    "floor": "Floor_2x2",
+    "roof": "Roof_2x2"
+  },
+  "layout": {
+    "south": [
+      "wall",
+      "window",
+      "door",
+      "wall"
+    ],
+    "east": [
+      "wall",
+      "window",
+      "wall",
+      "wall"
+    ],
+    "north": [
+      "wall",
+      "wall",
+      "window",
+      "wall"
+    ],
+    "west": [
+      "wall",
+      "window",
+      "wall",
+      "wall"
+    ]
+  },
+  "roof": {
+    "mode": "tile",
+    "dropY": 0.05,
+    "eave": 0.31
+  },
+  "floorLevels": [
+    0,
+    3
+  ],
+  "doorRow": 0,
+  "upperDoorSlot": "window",
+  "notes": [
+    "两层平顶：层高 6.0 = Metal_FirstFloor_Wall(3.0) × 2 排，屋顶铺瓦落在 5.95",
+    "floorLevels [0, 3] 铺两层楼板，二层可站人；无楼梯（本套件有 stairs 件，后续可加）",
+    "doorRow=0：门只在一层，二层同位置换 Metal_FullWindow（整面落地窗）",
+    "平顶不做山墙，屋顶靠 tiles 平铺，实出檐 X/Z 均 0.795"
+  ],
+  "metrics": {
+    "seamMax": 0,
+    "eave": {
+      "x": 0.795,
+      "z": 0.795
+    },
+    "pieceCount": 89,
+    "verifiedAt": "2026-11-06"
+  }
+}

@@ -147,6 +147,12 @@ async function solve(spec, ctx) {
           return fail('SEGMENT_OVERRUN', `边「${edge.name || edge.key}」分段超过 2000 仍未闭合（件宽过小或长度异常）`, '检查件宽 w 是否接近 0');
         }
         let slot = plan[i] || 'wall';
+        // ★ doorRow（2026-11-07 两层支持）：门只放地上那一排。
+        //   不设这道闸，两层模板会在 y=3.125 的二楼再放一扇门 —— 开门就是悬空，
+        //   玩家看到的是"墙上一个洞"。上层默认换成窗（模板可用 upperDoorSlot 覆盖）。
+        if (slot === 'door' && spec.doorRow != null && row !== Number(spec.doorRow)) {
+          slot = spec.upperDoorSlot || 'window';
+        }
         // ★ 按排替换门槽：Kenney 的门块与墙块同尺寸，只能逐块替换；
         //   中世纪/现代套件在 layout 里直接给 door 槽位即可。
         const ds = spec.doorSlot;
@@ -208,24 +214,37 @@ async function solve(spec, ctx) {
   }
 
   // ── 3) 楼板：按件尺寸铺满墙中线围合区（无 floor 件的套件跳过）──────────
+  //   ★ floorLevels（2026-11-07 两层支持）：原来 y 硬编码 0，只能铺地面层，
+  //     做出来的"两层"是个通高壳子。模板可用 floorLevels:[0, 3.125] 指定每层楼板高度
+  //     （数值口径 = 米，与墙排 y 一致：第 k 排墙在 k × 墙件高）。
+  //     不传 → [0]，行为与历史完全一致（判据 M1-2 全部仍按单层核对）。
   const fl = spec.parts.floor ? PART('floor') : null;
   if (!fl) {
     notes.push('该套件无 floor 类零件 → 不铺楼板（只验证墙体与屋顶）');
   } else {
+    const raw = Array.isArray(spec.floorLevels) ? spec.floorLevels : [0];
+    const levels = Array.from(new Set(raw.map(Number).filter((v) => isFinite(v) && v >= 0)))
+      .sort((a, b) => a - b);
+    if (!levels.length) levels.push(0);
+    if (levels.length > 1) {
+      notes.push(`楼板分 ${levels.length} 层：y = ${levels.map((v) => rules.r3(v)).join(' / ')}`);
+    }
     const nx = Math.max(1, Math.round(W / fl.w));
     const nz = Math.max(1, Math.round(D / fl.d));
-    for (let ix = 0; ix < nx; ix++) {
-      for (let iz = 0; iz < nz; iz++) {
-        push({
-          group: 'floor', slot: 'floor', key: fl.key, path: fl.path,
-          edge: null, row: 0, seq: ix * 1000 + iz, dir: 0,
-          x: rules.r3(-W / 2 + (ix + 0.5) * (W / nx)),
-          y: 0,
-          z: rules.r3(-D / 2 + (iz + 0.5) * (D / nz)),
-          ry: 0, libW: fl.w, useW: fl.w,
-        });
+    levels.forEach((fy, li) => {
+      for (let ix = 0; ix < nx; ix++) {
+        for (let iz = 0; iz < nz; iz++) {
+          push({
+            group: 'floor', slot: 'floor', key: fl.key, path: fl.path,
+            edge: null, row: li, seq: li * 100000 + ix * 1000 + iz, dir: 0,
+            x: rules.r3(-W / 2 + (ix + 0.5) * (W / nx)),
+            y: rules.r3(fy),
+            z: rules.r3(-D / 2 + (iz + 0.5) * (D / nz)),
+            ry: 0, libW: fl.w, useW: fl.w,
+          });
+        }
       }
-    }
+    });
     if (nx * fl.w < W - 1e-6 || nz * fl.d < D - 1e-6) {
       notes.push(`楼板未铺满：${nx}×${nz} 块覆盖 ${rules.r3(nx * fl.w)}×${rules.r3(nz * fl.d)}m，房子 ${W}×${D}m`);
     }
