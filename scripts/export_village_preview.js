@@ -68,6 +68,7 @@ const OUT = path.join(__dirname, '..', 'public', 'assembly-preview', REGION + '.
     parts,
     placements,
     stats: { total: placements.length, byGroup },
+    isVillage: true,   // 告诉预览页：这是多栋导出，别做接缝判定
     notes: ['由 export_village_preview.js 从 world_objects 导出（真实坐标与朝向）'],
   };
   fs.writeFileSync(OUT, JSON.stringify(payload, null, 1), 'utf8');

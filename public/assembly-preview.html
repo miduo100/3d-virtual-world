@@ -187,7 +187,14 @@ function placePart(gltf, p) {
 
   renderStats(plan);
   renderSizes(plan);
-  checkSeams(wallRecords);
+  // 村庄导出（多栋）不做「接缝」判定：那是在全村 210 片墙之间两两量间距，
+  // 报出来的 60 多米"阔缝"是房子之间的空当，不是墙缝 —— 照常显示会误导人。
+  if (plan.isVillage) {
+    const el = document.getElementById('seam');
+    if (el) el.innerHTML = '<h4>接缝检测</h4><div class="muted">村庄导出（多栋）不做接缝判定；单栋请看 assembly-gallery.html</div>';
+  } else {
+    checkSeams(wallRecords);
+  }
   renderEaves();
 
   const qs = new URLSearchParams(location.search);

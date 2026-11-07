@@ -20,6 +20,8 @@ const guard = require('./ownershipGuard');
 const journal = require('../journal/batchJournal');
 const boundsGuard = require('../regions/boundsGuard');
 const gridsnap = require('../regions/gridsnap');
+const adapter = require('../assembly/adapter');
+const registry = require('../assembly/templateRegistry');
 
 /** 3 个动词的参数白名单（P35-5 的落点） */
 const PARAM_SCHEMA = {
@@ -31,12 +33,22 @@ const PARAM_SCHEMA = {
     'scale_x', 'scale_y', 'scale_z'],
   move_object: ['id', 'x', 'z', 'ry', 'scale_x', 'scale_y', 'scale_z'],
   delete_object: ['id'],
+  // ★ M1-6：一次建一栋 / 铺一片 / 撒一派。
+  //   AI 只需要说「哪个模板、放在哪、朝哪」，坐标换算与批量落库由代码做死。
+  build_from_template: ['template', 'x', 'z', 'facing', 'name'],
+  pave: ['partKey', 'x', 'z', 'width', 'depth'],
+  scatter: ['partKey', 'x', 'z', 'width', 'depth', 'count', 'scale', 'collision'],
+  // ★ 精确摆一批（路灯=杆+灯头这种组合件、广场放水井这类"指定位置"的装饰）
+  place_props: ['items'],
 };
 const VERBS = Object.keys(PARAM_SCHEMA);
 
 /** 缩放允许范围：只放行"微调"量级（山墙 1.223 / 找平 0.98 这类），防止一件被拉成 50 倍糊掉整栋 */
 const SCALE_MIN = 0.1;
 const SCALE_MAX = 5;
+
+/** 保留 3 位小数（与求解器同口径） */
+const r3 = (v) => Math.round(Number(v) * 1000) / 1000;
 
 /**
  * ★ 结构性角色：无论库里标什么，一律可碰撞（2026-11-06）
@@ -284,10 +296,273 @@ async function verbDeleteObject(params, ctx) {
   return Object.assign({ id }, del, { ok: !!del.ok });
 }
 
+
+// ── 动词 4：build_from_template（medium）一次建一栋模板房 ────────────
+/**
+ * AI 说「在 (x,z) 建 medieval_6x10，门朝南」，这里负责：
+ *   ① 装得下吗（旋转后的占地 + 出檐 vs 区域围栏）→ 装不下就明确拒，并给出可行的模板
+ *   ② 预算够吗（件数 vs ctx.maxObjects / mission.constraints.max_objects）
+ *   ③ 地面多高（terrainGround 采样，整栋抬上去）
+ *   ④ 批量落库（journal.batchCreate，单事务）
+ *   ⑤ 幂等（同委托同落点重跑不重复建）
+ */
+async function verbBuildFromTemplate(params, ctx) {
+  const placeBuilding = require('../assembly/placeBuilding');
+  const boundsOf = adapter.boundsOf;
+
+  const templateId = String(params.template || '').trim();
+  if (!templateId) return reject('TEMPLATE_REQUIRED', 'build_from_template 必须给 template（模板 id）');
+
+  const ax = Number(params.x), az = Number(params.z);
+  if (!isFinite(ax) || !isFinite(az)) return reject('ANCHOR_INVALID', 'x / z 必须是数字（建筑中心坐标）');
+
+  // facing：0/90/180/270（度数，0 = 门朝 −Z）
+  const facing = params.facing == null ? 0 : Number(params.facing);
+  if (![0, 90, 180, 270].includes(facing)) {
+    return reject('FACING_INVALID', 'facing 只接受 0 / 90 / 180 / 270（度数，0 = 门朝 −Z）');
+  }
+  const theta = facing * Math.PI / 180;
+
+  const built = registry.buildSpec(templateId);
+  if (!built.ok) {
+    return reject(built.code, built.reason,
+      { available: registry.listTemplates().map((t) => t.id) });
+  }
+  const spec = built.spec;
+
+  // ① 装得下吗：用旋转后的占地 + 出檐（屋顶比墙宽，按出檐算才不会插到邻居家）
+  const fp = placeBuilding.footprintOf(spec, theta);
+  const eaveX = Number((built.spec.roof && built.spec.roof.eave) || 0);
+  const margin = Math.max(0.5, eaveX, 1.0);   // 未配 eave 的整块屋顶给 1m 余量
+  const b = boundsOf(ctx.region);
+  const needHalfW = fp.halfW + margin;
+  const needHalfD = fp.halfD + margin;
+  if (ax - needHalfW < b.minX || ax + needHalfW > b.maxX
+    || az - needHalfD < b.minZ || az + needHalfD > b.maxZ) {
+    return reject('BUILD_OUT_OF_BOUNDS',
+      `模板 ${templateId}（${spec.width}×${spec.depth}m，旋转 ${facing}°）含出檐后需要 `
+      + `${(needHalfW * 2).toFixed(1)}×${(needHalfD * 2).toFixed(1)}m 的空间，`
+      + `在 (${ax},${az}) 放不下区域围栏 [${b.minX},${b.minZ}]~[${b.maxX},${b.maxZ}]`,
+      {
+        need: { width: r3(needHalfW * 2), depth: r3(needHalfD * 2) },
+        // 给出同风格里能装下的候选（LLM 换一个就行，不用自己算）
+        fitCandidates: registry.listTemplates()
+          .filter((t) => {
+            const bs = registry.buildSpec(t.id);
+            if (!bs.ok) return false;
+            const f = placeBuilding.footprintOf(bs.spec, theta);
+            return (f.halfW + margin) * 2 <= (b.maxX - b.minX) && (f.halfD + margin) * 2 <= (b.maxZ - b.minZ);
+          })
+          .map((t) => t.id).slice(0, 8),
+      });
+  }
+
+  // ② 预算
+  const plan = await placeBuilding.planBuilding({ templateId, anchor: { x: ax, z: az }, theta });
+  if (!plan.ok) return reject(plan.code, plan.reason, plan.hint ? { hint: plan.hint } : undefined);
+
+  const maxObjects = Number(ctx.maxObjects || (ctx.mission && ctx.mission.constraints && ctx.mission.constraints.max_objects)) || 0;
+  if (maxObjects > 0) {
+    const already = ctx.missionId ? await countBatch(ctx.missionId) : 0;
+    if (already + plan.pieceCount > maxObjects) {
+      return reject('BUILD_EXCEEDS_BUDGET',
+        `本委托已落 ${already} 件，再加 ${templateId} 的 ${plan.pieceCount} 件会超过预算 max_objects=${maxObjects}`,
+        { pieceCount: plan.pieceCount, already, maxObjects });
+    }
+  }
+
+  // ③④ 批量落库（batchCreate 单事务；本身已做守卫与三要素）
+  const items = plan.rows.map((r) => Object.assign({}, r, {
+    name: params.name ? String(params.name) : r.name,
+  }));
+  const res = await journal.batchCreate(items, ctx);
+  if (!res.ok) return res;
+
+  return {
+    ok: true,
+    template: templateId,
+    pieces: plan.pieceCount,
+    ids: res.count,
+    anchor: { x: ax, z: az },
+    facing,
+    groundY: plan.ground.baseY,
+    groundSpan: plan.ground.span,
+    size: { width: spec.width, depth: spec.depth, wallHeight: spec.wallHeight },
+  };
+}
+
+// ── 动词 5：pave（low）矩形铺装 ──────────────────────────────────────
+/**
+ * 用一块 1×1 地面砖铺满矩形。AI 不需要算块数，只给矩形范围。
+ * 落库前逐块校验在围栏内；超界直接整批拒（不做「铺了一半」）。
+ */
+async function verbPave(params, ctx) {
+  const partKey = String(params.partKey || 'ground_pathStraight').trim();
+  const x = Number(params.x), z = Number(params.z);
+  const w = Number(params.width), d = Number(params.depth);
+  if (![x, z, w, d].every(isFinite) || !(w > 0) || !(d > 0)) {
+    return reject('PARAMS_INVALID', 'pave 需要数字 x,z,width,depth（矩形中心与尺寸）');
+  }
+  const p = await resolvePart({ partKey }, ctx);
+  if (!p.ok) return p;
+  const part = p.part;
+  const tw = Number(part.grid_w) || 1;
+  const td = Number(part.grid_d) || 1;
+
+  const nx = Math.max(1, Math.round(w / tw));
+  const nz = Math.max(1, Math.round(d / td));
+  const b = adapter.boundsOf(ctx.region);
+  if (x - (nx * tw) / 2 < b.minX || x + (nx * tw) / 2 > b.maxX
+    || z - (nz * td) / 2 < b.minZ || z + (nz * td) / 2 > b.maxZ) {
+    return reject('PAVE_OUT_OF_BOUNDS', `铺装范围 ${nx * tw}×${nz * td}m 超出区域围栏`);
+  }
+
+  const groundY = Number(ctx.groundY) || 0;
+  const items = [];
+  for (let ix = 0; ix < nx; ix++) {
+    for (let iz = 0; iz < nz; iz++) {
+      items.push({
+        type: 'uploaded_model',
+        name: part.part_key,
+        model_path: part.model_path,
+        position_x: r3(x - (nx * tw) / 2 + (ix + 0.5) * tw),
+        position_y: r3(groundY + 0.01),
+        position_z: r3(z - (nz * td) / 2 + (iz + 0.5) * td),
+        rotation_y: 0, scale_x: 1, scale_y: 1, scale_z: 1,
+        has_collision: false,
+      });
+    }
+  }
+  const res = await journal.batchCreate(items, ctx);
+  if (!res.ok) return res;
+  return { ok: true, partKey: part.part_key, tiles: items.length, nx, nz, center: { x, z }, size: { width: r3(nx * tw), depth: r3(nz * td) } };
+}
+
+// ── 动词 6：scatter（low）在矩形内散布道具 ──────────────────────────
+/**
+ * 在矩形内按**确定性**抖动撒 count 件同种道具（同参数两次调用结果一致，判据要求确定性）。
+ * 与已有对象相交的落点直接跳过（不换位）—— 植被压在墙上比少一棵树难看。
+ */
+async function verbScatter(params, ctx) {
+  const partKey = String(params.partKey || '').trim();
+  if (!partKey) return reject('PART_REQUIRED', 'scatter 必须给 partKey');
+  const x = Number(params.x), z = Number(params.z);
+  const w = Number(params.width), d = Number(params.depth);
+  const count = Math.max(1, Math.round(Number(params.count) || 1));
+  if (![x, z, w, d].every(isFinite) || !(w > 0) || !(d > 0)) {
+    return reject('PARAMS_INVALID', 'scatter 需要数字 x,z,width,depth,count');
+  }
+  const p = await resolvePart({ partKey }, ctx);
+  if (!p.ok) return p;
+  const part = p.part;
+  const scale = Math.max(SCALE_MIN, Math.min(SCALE_MAX, Number(params.scale) || 1));
+  const collision = params.collision === undefined ? true : params.collision === true;
+
+  const b = adapter.boundsOf(ctx.region);
+  if (x - w / 2 < b.minX || x + w / 2 > b.maxX || z - d / 2 < b.minZ || z + d / 2 > b.maxZ) {
+    return reject('SCATTER_OUT_OF_BOUNDS', '散布范围超出区域围栏');
+  }
+
+  const obstacles = await boundsGuard.loadObstacles(ctx.region && ctx.region.bounds ? ctx.region.bounds : ctx.region, ctx);
+  const groundY = Number(ctx.groundY) || 0;
+  const footprint = {
+    w: (Number(part.grid_w) || 1) * scale,
+    d: (Number(part.grid_d) || 1) * scale,
+  };
+
+  // 确定性伪随机（同参数 → 同结果，不依赖 Math.random）
+  const seedOf = (i) => {
+    const v = Math.sin((x * 12.9898 + z * 78.233 + i * 37.719) * 1.0) * 43758.5453;
+    return v - Math.floor(v);
+  };
+
+  const items = [];
+  let skipped = 0;
+  for (let i = 0; i < count; i++) {
+    const px = r3(x - w / 2 + seedOf(i * 2) * w);
+    const pz = r3(z - d / 2 + seedOf(i * 2 + 1) * d);
+    const chk = boundsGuard.checkPlacement(ctx.region && ctx.region.bounds ? ctx.region.bounds : ctx.region, px, pz, footprint, obstacles);
+    if (!chk.ok) { skipped++; continue; }
+    items.push({
+      type: 'uploaded_model',
+      name: part.part_key,
+      model_path: part.model_path,
+      position_x: px, position_y: groundY, position_z: pz,
+      rotation_y: r3(seedOf(i + 500) * Math.PI * 2),
+      scale_x: scale, scale_y: scale, scale_z: scale,
+      has_collision: collision,
+    });
+  }
+  if (!items.length) return { ok: true, partKey: part.part_key, placed: 0, skipped, reason: '范围内没有空位（与已有对象都相交）' };
+  const res = await journal.batchCreate(items, ctx);
+  if (!res.ok) return res;
+  return { ok: true, partKey: part.part_key, placed: items.length, skipped };
+}
+
+/** 本批已落多少件（预算校验用；失败当 0，不阻断） */
+async function countBatch(missionId) {
+  try {
+    const r = await query(`SELECT count(*)::int n FROM world_objects WHERE created_by = $1 AND origin = 'ai'`, [String(missionId)]);
+    return r.rows[0].n;
+  } catch (e) { return 0; }
+}
+
+
+// ── 动词 7：place_props（medium）按给定坐标精确摆一批道具 ────────────
+/**
+ * 为什么需要它：scatter 是"在范围内随机撒"，而路灯是「杆 + 灯头」两件必须同点、
+ * 广场摆水井必须落指定位置 —— 随机抖动会把组合件甩开。这里接受显式坐标列表。
+ *
+ * items[]: { partKey, x, z, y?, ry?, scale?, collision? }
+ * 上限 500 件/次：再多就走错工具了（该用 build_from_template / pave）。
+ */
+async function verbPlaceProps(params, ctx) {
+  const items = Array.isArray(params.items) ? params.items : [];
+  if (!items.length) return reject('PARAMS_INVALID', 'place_props 需要 items 数组（至少 1 件）');
+  if (items.length > 500) return reject('TOO_MANY_PROPS', 'place_props 单次上限 500 件（批量请用 pave / scatter / build_from_template）', { count: items.length });
+
+  const b = adapter.boundsOf(ctx.region);
+  const groundY = Number(ctx.groundY) || 0;
+  const rows = [];
+  const missing = [];
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i] || {};
+    const key = String(it.partKey || '').trim();
+    const x = Number(it.x), z = Number(it.z);
+    if (!key) return reject('PARAMS_INVALID', `items[${i}] 缺 partKey`);
+    if (!isFinite(x) || !isFinite(z)) return reject('PARAMS_INVALID', `items[${i}] 的 x/z 必须是数字`);
+    if (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) {
+      return reject('PROP_OUT_OF_BOUNDS', `items[${i}] (${x},${z}) 超出区域围栏`);
+    }
+    const p = await resolvePart({ partKey: key }, ctx);
+    if (!p.ok) { missing.push(key); continue; }
+    const scale = Math.max(SCALE_MIN, Math.min(SCALE_MAX, Number(it.scale) || 1));
+    rows.push({
+      type: 'uploaded_model',
+      name: p.part.part_key,
+      model_path: p.part.model_path,
+      position_x: r3(x),
+      position_y: r3(it.y == null ? groundY : Number(it.y)),
+      position_z: r3(z),
+      rotation_y: r3(Number(it.ry) || 0),
+      scale_x: scale, scale_y: Number(it.scaleY || scale), scale_z: scale,
+      has_collision: it.collision === undefined ? true : it.collision === true,
+    });
+  }
+  if (missing.length) return reject('PART_NOT_FOUND', '零件库没有：' + Array.from(new Set(missing)).join(', '), { missing });
+  const res = await journal.batchCreate(rows, ctx);
+  if (!res.ok) return res;
+  return { ok: true, placed: rows.length, ids: res.count };
+}
+
 const PRIVATE_VERBS = {
   place_part: verbPlacePart,
   move_object: verbMoveObject,
   delete_object: verbDeleteObject,
+  build_from_template: verbBuildFromTemplate,
+  pave: verbPave,
+  scatter: verbScatter,
+  place_props: verbPlaceProps,
 };
 
 /**
