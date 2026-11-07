@@ -28,6 +28,7 @@
 const registry = require('./templateRegistry');
 const solver = require('./solver');
 const adapter = require('./adapter');
+const terrainGround = require('./terrainGround');
 
 /** 细格吸附：保住求解器算出的坐标（详见文件头「接缝保护」） */
 const SNAP_UNIT = [0.05, 1, 0.05];
@@ -166,8 +167,28 @@ async function runInner(mission, region, opts, progress) {
       { pieceCount: solved.stats.pieceCount, maxObjects });
   }
 
+  // ── 3c) 地形高程（地形贴合，2026-11-07）──────────────────────────
+  //   世界地面不是 y=0：山地地块实测地面 y≈17.8m，按 y=0 落位会让整栋楼沉进山里
+  //   （用户截图实证：只露出屋顶）。这里采样建筑墙中线占地的地面高度，整栋平移上去。
+  //   ★ 采样失败一律回落 y=0（历史行为），不让地形查询把一次建设整体搞失败。
+  const anchor = adapter.anchorOf(region);
+  let ground = { hasTerrain: false, baseY: 0, min: 0, max: 0, span: 0, bury: 0, float: 0 };
+  try {
+    ground = await terrainGround.underFootprint(anchor.x, anchor.z, spec.width, spec.depth);
+  } catch (e) {
+    notes.push('地形高程查询失败，按 y=0 落位：' + String((e && e.message) || e).slice(0, 120));
+  }
+  if (ground.hasTerrain) {
+    notes.push(`地面贴合：脚下地面 y ${ground.min}~${ground.max}（起伏 ${ground.span}m）`
+      + ` → 整栋抬到 y=${ground.baseY}（埋深 ${ground.bury}m / 悬空 ${ground.float}m）`);
+  } else {
+    notes.push('该点没有地形（地块之外）：按 y=0 落位，玩家在此处会一直下坠，选址需注意');
+  }
+
   // ── 4) 局部坐标 → 世界坐标 ────────────────────────────────────────
-  const objects = adapter.placementsToWorldObjects(solved.parts, { region });
+  const objects = adapter.placementsToWorldObjects(solved.parts, {
+    region, anchor, groundY: ground.baseY,
+  });
   // 需要垂直拉伸的件数（山墙填屋脊）。★ 这只是"需要"，不表示"落不了库"——
   //   missionTools 已支持 place_part 的 scale_*，若某天工具层又收窄了白名单，
   //   落位循环会退回未拉伸并累加 stats.scalePending（不丢件）。
@@ -182,6 +203,7 @@ async function runInner(mission, region, opts, progress) {
       placements: objects, notes,
       stats: Object.assign(adapter.assemblyStatsOf(solved, {
         plannedParts: objects.length, stretchNeeded, scalePending: 0,
+        groundY: ground.baseY, groundSpan: ground.span,
       }), { dryRun: true }),
     };
   }
@@ -264,6 +286,8 @@ async function runInner(mission, region, opts, progress) {
     objectsCreated: stats.objectsCreated,
     deduped: stats.deduped,
     plannedParts: objects.length,
+    groundY: ground.baseY,      // 地形贴合：整栋抬高的基准（0 = 平地或地块之外）
+    groundSpan: ground.span,    // 占地内地面起伏，>1m 说明选址在陡坡上
   });
 
   const status = stats.failed > 0 && stats.objectsCreated === 0 ? 'failed' : 'completed';

@@ -108,18 +108,25 @@ function anchorOf(region) {
  *   换算只在这里做一次，求解器保持"度数"这一人类可读口径。
  *
  * @param {Array} placements solver 返回的 parts（ry 为度数）
- * @param {object} opts { region, anchor?:{x,z} }
+ * @param {object} opts { region, anchor?:{x,z}, groundY?:number }
  * @returns {Array<{partKey,x,z,level,ry,scaleY,group,slot,edge,row,seq}>} ry 为弧度
  */
 const DEG2RAD = Math.PI / 180;
 
+/** 保留 3 位小数（与求解器 r3 同口径，避免二元浮点尾数落进 position_y） */
+const r3 = (v) => Math.round(Number(v) * 1000) / 1000;
+
 function placementsToWorldObjects(placements, opts) {
   const o = opts || {};
   const a = o.anchor || anchorOf(o.region);
+  // ★ groundY（2026-11-07 地形贴合）：世界地面不是 y=0 —— 山地地块实测 (4652,4620) 处
+  //   地面 y=17.77，而求解器按 y=0 落位，整条街沉在山下。地面高程由 terrainGround 采样，
+  //   这里只做一次平移；求解器本身仍输出「以建筑底面为 0」的局部坐标（保持纯函数）。
+  const g = num(o.groundY, 0);
   return (placements || []).map((p) => ({
     partKey: p.key,
     // level 语义 = 米（place_part 的 gridsnap 单位 y 恒为 1），所以直接把 y 当 level
-    level: num(p.y, 0),
+    level: r3(g + num(p.y, 0)),
     x: num(a.x, 0) + num(p.x, 0),
     z: num(a.z, 0) + num(p.z, 0),
     ry: num(p.ry, 0) * DEG2RAD,   // ★ 度数 → 弧度（见上方说明）
