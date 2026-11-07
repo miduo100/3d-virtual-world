@@ -172,6 +172,26 @@ function validateIntent(intent, region, opts) {
     pieces += Math.round(cw) * Math.round(cd);
   });
 
+  // ★ 路不能压到房子（2026-11-07 真调用实测抓到）：模型把 4m 宽的路放在距房 3m 处，
+  //   中心距够、但路的半宽让矩形插进了房子 2m —— 只算中心距是拦不住的，必须按矩形相交。
+  for (let i = 0; i < out.roads.length; i++) {
+    const r = out.roads[i];
+    const rx0 = r.x - r.width / 2, rx1 = r.x + r.width / 2;
+    const rz0 = r.z - r.depth / 2, rz1 = r.z + r.depth / 2;
+    for (const p of placed) {
+      const bx0 = p.x - p.halfW + 1, bx1 = p.x + p.halfW - 1;   // 出檐余量里那 1m 不算房子实体
+      const bz0 = p.z - p.halfD + 1, bz1 = p.z + p.halfD - 1;
+      if (rx0 < bx1 && rx1 > bx0 && rz0 < bz1 && rz1 > bz0) {
+        return {
+          ok: false, code: 'ROAD_HITS_BUILDING',
+          reason: `roads[${i}]（${r.width}×${r.depth}m，中心 ${r.x},${r.z}）压到了 buildings[${p.i}] 的房子实体上`
+            + '——路要么远离房子，要么缩短到房子边上为止',
+          hints: { road: { x: r.x, z: r.z, width: r.width, depth: r.depth }, building: { x: p.x, z: p.z } },
+        };
+      }
+    }
+  }
+
   // props：范围散布
   (Array.isArray(it.props) ? it.props : []).forEach((p) => {
     const key = String((p && p.partKey) || '').trim();
