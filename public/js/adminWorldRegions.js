@@ -155,13 +155,16 @@
           : st === 'rolled_back' ? '<span class="awb-tag">rolled_back</span>'
             : '<span class="awb-tag">' + esc(st) + '</span>';
       const stats = m.executed_stats || {};
+      const tplMode = (m.constraints || {}).planMode === 'template';
       return '<div class="awb-inline" style="margin:6px 0;flex-wrap:wrap;">' +
         badge + '<b>' + esc(m.title) + '</b>' +
+        (tplMode ? '<span class="awb-tag g">模板规划</span>' : '') +
         '<span class="awb-tag">快照 ' + esc(m.autonomy_snapshot) + '</span>' +
         '<span class="awb-tag">' + esc(m.prompt).slice(0, 40) + '</span>' +
         (stats.objectsCreated !== undefined ? '<span class="awb-tag">建了 ' + stats.objectsCreated + ' 件</span>' : '') +
         (stats.skippedByCollision ? '<span class="awb-tag">换位 ' + stats.skippedByCollision + '</span>' : '') +
-        '<button class="awr-btn" data-act="plan" data-region="' + esc(g.region_key) + '" data-mission="' + esc(m.id) + '">🧭 生成方案</button>' +
+        // 模板路径没有"先生成方案再确认"这一步（规划与建造在一次执行里完成），故不显示该按钮
+        (tplMode ? '' : '<button class="awr-btn" data-act="plan" data-region="' + esc(g.region_key) + '" data-mission="' + esc(m.id) + '">🧭 生成方案</button>') +
         '<button class="awr-btn" data-act="run" data-region="' + esc(g.region_key) + '" data-mission="' + esc(m.id) + '">▶️ 执行</button>' +
         '<button class="awr-btn" data-act="rollback" data-region="' + esc(g.region_key) + '" data-mission="' + esc(m.id) + '">↩️ 一键回滚</button>' +
         (st === 'completed' ? '<button class="awr-btn" data-act="followup" data-region="' + esc(g.region_key) + '" data-mission="' + esc(m.id) + '">➕ 再来一批</button>' : '') +
@@ -186,6 +189,12 @@
           '<input type="text" class="awr-prompt" data-region="' + esc(g.region_key) + '" placeholder="例：盖一个有 6 张桌子的咖啡馆，带院子" style="flex:1;min-width:220px;">' +
           '<input type="text" class="awr-style" data-region="' + esc(g.region_key) + '" placeholder="风格 brick_urban" style="width:150px;">' +
           '<input type="number" class="awr-exclude" data-region="' + esc(g.region_key) + '" placeholder="排除 role" style="width:120px;">' +
+          // ★ 规划模式（M1-8 灰度开关）：legacy = 老的零件级规划；template = 让 AI 选模板/选址/朝向，
+          //   坐标与件数由代码算（能出整村）。默认 legacy，不动老行为。
+          '<select class="awr-planmode" data-region="' + esc(g.region_key) + '" title="规划模式">' +
+            '<option value="legacy">旧算法（零件级）</option>' +
+            '<option value="template">模板规划（AI 选模板·可建村）</option>' +
+          '</select>' +
           '<button class="awr-btn" data-act="newmission" data-region="' + esc(g.region_key) + '">＋ 新建委托</button>' +
         '</div></div>' +
       '<div>' + (rows || '<div class="awb-tag">还没有委托。</div>') + '</div>' +
@@ -246,11 +255,18 @@
             if (!prompt) return out(region, '请先写一句话诉求', false);
             const style = String(document.querySelector('.awr-style[data-region="' + CSS.escape(region) + '"]').value || '').trim();
             const exclude = String(document.querySelector('.awr-exclude[data-region="' + CSS.escape(region) + '"]').value || '').trim();
+            const planMode = String((document.querySelector('.awr-planmode[data-region="' + CSS.escape(region) + '"]') || {}).value || 'legacy');
             const constraints = {};
             if (style) constraints.style_family = style;
             if (exclude) constraints.forbid_roles = exclude.split(',').map((s) => s.trim()).filter(Boolean);
+            if (planMode === 'template') {
+              constraints.planMode = 'template';
+              // 模板路径按 max_objects 做件数闸门；没给就沿用区域预算，避免"一单建爆"
+              const mo = Number(c && c.maxObjects);
+              if (mo > 0) constraints.max_objects = mo;
+            }
             const r = await jreq('POST', API + '/missions', { regionKey: region, title: prompt.slice(0, 30), prompt, constraints });
-            out(region, '委托已建（快照 ' + r.autonomySnapshot + '）' + (r.providerResolution && r.providerResolution.reason ? ' · ' + r.providerResolution.reason : ''), true);
+            out(region, '委托已建（' + (planMode === 'template' ? '模板规划' : '旧算法') + '，快照 ' + r.autonomySnapshot + '）' + (r.providerResolution && r.providerResolution.reason ? ' · ' + r.providerResolution.reason : ''), true);
             load();
           } else if (act === 'plan') {
             outOf(mission, '生成中…（约 1~3 分钟，勿刷新）', true);
@@ -267,7 +283,13 @@
             outOf(mission, '执行中…', true);
             const r = await jreq('POST', API + '/missions/' + mission + '/run', { confirm: true, useSavedPlan: true });
             const s = r.stats || {};
-            outOf(mission, (r.status === 'completed' ? '✅ 完成' : '⚠ ' + r.status) + '：建 ' + (s.objectsCreated || 0) + ' 件 · 换位 ' + (s.skippedByCollision || 0) + ' · 拒绝 ' + (s.denied || 0) + ' · LLM ' + (s.llmCalls || 0) + ' 次', r.status === 'completed');
+            const head = (r.status === 'completed' ? '✅ 完成' : '⚠ ' + r.status);
+            const body = s.mode === 'template'
+              ? '：建 ' + (s.objectsCreated || 0) + ' 件 · ' + (s.buildings || 0) + ' 栋房 / ' + (s.roads || 0) + ' 条路 / '
+                + (s.props || 0) + ' 组道具 · LLM ' + (s.llmCalls || 0) + ' 轮（契约 ' + ((s.template && s.template.contractTokens) || '?') + ' tokens）'
+                + (s.error ? ' · 失败码 ' + s.error.code : '')
+              : '：建 ' + (s.objectsCreated || 0) + ' 件 · 换位 ' + (s.skippedByCollision || 0) + ' · 拒绝 ' + (s.denied || 0) + ' · LLM ' + (s.llmCalls || 0) + ' 次';
+            outOf(mission, head + body, r.status === 'completed');
             load();
           } else if (act === 'followup') {
             const addendum = prompt('补充要求（AI 会读取区域内已有资产，只补差距不重复）\n例：再加 20 棵、增加几种不同的树、靠北面补一排围栏');
