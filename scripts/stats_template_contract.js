@@ -101,6 +101,8 @@ async function findSite() {
       const rec = {
         prompt, ok: !!(run && run.ok), status: (run && run.status) || '?',
         code: (st.error && st.error.code) || (run && run.innerCode) || '',
+        reason: (st.error && st.error.reason) || (run && run.reason) || '',
+        intent: st.planIntent || '',
         rounds: Number(st.llmCalls) || 0,
         tokens: tok.t, calls: tok.n,
         pieces: Number(st.objectsCreated) || 0,
@@ -112,7 +114,9 @@ async function findSite() {
       console.log((rec.ok ? '✓' : '✗') + ' ' + (i + 1) + '/' + PROMPTS.length + ' r' + (r + 1)
         + '  ' + (rec.ok ? (rec.buildings + ' 栋 / ' + rec.roads + ' 路 / ' + rec.pieces + ' 件')
           : (rec.code || rec.status))
-        + '  轮次 ' + rec.rounds + ' · ' + rec.tokens + ' tok · ' + rec.secs + 's  「' + prompt.slice(0, 18) + '…」');
+        + '  轮次 ' + rec.rounds + ' · ' + rec.tokens + ' tok · ' + rec.secs + 's  「' + prompt.slice(0, 18) + '…」'
+        + (rec.ok ? '' : '\n     原因：' + String(rec.reason).slice(0, 250)
+          + (rec.intent ? '\n     意图：' + String(rec.intent).slice(0, 900) : '')));
     }
   }
 

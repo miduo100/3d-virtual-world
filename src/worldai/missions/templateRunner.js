@@ -89,7 +89,10 @@ async function run(mission, region, opts) {
     stats.template.rounds = Number(planned.rounds) || 0;
     stats.template.contractTokens = planned.contractTokens == null ? null : planned.contractTokens;
     if (!planned.ok) {
-      return await fail(planned.code || 'PLAN_FAILED', 'plan', planned.reason, { planHint: planned.hints || null });
+      return await fail(planned.code || 'PLAN_FAILED', 'plan', planned.reason, {
+        planHint: planned.hints || null,
+        planIntent: planned.lastIntent || null,   // 失败时的原始意图（复现用）
+      });
     }
     stats.buildings = planned.stats.buildings;
     stats.roads = planned.stats.roads;

@@ -214,7 +214,12 @@ function validateIntent(intent, region, opts) {
     return (r.x - r.width / 2) < s0.x1 && (r.x + r.width / 2) > s0.x0
       && (r.z - r.depth / 2) < s0.z1 && (r.z + r.depth / 2) > s0.z0;
   });
-  if (out.roads.some(hitsAny) && placed.length) {
+  // ★ 规则最终形态（2026-11-07）：**≥3 栋房时街道一律由代码推导**，不再采用模型给的路矩形。
+  //   理由：20 次统计里 100% 的失败都是"路与房子几何关系"，而模型算不准这件事；
+  //   街道的位置本来就能从两排房的排布唯一确定（两排之间 / 房群外侧），不需要它猜。
+  //   1~2 栋时保留模型的路（那是"门前小路"，位置有语义，模型说得对）。
+  const deriveStreet = placed.length >= 3;
+  if ((deriveStreet || out.roads.some(hitsAny)) && placed.length) {
     // 取所有房子在 Z 上的分布，找最大空档（两排房的分界）
     const zs = Array.from(new Set(out.buildings.map((b) => b.z))).sort((a, b) => a - b);
     let gapMid = null;
@@ -240,7 +245,8 @@ function validateIntent(intent, region, opts) {
     // width/depth 语义：沿 X 走 → width 是长度、depth 是宽度。统一成"沿 X 的长条"
     const along = { x: street.x, z: street.z, width: street.depth, depth: street.width };
     out.roads = [along];
-    notes.push('模型给的路压到了房子 → 已按两排房之间的空隙自动生成主街（X 向 '
+    notes.push((deriveStreet ? '房屋 ≥3 栋 → 主街由代码按排布推导' : '模型给的路压到了房子 → 已按两排房之间的空隙自动生成主街')
+      + '（X 向 '
       + r3(along.width) + '×' + r3(along.depth) + 'm @' + r3(along.x) + ',' + r3(along.z) + '）');
   }
 
@@ -421,13 +427,16 @@ async function planTemplates(mission, region, opts) {
       continue;
     }
     let v;
+    let lastIntent = null;
     try {
+      lastIntent = JSON.stringify(intent).slice(0, 1600);   // 失败时带回去，便于复现（别靠猜）
       v = validateIntent(intent, region, { maxObjects });
     } catch (e) {
       v = { ok: false, code: 'VALIDATE_THREW', reason: String((e && e.message) || e) };
     }
     if (v.ok) return { ok: true, rounds: round, plan: v.plan, stats: v.stats, contractTokens: contract.tokens };
     lastErr = v;
+    lastErr.lastIntent = lastIntent;
     // 把"哪里不合法 + 可行范围"喂回去，让下一轮改对（这是失败率能不能降下来的关键）
     messages.push({ role: 'assistant', content: String(content || '').slice(0, 2000) });
     messages.push({
