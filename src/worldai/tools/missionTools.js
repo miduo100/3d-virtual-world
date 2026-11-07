@@ -478,25 +478,39 @@ async function verbScatter(params, ctx) {
 
   const items = [];
   let skipped = 0;
-  for (let i = 0; i < count; i++) {
-    const px = r3(x - w / 2 + seedOf(i * 2) * w);
-    const pz = r3(z - d / 2 + seedOf(i * 2 + 1) * d);
-    const chk = boundsGuard.checkPlacement(ctx.region && ctx.region.bounds ? ctx.region.bounds : ctx.region, px, pz, footprint, obstacles);
-    if (!chk.ok) { skipped++; continue; }
-    items.push({
-      type: 'uploaded_model',
-      name: part.part_key,
-      model_path: part.model_path,
-      position_x: px, position_y: groundY, position_z: pz,
-      rotation_y: r3(seedOf(i + 500) * Math.PI * 2),
-      scale_x: scale, scale_y: scale, scale_z: scale,
-      has_collision: collision,
-    });
+  let expansions = 0;
+  // ★ 候选点采样 + 饱和扩容（2026-11-07 两次实测定）：
+  //   ① 只生成 count 个候选 → 撞到房子就丢（"规划 15 组树、实际落 1 棵"），改成 5 倍采样；
+  //   ② 模型给的矩形常多半压在房子上，5 倍也不够 → **矩形饱和就按 1.5 倍向外扩**，
+  //      最多扩 3 次（不超出区域围栏）。种子只依赖坐标与序号，扩容后仍确定性。
+  const regBounds = ctx.region && ctx.region.bounds ? ctx.region.bounds : ctx.region;
+  let rx = x, rz = z, rw = w, rd = d;
+  for (let round = 0; round < 4 && items.length < count; round++) {
+    if (round > 0) {
+      rw = rw * 1.5; rd = rd * 1.5; expansions++;
+    }
+    const tries = (count - items.length) * 5;
+    for (let i = 0; i < tries && items.length < count; i++) {
+      const seed = round * 100000 + i;
+      const px = r3(rx - rw / 2 + seedOf(seed * 2) * rw);
+      const pz = r3(rz - rd / 2 + seedOf(seed * 2 + 1) * rd);
+      const chk = boundsGuard.checkPlacement(regBounds, px, pz, footprint, obstacles);
+      if (!chk.ok) { skipped++; continue; }
+      items.push({
+        type: 'uploaded_model',
+        name: part.part_key,
+        model_path: part.model_path,
+        position_x: px, position_y: groundY, position_z: pz,
+        rotation_y: r3(seedOf(seed + 500) * Math.PI * 2),
+        scale_x: scale, scale_y: scale, scale_z: scale,
+        has_collision: collision,
+      });
+    }
   }
   if (!items.length) return { ok: true, partKey: part.part_key, placed: 0, skipped, reason: '范围内没有空位（与已有对象都相交）' };
   const res = await journal.batchCreate(items, ctx);
   if (!res.ok) return res;
-  return { ok: true, partKey: part.part_key, placed: items.length, skipped };
+  return { ok: true, partKey: part.part_key, placed: items.length, skipped, expansions };
 }
 
 /** 本批已落多少件（预算校验用；失败当 0，不阻断） */
