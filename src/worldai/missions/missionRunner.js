@@ -99,6 +99,8 @@ async function run(missionId, opts) {
   // M1-4 灰度：默认 legacy；仅当委托 constraints.assemblyMode='solver' 时转交，功能全在新文件（失败不回落）
   const assemblyMode = (mission.constraints || {}).assemblyMode || 'legacy';
   if (assemblyMode === 'solver') return require('../assembly/runnerIntegration').run(mission, region, { started, notes });
+  // M1-7 灰度：模板规划路径（LLM 只出意图，坐标/件数由代码算）。默认仍是 legacy。
+  if ((mission.constraints || {}).planMode === 'template') return require('./templateRunner').run(mission, region, { started, notes });
   // 1) 布局提案（预算闸门在 planner 内，查 ai_call_log 表）
   // ★ B1 确认卡：useSavedPlan=true 时直接用"生成方案"保存并经管理员确认的那份方案，
   //   绝不重新规划（否则确认卡看的是 A、建的却是 B，确认语义失效）。无已存方案时回落重新规划。
