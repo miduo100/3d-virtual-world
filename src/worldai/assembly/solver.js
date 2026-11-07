@@ -272,15 +272,17 @@ async function solve(spec, ctx) {
       libW: rw.w, useW: rw.w,
     });
     const eave = rules.eaveOf(spec, rw);
-    notes.push(`屋顶：整块 ${rw.key}（${rw.w}×${rw.d}m）—— 出檐 X ${eave.actual.x}m / Z ${eave.actual.z}m（墙面厚 ${rules.WALL_THICKNESS}m 已计入）`);
+    notes.push(`屋顶：整块 ${rw.key}（${rw.w}×${rw.d}m）—— 出檐 X ${eave.actual.x}m / Z ${eave.actual.z}m（墙面厚 ${rules.wallThicknessOf(spec)}m 已计入）`);
   } else if (RF.mode === 'tile') {
     const rt = PART('roof');
     if (!rt) {
       return fail('SLOT_PART_UNDEFINED', 'roof.mode=tile 但没有 roof 件', '模板 parts.roof 必须指向平铺屋顶件');
     }
     const eave = Number(RF.eave) || 0;
-    const spanW = W + rules.WALL_THICKNESS + eave * 2;
-    const spanD = D + rules.WALL_THICKNESS + eave * 2;
+    // ★ 墙厚按模板取（城堡 1m / 厂房 2m / 默认 0.41m），否则平铺范围会算窄
+    const WT = rules.wallThicknessOf(spec);
+    const spanW = W + WT + eave * 2;
+    const spanD = D + WT + eave * 2;
     const tx = Math.max(1, Math.round(spanW / rt.w));
     const tz = Math.max(1, Math.round(spanD / rt.d));
     for (let ix = 0; ix < tx; ix++) {

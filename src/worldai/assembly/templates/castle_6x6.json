@@ -1,0 +1,81 @@
+{
+  "id": "castle_6x6",
+  "name": "石砌要塞 · 6×6m",
+  "version": 1,
+  "capability": "enterable",
+  "style": "castle",
+  "material": "stone",
+  "pack": "kenney_retro_fantasy_kit",
+  "dimensions": {
+    "width": 6,
+    "depth": 6,
+    "wallHeight": 3
+  },
+  "module": {
+    "wallWidth": 1,
+    "wallPieceHeight": 1,
+    "rows": 3,
+    "wallThickness": 1
+  },
+  "parts": {
+    "wall": "wall_fortified",
+    "door": "wall_fortified_door",
+    "window": "wall_fortified_window",
+    "floor": "floor_flat",
+    "roof": "roof"
+  },
+  "layout": {
+    "south": [
+      "wall",
+      "window",
+      "wall",
+      "door",
+      "window",
+      "wall"
+    ],
+    "east": [
+      "wall",
+      "window",
+      "wall",
+      "wall",
+      "window",
+      "wall"
+    ],
+    "north": [
+      "wall",
+      "wall",
+      "window",
+      "wall",
+      "wall",
+      "wall"
+    ],
+    "west": [
+      "wall",
+      "window",
+      "wall",
+      "wall",
+      "window",
+      "wall"
+    ]
+  },
+  "roof": {
+    "mode": "tile",
+    "dropY": 0.02,
+    "eave": 1
+  },
+  "notes": [
+    "★ 风格来源：kenney_retro_fantasy_kit —— 1m 立方模块，墙厚 1.0m（不是 0.41），所以模板必须写 module.wallThickness，否则出檐会算宽 0.59m",
+    "层高 3m = 墙件高 1m × 3 排，砌出来是有厚度的石墙，不是薄板",
+    "屋顶用 roof（1×1×1）平铺，出檐 1.0m",
+    "要塞风格：外墙全用 wall_fortified（带垛口），门和窗也取 fortified 版本保持同一材质"
+  ],
+  "metrics": {
+    "seamMax": 0,
+    "eave": {
+      "x": 1,
+      "z": 1
+    },
+    "pieceCount": 189,
+    "verifiedAt": "2026-11-06"
+  }
+}

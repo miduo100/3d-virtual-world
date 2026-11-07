@@ -16,8 +16,20 @@
  * 墙件厚度（米）。实测 gltf_2 与 downtown 的墙件均为 0.41m 厚。
  * 用途：外墙面 = 墙中线 + 厚度 → 出檐 = (屋顶宽 − 外墙面宽) / 2。
  * ★ 这是「出檐」唯一的计算入口，不要在别处再写 0.41。
+ *
+ * ★ 2026-11-07 扩展：厚度不再全局写死 —— 模板可用 `module.wallThickness` 覆盖。
+ *   Kenney 那几套是 1m 见方的立方模块（城堡/砖城墙厚 1.0m）、
+ *   factory kit 的 structure_wall 厚 2.0m。
+ *   继续用 0.41 会把外墙面算窄，出檐虚高 0.3~0.8m，M1-2-2 直接判错。
+ *   不写该字段的模板仍然是 0.41，行为不变。
  */
 const WALL_THICKNESS = 0.41;
+
+/** 取某份 spec 的墙厚（模板可覆盖；缺省回到 0.41） */
+function wallThicknessOf(spec) {
+  const v = Number(spec && spec.module && spec.module.wallThickness);
+  return isFinite(v) && v > 0 ? v : WALL_THICKNESS;
+}
 
 /**
  * 收尾判定：剩余长度 ≤ 2cm 视为已闭合。
@@ -103,8 +115,9 @@ function nearestMultiple(v, unit) {
 function eaveOf(spec, roofPart) {
   const s = spec || {};
   const W = Number(s.width), D = Number(s.depth);
-  const outerW = W + WALL_THICKNESS;
-  const outerD = D + WALL_THICKNESS;
+  const T = wallThicknessOf(s);
+  const outerW = W + T;
+  const outerD = D + T;
   const rf = s.roof || {};
   const rp = roofPart || {};
   if (rf.mode === 'whole') {
@@ -136,6 +149,6 @@ function isEaveAcceptable(eave) {
 
 module.exports = {
   WALL_THICKNESS, TAIL_TOL, SEAM_TOL, EAVE_RANGE, POLICIES, ROOF_MODES,
-  r3, deg, normAng,
+  r3, deg, normAng, wallThicknessOf,
   rowsFor, edgeLen, resolvePolicy, nearestMultiple, eaveOf, isEaveAcceptable,
 };

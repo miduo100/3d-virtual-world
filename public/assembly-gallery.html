@@ -7,7 +7,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>模板库 v1 · 12 个模板对比</title>
+<title>模板库 v1 · 15 个模板对比</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:#0d1117; color:#e6edf3; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; }
@@ -31,11 +31,29 @@
 </head>
 <body>
 <div class="top">
-  <h1>模板库 v1 · 12 个模板</h1>
+  <h1>模板库 v1 · 15 个模板</h1>
   <span class="sum">每格 = 同一个 preview 页面换 plan 文件；接缝/出檐判据与 accept_m1_2 同源</span>
   <a href="/assembly-preview.html?plan=medieval_6x10.json" target="_blank">单开中世纪小屋 ↗</a>
 </div>
 <div class="grid">
+  <section class="card">
+    <header>
+      <h2>石砌要塞 · 6×6m</h2>
+      <div class="meta">
+        <span class="tag">castle_6x6</span>
+        <span class="tag">enterable</span>
+        <span class="tag">castle / stone</span>
+        <span class="tag">屋顶 tile</span>
+      </div>
+      <table>
+        <tr><th>尺寸</th><td>6 × 6 × 3m</td><th>件数</th><td>189</td></tr>
+        <tr><th>出檐 X/Z</th><td>1 / 1 m</td><th>接缝</th><td>0 m</td></tr>
+        <tr><th>山墙 vs 屋脊</th><td colspan="3">无（平顶）</td></tr>
+      </table>
+    </header>
+    <div class="view"><iframe loading="lazy" src="/assembly-preview.html?plan=castle_6x6.json" title="castle_6x6"></iframe></div>
+  </section>
+
   <section class="card">
     <header>
       <h2>现代平层 · 12×8m</h2>
@@ -88,6 +106,24 @@
       </table>
     </header>
     <div class="view"><iframe loading="lazy" src="/assembly-preview.html?plan=downtown_8x8_two.json" title="downtown_8x8_two"></iframe></div>
+  </section>
+
+  <section class="card">
+    <header>
+      <h2>工业厂房 · 8×6m</h2>
+      <div class="meta">
+        <span class="tag">factory_8x6</span>
+        <span class="tag">enterable</span>
+        <span class="tag">industrial / steel</span>
+        <span class="tag">屋顶 tile</span>
+      </div>
+      <table>
+        <tr><th>尺寸</th><td>8 × 6 × 3m</td><th>件数</th><td>196</td></tr>
+        <tr><th>出檐 X/Z</th><td>1 / 1 m</td><th>接缝</th><td>0 m</td></tr>
+        <tr><th>山墙 vs 屋脊</th><td colspan="3">无（平顶）</td></tr>
+      </table>
+    </header>
+    <div class="view"><iframe loading="lazy" src="/assembly-preview.html?plan=factory_8x6.json" title="factory_8x6"></iframe></div>
   </section>
 
   <section class="card">
@@ -250,6 +286,24 @@
       </table>
     </header>
     <div class="view"><iframe loading="lazy" src="/assembly-preview.html?plan=medieval_8x8.json" title="medieval_8x8"></iframe></div>
+  </section>
+
+  <section class="card">
+    <header>
+      <h2>红砖街屋 · 6×8m</h2>
+      <div class="meta">
+        <span class="tag">urban_6x8</span>
+        <span class="tag">enterable</span>
+        <span class="tag">urban_brick / brick</span>
+        <span class="tag">屋顶 tile</span>
+      </div>
+      <table>
+        <tr><th>尺寸</th><td>6 × 8 × 3m</td><th>件数</th><td>172</td></tr>
+        <tr><th>出檐 X/Z</th><td>1.049 / 1 m</td><th>接缝</th><td>0 m</td></tr>
+        <tr><th>山墙 vs 屋脊</th><td colspan="3">无（平顶）</td></tr>
+      </table>
+    </header>
+    <div class="view"><iframe loading="lazy" src="/assembly-preview.html?plan=urban_6x8.json" title="urban_6x8"></iframe></div>
   </section>
 </div>
 </body>

@@ -174,6 +174,9 @@ const encPath = (p) => String(p).split('/').map(encodeURIComponent).join('/');
 
   // ── 3) 屋顶 ──────────────────────────────────────────────────────
   const RF = SPEC.roof || {};
+  // ★ 墙厚按模板取（城堡 1m / 厂房 2m / 默认 0.41m），与 solver 的 rules.wallThicknessOf 同口径。
+  //   必须在 whole / tile 两个分支之外声明 —— 放里面会让另一个分支拿不到（刚踩过）。
+  const WT = Number(SPEC.module && SPEC.module.wallThickness) || 0.41;
   if (RF.mode === 'whole') {
     const rw = PART('roof');
     placements.push({
@@ -181,13 +184,13 @@ const encPath = (p) => String(p).split('/').map(encodeURIComponent).join('/');
       x: 0, y: r3(SPEC.wallHeight - (RF.dropY || 0)), z: 0, ry: RF.ry || 0,
       libW: rw.w, useW: rw.w,
     });
-    const wallOuterW = SPEC.width + 0.41, wallOuterD = SPEC.depth + 0.41;
+    const wallOuterW = SPEC.width + WT, wallOuterD = SPEC.depth + WT;
     notes.push(`屋顶：整块 ${rw.key}（${rw.w}×${rw.d}m）—— 出檐 X ${r3((rw.w - wallOuterW) / 2)}m / Z ${r3((rw.d - wallOuterD) / 2)}m`);
   } else if (RF.mode === 'tile') {
     const rt = PART('roof');
     const eave = Number(RF.eave) || 0;
-    const spanW = SPEC.width + 0.41 + eave * 2;
-    const spanD = SPEC.depth + 0.41 + eave * 2;
+    const spanW = SPEC.width + WT + eave * 2;
+    const spanD = SPEC.depth + WT + eave * 2;
     const tx = Math.max(1, Math.round(spanW / rt.w));
     const tz = Math.max(1, Math.round(spanD / rt.d));
     for (let ix = 0; ix < tx; ix++) {

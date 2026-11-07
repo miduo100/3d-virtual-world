@@ -318,7 +318,11 @@ function renderStats(plan) {
     `<div>目标：${plan.spec.name}</div>
      <div class="muted">墙中线 ${plan.spec.width}×${plan.spec.depth}m · 层高 ${plan.spec.wallHeight}m</div>
      <div style="margin-top:6px">共 <b class="ok">${plan.stats.total}</b> 件
-       <span class="muted">（墙 ${g.wall} / 地板 ${g.floor} / 屋顶 ${g.roof || 0}）</span></div>
+       <span class="muted">（${['墙 ' + (g.wall || 0)]
+         .concat(g.floor ? ['地板 ' + g.floor] : [])          // 套件无 floor 件时不显示（如红砖街屋）
+         .concat(['屋顶 ' + (g.roof || 0)])
+         .concat(g.gable ? ['山墙 ' + g.gable] : [])
+         .join(' / ')}）</span></div>
      <div class="muted" style="margin-top:4px;font-size:11px">${plan.notes.map((n) => '· ' + n).join('<br>')}</div>`;
 }
 

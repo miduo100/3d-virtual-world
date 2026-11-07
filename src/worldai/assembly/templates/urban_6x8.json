@@ -1,0 +1,84 @@
+{
+  "id": "urban_6x8",
+  "name": "红砖街屋 · 6×8m",
+  "version": 1,
+  "capability": "enterable",
+  "style": "urban_brick",
+  "material": "brick",
+  "pack": "kenney_retro_urban_kit",
+  "dimensions": {
+    "width": 6,
+    "depth": 8,
+    "wallHeight": 3
+  },
+  "module": {
+    "wallWidth": 1,
+    "wallPieceHeight": 1,
+    "rows": 3,
+    "wallThickness": 1
+  },
+  "parts": {
+    "wall": "wall_b",
+    "door": "wall_b_door",
+    "window": "wall_b_window",
+    "roof": "roof_metal_type_a"
+  },
+  "layout": {
+    "south": [
+      "wall",
+      "window",
+      "wall",
+      "door",
+      "window",
+      "wall"
+    ],
+    "east": [
+      "wall",
+      "window",
+      "wall",
+      "wall",
+      "window",
+      "wall",
+      "wall",
+      "window"
+    ],
+    "north": [
+      "wall",
+      "wall",
+      "window",
+      "wall",
+      "wall",
+      "window"
+    ],
+    "west": [
+      "wall",
+      "window",
+      "wall",
+      "wall",
+      "wall",
+      "window",
+      "wall",
+      "wall"
+    ]
+  },
+  "roof": {
+    "mode": "tile",
+    "dropY": 0.05,
+    "eave": 0.9
+  },
+  "notes": [
+    "★ 风格来源：kenney_retro_urban_kit —— 砖砌街区立面，墙厚 1.0m，必须写 module.wallThickness",
+    "★ 该套件**没有正经地板**（只有 scaffolding_floor 脚手架格栅），故不配 parts.floor：求解器不铺楼板，室内直接落在平原地面上 —— 比铺一层脚手架格栅更合理",
+    "屋顶件 roof_metal_type_a 实测 1.1372×0.5×1，平铺后按 1.1372m 进位列，实出檐约 1.05/1.0m",
+    "墙面用 wall_b 系列（砖），门窗同材质整段替换（都是 1×1×1）"
+  ],
+  "metrics": {
+    "seamMax": 0,
+    "eave": {
+      "x": 1.049,
+      "z": 1
+    },
+    "pieceCount": 172,
+    "verifiedAt": "2026-11-06"
+  }
+}
