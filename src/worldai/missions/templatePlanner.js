@@ -328,8 +328,9 @@ function validateIntent(intent, region, opts) {
   // 模型一件绿化都没给，但房子 ≥3 栋 → 自动补最基础的树 + 灌木（记 note，不静默）
   let propList = Array.isArray(it.props) ? it.props.slice() : [];
   if (!propList.length && nB >= 3) {
-    propList = [{ kind: 'trees' }, { kind: 'bushes' }];
-    notes.push('模型未给任何绿化 → 按村庄规模自动补「树 + 灌木」');
+    // 石头也补上：原始需求是「石头、树木、花草等环境要素的分布」，只补树和灌木会缺石头
+    propList = [{ kind: 'trees' }, { kind: 'bushes' }, { kind: 'rocks' }];
+    notes.push('模型未给任何绿化 → 按村庄规模自动补「树 + 灌木 + 石」');
   }
 
   if (propList.length) {
