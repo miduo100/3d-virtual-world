@@ -99,8 +99,25 @@ async function run(missionId, opts) {
   // M1-4 灰度：默认 legacy；仅当委托 constraints.assemblyMode='solver' 时转交，功能全在新文件（失败不回落）
   const assemblyMode = (mission.constraints || {}).assemblyMode || 'legacy';
   if (assemblyMode === 'solver') return require('../assembly/runnerIntegration').run(mission, region, { started, notes });
-  // M1-7 灰度：模板规划路径（LLM 只出意图，坐标/件数由代码算）。默认仍是 legacy。
-  if ((mission.constraints || {}).planMode === 'template') return require('./templateRunner').run(mission, region, { started, notes });
+  // ── 路径选择（M1-11 切默认）────────────────────────────────────────
+  //   planMode='template' → 模板规划；planMode='legacy' → 老零件级；
+  //   **未指定 → 默认模板规划**，且只在「规划阶段失败、一件都没写」时回落老算法。
+  //   ★ 回落必须可见：原因写进 notes 与 stats.planFallback，不做静默回落
+  //     （当年"AI 说建了、其实走了旧算法"就是这么来的）。
+  //   ★ 带 legacy 已确认方案（useSavedPlan）的委托不进模板路径，否则确认卡看的是 A、建的是 B。
+  const planMode = (mission.constraints || {}).planMode;
+  let planFallback = null;   // 模板 → legacy 的回落记录（必须在严格模式下显式声明）
+  if (planMode === 'template') return require('./templateRunner').run(mission, region, { started, notes });
+  const hasLegacySavedPlan = !!(o.useSavedPlan && mission.plan && Array.isArray(mission.plan.blocks));
+  if (planMode !== 'legacy' && !hasLegacySavedPlan) {
+    const tr = await require('./templateRunner').run(mission, region, {
+      started, notes, fallbackOnPlanFail: true,
+    });
+    if (!(tr && tr.fallbackToLegacy)) return tr;
+    notes.push('模板规划未成立（' + tr.innerCode + '：' + String(tr.reason || '').slice(0, 120)
+      + '）→ 本批回落旧算法。回落原因记在 stats.planFallback');
+    planFallback = { from: 'template', to: 'legacy', code: tr.innerCode, reason: String(tr.reason || '').slice(0, 200) };
+  }
   // 1) 布局提案（预算闸门在 planner 内，查 ai_call_log 表）
   // ★ B1 确认卡：useSavedPlan=true 时直接用"生成方案"保存并经管理员确认的那份方案，
   //   绝不重新规划（否则确认卡看的是 A、建的却是 B，确认语义失效）。无已存方案时回落重新规划。
@@ -166,6 +183,9 @@ async function run(missionId, opts) {
   const stats = {
     objectsCreated: 0, deduped: 0, skippedByCollision: 0, denied: 0, failed: 0,
     trisAdded: 0, llmCalls: planned.llmCalls || 0, notes,
+    mode: 'legacy',
+    // 模板路径规划失败后回落到这里时带上原因（正常 legacy 委托为 null）
+    planFallback,
   };
   const deniedSamples = [];
   for (const block of planned.plan.blocks || []) {

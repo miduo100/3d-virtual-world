@@ -15,7 +15,9 @@
  *
  * ★ 失败不回落 legacy（与 M1-4 同口径）：回落会让「AI 说建了但实际走了旧算法」
  *   这种事重新出现，排查成本远高于一次明确失败。
- * ★ 默认路径不变：missionRunner 只在 constraints.planMode==='template' 时进来。
+ * ★ 默认路径（M1-11 起）：planMode 未指定时 missionRunner 也走这里，但会传
+ *   fallbackOnPlanFail —— 规划阶段失败（一件未写）就回落 legacy，回落原因写进 stats。
+ *   planMode='template' 显式指定时不回落（明确要模板结果，失败就报失败）。
  */
 'use strict';
 
@@ -89,6 +91,20 @@ async function run(mission, region, opts) {
     stats.template.rounds = Number(planned.rounds) || 0;
     stats.template.contractTokens = planned.contractTokens == null ? null : planned.contractTokens;
     if (!planned.ok) {
+      // ★ 可回落：只在「规划阶段」失败时回落（此时一件都没写，回落是安全的）。
+      //   执行阶段失败绝不回落 —— 那可能已经落了半批，再走一遍旧算法会重复建造。
+      //   是否回落由调用方决定（missionRunner 在 planMode 未指定时传 fallbackOnPlanFail）。
+      if (o.fallbackOnPlanFail) {
+        stats.wallClockMs = Date.now() - started;
+        stats.error = { code: planned.code || 'PLAN_FAILED', stage: 'plan', reason: String(planned.reason || '').slice(0, 400) };
+        stats.planFallback = true;
+        return {
+          ok: false, fallbackToLegacy: true, status: 'fallback',
+          innerCode: planned.code || 'PLAN_FAILED',
+          reason: planned.reason,
+          stats, notes,
+        };
+      }
       return await fail(planned.code || 'PLAN_FAILED', 'plan', planned.reason, {
         planHint: planned.hints || null,
         planIntent: planned.lastIntent || null,   // 失败时的原始意图（复现用）

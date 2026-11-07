@@ -191,9 +191,10 @@
           '<input type="number" class="awr-exclude" data-region="' + esc(g.region_key) + '" placeholder="排除 role" style="width:120px;">' +
           // ★ 规划模式（M1-8 灰度开关）：legacy = 老的零件级规划；template = 让 AI 选模板/选址/朝向，
           //   坐标与件数由代码算（能出整村）。默认 legacy，不动老行为。
+          // M1-11 起「模板规划」是默认（能出整村）；旧算法保留可选，随时可回滚。
           '<select class="awr-planmode" data-region="' + esc(g.region_key) + '" title="规划模式">' +
-            '<option value="legacy">旧算法（零件级）</option>' +
-            '<option value="template">模板规划（AI 选模板·可建村）</option>' +
+            '<option value="template" selected>模板规划（AI 选模板·可建村）</option>' +
+            '<option value="legacy">旧算法（零件级·回滚用）</option>' +
           '</select>' +
           '<button class="awr-btn" data-act="newmission" data-region="' + esc(g.region_key) + '">＋ 新建委托</button>' +
         '</div></div>' +
@@ -255,12 +256,14 @@
             if (!prompt) return out(region, '请先写一句话诉求', false);
             const style = String(document.querySelector('.awr-style[data-region="' + CSS.escape(region) + '"]').value || '').trim();
             const exclude = String(document.querySelector('.awr-exclude[data-region="' + CSS.escape(region) + '"]').value || '').trim();
-            const planMode = String((document.querySelector('.awr-planmode[data-region="' + CSS.escape(region) + '"]') || {}).value || 'legacy');
+            const planMode = String((document.querySelector('.awr-planmode[data-region="' + CSS.escape(region) + '"]') || {}).value || 'template');
             const constraints = {};
             if (style) constraints.style_family = style;
             if (exclude) constraints.forbid_roles = exclude.split(',').map((s) => s.trim()).filter(Boolean);
+            // ★ 选哪个就写哪个（含 legacy）：界面显示与后端路径必须一致，
+            //   否则「界面写着旧算法、后端却走了模板」——这种不一致最难查。
+            constraints.planMode = planMode;
             if (planMode === 'template') {
-              constraints.planMode = 'template';
               // 模板路径按 max_objects 做件数闸门；没给就沿用区域预算，避免"一单建爆"
               const mo = Number(c && c.maxObjects);
               if (mo > 0) constraints.max_objects = mo;
