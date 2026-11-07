@@ -345,6 +345,19 @@ function validateIntent(intent, region, opts) {
     notes.push('模型未给任何绿化 → 按村庄规模自动补「树 + 灌木 + 石」');
   }
 
+  // ★ 树木 / 灌木是这个村庄的骨架：树负责房后、灌木负责「房子之间的空档」。
+  //   模型常常只说「街边种些树和花」—— 那就永远不会有灌木，房子之间一直光秃秃（实测过）。
+  //   所以这两类即使模型没提，也补到密度下限（count=0 → 走 max(asked, floor)）。
+  if (propList.length && nB >= 3) {
+    ['trees', 'bushes'].forEach((k) => {
+      const has = propList.some((x) => String((x && (x.kind || x.partKey)) || '').toLowerCase().indexOf(k.slice(0, 4)) >= 0);
+      if (!has) {
+        propList.push({ kind: k, count: 0 });
+        notes.push('模型没提「' + k + '」→ 按村庄骨架补到密度下限');
+      }
+    });
+  }
+
   if (propList.length) {
     // 房子的 z 分布与街的位置决定空带
     const szs = placed.map((p) => p.z).sort((a, b) => a - b);
@@ -356,6 +369,38 @@ function validateIntent(intent, region, opts) {
     const st = out.roads[0] || null;
     const stHalf = st ? st.depth / 2 : 2.5;
     const stZ = st ? st.z : (northEdge !== null ? (northEdge + southEdge) / 2 : (minZ + maxZ) / 2);
+
+    /**
+     * 房子之间的空档（2026-11-07 补）：原来绿化只有「房后两条带 + 街边两条带」，
+     * 同一排房子之间光秃秃的，不像住人的村子。这里把每排相邻两栋之间的空档也算成绿化位。
+     * 只给灌木用 —— 树留着放房后（夹在两栋之间容易挡门窗），花仍在街边（沿街花坛）。
+     */
+    const gapBands = () => {
+      const rows = {};
+      placed.forEach((p) => {
+        const key = Math.round(p.z / 2);          // 2m 容差内算同一排
+        (rows[key] = rows[key] || []).push(p);
+      });
+      const out = [];
+      Object.keys(rows).forEach((k) => {
+        const row = rows[k].slice().sort((a, b) => a.x - b.x);
+        for (let i = 1; i < row.length; i++) {
+          const prev = row[i - 1], cur = row[i];
+          const prevRight = prev.x + prev.halfW - 1;   // 实体右边缘
+          const curLeft = cur.x - cur.halfW + 1;       // 实体左边缘
+          const gap = curLeft - prevRight;
+          if (gap < 3.5) continue;                     // 窄到塞不下就跳过
+          const cd = Math.max(3, Math.min(prev.halfD, cur.halfD) * 2 - 2);
+          out.push({
+            x: r3((prevRight + curLeft) / 2),
+            z: r3((prev.z + cur.z) / 2),
+            width: r3(gap - 1.2),                      // 两侧各留 0.6m，别贴着墙
+            depth: r3(cd),
+          });
+        }
+      });
+      return out;
+    };
 
     /** 生成若干条可用的散布带（clamp 到区域，太薄就丢） */
     const bandsFor = (kind) => {
@@ -375,6 +420,8 @@ function validateIntent(intent, region, opts) {
         if (b - a < 1.5) continue;
         outBands.push({ x: r3(bandCx), z: r3((a + b) / 2), width: r3(bandW), depth: r3(b - a) });
       }
+      // 灌木多一份地方：房子之间的空档
+      if (kind === 'bushes') outBands.push.apply(outBands, gapBands());
       return outBands;
     };
 
