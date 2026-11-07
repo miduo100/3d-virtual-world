@@ -60,6 +60,7 @@ function buildContract(region, opts) {
     '4. props 只给 kind + count（kind ∈ trees / bushes / flowers / rocks），**不要给坐标**：位置由引擎按建筑之外的空带生成。',
     '5. 房屋要成排（同一排的 z 相同或相近），把排与排之间留 8~20m 当街——引擎会在那里铺街。',
     '6. 禁止编造模板 id / partKey。' + (budget > 0 ? `总件数（含铺装）≤${budget}。` : ''),
+    '7. 诉求不是建造类（清空/删除/改已有物件/纯提问）时只输出 {"decline":"原因"}，不要硬凑建筑。',
     '【村庄骨架示例】设区域中心 (cx,cz)=' + ((x0 + w / 2) | 0) + ',' + ((z0 + d / 2) | 0) + '，沿 X 轴建街：',
     '{"buildings":[{"template":"medieval_6x10","x":cx-20,"z":cz-7,"facing":180},'
       + '{"template":"medieval_8x8","x":cx,"z":cz-8,"facing":180},'
@@ -101,6 +102,17 @@ function validateIntent(intent, region, opts) {
   const EDGE = 2;   // 距边界最小距离（契约里承诺过的）
 
   const it = intent || {};
+  // ★ 终止性拒绝（2026-11-07）：实测模型不跟否定指令 —— prompt 写「不要盖房子」它照建 438 件。
+  //   根因不在模型，在契约：规划器**没有"这条诉求不需要建造"的出口**，buildings 空还会被判错重试，
+  //   它只能硬凑建筑。所以给一个显式 decline 通道：terminal=true 表示「不重试」，
+  //   上层（templateRunner）据此**直接失败，不回落 legacy**（回落会把它本来不该建的东西建出来）。
+  if (it && typeof it.decline === 'string' && it.decline.trim()) {
+    return {
+      ok: false, code: 'INTENT_DECLINED', terminal: true,
+      reason: '模型判断该诉求不是建造类：' + it.decline.trim().slice(0, 200),
+    };
+  }
+
   const buildings = Array.isArray(it.buildings) ? it.buildings : [];
   if (!buildings.length) {
     return { ok: false, code: 'INTENT_EMPTY', reason: 'buildings 为空：至少给一栋（只写 style/summary 不算方案）' };
@@ -498,6 +510,13 @@ async function planTemplates(mission, region, opts) {
       v = { ok: false, code: 'VALIDATE_THREW', reason: String((e && e.message) || e) };
     }
     if (v.ok) return { ok: true, rounds: round, plan: v.plan, stats: v.stats, contractTokens: contract.tokens };
+    // 终止性拒绝：重试没有意义（再问它一次还是"不该建"），直接把结论带回上层
+    if (v.terminal) {
+      return {
+        ok: false, rounds: round, plan: null, code: v.code, reason: v.reason,
+        terminal: true, contractTokens: contract.tokens, lastRaw,
+      };
+    }
     lastErr = v;
     lastErr.lastIntent = lastIntent;
     // 把"哪里不合法 + 可行范围"喂回去，让下一轮改对（这是失败率能不能降下来的关键）

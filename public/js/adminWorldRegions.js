@@ -290,7 +290,9 @@
             const body = s.mode === 'template'
               ? '：建 ' + (s.objectsCreated || 0) + ' 件 · ' + (s.buildings || 0) + ' 栋房 / ' + (s.roads || 0) + ' 条路 / '
                 + (s.props || 0) + ' 组道具 · LLM ' + (s.llmCalls || 0) + ' 轮（契约 ' + ((s.template && s.template.contractTokens) || '?') + ' tokens）'
-                + (s.error ? ' · 失败码 ' + s.error.code : '')
+                // 失败时把原因也显示出来：只给个 INTENT_DECLINED 用户看不懂
+                + (s.error ? ' · 失败码 ' + s.error.code
+                  + (s.error.reason ? '（' + String(s.error.reason).slice(0, 120) + '）' : '') : '')
               : '：建 ' + (s.objectsCreated || 0) + ' 件 · 换位 ' + (s.skippedByCollision || 0) + ' · 拒绝 ' + (s.denied || 0) + ' · LLM ' + (s.llmCalls || 0) + ' 次';
             outOf(mission, head + body, r.status === 'completed');
             load();

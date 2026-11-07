@@ -91,6 +91,14 @@ async function run(mission, region, opts) {
     stats.template.rounds = Number(planned.rounds) || 0;
     stats.template.contractTokens = planned.contractTokens == null ? null : planned.contractTokens;
     if (!planned.ok) {
+      // ★ 终止性拒绝（模型判断「这条诉求不是建造类」）：**绝不回落 legacy**。
+      //   回落等于「用户说不要盖房子，我们换套算法照样盖」—— 比失败更糟。
+      if (planned.terminal) {
+        return await fail(planned.code || 'INTENT_DECLINED', 'plan', planned.reason, {
+          terminal: true,
+          planIntent: planned.lastRaw || null,
+        });
+      }
       // ★ 可回落：只在「规划阶段」失败时回落（此时一件都没写，回落是安全的）。
       //   执行阶段失败绝不回落 —— 那可能已经落了半批，再走一遍旧算法会重复建造。
       //   是否回落由调用方决定（missionRunner 在 planMode 未指定时传 fallbackOnPlanFail）。
