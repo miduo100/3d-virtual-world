@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-11-07T08:20:17.307Z",
+ "generatedAt": "2026-11-07T08:42:01.265Z",
  "preset": "final_demo_1794032516",
  "spec": {
   "name": "村庄 final_demo_1794032516",
@@ -116,6 +116,20 @@
    "h": 0.2925,
    "d": 0.1811,
    "path": "/models/uploaded/bundle-1791296251332-3olx/Models/GLTF_format/flower_redA.glb"
+  },
+  "structure_pole": {
+   "key": "structure_pole",
+   "w": 0.1,
+   "h": 1,
+   "d": 0.1,
+   "path": "/models/uploaded/bundle-1791296253756-xoxv/Models/GLB_format/structure-pole.glb"
+  },
+  "lampWall": {
+   "key": "lampWall",
+   "w": 0.3908,
+   "h": 0.16,
+   "d": 0.2592,
+   "path": "/models/uploaded/bundle-1791296247038-raei/Models/GLTF_format/lampWall.glb"
   }
  },
  "placements": [
@@ -12098,17 +12112,338 @@
    "z": -244.491,
    "ry": 1.928,
    "scaleY": 1.3
+  },
+  {
+   "key": "structure_pole",
+   "path": "/models/uploaded/bundle-1791296253756-xoxv/Models/GLB_format/structure-pole.glb",
+   "group": "wall",
+   "x": -277,
+   "y": 0,
+   "z": -253.3,
+   "ry": 0,
+   "scaleY": 3
+  },
+  {
+   "key": "lampWall",
+   "path": "/models/uploaded/bundle-1791296247038-raei/Models/GLTF_format/lampWall.glb",
+   "group": "prop",
+   "x": -277,
+   "y": 2.9,
+   "z": -253.3,
+   "ry": 0,
+   "scaleY": 1.6
+  },
+  {
+   "key": "structure_pole",
+   "path": "/models/uploaded/bundle-1791296253756-xoxv/Models/GLB_format/structure-pole.glb",
+   "group": "wall",
+   "x": -277,
+   "y": 0,
+   "z": -246.7,
+   "ry": 0,
+   "scaleY": 3
+  },
+  {
+   "key": "lampWall",
+   "path": "/models/uploaded/bundle-1791296247038-raei/Models/GLTF_format/lampWall.glb",
+   "group": "prop",
+   "x": -277,
+   "y": 2.9,
+   "z": -246.7,
+   "ry": 3.142,
+   "scaleY": 1.6
+  },
+  {
+   "key": "structure_pole",
+   "path": "/models/uploaded/bundle-1791296253756-xoxv/Models/GLB_format/structure-pole.glb",
+   "group": "wall",
+   "x": -265,
+   "y": 0,
+   "z": -253.3,
+   "ry": 0,
+   "scaleY": 3
+  },
+  {
+   "key": "lampWall",
+   "path": "/models/uploaded/bundle-1791296247038-raei/Models/GLTF_format/lampWall.glb",
+   "group": "prop",
+   "x": -265,
+   "y": 2.9,
+   "z": -253.3,
+   "ry": 0,
+   "scaleY": 1.6
+  },
+  {
+   "key": "structure_pole",
+   "path": "/models/uploaded/bundle-1791296253756-xoxv/Models/GLB_format/structure-pole.glb",
+   "group": "wall",
+   "x": -265,
+   "y": 0,
+   "z": -246.7,
+   "ry": 0,
+   "scaleY": 3
+  },
+  {
+   "key": "lampWall",
+   "path": "/models/uploaded/bundle-1791296247038-raei/Models/GLTF_format/lampWall.glb",
+   "group": "prop",
+   "x": -265,
+   "y": 2.9,
+   "z": -246.7,
+   "ry": 3.142,
+   "scaleY": 1.6
+  },
+  {
+   "key": "structure_pole",
+   "path": "/models/uploaded/bundle-1791296253756-xoxv/Models/GLB_format/structure-pole.glb",
+   "group": "wall",
+   "x": -253,
+   "y": 0,
+   "z": -253.3,
+   "ry": 0,
+   "scaleY": 3
+  },
+  {
+   "key": "lampWall",
+   "path": "/models/uploaded/bundle-1791296247038-raei/Models/GLTF_format/lampWall.glb",
+   "group": "prop",
+   "x": -253,
+   "y": 2.9,
+   "z": -253.3,
+   "ry": 0,
+   "scaleY": 1.6
+  },
+  {
+   "key": "structure_pole",
+   "path": "/models/uploaded/bundle-1791296253756-xoxv/Models/GLB_format/structure-pole.glb",
+   "group": "wall",
+   "x": -253,
+   "y": 0,
+   "z": -246.7,
+   "ry": 0,
+   "scaleY": 3
+  },
+  {
+   "key": "lampWall",
+   "path": "/models/uploaded/bundle-1791296247038-raei/Models/GLTF_format/lampWall.glb",
+   "group": "prop",
+   "x": -253,
+   "y": 2.9,
+   "z": -246.7,
+   "ry": 3.142,
+   "scaleY": 1.6
+  },
+  {
+   "key": "structure_pole",
+   "path": "/models/uploaded/bundle-1791296253756-xoxv/Models/GLB_format/structure-pole.glb",
+   "group": "wall",
+   "x": -241,
+   "y": 0,
+   "z": -253.3,
+   "ry": 0,
+   "scaleY": 3
+  },
+  {
+   "key": "lampWall",
+   "path": "/models/uploaded/bundle-1791296247038-raei/Models/GLTF_format/lampWall.glb",
+   "group": "prop",
+   "x": -241,
+   "y": 2.9,
+   "z": -253.3,
+   "ry": 0,
+   "scaleY": 1.6
+  },
+  {
+   "key": "structure_pole",
+   "path": "/models/uploaded/bundle-1791296253756-xoxv/Models/GLB_format/structure-pole.glb",
+   "group": "wall",
+   "x": -241,
+   "y": 0,
+   "z": -246.7,
+   "ry": 0,
+   "scaleY": 3
+  },
+  {
+   "key": "lampWall",
+   "path": "/models/uploaded/bundle-1791296247038-raei/Models/GLTF_format/lampWall.glb",
+   "group": "prop",
+   "x": -241,
+   "y": 2.9,
+   "z": -246.7,
+   "ry": 3.142,
+   "scaleY": 1.6
+  },
+  {
+   "key": "structure_pole",
+   "path": "/models/uploaded/bundle-1791296253756-xoxv/Models/GLB_format/structure-pole.glb",
+   "group": "wall",
+   "x": -229,
+   "y": 0,
+   "z": -253.3,
+   "ry": 0,
+   "scaleY": 3
+  },
+  {
+   "key": "lampWall",
+   "path": "/models/uploaded/bundle-1791296247038-raei/Models/GLTF_format/lampWall.glb",
+   "group": "prop",
+   "x": -229,
+   "y": 2.9,
+   "z": -253.3,
+   "ry": 0,
+   "scaleY": 1.6
+  },
+  {
+   "key": "structure_pole",
+   "path": "/models/uploaded/bundle-1791296253756-xoxv/Models/GLB_format/structure-pole.glb",
+   "group": "wall",
+   "x": -229,
+   "y": 0,
+   "z": -246.7,
+   "ry": 0,
+   "scaleY": 3
+  },
+  {
+   "key": "lampWall",
+   "path": "/models/uploaded/bundle-1791296247038-raei/Models/GLTF_format/lampWall.glb",
+   "group": "prop",
+   "x": -229,
+   "y": 2.9,
+   "z": -246.7,
+   "ry": 3.142,
+   "scaleY": 1.6
+  },
+  {
+   "key": "structure_pole",
+   "path": "/models/uploaded/bundle-1791296253756-xoxv/Models/GLB_format/structure-pole.glb",
+   "group": "wall",
+   "x": -217,
+   "y": 0,
+   "z": -253.3,
+   "ry": 0,
+   "scaleY": 3
+  },
+  {
+   "key": "lampWall",
+   "path": "/models/uploaded/bundle-1791296247038-raei/Models/GLTF_format/lampWall.glb",
+   "group": "prop",
+   "x": -217,
+   "y": 2.9,
+   "z": -253.3,
+   "ry": 0,
+   "scaleY": 1.6
+  },
+  {
+   "key": "structure_pole",
+   "path": "/models/uploaded/bundle-1791296253756-xoxv/Models/GLB_format/structure-pole.glb",
+   "group": "wall",
+   "x": -217,
+   "y": 0,
+   "z": -246.7,
+   "ry": 0,
+   "scaleY": 3
+  },
+  {
+   "key": "lampWall",
+   "path": "/models/uploaded/bundle-1791296247038-raei/Models/GLTF_format/lampWall.glb",
+   "group": "prop",
+   "x": -217,
+   "y": 2.9,
+   "z": -246.7,
+   "ry": 3.142,
+   "scaleY": 1.6
+  },
+  {
+   "key": "structure_pole",
+   "path": "/models/uploaded/bundle-1791296253756-xoxv/Models/GLB_format/structure-pole.glb",
+   "group": "wall",
+   "x": -205,
+   "y": 0,
+   "z": -253.3,
+   "ry": 0,
+   "scaleY": 3
+  },
+  {
+   "key": "lampWall",
+   "path": "/models/uploaded/bundle-1791296247038-raei/Models/GLTF_format/lampWall.glb",
+   "group": "prop",
+   "x": -205,
+   "y": 2.9,
+   "z": -253.3,
+   "ry": 0,
+   "scaleY": 1.6
+  },
+  {
+   "key": "structure_pole",
+   "path": "/models/uploaded/bundle-1791296253756-xoxv/Models/GLB_format/structure-pole.glb",
+   "group": "wall",
+   "x": -205,
+   "y": 0,
+   "z": -246.7,
+   "ry": 0,
+   "scaleY": 3
+  },
+  {
+   "key": "lampWall",
+   "path": "/models/uploaded/bundle-1791296247038-raei/Models/GLTF_format/lampWall.glb",
+   "group": "prop",
+   "x": -205,
+   "y": 2.9,
+   "z": -246.7,
+   "ry": 3.142,
+   "scaleY": 1.6
+  },
+  {
+   "key": "structure_pole",
+   "path": "/models/uploaded/bundle-1791296253756-xoxv/Models/GLB_format/structure-pole.glb",
+   "group": "wall",
+   "x": -193,
+   "y": 0,
+   "z": -253.3,
+   "ry": 0,
+   "scaleY": 3
+  },
+  {
+   "key": "lampWall",
+   "path": "/models/uploaded/bundle-1791296247038-raei/Models/GLTF_format/lampWall.glb",
+   "group": "prop",
+   "x": -193,
+   "y": 2.9,
+   "z": -253.3,
+   "ry": 0,
+   "scaleY": 1.6
+  },
+  {
+   "key": "structure_pole",
+   "path": "/models/uploaded/bundle-1791296253756-xoxv/Models/GLB_format/structure-pole.glb",
+   "group": "wall",
+   "x": -193,
+   "y": 0,
+   "z": -246.7,
+   "ry": 0,
+   "scaleY": 3
+  },
+  {
+   "key": "lampWall",
+   "path": "/models/uploaded/bundle-1791296247038-raei/Models/GLTF_format/lampWall.glb",
+   "group": "prop",
+   "x": -193,
+   "y": 2.9,
+   "z": -246.7,
+   "ry": 3.142,
+   "scaleY": 1.6
   }
  ],
  "stats": {
-  "total": 1198,
+  "total": 1230,
   "byGroup": {
    "ground": 530,
-   "wall": 296,
+   "wall": 312,
    "floor": 272,
    "roof": 10,
    "gable": 20,
-   "nature": 70
+   "nature": 70,
+   "prop": 16
   }
  },
  "isVillage": true,

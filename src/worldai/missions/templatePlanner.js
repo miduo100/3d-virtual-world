@@ -266,6 +266,36 @@ function validateIntent(intent, region, opts) {
     }
   }
 
+  // ── 路灯：沿街布设（2026-11-07）──────────────────────────────────
+  //   原始需求里明确写了「路灯布局」，但 AI 建的村里一盏都没有（props 只有树石花草）。
+  //   位置同样是纯几何：按街的中线等距布，每 12m 一对（两侧各一盏），
+  //   灯杆离街沿 0.8m（落在房前院子里）。压到房子的直接跳过，不硬塞。
+  //   灯件是「杆 + 灯头」两件同点 —— 这是全库唯一能看出灯头的组合（2026-11-07 对照实测）。
+  if (out.roads.length && out.buildings.length >= 3) {
+    const stL = out.roads[0];
+    const LAMP_STEP = 12, LAMP_OFF = 0.8;
+    const xa = stL.x - stL.width / 2 + 6, xb = stL.x + stL.width / 2 - 6;
+    const zN = stL.z - stL.depth / 2 - LAMP_OFF, zS = stL.z + stL.depth / 2 + LAMP_OFF;
+    const hitsBuilding = (lx, lz) => placed.some((p) => {
+      const s0 = solidOf(p);
+      return lx > s0.x0 - 0.5 && lx < s0.x1 + 0.5 && lz > s0.z0 - 0.5 && lz < s0.z1 + 0.5;
+    });
+    const lamps = [];
+    for (let lx = xa; lx <= xb + 1e-6; lx += LAMP_STEP) {
+      for (const pair of [[zN, 0], [zS, Math.PI]]) {
+        const lz = pair[0], ry = pair[1];
+        if (lz < minZ + 1 || lz > maxZ - 1) continue;
+        if (hitsBuilding(lx, lz)) continue;
+        lamps.push({ x: r3(lx), z: r3(lz), ry });
+      }
+    }
+    if (lamps.length) {
+      out.lamps = lamps;
+      pieces += lamps.length * 2;      // 每盏 = 杆 + 灯头
+      notes.push('路灯 ' + lamps.length + ' 盏（沿街每 ' + LAMP_STEP + 'm 一对，位置由代码布设）');
+    }
+  }
+
   // ── 绿化：模型只给「种类 + 数量」，位置由代码在空带里生成 ─────────────
   //   2026-11-07 实建实测：模型给的 props 矩形基本压在房子上，15 组树只落下 1 棵。
   //   和街道/坐标同一结论 —— **几何归代码**。所以 props 不再接受 x/z/width/depth，

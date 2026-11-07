@@ -33,6 +33,7 @@ async function executeIntent(plan, ctx, opts) {
     else if (verb === 'build_from_template') created += Number(r.pieces) || 0;
     else if (verb === 'pave') created += Number(r.tiles) || 0;
     else if (verb === 'scatter') created += Number(r.placed) || 0;
+    else if (verb === 'place_props') created += Number(r.placed) || 0;
     return r;
   }
 
@@ -61,6 +62,22 @@ async function executeIntent(plan, ctx, opts) {
       scale: p.scale,
       scaleY: p.scaleY,
     }, p.partKey + '×' + p.count);
+  }
+
+  // 4) 路灯：杆 + 灯头两件必须在同一点，用 place_props（scatter 的抖动会把它们甩开）
+  if (Array.isArray(plan.lamps) && plan.lamps.length) {
+    const items = [];
+    for (const lp of plan.lamps) {
+      items.push({
+        partKey: 'structure_pole', x: lp.x, z: lp.z, y: 0, ry: 0,
+        scale: 1, scaleY: 3.0, collision: true,
+      });
+      items.push({
+        partKey: 'lampWall', x: lp.x, z: lp.z, y: 2.9, ry: lp.ry || 0,
+        scale: 1, scaleY: 1.6, collision: false,
+      });
+    }
+    await run('place_props', { items }, 'lamps×' + plan.lamps.length);
   }
 
   return { ok: failed.length === 0, calls, created, failed };
