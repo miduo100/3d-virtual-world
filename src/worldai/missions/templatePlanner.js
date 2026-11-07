@@ -50,23 +50,22 @@ function buildContract(region, opts) {
   const lines = [
     '【模板契约】只输出 JSON：',
     '{"style":"","summary":"","buildings":[{"template":"id","x":0,"z":0,"facing":0}],'
-      + '"roads":[{"x":0,"z":0,"width":0,"depth":0}],"props":[{"partKey":"键","x":0,"z":0,"count":1,"width":0,"depth":0}]}',
+      + '"props":[{"partKey":"键","x":0,"z":0,"count":1,"width":0,"depth":0}]}',
     `区域左上角 (${x0}, ${z0})，宽 ${w}m 深 ${d}m。x/z 是世界坐标（米），须在区域内且距边界 ≥2m。`,
     '模板（id(件数)）：',
     catalogue,
     '1. facing 取 0/90/180/270（0=门朝−Z，90=+X，180=+Z，270=−X）；街道两侧的房子面对面。',
     '2. 建筑按「占地+2m 出檐」占位，相邻中心距 ≥(两者宽和/2+3)m，否则互相穿插。',
-    '3. roads 给矩形范围（主街宽 4~6m），长宽都要比区域小 10m 以上；铺装块数引擎算。',
+    '3. **不要给 roads**：街道由引擎按房屋排布自动生成（位置、长度、宽度全部引擎算）。',
     '4. props 的 partKey 只能取：tree_default tree_cone tree_blocks plant_bush flower_redA flower_yellowA rock_smallA log（别的键不存在）。',
-    '5. **房屋 ≥3 栋时必须给 1 条 roads**，每栋房中心到该路中线的距离 5~30m（贴街排，不许散到区域四角）。',
+    '5. 房屋要成排（同一排的 z 相同或相近），把排与排之间留 8~20m 当街——引擎会在那里铺街。',
     '6. 禁止编造模板 id / partKey。' + (budget > 0 ? `总件数（含铺装）≤${budget}。` : ''),
     '【村庄骨架示例】设区域中心 (cx,cz)=' + ((x0 + w / 2) | 0) + ',' + ((z0 + d / 2) | 0) + '，沿 X 轴建街：',
-    '{"roads":[{"x":cx,"z":cz,"width":80,"depth":5}],'
-      + '"buildings":[{"template":"medieval_6x10","x":cx-20,"z":cz-7,"facing":180},'
+    '{"buildings":[{"template":"medieval_6x10","x":cx-20,"z":cz-7,"facing":180},'
       + '{"template":"medieval_8x8","x":cx,"z":cz-8,"facing":180},'
       + '{"template":"medieval_6x10","x":cx-20,"z":cz+7,"facing":0},'
       + '{"template":"medieval_8x8","x":cx,"z":cz+8,"facing":0}]}',
-    '↑北排 z<cz、facing180；南排 z>cz、facing0；同排间距≥14m。照此加减栋数。',
+    '↑北排 z<cz、facing180；南排 z>cz、facing0；同排间距≥14m。照此加减栋数（街道会自动铺在两排之间）。',
   ];
   const text = lines.join('\n');
   return {
@@ -170,41 +169,16 @@ function validateIntent(intent, region, opts) {
     out.buildings.push({ template: id, x, z, facing });
   }
 
-  // roads：矩形铺装（块数按 1m 砖估，只有上限意义）
-  let roadErr = null;
-  (Array.isArray(it.roads) ? it.roads : []).forEach((r, i) => {
-    if (roadErr) return;
-    // 裁剪会改写这四个，必须是 let（原来是 const，改完报 Assignment to constant）
-    let x = num(r && r.x, NaN), z = num(r && r.z, NaN);
-    let w = num(r && r.width, 0), d = num(r && r.depth, 0);
-    if (!isFinite(x) || !isFinite(z) || !(w > 0) || !(d > 0)) {
-      return;   // 静默丢弃无效道路项（道路不是主体，不值得整条打回）
-    }
-    // ★ 越界的路：裁剪到区域内，不硬拒（2026-11-07 第 5 次实测定）
-    //   模型反复把路放偏 20~30m（170m 长放在 x=454 而非区域中心 500），
-    //   硬拒 → 它改不对；而「路多长、从哪到哪」本来就是代码能定的事。
-    //   裁完记一条 note，让人能看见发生了什么（不静默改）。
-    let rw = w, rd = d, rx = x, rz = z;
-    if (rx - rw / 2 < minX) { const d0 = minX - (rx - rw / 2); rx += d0; notes.push(`roads[${i}] 左移 ${r3(d0)}m 以进入区域`); }
-    if (rz - rd / 2 < minZ) { const d0 = minZ - (rz - rd / 2); rz += d0; notes.push(`roads[${i}] 下移 ${r3(d0)}m 以进入区域`); }
-    if (rx + rw / 2 > maxX) { const over = rx + rw / 2 - maxX; rw -= over * 2; if (rw < 2) rw = 2; notes.push(`roads[${i}] 长度裁到 ${r3(rw)}m 以进入区域`); }
-    if (rz + rd / 2 > maxZ) { const over = rz + rd / 2 - maxZ; rd -= over * 2; if (rd < 2) rd = 2; notes.push(`roads[${i}] 宽度裁到 ${r3(rd)}m 以进入区域`); }
-    x = r3(rx); z = r3(rz); w = r3(rw); d = r3(rd);
-    const cw = Math.min(w, maxX - minX), cd = Math.min(d, maxZ - minZ);
-    if (x - cw / 2 < minX || x + cw / 2 > maxX || z - cd / 2 < minZ || z + cd / 2 > maxZ) return;
-    out.roads.push({ x, z, width: cw, depth: cd });
-    pieces += Math.round(cw) * Math.round(cd);
-  });
+  // ── 街道：完全由代码生成（2026-11-07 结构性决定）───────────────────
+  //   三次 20 次统计里 **100% 的失败都在"路与房子的几何关系"**（ROAD_HITS_BUILDING）；
+  //   给可操作数字 → 85%，自动推导 → 80%。结论不是"再修一次"，而是让这个失败类别
+  //   **在构造上不可能发生**：模型不再提供 roads，街道位置一律由代码按房屋排布算，
+  //   并用所有房子的 AABB 逐个校验，冲突就换下一条候选带。
+  if (Array.isArray(it.roads) && it.roads.length) {
+    notes.push('模型给的 roads 已忽略：街道位置由代码按房屋排布生成（避免路压房）');
+  }
 
-  if (roadErr) return roadErr;
-
-  // ★ 自动推导街道（2026-11-07 20 次统计后的决定）
-  //   ⚠ 顺序很重要：必须在 STREET_REQUIRED 与 BUILDING_FAR_FROM_STREET **之前**跑，
-  //   否则"路压房 + 两排相距远"会先被 FAR 拒掉，永远走不到推导（踩过一次）。
-  //   实测里 100% 的失败都是 ROAD_HITS_BUILDING —— 模型算不准"路的矩形要从哪到哪才不压房子"。
-  //   这跟前面"越界裁剪"是同一个结论：**几何该由代码拿**。
-  //   所以：只要模型给的路压到任一房子实体，就用「两排房之间的空隙」重算一条正街，
-  //   原路作废并记 note（不静默替换）。
+  /** 房子实体 AABB（出檐那 1m 不算实体） */
   const solidOf = (p) => ({
     x0: p.x - p.halfW + 1, x1: p.x + p.halfW - 1,
     z0: p.z - p.halfD + 1, z1: p.z + p.halfD - 1,
@@ -214,106 +188,42 @@ function validateIntent(intent, region, opts) {
     return (r.x - r.width / 2) < s0.x1 && (r.x + r.width / 2) > s0.x0
       && (r.z - r.depth / 2) < s0.z1 && (r.z + r.depth / 2) > s0.z0;
   });
-  // ★ 规则最终形态（2026-11-07）：**≥3 栋房时街道一律由代码推导**，不再采用模型给的路矩形。
-  //   理由：20 次统计里 100% 的失败都是"路与房子几何关系"，而模型算不准这件事；
-  //   街道的位置本来就能从两排房的排布唯一确定（两排之间 / 房群外侧），不需要它猜。
-  //   1~2 栋时保留模型的路（那是"门前小路"，位置有语义，模型说得对）。
-  const deriveStreet = placed.length >= 3;
-  if ((deriveStreet || out.roads.some(hitsAny)) && placed.length) {
-    // 取所有房子在 Z 上的分布，找最大空档（两排房的分界）
-    const zs = Array.from(new Set(out.buildings.map((b) => b.z))).sort((a, b) => a - b);
-    let gapMid = null;
-    for (let i = 1; i < zs.length; i++) {
-      const g = zs[i] - zs[i - 1];
-      if (g >= 6 && (gapMid === null || g > gapMid.gap)) gapMid = { gap: g, mid: (zs[i] + zs[i - 1]) / 2 };
-    }
-    const xs = out.buildings.map((b) => b.x);
-    const spanX0 = Math.min.apply(null, xs) - 8;
-    const spanX1 = Math.max.apply(null, xs) + 8;
-    const cx = Math.round((spanX0 + spanX1) / 2);
-    const w = Math.min(spanX1 - spanX0, maxX - minX - 10);
-    // 没有明显两排空隙时，把街放在房子群的最外侧（不与任何房子相交）
+
+  if (placed.length >= 2) {
+    const zsSorted = placed.map((p) => p.z).sort((a, b) => a - b);
+    const xsAll = placed.map((p) => p.x);
     const maxHalfD = Math.max.apply(null, placed.map((p) => p.halfD));
-    // 只有一排房时：街要放在房子群外侧，且再让出 3m（否则街的半宽会压回房子）
-    const zPos = gapMid ? gapMid.mid : Math.min(maxZ - 6, Math.max.apply(null, zs) + maxHalfD + 3);
-    const street = {
-      x: Math.max(minX + w / 2 + 2, Math.min(maxX - w / 2 - 2, cx)),
-      z: r3(Math.max(minZ + 3, Math.min(maxZ - 3, zPos))),
-      width: r3(Math.max(4, Math.min(8, gapMid ? Math.min(gapMid.gap - 2, 6) : 5))),
-      depth: r3(Math.max(4, w)),
-    };
-    // width/depth 语义：沿 X 走 → width 是长度、depth 是宽度。统一成"沿 X 的长条"
-    const along = { x: street.x, z: street.z, width: street.depth, depth: street.width };
-    out.roads = [along];
-    notes.push((deriveStreet ? '房屋 ≥3 栋 → 主街由代码按排布推导' : '模型给的路压到了房子 → 已按两排房之间的空隙自动生成主街')
-      + '（X 向 '
-      + r3(along.width) + '×' + r3(along.depth) + 'm @' + r3(along.x) + ',' + r3(along.z) + '）');
-  }
+    const spanX = (Math.max.apply(null, xsAll) - Math.min.apply(null, xsAll)) + 10;
+    const streetW = Math.max(10, Math.min(spanX, (maxX - minX) - 6));
+    const cx = Math.max(minX + streetW / 2 + 2, Math.min(maxX - streetW / 2 - 2,
+      (Math.min.apply(null, xsAll) + Math.max.apply(null, xsAll)) / 2));
 
-  // ★ 街道必需 + 房屋要贴着街（2026-11-07 真调用实测抓到）：
-  //   模型把两排房分别贴到区域上/下边缘（相距 104m）、roads 给了 0 条 ——
-  //   坐标全都合法，但出来的不是街而是"两排孤房"。校验器必须管设计，不只管合法性。
-  if (out.buildings.length >= 3 && out.roads.length === 0) {
-    return {
-      ok: false, code: 'STREET_REQUIRED',
-      reason: `${out.buildings.length} 栋房子却没有 roads：委托里的"街/村"需要一条主街把房子串起来`
-        + '（给一条 {x,z,width,depth} 的矩形即可，宽度 4~6m）',
-      hints: { buildings: out.buildings.length, roadExample: { x: (minX + maxX) / 2, z: (minZ + maxZ) / 2, width: 80, depth: 5 } },
-    };
-  }
-
-  // 房屋中心到最近道路矩形的距离（>30m 视为"没贴着街"）
-  //   2026-11-07 实测校准两轮：12m → 20m → 30m。模型排"街两侧"时习惯留 20~25m 退线，
-  //   卡太紧等于在跟它的空间习惯较劲；真正要拦的是"两排贴到区域边缘、相距 100m+"那种。
-  const distToRect = (x, z, r) => {
-    const dx = Math.max(r.x - r.width / 2 - x, 0, x - (r.x + r.width / 2));
-    const dz = Math.max(r.z - r.depth / 2 - z, 0, z - (r.z + r.depth / 2));
-    return Math.hypot(dx, dz);
-  };
-  if (out.roads.length) {
-    for (let i = 0; i < out.buildings.length; i++) {
-      const b = out.buildings[i];
-      const dmin = Math.min.apply(null, out.roads.map((r) => distToRect(b.x, b.z, r)));
-      if (dmin > 30) {
-        return {
-          ok: false, code: 'BUILDING_FAR_FROM_STREET',
-          reason: `buildings[${i}]（${b.template}，中心 ${b.x},${b.z}）离最近的路 ${dmin.toFixed(1)}m，`
-            + '超过 30m —— 房屋要贴着街道两侧排，不要散到区域边缘',
-          hints: { distance: Math.round(dmin * 10) / 10, maxAllowed: 30, roads: out.roads },
-        };
-      }
+    const cands = [];
+    let gap = null;
+    for (let i = 1; i < zsSorted.length; i++) {
+      const g = zsSorted[i] - zsSorted[i - 1];
+      if (g >= 6 && (!gap || g > gap.g)) gap = { g, mid: (zsSorted[i - 1] + zsSorted[i]) / 2 };
     }
-  }
+    if (gap) cands.push(gap.mid);
+    cands.push(Math.max.apply(null, zsSorted) + maxHalfD + 3);
+    cands.push(Math.min.apply(null, zsSorted) - maxHalfD - 3);
+    for (let z = minZ + 3; z <= maxZ - 3; z += 1) cands.push(z);
 
-  // ★ 路不能压到房子（2026-11-07 真调用实测抓到）：模型把 4m 宽的路放在距房 3m 处，
-  //   中心距够、但路的半宽让矩形插进了房子 2m —— 只算中心距是拦不住的，必须按矩形相交。
-  for (let i = 0; i < out.roads.length; i++) {
-    const r = out.roads[i];
-    const rx0 = r.x - r.width / 2, rx1 = r.x + r.width / 2;
-    const rz0 = r.z - r.depth / 2, rz1 = r.z + r.depth / 2;
-    for (const p of placed) {
-      const bx0 = p.x - p.halfW + 1, bx1 = p.x + p.halfW - 1;   // 出檐余量里那 1m 不算房子实体
-      const bz0 = p.z - p.halfD + 1, bz1 = p.z + p.halfD - 1;
-      if (rx0 < bx1 && rx1 > bx0 && rz0 < bz1 && rz1 > bz0) {
-        // 兜底：正常情况下上面已自动推导过街道，走到这里说明推导出的街仍然相交（极少见）
-        //   —— 仍然给出可操作数字，别让模型猜
-        const needL = Math.max(0, r.x - r.width / 2 < bx0 ? bx0 - (r.x - r.width / 2) : 0);
-        const needR = Math.max(0, r.x + r.width / 2 > bx1 ? (r.x + r.width / 2) - bx1 : 0);
-        const needU = Math.max(0, r.z - r.depth / 2 < bz0 ? bz0 - (r.z - r.depth / 2) : 0);
-        const needD = Math.max(0, r.z + r.depth / 2 > bz1 ? (r.z + r.depth / 2) - bz1 : 0);
-        return {
-          ok: false, code: 'ROAD_HITS_BUILDING',
-          reason: `roads[${i}]（${r.width}×${r.depth}m，中心 ${r.x},${r.z}）压进了 buildings[${p.i}] 的房子实体`
-            + `（房子实体 x∈[${r3(bx0)},${r3(bx1)}] z∈[${r3(bz0)},${r3(bz1)}]）。`
-            + `沿 Z 轴至少要让开 ${r3(Math.max(needU, needD))}m，或沿 X 轴让开 ${r3(Math.max(needL, needR))}m；`
-            + '也可以把路缩短到只覆盖房子之间的空档',
-          hints: {
-            buildingSolid: { x: [r3(bx0), r3(bx1)], z: [r3(bz0), r3(bz1)] },
-            needClear: { alongX: r3(Math.max(needL, needR)), alongZ: r3(Math.max(needU, needD)) },
-            road: { x: r.x, z: r.z, width: r.width, depth: r.depth },
-          },
-        };
-      }
+    const DEPTH = 5;
+    let street = null;
+    for (const z of cands) {
+      if (z - DEPTH / 2 < minZ || z + DEPTH / 2 > maxZ) continue;
+      const r = { x: r3(cx), z: r3(z), width: r3(streetW), depth: DEPTH };
+      if (!hitsAny(r)) { street = r; break; }
+    }
+    if (street) {
+      out.roads.push(street);
+      pieces += Math.round(street.width) * Math.round(street.depth);
+      notes.push('街道由代码生成：X 向 ' + r3(street.width) + '×' + r3(street.depth)
+        + 'm @' + r3(street.x) + ',' + r3(street.z)
+        + (gap && Math.abs(street.z - gap.mid) < 1e-6 ? '（落在两排房之间的间隙）' : '（置于房群外侧）'));
+    } else {
+      notes.push('区域被房子塞满，找不到 5m 空带 → 本村不铺街（不报错）');
     }
   }
 
