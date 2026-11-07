@@ -198,6 +198,52 @@ function validateIntent(intent, region, opts) {
 
   if (roadErr) return roadErr;
 
+  // ★ 自动推导街道（2026-11-07 20 次统计后的决定）
+  //   ⚠ 顺序很重要：必须在 STREET_REQUIRED 与 BUILDING_FAR_FROM_STREET **之前**跑，
+  //   否则"路压房 + 两排相距远"会先被 FAR 拒掉，永远走不到推导（踩过一次）。
+  //   实测里 100% 的失败都是 ROAD_HITS_BUILDING —— 模型算不准"路的矩形要从哪到哪才不压房子"。
+  //   这跟前面"越界裁剪"是同一个结论：**几何该由代码拿**。
+  //   所以：只要模型给的路压到任一房子实体，就用「两排房之间的空隙」重算一条正街，
+  //   原路作废并记 note（不静默替换）。
+  const solidOf = (p) => ({
+    x0: p.x - p.halfW + 1, x1: p.x + p.halfW - 1,
+    z0: p.z - p.halfD + 1, z1: p.z + p.halfD - 1,
+  });
+  const hitsAny = (r) => placed.some((p) => {
+    const s0 = solidOf(p);
+    return (r.x - r.width / 2) < s0.x1 && (r.x + r.width / 2) > s0.x0
+      && (r.z - r.depth / 2) < s0.z1 && (r.z + r.depth / 2) > s0.z0;
+  });
+  if (out.roads.some(hitsAny) && placed.length) {
+    // 取所有房子在 Z 上的分布，找最大空档（两排房的分界）
+    const zs = Array.from(new Set(out.buildings.map((b) => b.z))).sort((a, b) => a - b);
+    let gapMid = null;
+    for (let i = 1; i < zs.length; i++) {
+      const g = zs[i] - zs[i - 1];
+      if (g >= 6 && (gapMid === null || g > gapMid.gap)) gapMid = { gap: g, mid: (zs[i] + zs[i - 1]) / 2 };
+    }
+    const xs = out.buildings.map((b) => b.x);
+    const spanX0 = Math.min.apply(null, xs) - 8;
+    const spanX1 = Math.max.apply(null, xs) + 8;
+    const cx = Math.round((spanX0 + spanX1) / 2);
+    const w = Math.min(spanX1 - spanX0, maxX - minX - 10);
+    // 没有明显两排空隙时，把街放在房子群的最外侧（不与任何房子相交）
+    const maxHalfD = Math.max.apply(null, placed.map((p) => p.halfD));
+    // 只有一排房时：街要放在房子群外侧，且再让出 3m（否则街的半宽会压回房子）
+    const zPos = gapMid ? gapMid.mid : Math.min(maxZ - 6, Math.max.apply(null, zs) + maxHalfD + 3);
+    const street = {
+      x: Math.max(minX + w / 2 + 2, Math.min(maxX - w / 2 - 2, cx)),
+      z: r3(Math.max(minZ + 3, Math.min(maxZ - 3, zPos))),
+      width: r3(Math.max(4, Math.min(8, gapMid ? Math.min(gapMid.gap - 2, 6) : 5))),
+      depth: r3(Math.max(4, w)),
+    };
+    // width/depth 语义：沿 X 走 → width 是长度、depth 是宽度。统一成"沿 X 的长条"
+    const along = { x: street.x, z: street.z, width: street.depth, depth: street.width };
+    out.roads = [along];
+    notes.push('模型给的路压到了房子 → 已按两排房之间的空隙自动生成主街（X 向 '
+      + r3(along.width) + '×' + r3(along.depth) + 'm @' + r3(along.x) + ',' + r3(along.z) + '）');
+  }
+
   // ★ 街道必需 + 房屋要贴着街（2026-11-07 真调用实测抓到）：
   //   模型把两排房分别贴到区域上/下边缘（相距 104m）、roads 给了 0 条 ——
   //   坐标全都合法，但出来的不是街而是"两排孤房"。校验器必须管设计，不只管合法性。
@@ -243,11 +289,23 @@ function validateIntent(intent, region, opts) {
       const bx0 = p.x - p.halfW + 1, bx1 = p.x + p.halfW - 1;   // 出檐余量里那 1m 不算房子实体
       const bz0 = p.z - p.halfD + 1, bz1 = p.z + p.halfD - 1;
       if (rx0 < bx1 && rx1 > bx0 && rz0 < bz1 && rz1 > bz0) {
+        // 兜底：正常情况下上面已自动推导过街道，走到这里说明推导出的街仍然相交（极少见）
+        //   —— 仍然给出可操作数字，别让模型猜
+        const needL = Math.max(0, r.x - r.width / 2 < bx0 ? bx0 - (r.x - r.width / 2) : 0);
+        const needR = Math.max(0, r.x + r.width / 2 > bx1 ? (r.x + r.width / 2) - bx1 : 0);
+        const needU = Math.max(0, r.z - r.depth / 2 < bz0 ? bz0 - (r.z - r.depth / 2) : 0);
+        const needD = Math.max(0, r.z + r.depth / 2 > bz1 ? (r.z + r.depth / 2) - bz1 : 0);
         return {
           ok: false, code: 'ROAD_HITS_BUILDING',
-          reason: `roads[${i}]（${r.width}×${r.depth}m，中心 ${r.x},${r.z}）压到了 buildings[${p.i}] 的房子实体上`
-            + '——路要么远离房子，要么缩短到房子边上为止',
-          hints: { road: { x: r.x, z: r.z, width: r.width, depth: r.depth }, building: { x: p.x, z: p.z } },
+          reason: `roads[${i}]（${r.width}×${r.depth}m，中心 ${r.x},${r.z}）压进了 buildings[${p.i}] 的房子实体`
+            + `（房子实体 x∈[${r3(bx0)},${r3(bx1)}] z∈[${r3(bz0)},${r3(bz1)}]）。`
+            + `沿 Z 轴至少要让开 ${r3(Math.max(needU, needD))}m，或沿 X 轴让开 ${r3(Math.max(needL, needR))}m；`
+            + '也可以把路缩短到只覆盖房子之间的空档',
+          hints: {
+            buildingSolid: { x: [r3(bx0), r3(bx1)], z: [r3(bz0), r3(bz1)] },
+            needClear: { alongX: r3(Math.max(needL, needR)), alongZ: r3(Math.max(needU, needD)) },
+            road: { x: r.x, z: r.z, width: r.width, depth: r.depth },
+          },
         };
       }
     }
