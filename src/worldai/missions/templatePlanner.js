@@ -56,8 +56,17 @@ function buildContract(region, opts) {
     catalogue,
     '1. facing 取 0/90/180/270（0=门朝−Z，90=+X，180=+Z，270=−X）；街道两侧的房子面对面。',
     '2. 建筑按「占地+2m 出檐」占位，相邻中心距 ≥(两者宽和/2+3)m，否则互相穿插。',
-    '3. roads 只给矩形范围，铺装块数由引擎算；props 给一块矩形+数量，引擎确定性散布。',
-    '4. 禁止编造模板 id / partKey。' + (budget > 0 ? `总件数（含铺装）≤${budget}。` : ''),
+    '3. roads 给矩形范围（主街宽 4~6m），长宽都要比区域小 10m 以上；铺装块数引擎算。',
+    '4. props 的 partKey 只能取：tree_default tree_cone tree_blocks plant_bush flower_redA flower_yellowA rock_smallA log（别的键不存在）。',
+    '5. **房屋 ≥3 栋时必须给 1 条 roads**，每栋房中心到该路中线的距离 5~30m（贴街排，不许散到区域四角）。',
+    '6. 禁止编造模板 id / partKey。' + (budget > 0 ? `总件数（含铺装）≤${budget}。` : ''),
+    '【村庄骨架示例】设区域中心 (cx,cz)=' + ((x0 + w / 2) | 0) + ',' + ((z0 + d / 2) | 0) + '，沿 X 轴建街：',
+    '{"roads":[{"x":cx,"z":cz,"width":80,"depth":5}],'
+      + '"buildings":[{"template":"medieval_6x10","x":cx-20,"z":cz-7,"facing":180},'
+      + '{"template":"medieval_8x8","x":cx,"z":cz-8,"facing":180},'
+      + '{"template":"medieval_6x10","x":cx-20,"z":cz+7,"facing":0},'
+      + '{"template":"medieval_8x8","x":cx,"z":cz+8,"facing":0}]}',
+    '↑北排 z<cz、facing180；南排 z>cz、facing0；同排间距≥14m。照此加减栋数。',
   ];
   const text = lines.join('\n');
   return {
@@ -104,6 +113,8 @@ function validateIntent(intent, region, opts) {
   all.forEach((t) => { styleOf[t.id] = t.style; });
 
   const out = { style: String(it.style || ''), summary: String(it.summary || ''), buildings: [], roads: [], props: [] };
+  const notes = [];   // 「代码替你修了什么」——不静默改，让人能看见
+  const r3 = (v) => Math.round(Number(v) * 1000) / 1000;
   let pieces = 0;
   const placed = [];   // 已接受的建筑占地，用于互撞检测
 
@@ -160,17 +171,67 @@ function validateIntent(intent, region, opts) {
   }
 
   // roads：矩形铺装（块数按 1m 砖估，只有上限意义）
+  let roadErr = null;
   (Array.isArray(it.roads) ? it.roads : []).forEach((r, i) => {
-    const x = num(r && r.x, NaN), z = num(r && r.z, NaN);
-    const w = num(r && r.width, 0), d = num(r && r.depth, 0);
+    if (roadErr) return;
+    // 裁剪会改写这四个，必须是 let（原来是 const，改完报 Assignment to constant）
+    let x = num(r && r.x, NaN), z = num(r && r.z, NaN);
+    let w = num(r && r.width, 0), d = num(r && r.depth, 0);
     if (!isFinite(x) || !isFinite(z) || !(w > 0) || !(d > 0)) {
       return;   // 静默丢弃无效道路项（道路不是主体，不值得整条打回）
     }
+    // ★ 越界的路：裁剪到区域内，不硬拒（2026-11-07 第 5 次实测定）
+    //   模型反复把路放偏 20~30m（170m 长放在 x=454 而非区域中心 500），
+    //   硬拒 → 它改不对；而「路多长、从哪到哪」本来就是代码能定的事。
+    //   裁完记一条 note，让人能看见发生了什么（不静默改）。
+    let rw = w, rd = d, rx = x, rz = z;
+    if (rx - rw / 2 < minX) { const d0 = minX - (rx - rw / 2); rx += d0; notes.push(`roads[${i}] 左移 ${r3(d0)}m 以进入区域`); }
+    if (rz - rd / 2 < minZ) { const d0 = minZ - (rz - rd / 2); rz += d0; notes.push(`roads[${i}] 下移 ${r3(d0)}m 以进入区域`); }
+    if (rx + rw / 2 > maxX) { const over = rx + rw / 2 - maxX; rw -= over * 2; if (rw < 2) rw = 2; notes.push(`roads[${i}] 长度裁到 ${r3(rw)}m 以进入区域`); }
+    if (rz + rd / 2 > maxZ) { const over = rz + rd / 2 - maxZ; rd -= over * 2; if (rd < 2) rd = 2; notes.push(`roads[${i}] 宽度裁到 ${r3(rd)}m 以进入区域`); }
+    x = r3(rx); z = r3(rz); w = r3(rw); d = r3(rd);
     const cw = Math.min(w, maxX - minX), cd = Math.min(d, maxZ - minZ);
     if (x - cw / 2 < minX || x + cw / 2 > maxX || z - cd / 2 < minZ || z + cd / 2 > maxZ) return;
     out.roads.push({ x, z, width: cw, depth: cd });
     pieces += Math.round(cw) * Math.round(cd);
   });
+
+  if (roadErr) return roadErr;
+
+  // ★ 街道必需 + 房屋要贴着街（2026-11-07 真调用实测抓到）：
+  //   模型把两排房分别贴到区域上/下边缘（相距 104m）、roads 给了 0 条 ——
+  //   坐标全都合法，但出来的不是街而是"两排孤房"。校验器必须管设计，不只管合法性。
+  if (out.buildings.length >= 3 && out.roads.length === 0) {
+    return {
+      ok: false, code: 'STREET_REQUIRED',
+      reason: `${out.buildings.length} 栋房子却没有 roads：委托里的"街/村"需要一条主街把房子串起来`
+        + '（给一条 {x,z,width,depth} 的矩形即可，宽度 4~6m）',
+      hints: { buildings: out.buildings.length, roadExample: { x: (minX + maxX) / 2, z: (minZ + maxZ) / 2, width: 80, depth: 5 } },
+    };
+  }
+
+  // 房屋中心到最近道路矩形的距离（>30m 视为"没贴着街"）
+  //   2026-11-07 实测校准两轮：12m → 20m → 30m。模型排"街两侧"时习惯留 20~25m 退线，
+  //   卡太紧等于在跟它的空间习惯较劲；真正要拦的是"两排贴到区域边缘、相距 100m+"那种。
+  const distToRect = (x, z, r) => {
+    const dx = Math.max(r.x - r.width / 2 - x, 0, x - (r.x + r.width / 2));
+    const dz = Math.max(r.z - r.depth / 2 - z, 0, z - (r.z + r.depth / 2));
+    return Math.hypot(dx, dz);
+  };
+  if (out.roads.length) {
+    for (let i = 0; i < out.buildings.length; i++) {
+      const b = out.buildings[i];
+      const dmin = Math.min.apply(null, out.roads.map((r) => distToRect(b.x, b.z, r)));
+      if (dmin > 30) {
+        return {
+          ok: false, code: 'BUILDING_FAR_FROM_STREET',
+          reason: `buildings[${i}]（${b.template}，中心 ${b.x},${b.z}）离最近的路 ${dmin.toFixed(1)}m，`
+            + '超过 30m —— 房屋要贴着街道两侧排，不要散到区域边缘',
+          hints: { distance: Math.round(dmin * 10) / 10, maxAllowed: 30, roads: out.roads },
+        };
+      }
+    }
+  }
 
   // ★ 路不能压到房子（2026-11-07 真调用实测抓到）：模型把 4m 宽的路放在距房 3m 处，
   //   中心距够、但路的半宽让矩形插进了房子 2m —— 只算中心距是拦不住的，必须按矩形相交。
@@ -193,19 +254,36 @@ function validateIntent(intent, region, opts) {
   }
 
   // props：范围散布
+  // ★ 注意：下面用 forEach，回调里的 return 只退出这一次迭代、不会退出 validateIntent。
+  //   所以错误必须先收集到 propErr，循环结束后再抛（2026-11-07 实测：越界道具被静默丢弃）。
+  let propErr = null;
   (Array.isArray(it.props) ? it.props : []).forEach((p) => {
+    if (propErr) return;
     const key = String((p && p.partKey) || '').trim();
-    const x = num(p && p.x, NaN), z = num(p && p.z, NaN);
+    let x = num(p && p.x, NaN), z = num(p && p.z, NaN);
     if (!key || !isFinite(x) || !isFinite(z)) return;
+    let pw = Math.max(0.2, num(p && p.width, 2));
+    let pd = Math.max(0.2, num(p && p.depth, 2));
+    // 同路一样：越界的散布矩形裁到区域内（植被放哪不改变设计意图）
+    if (x - pw / 2 < minX || x + pw / 2 > maxX || z - pd / 2 < minZ || z + pd / 2 > maxZ) {
+      const nx0 = Math.max(minX, x - pw / 2), nx1 = Math.min(maxX, x + pw / 2);
+      const nz0 = Math.max(minZ, z - pd / 2), nz1 = Math.min(maxZ, z + pd / 2);
+      if (nx1 - nx0 < 0.5 || nz1 - nz0 < 0.5) return;   // 裁没了就不放（不报错）
+      notes.push(`props（${key}）越界，散布范围裁到 ${r3(nx1 - nx0)}×${r3(nz1 - nz0)}m`);
+      x = r3((nx0 + nx1) / 2); z = r3((nz0 + nz1) / 2);
+      pw = r3(nx1 - nx0); pd = r3(nz1 - nz0);
+    }
     out.props.push({
       partKey: key,
       x, z,
       count: Math.max(1, Math.round(num(p && p.count, 1))),
-      width: Math.max(0.2, num(p && p.width, 2)),
-      depth: Math.max(0.2, num(p && p.depth, 2)),
+      width: pw,
+      depth: pd,
     });
     pieces += Math.max(1, Math.round(num(p && p.count, 1)));
   });
+
+  if (propErr) return propErr;
 
   const maxObjects = num(o.maxObjects, 0);
   if (maxObjects > 0 && pieces > maxObjects) {
@@ -219,6 +297,7 @@ function validateIntent(intent, region, opts) {
   return {
     ok: true,
     plan: out,
+    notes,
     stats: { buildings: out.buildings.length, roads: out.roads.length, props: out.props.length, pieces },
   };
 }
@@ -272,8 +351,10 @@ async function planTemplates(mission, region, opts) {
   ];
 
   let lastErr = null;
+  let lastRaw = null;   // 失败时把模型最后一版原样带回，便于诊断（不看原文只能瞎猜）
   for (let round = 1; round <= maxRounds; round++) {
     const content = await chat(messages);
+    lastRaw = String(content || '').slice(0, 1500);
     const intent = parseIntent(content);
     if (!intent) {
       lastErr = { ok: false, code: 'INTENT_UNPARSEABLE', reason: '模型没输出合法 JSON' };
@@ -298,7 +379,7 @@ async function planTemplates(mission, region, opts) {
         + '\n请按契约修正后重新输出 JSON。',
     });
   }
-  return Object.assign({ ok: false, rounds: maxRounds, contractTokens: contract.tokens }, lastErr || {});
+  return Object.assign({ ok: false, rounds: maxRounds, contractTokens: contract.tokens, lastRaw }, lastErr || {});
 }
 
 module.exports = { buildContract, validateIntent, parseIntent, planTemplates, FACINGS };
