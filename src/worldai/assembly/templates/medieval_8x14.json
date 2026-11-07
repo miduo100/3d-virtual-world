@@ -1,0 +1,86 @@
+{
+  "id": "medieval_8x14",
+  "name": "大会堂 · 8×14m",
+  "version": 1,
+  "capability": "enterable",
+  "style": "medieval",
+  "material": "plaster",
+  "pack": "gltf_2",
+  "dimensions": {
+    "width": 8,
+    "depth": 14,
+    "wallHeight": 3.12
+  },
+  "module": {
+    "wallWidth": 2,
+    "wallPieceHeight": 3.1248,
+    "rows": 1
+  },
+  "parts": {
+    "wall": "Wall_Plaster_Straight",
+    "door": "Wall_Plaster_Door_Round",
+    "window": "Wall_Plaster_Window_Wide_Round",
+    "floor": "Floor_WoodLight",
+    "roof": "Roof_RoundTiles_8x14",
+    "gable": "Roof_Front_Brick8"
+  },
+  "layout": {
+    "south": [
+      "window",
+      "door",
+      "window",
+      "wall"
+    ],
+    "east": [
+      "wall",
+      "window",
+      "wall",
+      "window",
+      "wall",
+      "window",
+      "wall"
+    ],
+    "north": [
+      "wall",
+      "window",
+      "wall",
+      "window"
+    ],
+    "west": [
+      "wall",
+      "window",
+      "wall",
+      "wall",
+      "window",
+      "wall",
+      "window"
+    ]
+  },
+  "roof": {
+    "mode": "whole",
+    "dropY": 0.15,
+    "ry": 0,
+    "originOffsetY": 0.78
+  },
+  "gable": {
+    "y": 3.12,
+    "zOffset": 0.55,
+    "originOffsetY": 0.132,
+    "stretchToRidge": true
+  },
+  "notes": [
+    "gltf_2 里最大的整块屋顶（8x14）对应的最大单体，村庄里当会堂 / 酒馆 / 议事厅",
+    "出檐 X 0.771 / Z 0.648；山墙必须配 Roof_Front_Brick8（Brick6 只有 6.69 宽，8m 房子会露缺口）",
+    "地板用 Floor_WoodLight 与其它木地板的房子区分，进屋能看出不同"
+  ],
+  "metrics": {
+    "seamMax": 0,
+    "eave": {
+      "x": 0.771,
+      "z": 0.648
+    },
+    "gableVsRidge": 0.001,
+    "pieceCount": 53,
+    "verifiedAt": "2026-11-06"
+  }
+}

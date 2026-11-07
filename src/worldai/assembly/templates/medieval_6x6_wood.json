@@ -1,0 +1,76 @@
+{
+  "id": "medieval_6x6_wood",
+  "name": "木格工坊 · 6×6m",
+  "version": 1,
+  "capability": "enterable",
+  "style": "medieval_wood",
+  "material": "woodgrid",
+  "pack": "gltf_2",
+  "dimensions": {
+    "width": 6,
+    "depth": 6,
+    "wallHeight": 3.12
+  },
+  "module": {
+    "wallWidth": 2,
+    "wallPieceHeight": 3.1248,
+    "rows": 1
+  },
+  "parts": {
+    "wall": "Wall_Plaster_WoodGrid",
+    "door": "Wall_Plaster_Door_Flat",
+    "window": "Wall_Plaster_Window_Thin_Round",
+    "floor": "Floor_WoodDark",
+    "roof": "Roof_RoundTiles_6x6",
+    "gable": "Roof_Front_Brick6"
+  },
+  "layout": {
+    "south": [
+      "wall",
+      "door",
+      "window"
+    ],
+    "east": [
+      "wall",
+      "window",
+      "wall"
+    ],
+    "north": [
+      "window",
+      "wall",
+      "wall"
+    ],
+    "west": [
+      "wall",
+      "wall",
+      "window"
+    ]
+  },
+  "roof": {
+    "mode": "whole",
+    "dropY": 0.15,
+    "ry": 0,
+    "originOffsetY": 0.782
+  },
+  "gable": {
+    "y": 3.12,
+    "zOffset": 0.55,
+    "originOffsetY": 0.132,
+    "stretchToRidge": true
+  },
+  "notes": [
+    "墙面换成 Wall_Plaster_WoodGrid（抹灰 + 木格梁），第三种种墙面质感，尺寸仍是 2×3.12×0.4065 可与门窗互换",
+    "窗用 Window_Thin_Round（窄窗），与 Wide 系列区分开",
+    "gltf_2 没有配套的木格门，门沿用 plaster 门（同尺寸），近看能看出色差 —— 这是素材限制，不是摆错"
+  ],
+  "metrics": {
+    "seamMax": 0,
+    "eave": {
+      "x": 0.92,
+      "z": 0.811
+    },
+    "gableVsRidge": 0.002,
+    "pieceCount": 24,
+    "verifiedAt": "2026-11-06"
+  }
+}

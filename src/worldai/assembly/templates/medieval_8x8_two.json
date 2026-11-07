@@ -1,0 +1,87 @@
+{
+  "id": "medieval_8x8_two",
+  "name": "砖砌两层 · 8×8m",
+  "version": 1,
+  "capability": "enterable",
+  "style": "medieval_town",
+  "material": "brick",
+  "pack": "gltf_2",
+  "dimensions": {
+    "width": 8,
+    "depth": 8,
+    "wallHeight": 6.24
+  },
+  "module": {
+    "wallWidth": 2,
+    "wallPieceHeight": 3.1248,
+    "rows": 2
+  },
+  "parts": {
+    "wall": "Wall_UnevenBrick_Straight",
+    "door": "Wall_UnevenBrick_Door_Flat",
+    "window": "Wall_UnevenBrick_Window_Wide_Round",
+    "floor": "Floor_UnevenBrick",
+    "roof": "Roof_RoundTiles_8x8",
+    "gable": "Roof_Front_Brick8"
+  },
+  "layout": {
+    "south": [
+      "wall",
+      "door",
+      "window",
+      "wall"
+    ],
+    "east": [
+      "wall",
+      "window",
+      "wall",
+      "wall"
+    ],
+    "north": [
+      "wall",
+      "wall",
+      "window",
+      "wall"
+    ],
+    "west": [
+      "wall",
+      "window",
+      "wall",
+      "wall"
+    ]
+  },
+  "roof": {
+    "mode": "whole",
+    "dropY": 0.15,
+    "ry": 0,
+    "originOffsetY": 0.78
+  },
+  "gable": {
+    "y": 6.24,
+    "zOffset": 0.55,
+    "originOffsetY": 0.132,
+    "stretchToRidge": true
+  },
+  "floorLevels": [
+    0,
+    3.125
+  ],
+  "doorRow": 0,
+  "upperDoorSlot": "window",
+  "notes": [
+    "砖砌两层：层高 6.24 = 墙件 3.1248 × 2 排，floorLevels [0, 3.125] 铺夹层楼板",
+    "gable.y 必须同步 6.24（写 3.12 会让山墙停在半腰）",
+    "doorRow=0：门只在一层，二楼同位置换窗",
+    "村庄里的主要二层楼，和 6×8 两层联排形成大小两档"
+  ],
+  "metrics": {
+    "seamMax": 0,
+    "eave": {
+      "x": 0.771,
+      "z": 0.961
+    },
+    "gableVsRidge": 0.001,
+    "pieceCount": 67,
+    "verifiedAt": "2026-11-06"
+  }
+}
