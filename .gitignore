@@ -245,3 +245,6 @@ scripts/validate_skill.js
 scripts/build_asset_pack.js
 scripts/strip_dump_data.js
 .tmp_*/
+
+# 清理前的数据库备份（体积大，不入库）
+_backups/
