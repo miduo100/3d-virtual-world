@@ -103,20 +103,32 @@
 
   // ---------------- 即时生效 ----------------
 
+  /**
+   * 让碰撞立刻生效/失效。
+   * @returns {{ok:boolean, reason?:string}} ok=false 表示胶囊表面碰撞没接上，
+   *          此时已退回 AABB 方块兜底（仍然能挡人，只是整块实心）。
+   */
   function applyCollisionNow(id, enabled) {
     var CC = window.CapsuleCollision;
-    if (!CC || !bm || !bm.world) return;
+    if (!CC || !bm || !bm.world) return { ok: false, reason: '碰撞模块未加载' };
     try {
       if (enabled) {
-        // refresh 内部：先注销再按新 has_collision 注册（本地 data 已更新）
-        if (typeof CC.refresh === 'function') CC.refresh(id);
-      } else {
-        if (typeof CC.unregisterModel === 'function') CC.unregisterModel(id);
-        // 清掉该对象的 AABB 兜底盒（rebuildAabb 在 has_collision!==true 时只做清理）
+        // ① 先补一个 AABB 兜底盒。胶囊的 BVH 是空闲分帧异步建的（实测 34 网格的楼要 5s+），
+        //    这期间如果身上没有任何碰撞体，玩家会直接穿过去 —— 也就是"开关开了却不生效"。
+        //    盒会在胶囊 BVH 就绪后由 CapsuleCollision._reconcileAabbs 自动收掉。
         if (typeof CC.rebuildAabb === 'function') CC.rebuildAabb(bm.world, id);
+        // ② 再注册胶囊（refresh 内部：先注销再按新 has_collision 注册）
+        if (typeof CC.refresh !== 'function') return { ok: false, reason: '碰撞模块未加载' };
+        var ok = CC.refresh(id);
+        return { ok: ok, reason: ok ? '' : '该模型不支持表面碰撞（已改用方块兜底）' };
       }
+      if (typeof CC.unregisterModel === 'function') CC.unregisterModel(id);
+      // 清掉该对象的 AABB 兜底盒（rebuildAabb 在 has_collision!==true 时只做清理）
+      if (typeof CC.rebuildAabb === 'function') CC.rebuildAabb(bm.world, id);
+      return { ok: true };
     } catch (e) {
       console.warn('[CollisionToggle] 碰撞体即时更新失败（2s 后 sweep 仍会自愈）:', e && e.message);
+      return { ok: false, reason: e && e.message };
     }
   }
 
@@ -144,11 +156,16 @@
       if (!data || !data.success) throw new Error((data && data.error) || '保存失败');
 
       entry.data.has_collision = enabled;
-      applyCollisionNow(id, enabled);
+      var res = applyCollisionNow(id, enabled);
       lastKey = String(enabled);
       if (window.UI && UI.showNotification) {
-        UI.showNotification('🧱 碰撞' + (enabled ? '已开启' : '已关闭'),
-          entry.data.name || '', 2000);
+        if (enabled && res && !res.ok) {
+          // 胶囊没接上（面数超限/蒙皮等）→ 已退回方块兜底，仍然挡人，但要说清楚
+          UI.showNotification('🧱 碰撞已开启（方块兜底）', res.reason || '表面碰撞不可用', 3000);
+        } else {
+          UI.showNotification('🧱 碰撞' + (enabled ? '已开启' : '已关闭'),
+            entry.data.name || '', 2000);
+        }
       }
     } catch (e) {
       // 失败回滚：DB 没改成功，本地也不能改

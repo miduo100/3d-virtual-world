@@ -16,6 +16,8 @@ const { query } = require('../../database/db');
 const { fileHash } = require('./utils');
 const { upload, uploadSound, uploadSkillAnim } = require('./uploads');
 const { compressCharGlb } = require('./charTextureCompress');
+// ★ 音效落盘统一入口（上传压缩规则与 AI 入库、编辑器另存共用）
+const soundStore = require('../soundStore');
 
 // GET /api/character-templates  获取所有模板（公开接口）
 router.get('/', async (req, res) => {
@@ -573,12 +575,37 @@ router.put('/:id/weapon-sounds', async (req, res) => {
 
 // POST /api/character-templates/upload-sound  上传单个音频文件
 // multipart: sound_file
-// Returns: { url: '/uploads/character-templates/sounds/sound-xxx.mp3' }
+// Returns: { url: '/uploads/character-templates/sounds/sound-xxx.mp3', compressed: true, ... }
+// ★ 2026-11-03：上传后自动压缩（WAV → MP3 单声道 32kbps）。
+//   压缩规则集中在 soundStore.js，与 AI 入库、编辑器另存共用一套判定。
+//   压缩失败或无收益 → 保留原文件，不阻断上传。
 router.post('/upload-sound', uploadSound.single('sound_file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: '请上传音频文件' });
-    const relUrl = '/uploads/character-templates/sounds/' + req.file.filename;
-    res.json({ success: true, url: relUrl, filename: req.file.filename, size: req.file.size });
+    const stored = await soundStore.storeSound(req.file.path, {
+      hint: req.file.originalname,
+      keepOriginal: true,   // 原件挪到 .origin/ 子目录（不在资产清单扫描范围内）
+    });
+    if (!stored.ok) {
+      // 存储层失败：退回「原样落盘」，至少让上传成功
+      const relUrl = '/uploads/character-templates/sounds/' + req.file.filename;
+      return res.json({
+        success: true, url: relUrl, filename: req.file.filename, size: req.file.size,
+        compressed: false, reason: stored.reason || '存储异常，已保留原文件',
+      });
+    }
+    res.json({
+      success: true,
+      url: stored.url,
+      filename: stored.filename,
+      size: stored.size,
+      compressed: stored.compressed,
+      originalUrl: stored.originalUrl || null,
+      originalSize: stored.originalSize || null,
+      ratio: stored.ratio || null,
+      sampleRate: stored.sampleRate || null,
+      reason: stored.reason || null,
+    });
   } catch (e) {
     res.status(500).json({ error: '音频上传失败: ' + e.message });
   }
@@ -589,14 +616,21 @@ router.post('/skills/:skillId/upload-sound', uploadSound.single('sound_file'), a
   try {
     if (!req.file) return res.status(400).json({ error: '请上传音频文件' });
     const { skillId } = req.params;
-    const relUrl = '/uploads/character-templates/sounds/' + req.file.filename;
+    const stored = await soundStore.storeSound(req.file.path, {
+      hint: req.file.originalname,
+      keepOriginal: true,
+    });
+    const relUrl = stored.ok ? stored.url : ('/uploads/character-templates/sounds/' + req.file.filename);
     const volume = parseFloat(req.body.volume) || 0.8;
     const result = await query(
       'UPDATE template_skills SET fx_sound_url=$1, fx_sound_volume=$2 WHERE id=$3 RETURNING id,skill_name,fx_sound_url,fx_sound_volume',
       [relUrl, volume, skillId]
     );
     if (!result.rows.length) return res.status(404).json({ error: '技能不存在' });
-    res.json({ success: true, skill: result.rows[0] });
+    res.json({
+      success: true, skill: result.rows[0],
+      compressed: stored.compressed, size: stored.size, ratio: stored.ratio || null,
+    });
   } catch (e) {
     res.status(500).json({ error: '技能音效上传失败: ' + e.message });
   }

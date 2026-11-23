@@ -215,7 +215,8 @@
    *
    * @returns {{applied:number, skipped:number, useMap:number}}
    */
-  function applyModelEmissive(root, config) {
+  function applyModelEmissive(root, config, options) {
+    var skip = options && options.skip;
     let color = parseColorValue(config.emissive);
     const hasInt = config.emissiveIntensity !== undefined && config.emissiveIntensity !== null;
     const intensity = hasInt ? parseFloat(config.emissiveIntensity) : null;
@@ -225,6 +226,12 @@
     if (color && intensity !== null && intensity > 0 && color.getHex() === 0x000000) {
       color = new THREE.Color(0xffffff);
     }
+    // 【2026-11-06】颜色缺失但强度 > 0 → 按白色兜底。
+    // 旧实现只在「color 存在且是黑」时兜底，color 整个缺失时不碰材质，
+    // 而 GLB 材质的 emissive 默认就是纯黑 → 黑 × 贴图 = 黑，强度调到多少都不发光。
+    // 表现：管理员面板设了"整体调亮"，运行中靠"关一次再开"残留的白色能亮，
+    // 一刷新材质回到黑色就全暗（城市模型 id=8392 就是这个坑）。
+    if (!color && hasInt && intensity > 0) color = new THREE.Color(0xffffff);
     if (!color && !hasInt) return { applied: 0, skipped: 0, useMap: 0 };
 
     const wantGlow = (intensity === null) || intensity > 0;
@@ -242,6 +249,8 @@
         const key = m.uuid || m;
         if (done.has(key)) continue;
         done.add(key);
+        // 已被「部件发光」接管的材质不再统一覆盖，否则会把细粒度设置冲掉
+        if (skip && skip.has(key)) continue;
 
         if (!m.emissive || typeof m.emissive.copy !== 'function') { skipped++; continue; }
         if (color) m.emissive.copy(color);
@@ -252,6 +261,10 @@
         // 注意：强度为 0 时不加 emissiveMap，避免白白多一套着色器变体
         if (wantGlow && useMap && m.map && m.emissiveMap !== m.map) {
           m.emissiveMap = m.map;
+        } else if (!useMap && m.emissiveMap) {
+          // 关掉「用自身贴图发光」要把旧的 emissiveMap 摘掉，否则开关看起来没反应
+          // （部件发光那条路径 modelSurface.apply 一直这么做，这里对齐）
+          m.emissiveMap = null;
         }
         if (wantGlow && useMap && m.map) usedMap++;
         m.needsUpdate = true; // 触发一次材质刷新（改 emissiveMap 会换程序变体，程序缓存命中）
@@ -272,15 +285,20 @@
    */
   function applyUploadedModel(root, config, modelData) {
     if (!root) return;
+    if (!config) return;
 
-    // 世界内走固定灯池；编辑器预览由 ModelLightingEditor 自己管理。
+    // ① 先做灯光与部件发光（内部会 cleanup 重新克隆材质，必须最先跑，
+    //    否则后面的 restore 会把已应用的材质换回原始状态）
     if (window.ModelLighting && !(modelData && modelData.editor)) {
       window.ModelLighting.apply(root, config, { world: true });
     }
-    if (!config) return;
 
-    // 自发光（室内打亮等）：只有配置里显式写了才动
-    if (hasEmissiveConfig(config)) applyModelEmissive(root, config);
+    // ② 整模型自发光当底色，跳过已被部件发光接管的材质（细粒度优先）
+    if (hasEmissiveConfig(config)) {
+      var taken = window.ModelSurface && window.ModelSurface.appliedMaterialUuids
+        ? window.ModelSurface.appliedMaterialUuids(root) : null;
+      applyModelEmissive(root, config, { skip: taken });
+    }
 
     if (config.castShadow !== undefined) {
       root.traverse(function (child) {

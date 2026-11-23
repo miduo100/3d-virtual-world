@@ -6,6 +6,8 @@ const WebSocket = require('ws');
 const { v4: uuidv4 } = require('uuid');
 const { query } = require('../database/db');
 const voiceRelay = require('./voiceRelay');
+const visitorStats = require('../services/visitorStats');
+const { resolveClientIp } = require('../middleware/clientIp');
 
 let wss = null;
 
@@ -66,9 +68,14 @@ function setupWebSocketServer(httpServer) {
     // E3 修复 D5④：4MB 单帧上限（ws 默认 100MB）；4MB = 语音 base64 上限 2MB + JSON 余量
     wss = new WebSocket.Server({ noServer: true, maxPayload: 4 * 1024 * 1024 });
 
-    wss.on('connection', (ws) => {
+    wss.on('connection', (ws, req) => {
       const connectionId = uuidv4();
       activeConnections.set(connectionId, ws);
+
+      // 访客统计用：upgradeRouter 已把 req 透传进来，这里取真实 IP / UA 挂到连接上，
+      // PLAYER_JOIN 时一次性落库（Nginx 反代下不走 resolveClientIp 会全是 127.0.0.1）
+      ws._clientIp = resolveClientIp(req);
+      ws._clientUa = (req && req.headers && req.headers['user-agent']) || null;
 
       // 【内存治理】心跳探活标记（配合 setupWebSocketServer 末尾的全局 ping 定时器）
       ws.isAlive = true;
@@ -130,6 +137,10 @@ function setupWebSocketServer(httpServer) {
         playerPositions.delete(connectionId);
         ghostWarnAt.delete(connectionId);
         voiceRelay.handleDisconnect(connectionId);
+
+        // 访客统计：回填停留时长。
+        // 没发过 PLAYER_JOIN 的连接不在 LIVE 里，endSession 会自动跳过（不阻塞关闭流程）
+        visitorStats.endSession(connectionId, 'close').catch(() => {});
         
         // 广播玩家离线
         if (playerData) {
@@ -354,6 +365,16 @@ function handlePlayerJoin(connectionId, ws, payload) {
     isSelfContainedBundle: isSelfContainedBundle === true,
     lastUpdate: new Date(),
   });
+
+  // 访客统计：记录本次「进入世界」（幂等——wsPresenceGuard 会重发 JOIN）
+  // 用 ws 上挂的真实 IP/UA；不 await，不阻塞广播
+  visitorStats.startSession({
+    connectionId,
+    isGuest: isGuest === true,
+    characterId,
+    ip: ws._clientIp,
+    ua: ws._clientUa,
+  }).catch(() => {});
 
   // Notify all players (含 glbUrl + animUrls + 武器配置 + 校准配置 + 游客标记 + 自包含包标记)
   broadcastToAll({
@@ -625,4 +646,15 @@ module.exports = {
   broadcastToNearby,
   getPlayerPositions: () => playerPositions,
   getWss: () => wss,                     // P3：noServer 模式下供 upgradeRouter 调 wss.handleUpgrade
+  // 实时在线人数（内存口径，比查库快且准）：PLAYER_JOIN 登记、close 移除
+  getOnlineStats: () => {
+    let guest = 0;
+    let user = 0;
+    playerPositions.forEach((p) => {
+      if (!p) return;
+      if (p.isGuest) guest += 1;
+      else user += 1;
+    });
+    return { total: guest + user, guest, user };
+  },
 };

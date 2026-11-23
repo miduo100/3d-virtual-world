@@ -431,21 +431,47 @@ router.get('/uploaded-models', async (req, res) => {
     // 不进「上传模型」列表 —— 否则 100+ 零件会把用户刚传的模型淹到第 2000 行。
     // 默认只回 model；?category=part|all 可显式放宽（Phase 5 装配/编辑器取用）。
     const cat = String((req.query && req.query.category) || 'model').toLowerCase();
-    const where = cat === 'all' ? '' : (cat === 'part' ? `WHERE part_category = 'part'` : `WHERE part_category = 'model'`);
-    const query = `
-      SELECT * FROM uploaded_models
-      ${where}
-      ORDER BY created_at DESC
-    `;
+    // 【2026-11-12 性能】分页 + 搜索：
+    // 原先一次 SELECT * 全表 + 对每条 row 串行 fs.stat → 500 条要 2~2.5 秒。
+    // 现在支持 ?page=&pageSize=&q=；不传分页参数时行为不变（返回全部，兼容旧调用）。
+    const q = String((req.query && req.query.q) || '').trim();
+    const rawPageSize = req.query.pageSize !== undefined ? req.query.pageSize
+      : (req.query.limit !== undefined ? req.query.limit : undefined);
+    const paged = rawPageSize !== undefined || req.query.page !== undefined;
+    const pageSize = Math.min(500, Math.max(1, parseInt(rawPageSize, 10) || 40));
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const offset = (page - 1) * pageSize;
 
-    const result = await pool.query(query);
+    const conds = [];
+    const params = [];
+    if (cat !== 'all') {
+      params.push(cat === 'part' ? 'part' : 'model');
+      conds.push(`part_category = $${params.length}`);
+    }
+    if (q) {
+      params.push('%' + q + '%');
+      // 表里没有 name 列：可搜字段是 display_name / file_name / path / saved_file_name
+      conds.push(`(display_name ILIKE $${params.length} OR file_name ILIKE $${params.length} OR path ILIKE $${params.length} OR saved_file_name ILIKE $${params.length})`);
+    }
+    const whereSql = conds.length ? ('WHERE ' + conds.join(' AND ')) : '';
+
+    const totalResult = await pool.query(
+      `SELECT COUNT(*)::int AS total FROM uploaded_models ${whereSql}`, params
+    );
+    const total = totalResult.rows[0] ? totalResult.rows[0].total : 0;
+
+    let dataSql = `SELECT * FROM uploaded_models ${whereSql} ORDER BY created_at DESC`;
+    if (paged) dataSql += ` LIMIT ${pageSize} OFFSET ${offset}`;
+
+    const result = await pool.query(dataSql, params);
     const split = await pool.query(
       `SELECT COUNT(*) FILTER (WHERE part_category = 'model')::int AS model_count,
               COUNT(*) FILTER (WHERE part_category = 'part')::int  AS part_count
          FROM uploaded_models`);
 
     // 补充磁盘实际大小（压缩后文件在磁盘上的真实字节数）+ 减面状态派生字段
-    for (const row of result.rows) {
+    // 【性能】原来 for + await 是串行的（500 条 = 500 次 IO 排队），改成并发 stat。
+    await Promise.all(result.rows.map(async (row) => {
       try {
         const filePath = path.join(__dirname, '../../public', row.path || '');
         const stat = await fs.stat(filePath);
@@ -457,11 +483,16 @@ router.get('/uploaded-models', async (req, res) => {
       row.is_decimated = p.endsWith('_dec.glb');
       row.original_path = row.is_decimated ? p.replace('_dec.glb', '.glb') : null;
       row.original_file_name = row.is_decimated ? String(row.saved_file_name || '').replace('_dec.glb', '.glb') : null;
-    }
+    }));
 
     res.json({
       success: true,
       models: result.rows,
+      total: total,
+      page: paged ? page : 1,
+      pageSize: paged ? pageSize : total,
+      paged: paged,
+      q: q,
       category: cat === 'all' ? 'all' : (cat === 'part' ? 'part' : 'model'),
       split: split.rows[0] || { model_count: result.rows.length, part_count: 0 }
     });

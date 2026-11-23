@@ -18,6 +18,7 @@ const { v4: uuidv4 } = require('uuid');
 const { authenticateToken } = require('../middleware/auth');
 const { authenticateAdminToken } = require('../middleware/adminAuth');
 const trustManager = require('../services/federationTrustManager');
+const { upsertTrustedWorld, endpointKey, backfillEndpointKeys } = require('../services/trustedWorldStore');
 const { checkRegistration } = require('../services/worldReachabilityChecker');
 const { findOrCreateFederatedUser } = require('../services/federationUserProvisioner');
 
@@ -154,10 +155,14 @@ function generateWorldId() {
 // 加载已信任的世界列表
 async function loadTrustedWorlds() {
   try {
+    // 【2026-10-31】补齐 endpoint_key（幂等；旧库首次升级时用，撞唯一索引只告警不阻断）
+    await backfillEndpointKeys();
+
     const result = await query(
       'SELECT * FROM trusted_worlds WHERE enabled = true'
     );
 
+    const byEndpoint = new Map();
     for (const world of result.rows) {
       federationSystem.trustWorld(
         world.world_id,
@@ -165,9 +170,21 @@ async function loadTrustedWorlds() {
         world.world_url,
         world.public_key
       );
+
+      const key = world.endpoint_key || endpointKey(world.world_url) || String(world.world_url);
+      if (!byEndpoint.has(key)) byEndpoint.set(key, []);
+      byEndpoint.get(key).push(world.world_id);
     }
 
-    console.log(`✅ 已加载 ${result.rows.length} 个信任的世界`);
+    // 同一端点（忽略 http/https）仍有多条 = 改造前留下的历史重复；不自动删，只提示人工处理
+    for (const [key, ids] of byEndpoint.entries()) {
+      if (ids.length > 1) {
+        console.warn(`⚠️ [联邦] 端点 ${key} 存在 ${ids.length} 条信任记录：${ids.join(', ')}；` +
+          '请在后台「联邦与传送 → 受信任世界」保留一条并删除其余（或点「重新绑定」）');
+      }
+    }
+
+    console.log(`✅ 已加载 ${result.rows.length} 个信任的世界（${byEndpoint.size} 个端点）`);
   } catch (error) {
     console.error('加载信任世界列表失败:', error);
   }
@@ -667,14 +684,16 @@ router.post('/trust', authenticateAdminToken, securityCheck, async (req, res) =>
       }
       if (targetWorld) {
         try {
-          await query(
-            `INSERT INTO trusted_worlds 
-             (world_id, world_name, world_url, public_key, created_at, enabled)
-             VALUES ($1, $2, $3, $4, NOW(), true)
-             ON CONFLICT (world_id) DO UPDATE 
-             SET world_name = $2, world_url = $3, public_key = $4, updated_at = NOW()`,
-            [targetWorld.worldId, targetWorld.worldName, targetWorld.worldUrl, targetWorld.publicKey]
-          );
+          // 【2026-10-31】统一走端点存储层：同一地址换身份时原地改绑，不再堆第二条
+          const saveResult = await upsertTrustedWorld({
+            worldId: targetWorld.worldId,
+            worldName: targetWorld.worldName,
+            worldUrl: targetWorld.worldUrl,
+            publicKey: targetWorld.publicKey
+          }, federationSystem);
+          if (!saveResult.success) {
+            console.error('❌ 保存信任世界失败:', saveResult.error);
+          }
         } catch (dbError) {
           console.error('❌ 保存信任世界失败:', dbError);
           // 数据库错误不影响信任建立，继续返回成功
@@ -926,14 +945,16 @@ router.post('/import', authenticateAdminToken, securityCheck, async (req, res) =
 
     // 保存到数据库
     try {
-      await query(
-        `INSERT INTO trusted_worlds 
-         (world_id, world_name, world_url, public_key, created_at, enabled)
-         VALUES ($1, $2, $3, $4, NOW(), true)
-         ON CONFLICT (world_id) DO UPDATE 
-         SET world_name = $2, world_url = $3, public_key = $4, updated_at = NOW()`,
-        [config.worldId, config.worldName, config.worldUrl, config.publicKey]
-      );
+      // 【2026-10-31】统一走端点存储层（同地址换身份原地改绑）
+      const saveResult = await upsertTrustedWorld({
+        worldId: config.worldId,
+        worldName: config.worldName,
+        worldUrl: config.worldUrl,
+        publicKey: config.publicKey
+      }, federationSystem);
+      if (!saveResult.success) {
+        console.error('❌ 保存信任世界失败:', saveResult.error);
+      }
     } catch (dbError) {
       console.error('❌ 保存信任世界失败:', dbError);
       // 数据库错误不影响导入结果，继续返回成功
@@ -981,15 +1002,19 @@ router.post('/register-client', securityCheck, async (req, res) => {
     if (result.success) {
       // 保存到数据库
       try {
-        await query(
-          `INSERT INTO trusted_worlds 
-           (world_id, world_name, world_url, public_key, is_central, created_at, enabled)
-           VALUES ($1, $2, $3, $4, false, NOW(), true)
-           ON CONFLICT (world_id) DO UPDATE 
-           SET world_name = $2, world_url = $3, public_key = $4, updated_at = NOW()`,
-          [worldConfig.worldId, worldConfig.worldName, worldConfig.worldUrl, worldConfig.publicKey]
-        );
-        console.log('✅ 客户端世界注册成功:', worldConfig.worldName);
+        // 【2026-10-31】统一走端点存储层（同地址换身份原地改绑）
+        const saveResult = await upsertTrustedWorld({
+          worldId: worldConfig.worldId,
+          worldName: worldConfig.worldName,
+          worldUrl: worldConfig.worldUrl,
+          publicKey: worldConfig.publicKey,
+          isCentral: false
+        }, federationSystem);
+        if (!saveResult.success) {
+          console.error('❌ 保存客户端世界失败:', saveResult.error);
+        } else {
+          console.log('✅ 客户端世界注册成功:', worldConfig.worldName);
+        }
       } catch (dbError) {
         console.error('❌ 保存客户端世界失败:', dbError);
         // 数据库错误不影响注册结果，继续返回成功
@@ -1192,6 +1217,13 @@ router.post('/sync-user', securityCheck, async (req, res) => {
     handleError(res, error, '同步用户数据失败');
   }
 });
+
+// 【2026-10-31】受信任世界「重新绑定」接口（独立模块，避免继续膨胀本文件）
+// POST /api/federation/worlds/:worldId/rebind  —— 对方换身份后原地改绑
+// GET  /api/federation/worlds-endpoints        —— 端点重复检测（后台高亮用）
+router.use(require('./federationWorldRebind').createFederationWorldRebindRouter({
+  getFederationSystem: () => federationSystem
+}));
 
 // 导出初始化函数
 module.exports = {

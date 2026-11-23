@@ -133,7 +133,20 @@ async function initializeDatabase() {
     'migrations/add_terrain_zones_columns.sql',    // 地形区域化（补回丢失的 add_terrain_zones.sql 的 zone_* 兼容列）
     'migrations/add_terrain_areas.sql',            // 地形 = 地块：位置(中心 X/Z)、宽深、基准高度 base_y
     'migrations/add_maintenance_logs.sql',         // 系统维护执行日志（历史库靠运行时创建，新环境缺表 → 维护页 500）
-    'migrations/fix_actor_id_cols_to_integer.sql'  // 操作人字段 uuid→integer（init.sql 与代码不一致 → 批量保存报 uuid 语法错）
+    'migrations/fix_actor_id_cols_to_integer.sql', // 操作人字段 uuid→integer（init.sql 与代码不一致 → 批量保存报 uuid 语法错）
+    'migrations/add_trusted_worlds_endpoint_key.sql', // 联邦：受信任世界端点键（忽略 http/https，避免同 URL 堆多条）
+    'migrations/add_model_bounds.sql',                // 补 model_bounds（历史库靠运行时建表，新环境缺表 → 表数 100/101）
+    'migrations/fix_portals_created_by_uuid.sql',     // portals.created_by 改回 uuid（曾误转 integer → /api/portal 500）
+    'migrations/fix_config_audit_log_columns.sql',    // 补 config_audit_log.changed_by/changed_at（init.sql 与代码列名不一致）
+    // ★ 2026-11-03 AI 音效生成
+    'migrations/add_world_sfx_jobs.sql',              // 音效生成任务账本（★落表，重启后仍能查到同一条任务与试听地址）
+    'migrations/add_sfx_provider_doubao_seed_audio.sql', // 注册 provider_type='sfx' 的豆包音频生成（密钥留空，用户在后台自己填）
+    'migrations/add_sfx_provider_elevenlabs.sql',       // 注册 provider_type='sfx' 的 ElevenLabs 音效生成（音效专用模型，第二条链路）
+    // ★ 2026-11-12 右侧属性面板渲染开关持久化 + 多选批量面板
+    'migrations/add_world_objects_render_flags.sql',    // visible/cast_shadow/receive_shadow 三列（原先前端发、后端丢）
+    'migrations/add_world_object_groups.sql',           // 编组持久化：world_object_groups + world_objects.group_id
+    // ★ 2026-11-13 访客访问统计
+    'migrations/add_visitor_sessions.sql',              // 进世界→离开的会话表（游客/登录用户分开算停留时长）
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);

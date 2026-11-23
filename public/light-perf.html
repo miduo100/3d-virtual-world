@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>点光数量压力测试</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0b0e13; color: #d8dee9; font: 13px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; overflow: hidden; }
+  #c { display: block; width: 100vw; height: 100vh; }
+  #hud { position: fixed; left: 16px; top: 16px; background: rgba(14,18,26,.9); border: 1px solid rgba(120,140,180,.25); border-radius: 10px; padding: 14px 16px; min-width: 280px; backdrop-filter: blur(8px); }
+  #hud h1 { font-size: 13px; font-weight: 600; letter-spacing: .5px; margin-bottom: 10px; color: #ffdca8; }
+  .fps { font: 700 30px/1 ui-monospace, Consolas, monospace; color: #7ee0a8; margin: 4px 0 10px; }
+  .fps.bad { color: #ff8a7a; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  button { background: rgba(90,110,150,.2); color: #cfd8e6; border: 1px solid rgba(120,140,180,.3); border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 12px; font-family: inherit; }
+  button:hover { background: rgba(120,150,200,.3); }
+  button.on { background: #ffdca8; color: #1a1d24; border-color: #ffdca8; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+  th, td { text-align: right; padding: 3px 6px; border-bottom: 1px solid rgba(120,140,180,.15); }
+  th { color: #8b98ab; font-weight: 500; }
+  th:first-child, td:first-child { text-align: left; }
+  .note { margin-top: 10px; font-size: 11px; color: #7a8698; line-height: 1.6; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <h1>点光数量压力测试</h1>
+  <div class="fps" id="fps">--</div>
+  <div class="row" id="btns"></div>
+  <button id="run" style="width:100%">自动跑一遍 0→48 盏</button>
+  <table id="tbl">
+    <thead><tr><th>总灯数</th><th>FPS</th><th>相对</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <div class="note">
+    同一台机器、同一个分辨率下对比才有意义。<br>
+    本页几何比真实世界简单（draw call 少），<b>绝对帧率会偏高</b>；<b>灯数增加造成的落差</b>才是可信的。
+  </div>
+</div>
+<script src="js/lib/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var canvas = document.getElementById('c');
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = false;
+
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0b0e13);
+  scene.fog = new THREE.Fog(0x0b0e13, 40, 160);
+
+  var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
+  camera.position.set(0, 6, 26);
+  camera.lookAt(0, 2, 0);
+
+  // 环境光：暗场景，让点光的差异看得出来
+  scene.add(new THREE.AmbientLight(0xffffff, 0.12));
+
+  // 地面
+  var ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(300, 300),
+    new THREE.MeshStandardMaterial({ color: 0x2a3038, roughness: 0.9, metalness: 0.05 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  scene.add(ground);
+
+  // 一堆盒子：制造 draw call 与受光面
+  var boxGeo = new THREE.BoxGeometry(1, 1, 1);
+  for (var i = 0; i < 60; i++) {
+    var h = 1 + Math.random() * 6;
+    var mesh = new THREE.Mesh(boxGeo, new THREE.MeshStandardMaterial({
+      color: new THREE.Color().setHSL(0.08 + Math.random() * 0.1, 0.15, 0.45 + Math.random() * 0.2),
+      roughness: 0.8, metalness: 0.05
+    }));
+    mesh.scale.set(1.4 + Math.random() * 2.4, h, 1.4 + Math.random() * 2.4);
+    mesh.position.set((Math.random() - 0.5) * 70, h / 2, (Math.random() - 0.5) * 70 - 10);
+    scene.add(mesh);
+  }
+
+  var lights = [];
+  var target = 0;
+
+  function setLights(n) {
+    target = n;
+    for (var i = 0; i < lights.length; i++) scene.remove(lights[i]);
+    lights = [];
+    for (var k = 0; k < n; k++) {
+      var l = new THREE.PointLight(0xffdca8, 80, 30, 2);
+      var a = k * 2.399;
+      var r = 6 + (k % 3) * 7;
+      l.position.set(Math.cos(a) * r, 3.5, Math.sin(a) * r - 6);
+      scene.add(l);
+      lights.push(l);
+    }
+    updateButtons();
+  }
+
+  var btnWrap = document.getElementById('btns');
+  var presets = [0, 8, 16, 24, 32, 48];
+  presets.forEach(function (n) {
+    var b = document.createElement('button');
+    b.textContent = n;
+    b.dataset.n = n;
+    b.onclick = function () { setLights(n); };
+    btnWrap.appendChild(b);
+  });
+
+  function updateButtons() {
+    var bs = btnWrap.querySelectorAll('button');
+    for (var i = 0; i < bs.length; i++) {
+      bs[i].classList.toggle('on', Number(bs[i].dataset.n) === target);
+    }
+  }
+
+  // 帧率统计
+  var frames = 0, lastT = performance.now(), fpsVal = 0;
+  function loop() {
+    renderer.render(scene, camera);
+    frames++;
+    var now = performance.now();
+    if (now - lastT >= 500) {
+      fpsVal = frames / ((now - lastT) / 1000);
+      var el = document.getElementById('fps');
+      el.textContent = fpsVal.toFixed(1) + ' fps';
+      el.className = 'fps' + (fpsVal < 30 ? ' bad' : '');
+      frames = 0;
+      lastT = now;
+    }
+    requestAnimationFrame(loop);
+  }
+  loop();
+
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function measure(ms) {
+    return new Promise(function (resolve) {
+      var f = 0, t0 = performance.now();
+      function tick() {
+        f++;
+        var dt = performance.now() - t0;
+        if (dt < ms) { requestAnimationFrame(tick); return; }
+        resolve({ fps: f / (dt / 1000), frames: f, ms: dt });
+      }
+      requestAnimationFrame(tick);
+    });
+  }
+
+  document.getElementById('run').onclick = async function () {
+    var tbody = document.querySelector('#tbl tbody');
+    tbody.innerHTML = '';
+    var base = 0;
+    for (var i = 0; i < presets.length; i++) {
+      var n = presets[i];
+      setLights(n);
+      await sleep(1600);            // 等 shader 编译
+      var m = await measure(4000);
+      if (!base && n === 0) base = m.fps;
+      var rel = base ? Math.round((m.fps / base) * 100) + '%' : '-';
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + n + '</td><td>' + m.fps.toFixed(1) + '</td><td>' + rel + '</td>';
+      tbody.appendChild(tr);
+    }
+  };
+
+  window.addEventListener('resize', function () {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  setLights(0);
+})();
+</script>
+</body>
+</html>

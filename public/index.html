@@ -736,19 +736,575 @@
 
     #controls-hint .wi-meta a { color: #00cccc; text-decoration: none; }
     #controls-hint .wi-meta a:hover { text-decoration: underline; }
+    /* ============================================================
+       个人资料设置 · 双栏设置页（2026-11-15 样式重做）
+       说明：只替换外观层。所有元素 id 与原实现保持一致，
+             业务逻辑（模板加载/保存/返回/传送门/退出）不受影响。
+       ============================================================ */
+    #profile-page {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 2500;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      box-sizing: border-box;
+      pointer-events: auto;
+      background:
+        radial-gradient(1100px 560px at 50% -12%, rgba(30, 96, 70, .34), transparent 70%),
+        radial-gradient(820px 460px at 88% 112%, rgba(18, 58, 88, .26), transparent 70%),
+        linear-gradient(180deg, #050a0c 0%, #03060a 100%);
+      font-family: "Inter", -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .pf-panel {
+      position: relative;
+      display: flex;
+      width: 820px;
+      max-width: 100%;
+      height: 520px;
+      max-height: calc(100vh - 32px);
+      box-sizing: border-box;
+      background: linear-gradient(168deg, rgba(17, 29, 24, .97) 0%, rgba(8, 13, 11, .99) 100%);
+      border: 1px solid rgba(255, 255, 255, .1);
+      border-radius: 18px;
+      box-shadow: 0 40px 90px -30px rgba(0, 0, 0, .95), 0 0 60px -20px rgba(52, 227, 155, .12);
+      overflow: hidden;
+      color: #e8f4ee;
+    }
+
+    /* 关闭按钮 */
+    .pf-close {
+      position: absolute;
+      top: 14px; right: 14px;
+      width: 30px; height: 30px;
+      z-index: 6;
+      display: grid;
+      place-items: center;
+      border-radius: 9px;
+      border: 1px solid rgba(255, 255, 255, .07);
+      background: rgba(255, 255, 255, .03);
+      color: #7f978d;
+      font-size: 15px;
+      line-height: 1;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background .18s, border-color .18s, color .18s;
+    }
+    .pf-close:hover {
+      background: rgba(255, 107, 107, .14);
+      border-color: rgba(255, 107, 107, .35);
+      color: #ff8b8b;
+    }
+
+    /* ── 左栏 ── */
+    .pf-side {
+      flex: 0 0 218px;
+      display: flex;
+      flex-direction: column;
+      padding: 22px 14px 16px;
+      box-sizing: border-box;
+      background: rgba(0, 0, 0, .28);
+      border-right: 1px solid rgba(255, 255, 255, .06);
+    }
+    .pf-id {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 0 4px 18px;
+    }
+    .pf-ava {
+      flex: 0 0 auto;
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(52, 227, 155, .12);
+      border: 1px solid rgba(52, 227, 155, .28);
+      color: #7cf5c4;
+    }
+    .pf-name {
+      min-width: 0;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #eaf7f0;
+      line-height: 1.3;
+    }
+    .pf-name small {
+      display: block;
+      margin-top: 2px;
+      font-size: 10.5px;
+      font-weight: 400;
+      color: #5f7a70;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .pf-level {
+      margin: 0 4px 16px;
+      padding: 10px 12px;
+      border-radius: 11px;
+      background: rgba(255, 255, 255, .03);
+      border: 1px solid rgba(255, 255, 255, .055);
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .pf-level span {
+      font-size: 10.5px;
+      color: #63796f;
+      letter-spacing: .05em;
+    }
+    .pf-level b {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #7cf5c4;
+      letter-spacing: .04em;
+    }
+
+    .pf-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .pf-nav button {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      height: 38px;
+      padding: 0 11px;
+      border: 0;
+      border-radius: 9px;
+      background: transparent;
+      color: #8aa79c;
+      font-family: inherit;
+      font-size: 12.5px;
+      text-align: left;
+      cursor: pointer;
+      transition: background .16s, color .16s;
+    }
+    .pf-nav button svg { flex: 0 0 auto; color: #5d7a70; transition: color .16s; }
+    .pf-nav button:hover { background: rgba(255, 255, 255, .04); color: #cfe6dc; }
+    .pf-nav button.on {
+      background: rgba(52, 227, 155, .1);
+      color: #7cf5c4;
+      box-shadow: inset 2px 0 0 #34e39b;
+    }
+    .pf-nav button.on svg { color: #5fdcaa; }
+
+    .pf-side-foot {
+      margin-top: auto;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, .06);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    /* 通用按钮 */
+    .pf-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 7px;
+      height: 34px;
+      padding: 0 12px;
+      border-radius: 9px;
+      border: 1px solid rgba(255, 255, 255, .075);
+      background: rgba(255, 255, 255, .04);
+      color: #b9d2c7;
+      font-family: inherit;
+      font-size: 12px;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background .18s, color .18s;
+    }
+    .pf-btn:hover { background: rgba(255, 255, 255, .085); color: #e5f5ed; }
+    .pf-btn.danger {
+      color: #ff8b8b;
+      background: rgba(255, 107, 107, .075);
+      border-color: rgba(255, 107, 107, .22);
+    }
+    .pf-btn.danger:hover { background: rgba(255, 107, 107, .16); }
+
+    /* ── 右栏 ── */
+    .pf-main {
+      flex: 1;
+      min-width: 0;
+      min-height: 0;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    .pf-head {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 20px 62px 14px 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, .06);
+    }
+    .pf-head-text { min-width: 0; }
+    .pf-head h2 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: #eaf7f0;
+      letter-spacing: .01em;
+    }
+    .pf-head p {
+      margin: 3px 0 0;
+      font-size: 11.5px;
+      color: #66837a;
+    }
+    /* 三个页面的标题互斥显示 */
+    .pf-head .pf-t1, .pf-head .pf-t2 { display: none; }
+    .pf-main[data-page="1"] .pf-t1 { display: block; }
+    .pf-main[data-page="1"] .pf-t0 { display: none; }
+    .pf-main[data-page="2"] .pf-t2 { display: block; }
+    .pf-main[data-page="2"] .pf-t0 { display: none; }
+
+    .pf-save {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      height: 38px;
+      padding: 0 18px;
+      border: 0;
+      border-radius: 10px;
+      background: linear-gradient(180deg, #45f0a8, #1fbe7c);
+      color: #04150e;
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 650;
+      cursor: pointer;
+      box-shadow: 0 8px 22px -8px rgba(52, 227, 155, .75), inset 0 1px 0 rgba(255, 255, 255, .35);
+      transition: transform .18s, box-shadow .18s, opacity .18s;
+    }
+    .pf-save:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 26px -8px rgba(52, 227, 155, .85), inset 0 1px 0 rgba(255, 255, 255, .4);
+    }
+    .pf-save.is-hidden { opacity: 0; pointer-events: none; transform: translateY(-4px); }
+    .pf-save.is-loading { cursor: default; opacity: .85; transform: none; }
+    .pf-save .pf-spin {
+      display: none;
+      width: 13px; height: 13px;
+      border-radius: 50%;
+      border: 2px solid rgba(4, 21, 14, .28);
+      border-top-color: #04150e;
+      animation: pf-spin .6s linear infinite;
+    }
+    .pf-save.is-loading .pf-spin { display: block; }
+    .pf-save.is-loading svg { display: none; }
+    @keyframes pf-spin { to { transform: rotate(360deg); } }
+
+    .pf-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 18px 24px 26px;
+      box-sizing: border-box;
+    }
+    .pf-scroll::-webkit-scrollbar { width: 6px; }
+    .pf-scroll::-webkit-scrollbar-thumb { background: rgba(52, 227, 155, .2); border-radius: 3px; }
+    .pf-scroll::-webkit-scrollbar-track { background: transparent; }
+
+    .pf-page { display: none; }
+    .pf-page.on { display: block; }
+
+    /* 底部渐隐：还有内容可滚时提示 */
+    .pf-fade {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      height: 62px;
+      z-index: 3;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .22s;
+      background: linear-gradient(180deg, rgba(8, 13, 11, 0) 0%, rgba(8, 13, 11, .9) 58%, rgba(8, 13, 11, 1) 100%);
+    }
+    .pf-main.has-more .pf-fade { opacity: 1; }
+
+    /* 表单 */
+    .pf-fld { margin-bottom: 15px; }
+    .pf-fld:last-child { margin-bottom: 2px; }
+    .pf-fld label {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 7px;
+      font-size: 11.5px;
+      color: #87a49a;
+      letter-spacing: .02em;
+    }
+    .pf-fld label em {
+      font-style: normal;
+      font-size: 10.5px;
+      color: #7c948a;
+    }
+    .pf-fld label.pf-inline { justify-content: flex-start; gap: 8px; }
+    .pf-fld label.pf-inline em { color: #6b857a; }
+    .pf-fld input,
+    .pf-fld textarea {
+      width: 100%;
+      box-sizing: border-box;
+      font-family: inherit;
+      font-size: 13.5px;
+      color: #e6f3ec;
+      background: rgba(255, 255, 255, .042);
+      border: 1px solid rgba(255, 255, 255, .075);
+      border-radius: 10px;
+      padding: 0 13px;
+      height: 42px;
+      outline: 0;
+      transition: background .18s, border-color .18s, box-shadow .18s;
+    }
+    .pf-fld textarea {
+      height: auto;
+      min-height: 72px;
+      padding: 11px 13px;
+      line-height: 1.55;
+      resize: vertical;
+    }
+    .pf-fld input::placeholder,
+    .pf-fld textarea::placeholder { color: #4b605a; }
+    .pf-fld input:focus,
+    .pf-fld textarea:focus {
+      background: rgba(52, 227, 155, .055);
+      border-color: rgba(52, 227, 155, .5);
+      box-shadow: 0 0 0 3px rgba(52, 227, 155, .11);
+    }
+    .pf-hint {
+      margin-top: 6px;
+      font-size: 10.5px;
+      color: #6b877c;
+      line-height: 1.5;
+    }
+
+    /* 只读信息卡 */
+    .pf-kv {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin: 16px 0 0;
+      padding: 0;
+    }
+    .pf-kv > div {
+      min-width: 0;
+      padding: 10px 12px;
+      border-radius: 11px;
+      background: rgba(255, 255, 255, .028);
+      border: 1px solid rgba(255, 255, 255, .05);
+    }
+    .pf-kv dt {
+      margin-bottom: 5px;
+      font-size: 10.5px;
+      color: #63796f;
+      letter-spacing: .03em;
+    }
+    .pf-kv dd {
+      margin: 0;
+      font-size: 12px;
+      color: #cfe6dc;
+      font-family: ui-monospace, "SF Mono", Consolas, monospace;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+
+    /* 提示条 */
+    .pf-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      margin-bottom: 12px;
+      padding: 10px 13px;
+      border-radius: 11px;
+      background: rgba(52, 227, 155, .06);
+      border: 1px solid rgba(52, 227, 155, .16);
+      color: #7fd6b3;
+      font-size: 11.5px;
+      line-height: 1.6;
+    }
+    .pf-note svg { flex: 0 0 auto; margin-top: 2px; color: #4fd3a0; }
+    .pf-note strong { color: #9df7cd; font-weight: 600; }
+
+    /* 模板计数行 */
+    .pf-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 2px 0 10px;
+      font-size: 10.5px;
+      color: #5f7a70;
+      letter-spacing: .02em;
+    }
+    .pf-meta .pf-more { color: #4fd3a0; opacity: 0; transition: opacity .22s; white-space: nowrap; }
+    .pf-meta .pf-count { display: inline-flex; align-items: baseline; gap: 3px; }
+    .pf-meta .pf-count b { color: #8fbfae; font-weight: 600; }
+    .pf-main.has-more .pf-meta .pf-more { opacity: 1; }
+
+    /* 模板网格（卡片内联样式由 JS 写入，此处提供兜底与交互态） */
+    .pf-tpl-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .pf-tpl-grid .template-option {
+      position: relative;
+      padding: 0 !important;
+      overflow: hidden;
+      border-radius: 12px !important;
+      background: rgba(255, 255, 255, .03);
+      border: 1px solid rgba(255, 255, 255, .07) !important;
+      cursor: pointer;
+      transition: border-color .16s, background .16s, transform .16s;
+    }
+    .pf-tpl-grid .template-option:hover {
+      border-color: rgba(52, 227, 155, .32) !important;
+      transform: translateY(-1px);
+    }
+    .pf-tpl-grid .template-option.on,
+    .pf-tpl-grid .template-option.is-selected {
+      border-color: rgba(52, 227, 155, .68) !important;
+      background: rgba(52, 227, 155, .08) !important;
+      box-shadow: 0 0 0 3px rgba(52, 227, 155, .1);
+    }
+    .pf-tpl-thumb {
+      display: grid;
+      place-items: center;
+      aspect-ratio: 1 / .92;
+      font-size: 30px;
+      line-height: 1;
+    }
+    .pf-tpl-name {
+      padding: 6px 4px 7px;
+      font-size: 10.5px;
+      color: #8fb0a4;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .pf-tpl-grid .template-option.on .pf-tpl-name,
+    .pf-tpl-grid .template-option.is-selected .pf-tpl-name { color: #7cf5c4; }
+
+    #template-loading {
+      padding: 6px 0;
+      font-size: 11.5px;
+      color: #7f978d;
+    }
+    #template-selected-info {
+      min-height: 16px;
+      margin-top: 8px;
+      font-size: 10.5px;
+      color: #c8b45e;
+    }
+
+    /* 窄屏：左栏变顶部条 */
+    @media (max-width: 760px) {
+      #profile-page { padding: 10px; }
+      .pf-panel {
+        flex-direction: column;
+        width: 100%;
+        height: 100%;
+        max-height: 100%;
+        border-radius: 16px;
+      }
+      .pf-side {
+        flex: 0 0 auto;
+        padding: 14px 12px 10px;
+        border-right: 0;
+        border-bottom: 1px solid rgba(255, 255, 255, .06);
+      }
+      .pf-id { padding: 0 2px 12px; }
+      .pf-ava { width: 34px; height: 34px; }
+      .pf-level { display: none; }
+      .pf-nav { flex-direction: row; gap: 6px; }
+      .pf-nav button {
+        flex: 1;
+        min-width: 0;
+        height: 34px;
+        justify-content: center;
+        padding: 0 6px;
+        font-size: 12px;
+      }
+      .pf-nav button.on {
+        box-shadow: inset 0 -2px 0 #34e39b;
+        border-radius: 8px 8px 0 0;
+      }
+      .pf-side-foot {
+        flex-direction: row;
+        gap: 6px;
+        margin-top: 10px;
+        padding-top: 10px;
+      }
+      .pf-side-foot .pf-btn {
+        flex: 1;
+        justify-content: center;
+        height: 32px;
+        font-size: 11.5px;
+      }
+      .pf-head { padding: 14px 52px 12px 16px; }
+      .pf-head h2 { font-size: 14px; }
+      .pf-head p { display: none; }
+      .pf-save { height: 34px; padding: 0 13px; font-size: 12px; }
+      .pf-scroll { padding: 14px 14px 22px; }
+      .pf-tpl-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .pf-tpl-thumb { font-size: 26px; }
+      .pf-kv { grid-template-columns: 1fr; }
+    }
+    /* ===== 世界传送门按钮：中文主行 + 英文副行（与联邦传送保持一致）===== */
+    #world-portal-btn .wpb-main { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+    #world-portal-btn .wpb-icon { font-size: 16px; }
+    #world-portal-btn .wpb-en { font-size: 10px; opacity: 0.7; letter-spacing: 0.02em; }
+
+    /* ===== UI 配置就绪前的防闪（FOUC）=====
+       受「UI 控件管理」接管的常驻元素，在配置数据到达之前先隐身。
+       否则页面会先把元素画出来（HTML 里默认可见），等 JS 拿到配置后再 display:none，
+       肉眼就是「闪一下」。配置应用完毕后由 uiControlManager 移除 body 上的 ui-config-pending。 */
+    body.ui-config-pending #health-bar,
+    body.ui-config-pending #minimap,
+    body.ui-config-pending #skill-hud,
+    body.ui-config-pending #skill-voice-btn,
+    body.ui-config-pending #performance-panel,
+    body.ui-config-pending #debug-panel,
+    body.ui-config-pending #btn-profile,
+    body.ui-config-pending #btn-inventory,
+    body.ui-config-pending #btn-language,
+    body.ui-config-pending #world-portal-btn,
+    body.ui-config-pending #federation-teleport-btn,
+    body.ui-config-pending #mobile-joystick,
+    body.ui-config-pending #mobile-jump-btn,
+    body.ui-config-pending #mobile-sprint-btn,
+    body.ui-config-pending #mobile-camera-toggle-btn,
+    body.ui-config-pending #mobile-turn-left-btn,
+    body.ui-config-pending #mobile-turn-right-btn {
+      visibility: hidden !important;
+    }
   </style>
 </head>
-<body>
+<body class="ui-config-pending">
   <canvas id="canvas"></canvas>
   <!-- 首屏加载遮罩「光之门户」：CSS/DOM 全部由该模块自注入（本文件已超 500 行，不在此加代码）。
        位置必须在旧 #loadingScreen 之前解析，首帧才直接是门户、不闪黑屏。 -->
-  <script src="js/loadingMask.js?v=5"></script>
+  <script src="js/loadingMask.js?v=6"></script>
   <!-- 操作指南延后显示闸门：解析期先把 #controls-hint 藏起来，等世界真有内容再显示
        （免遮档刷新时指南会压在一片空背景上，观感像"卡死"）。零侵入，只注入一条 CSS。 -->
   <script src="js/controlsHintGate.js?v=1"></script>
   <div id="ui-overlay">
     <!-- Health Bar -->
-    <div class="health-bar" id="health-bar">
+    <!-- 血条：默认隐藏（后台 UI 控件管理里当前配的是隐藏），
+         这里直接写死初始状态，避免首屏先渲染再隐藏造成闪烁 -->
+    <div class="health-bar" id="health-bar" style="display: none;">
       <div class="health-fill" id="healthFill" style="width: 100%"></div>
       <div class="health-text" id="healthText" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">HP: 100/100</div>
     </div>
@@ -759,7 +1315,7 @@
     </div>
 
     <!-- Minimap -->
-    <canvas id="minimap" class="minimap"></canvas>
+    <canvas id="minimap" class="minimap" style="display: none;"></canvas>
 
     <!-- Voice Indicator -->
     <div class="voice-indicator" id="voiceIndicator"></div>
@@ -827,7 +1383,7 @@
         transition: all 0.3s ease;
         box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
         color: #00ff00;
-      " title="Language / 语言" id="lang-btn-label">🌐</button>
+      " title="Language / 语言">🌐</button>
     </div>
 
     <!-- World Portal Button (世界传送门按钮) -->
@@ -835,7 +1391,7 @@
       position: fixed;
       top: 140px;
       right: 20px;
-      padding: 12px 16px;
+      padding: 6px 14px;
       background: linear-gradient(135deg, rgba(0, 204, 255, 0.2), rgba(0, 150, 200, 0.3));
       border: 2px solid #00ccff;
       color: #000;
@@ -848,7 +1404,12 @@
       pointer-events: auto;
       box-shadow: 0 0 15px rgba(0, 200, 255, 0.3);
       white-space: nowrap;
-    " data-i18n-title="world.openPortalManager" title="打开传送门管理" data-i18n="world.worldPortal">🌀 世界传送门</button>
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.25;
+    " data-i18n-title="world.openPortalManager" title="打开传送门管理"><span class="wpb-main"><span class="wpb-icon">🌀</span><span>世界传送门</span></span><span class="wpb-en">World Portal</span></button>
 
 
 
@@ -934,7 +1495,7 @@
         font-size: 14px;
         flex-shrink: 0;
         margin-top: auto;
-      " data-i18n="world.startGame">开始游戏</button>
+      " data-i18n="world.startGame">知道了</button>
       <!-- AI 爬虫入口（静态标签，无脚本/无事件）：让爬虫能顺链接爬到 /agents/ -->
       <a href="/agents/" style="display:block; margin-top:14px; flex-shrink:0; font-size:12px; color:#00cccc; text-decoration:none;">For AI Agents · 让你的 AI 走进这个世界</a>
     </div>
@@ -1008,234 +1569,127 @@
       </div>
     </div>
 
-    <!-- Profile Settings Page -->
-    <div id="profile-page" style="
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      z-index: 2500;
-      overflow-y: auto;
-      pointer-events: auto;
-    ">
-      <div id="profile-accordion" style="
-        background: rgba(0, 0, 0, 0.9);
-        border: 3px solid #00ff00;
-        border-radius: 15px;
-        padding: 22px;
-        max-width: 600px;
-        width: 90%;
-        color: #00ff00;
-        font-family: 'Courier New', monospace;
-        box-shadow: 0 0 50px rgba(0, 255, 0, 0.3);
-        position: relative;
-      ">
-        <button type="button" onclick="document.getElementById('back-to-world-btn').click()" style="
-          position: absolute;
-          top: -14px;
-          right: -14px;
-          width: 36px;
-          height: 36px;
-          border-radius: 50%;
-          background: rgba(255, 0, 0, 0.3);
-          color: #ff4444;
-          border: 2px solid #ff4444;
-          font-size: 20px;
-          line-height: 1;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-family: 'Courier New', monospace;
-          z-index: 10;
-        " onmouseover="this.style.background='rgba(255,0,0,0.6)';this.style.color='#fff';" onmouseout="this.style.background='rgba(255,0,0,0.3)';this.style.color='#ff4444';">✕</button>
-        <div style="max-height: 85vh; overflow-y: auto;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <span style="font-size: 26px; font-weight: bold;" data-i18n="world.profileSettings">👤 个人资料设置</span>
-          <div style="display: flex; gap: 8px;">
-            <button type="submit" id="save-profile-btn" style="padding:8px 20px;background:#00ff00;color:#000;border:2px solid #00ff00;border-radius:5px;font-weight:bold;cursor:pointer;font-size:13px;font-family:'Courier New',monospace;" data-i18n="world.saveBtn">💾 保存</button>
-          </div>
-        </div>
-        <div style="text-align: left; color: #ffff00; margin-bottom: 16px; font-size: 12px;" data-i18n="world.midoVirtualSpace">
-          米多虚拟空间 - Mido Virtual Space
-        </div>
+    <!-- Profile Settings Page（双栏设置页 · 2026-11-15 样式重做，功能与 id 保持原样） -->
+    <div id="profile-page">
+      <div class="pf-panel">
+        <button type="button" class="pf-close" id="profile-close-btn" title="关闭" aria-label="关闭">✕</button>
 
-        <form id="profile-form">
-          <!-- ====== 手风琴面板 1: 基本资料 ====== -->
-          <div class="accordion-section" style="margin-bottom: 8px;">
-            <div class="accordion-header" data-section="basic" style="
-              background: rgba(0, 255, 0, 0.12);
-              border: 2px solid #00ff00;
-              border-radius: 8px;
-              padding: 10px 14px;
-              cursor: pointer;
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              transition: background 0.2s;
-            " onmouseover="this.style.background='rgba(0,255,0,0.25)'" onmouseout="this.style.background='rgba(0,255,0,0.12)'">
-              <span style="font-weight: bold; font-size: 13px;" data-i18n="world.basicInfo">📝 基本资料</span>
-              <span class="accordion-arrow" style="font-size: 12px; transition: transform 0.3s;">▼</span>
+        <aside class="pf-side">
+          <div class="pf-id">
+            <div class="pf-ava">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             </div>
-            <div class="accordion-content" data-section="basic" style="
-              max-height: 0; overflow: hidden;
-              transition: max-height 0.35s ease, padding 0.35s ease;
-              padding: 0 10px;
-            ">
-              <div style="padding: 12px 0 4px 0;">
-                <div style="margin-bottom: 14px;">
-                  <label style="display: block; margin-bottom: 5px; font-weight: bold; font-size: 13px;" data-i18n="world.nickname">🏷️ 昵称 (Nickname)</label>
-                  <input type="text" id="profile-nickname" placeholder="请输入您的昵称" maxlength="20" data-i18n-placeholder="world.nicknamePlaceholder"
-                    style="width:100%;padding:10px;background:rgba(0,100,0,0.2);border:2px solid #00ff00;border-radius:5px;color:#00ff00;font-size:15px;font-family:'Courier New',monospace;">
-                  <div style="font-size:10px;color:#88ff88;margin-top:3px;" data-i18n="world.maxChars" data-i18n-params='{"count":20}'>最多20个字符</div>
+            <div class="pf-name">
+              <span id="pf-name-text" data-i18n="world.characterName">我的角色</span>
+              <small data-i18n="world.midoVirtualSpace">米多虚拟空间</small>
+            </div>
+          </div>
+
+          <div class="pf-level">
+            <span data-i18n="world.characterLevel">角色等级</span>
+            <b>LV.<span id="profile-level">1</span></b>
+          </div>
+
+          <nav class="pf-nav" id="profile-nav">
+            <button type="button" class="on" data-page="0">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+              <span data-i18n="world.characterTemplate">角色模板</span>
+            </button>
+            <button type="button" data-page="1">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span data-i18n="world.basicInfo">基本资料</span>
+            </button>
+            <button type="button" data-page="2">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M7 10h4M7 14h7"/></svg>
+              <span data-i18n="world.pfNavAccount">账号信息</span>
+            </button>
+          </nav>
+
+          <div class="pf-side-foot">
+            <button type="button" id="back-to-world-btn" class="pf-btn" data-i18n="world.pfBackToWorld">返回世界</button>
+            <button type="button" id="portal-manager-btn" class="pf-btn" data-i18n="world.pfPortal">传送门</button>
+            <button type="button" id="logout-btn" class="pf-btn danger" data-i18n="world.pfExit">退出登录</button>
+          </div>
+        </aside>
+
+        <main class="pf-main" id="pf-main" data-page="0">
+          <header class="pf-head">
+            <div class="pf-head-text">
+              <h2 class="pf-t0" data-i18n="world.characterTemplate">角色模板</h2>
+              <p class="pf-t0" data-i18n="world.pfTplSub">点击后会提示刷新页面以应用</p>
+              <h2 class="pf-t1" data-i18n="world.basicInfo">基本资料</h2>
+              <p class="pf-t1" data-i18n="world.pfBasicSub">这些信息会展示给同一个世界的其他玩家</p>
+              <h2 class="pf-t2" data-i18n="world.pfNavAccount">账号信息</h2>
+              <p class="pf-t2" data-i18n="world.pfAccountSub">邮箱与账号标识，仅自己可见</p>
+            </div>
+            <button type="button" id="save-profile-btn" class="pf-save is-hidden">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <i class="pf-spin"></i>
+              <span id="pf-save-label" data-i18n="world.pfSave">保存</span>
+            </button>
+          </header>
+
+          <div class="pf-scroll" id="profile-scroll">
+            <form id="profile-form" onsubmit="return false">
+              <!-- 页 0 · 角色模板 -->
+              <section class="pf-page on" data-page="0">
+                <div class="pf-note">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+                  <span data-i18n="world.pfTplNote">选中的形象会立即记录，但需要刷新页面才能完全生效。</span>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+                <div class="pf-meta">
+                  <span class="pf-count"><b id="pf-tpl-total">-</b><span data-i18n="world.pfTplCount">个形象 · 点击选择</span></span>
+                  <span class="pf-more" data-i18n="world.pfScrollMore">下滑查看更多</span>
+                </div>
+                <div id="template-loading" data-i18n="world.loadTemplates">加载模板中...</div>
+                <div id="template-grid" class="pf-tpl-grid"></div>
+                <div id="template-selected-info"></div>
+              </section>
+
+              <!-- 页 1 · 基本资料 -->
+              <section class="pf-page" data-page="1">
+                <div class="pf-fld">
+                  <label for="profile-nickname" data-i18n="world.nickname">昵称</label>
+                  <input type="text" id="profile-nickname" maxlength="20" data-i18n-placeholder="world.nicknamePlaceholder" placeholder="请输入您的昵称">
+                  <div class="pf-hint" data-i18n="world.pfNicknameHint">显示在角色头顶的名牌上，同一世界的玩家都能看到</div>
+                </div>
+                <div class="pf-fld">
+                  <label for="profile-realname" class="pf-inline" data-i18n="world.realName">真实姓名</label>
+                  <input type="text" id="profile-realname" maxlength="50" data-i18n-placeholder="world.realNamePlaceholder" placeholder="可选">
+                </div>
+                <div class="pf-fld">
+                  <label for="profile-bio" data-i18n="world.bio">个性签名</label>
+                  <textarea id="profile-bio" maxlength="200" rows="3" data-i18n-placeholder="world.bioPlaceholder" placeholder="介绍一下自己..."></textarea>
+                </div>
+              </section>
+
+              <!-- 页 2 · 账号信息 -->
+              <section class="pf-page" data-page="2">
+                <div class="pf-fld">
+                  <label for="profile-email" class="pf-inline" data-i18n="world.email">邮箱</label>
+                  <input type="email" id="profile-email" data-i18n-placeholder="world.emailPlaceholder" placeholder="your@email.com">
+                  <div class="pf-hint" data-i18n="world.pfEmailHint">用于找回账号，仅自己可见</div>
+                </div>
+                <dl class="pf-kv">
                   <div>
-                    <label style="display: block; margin-bottom: 5px; font-weight: bold; font-size: 13px;" data-i18n="world.realName">📝 真实姓名</label>
-                    <input type="text" id="profile-realname" placeholder="可选" maxlength="50" data-i18n-placeholder="world.realNamePlaceholder"
-                      style="width:100%;padding:10px;background:rgba(0,100,0,0.2);border:2px solid #00ff00;border-radius:5px;color:#00ff00;font-size:15px;font-family:'Courier New',monospace;">
+                    <dt data-i18n="world.userId">用户ID</dt>
+                    <dd id="profile-userid">-</dd>
                   </div>
                   <div>
-                    <label style="display: block; margin-bottom: 5px; font-weight: bold; font-size: 13px;" data-i18n="world.email">📧 邮箱</label>
-                    <input type="email" id="profile-email" placeholder="your@email.com" data-i18n-placeholder="world.emailPlaceholder"
-                      style="width:100%;padding:10px;background:rgba(0,100,0,0.2);border:2px solid #00ff00;border-radius:5px;color:#00ff00;font-size:15px;font-family:'Courier New',monospace;">
+                    <dt data-i18n="world.joinDate">加入时间</dt>
+                    <dd id="profile-joindate">-</dd>
                   </div>
-                </div>
-                <div style="margin-bottom: 8px;">
-                  <label style="display: block; margin-bottom: 5px; font-weight: bold; font-size: 13px;" data-i18n="world.bio">💬 个性签名 (Bio)</label>
-                  <textarea id="profile-bio" placeholder="介绍一下自己..." maxlength="200" rows="2" data-i18n-placeholder="world.bioPlaceholder"
-                    style="width:100%;padding:10px;background:rgba(0,100,0,0.2);border:2px solid #00ff00;border-radius:5px;color:#00ff00;font-size:13px;font-family:'Courier New',monospace;resize:vertical;"></textarea>
-                  <div style="font-size:10px;color:#88ff88;margin-top:3px;" data-i18n="world.maxChars" data-i18n-params='{"count":200}'>最多200个字符</div>
-                </div>
-              </div>
-            </div>
+                  <div>
+                    <dt data-i18n="world.pfWorldLabel">所在世界</dt>
+                    <dd data-i18n="world.midoVirtualSpace">米多虚拟空间</dd>
+                  </div>
+                </dl>
+              </section>
+            </form>
           </div>
 
-          <!-- ====== 手风琴面板 2: 头像颜色 ====== -->
-          <div class="accordion-section" style="margin-bottom: 8px;">
-            <div class="accordion-header" data-section="avatar" style="
-              background: rgba(0, 255, 0, 0.12);
-              border: 2px solid #00ff00;
-              border-radius: 8px;
-              padding: 10px 14px;
-              cursor: pointer;
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              transition: background 0.2s;
-            " onmouseover="this.style.background='rgba(0,255,0,0.25)'" onmouseout="this.style.background='rgba(0,255,0,0.12)'">
-              <span style="font-weight: bold; font-size: 13px;" data-i18n="world.avatarColor">🎭 头像颜色</span>
-              <span class="accordion-arrow" style="font-size: 12px; transition: transform 0.3s;">▼</span>
-            </div>
-            <div class="accordion-content" data-section="avatar" style="
-              max-height: 0; overflow: hidden;
-              transition: max-height 0.35s ease, padding 0.35s ease;
-              padding: 0 10px;
-            ">
-              <div style="padding:12px 0;display:flex;gap:10px;flex-wrap:wrap;">
-                <div class="avatar-option" data-color="#00ff00" style="width:38px;height:38px;background:#00ff00;border:3px solid #00ff00;border-radius:50%;cursor:pointer;"></div>
-                <div class="avatar-option" data-color="#ff0000" style="width:38px;height:38px;background:#ff0000;border:3px solid transparent;border-radius:50%;cursor:pointer;"></div>
-                <div class="avatar-option" data-color="#0000ff" style="width:38px;height:38px;background:#0000ff;border:3px solid transparent;border-radius:50%;cursor:pointer;"></div>
-                <div class="avatar-option" data-color="#ffff00" style="width:38px;height:38px;background:#ffff00;border:3px solid transparent;border-radius:50%;cursor:pointer;"></div>
-                <div class="avatar-option" data-color="#ff00ff" style="width:38px;height:38px;background:#ff00ff;border:3px solid transparent;border-radius:50%;cursor:pointer;"></div>
-                <div class="avatar-option" data-color="#00ffff" style="width:38px;height:38px;background:#00ffff;border:3px solid transparent;border-radius:50%;cursor:pointer;"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- ====== 手风琴面板 3: 角色模板 ====== -->
-          <div class="accordion-section" style="margin-bottom: 8px;">
-            <div class="accordion-header" data-section="template" style="
-              background: rgba(0, 255, 0, 0.12);
-              border: 2px solid #00ff00;
-              border-radius: 8px;
-              padding: 10px 14px;
-              cursor: pointer;
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              transition: background 0.2s;
-            " onmouseover="this.style.background='rgba(0,255,0,0.25)'" onmouseout="this.style.background='rgba(0,255,0,0.12)'">
-              <span style="font-weight: bold; font-size: 13px;" data-i18n="world.characterTemplate">🎮 角色模板</span>
-              <span class="accordion-arrow" style="font-size: 12px; transition: transform 0.3s;">▼</span>
-            </div>
-            <div class="accordion-content" data-section="template" style="
-              max-height: 0; overflow: hidden;
-              transition: max-height 0.35s ease, padding 0.35s ease;
-              padding: 0 10px;
-            ">
-              <div style="padding:12px 0;">
-                <div id="template-loading" style="color:#88ff88;font-size:11px;padding:3px 0;" data-i18n="world.loadTemplates">加载模板中...</div>
-                <div id="template-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;max-height:200px;overflow-y:auto;padding:4px;"></div>
-                <div id="template-selected-info" style="margin-top:5px;font-size:10px;color:#ffff00;min-height:16px;"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- ====== 手风琴面板 4: 角色信息 ====== -->
-          <div class="accordion-section" style="margin-bottom: 8px;">
-            <div class="accordion-header" data-section="stats" style="
-              background: rgba(0, 255, 0, 0.12);
-              border: 2px solid #00ff00;
-              border-radius: 8px;
-              padding: 10px 14px;
-              cursor: pointer;
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              transition: background 0.2s;
-            " onmouseover="this.style.background='rgba(0,255,0,0.25)'" onmouseout="this.style.background='rgba(0,255,0,0.12)'">
-              <span style="font-weight: bold; font-size: 13px;" data-i18n="world.characterInfo">📊 角色信息</span>
-              <span class="accordion-arrow" style="font-size: 12px; transition: transform 0.3s;">▼</span>
-            </div>
-            <div class="accordion-content" data-section="stats" style="
-              max-height: 0; overflow: hidden;
-              transition: max-height 0.35s ease, padding 0.35s ease;
-              padding: 0 10px;
-            ">
-              <div style="padding:10px;background:rgba(0,255,0,0.08);border-radius:5px;font-size:12px;margin-top:12px;">
-                <div><span style="color:#ffff00;" data-i18n="world.userId">用户ID:</span> <span id="profile-userid" style="color:#88ff88;font-size:11px;">-</span></div>
-                <div><span style="color:#ffff00;" data-i18n="world.characterLevel">角色等级:</span> <span id="profile-level" style="color:#88ff88;">1</span></div>
-                <div><span style="color:#ffff00;" data-i18n="world.joinDate">加入时间:</span> <span id="profile-joindate" style="color:#88ff88;">-</span></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- ====== 手风琴面板 5: 操作按钮 ====== -->
-          <div class="accordion-section" style="margin-bottom: 8px;">
-            <div class="accordion-header" data-section="actions" style="
-              background: rgba(0, 255, 0, 0.12);
-              border: 2px solid #00ff00;
-              border-radius: 8px;
-              padding: 10px 14px;
-              cursor: pointer;
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              transition: background 0.2s;
-            " onmouseover="this.style.background='rgba(0,255,0,0.25)'" onmouseout="this.style.background='rgba(0,255,0,0.12)'">
-              <span style="font-weight: bold; font-size: 13px;" data-i18n="world.actions">⚙️ 操作</span>
-              <span class="accordion-arrow" style="font-size: 12px; transition: transform 0.3s;">▼</span>
-            </div>
-            <div class="accordion-content" data-section="actions" style="
-              max-height: 0; overflow: hidden;
-              transition: max-height 0.35s ease, padding 0.35s ease;
-              padding: 0 10px;
-            ">
-              <div style="padding:12px 0;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-                <button type="button" id="back-to-world-btn" style="padding:10px 24px;background:transparent;color:#00ff00;border:2px solid #00ff00;border-radius:5px;font-weight:bold;cursor:pointer;font-size:14px;font-family:'Courier New',monospace;" data-i18n="world.backToWorldBtn">🌍 返回</button>
-                <button type="button" id="portal-manager-btn" style="padding:10px 20px;background:#00ccff;color:#000;border:2px solid #00ffff;border-radius:5px;font-weight:bold;cursor:pointer;font-size:12px;font-family:'Courier New',monospace;" data-i18n="world.portalManagerBtn">🌀 传送门</button>
-                <button type="button" id="logout-btn" style="padding:10px 20px;background:#ff0000;color:#fff;border:2px solid #ff0000;border-radius:5px;font-weight:bold;cursor:pointer;font-size:12px;font-family:'Courier New',monospace;" data-i18n="world.exitBtn">🚪 退出</button>
-              </div>
-            </div>
-          </div>
-        </form>
-        </div>
+          <div class="pf-fade"></div>
+        </main>
       </div>
     </div>
 
@@ -1362,37 +1816,14 @@
           padding: 14px;
           margin-bottom: 16px;
         ">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <h3 style="color: #00ffff; margin: 0; font-size: 16px;" data-i18n="world.coordTeleport">🎯 坐标传送</h3>
-            <div style="display: flex; gap: 8px;">
-              <button type="button" id="use-current-pos-btn" style="
-                padding: 6px 14px;
-                background: #006600;
-                color: #00ff00;
-                border: 1px solid #00ff00;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 12px;
-                font-family: 'Courier New', monospace;
-              " data-i18n="world.useCurrentPos">📍 使用当前位置</button>
-              <button type="button" id="teleport-coord-btn" style="
-                padding: 6px 14px;
-                background: #00ffff;
-                color: #000;
-                border: 2px solid #00ffff;
-                border-radius: 4px;
-                cursor: pointer;
-                font-weight: bold;
-                font-size: 12px;
-                font-family: 'Courier New', monospace;
-              " data-i18n="world.teleport">🚀 传送</button>
-            </div>
-          </div>
+          <h3 style="color: #00ffff; margin: 0 0 10px; font-size: 16px;" data-i18n="world.coordTeleport">🎯 坐标传送</h3>
           <div style="margin-bottom: 10px;">
-            <label style="color: #00ff00; display: block; margin-bottom: 3px; font-size: 12px;" data-i18n="world.pasteCoords">粘贴坐标:</label>
-            <div style="display: flex; gap: 8px; align-items: center;">
+            <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+              <label style="color: #00ff00; font-size: 12px; white-space: nowrap; margin: 0;" data-i18n="world.pasteCoords">粘贴坐标:</label>
               <input type="text" id="coord-input" placeholder="X:8.2 Y:1.5 Z:34.7" style="
-                flex: 1;
+                flex: 1 1 200px;
+                max-width: 300px;
+                min-width: 140px;
                 height: 31px;
                 padding: 6px 10px;
                 background: #000;
@@ -1403,10 +1834,10 @@
                 font-size: 13px;
                 line-height: 16px;
               ">
-              <input type="number" id="coord-x" value="0" step="0.1" placeholder="X" style="
-                width: 64px;
+              <input type="number" id="tp-x" value="0" step="0.1" placeholder="X" style="
+                width: 66px;
                 height: 31px;
-                padding: 6px 8px;
+                padding: 6px 6px;
                 background: #000;
                 border: 2px solid #00ff00;
                 color: #00ff00;
@@ -1414,10 +1845,10 @@
                 font-family: 'Courier New', monospace;
                 font-size: 13px;
               ">
-              <input type="number" id="coord-y" value="2" step="0.1" placeholder="Y" style="
-                width: 64px;
+              <input type="number" id="tp-y" value="2" step="0.1" placeholder="Y" style="
+                width: 66px;
                 height: 31px;
-                padding: 6px 8px;
+                padding: 6px 6px;
                 background: #000;
                 border: 2px solid #00ff00;
                 color: #00ff00;
@@ -1425,10 +1856,10 @@
                 font-family: 'Courier New', monospace;
                 font-size: 13px;
               ">
-              <input type="number" id="coord-z" value="0" step="0.1" placeholder="Z" style="
-                width: 64px;
+              <input type="number" id="tp-z" value="0" step="0.1" placeholder="Z" style="
+                width: 66px;
                 height: 31px;
-                padding: 6px 8px;
+                padding: 6px 6px;
                 background: #000;
                 border: 2px solid #00ff00;
                 color: #00ff00;
@@ -1436,6 +1867,31 @@
                 font-family: 'Courier New', monospace;
                 font-size: 13px;
               ">
+              <button type="button" id="use-current-pos-btn" style="
+                padding: 6px 10px;
+                height: 31px;
+                background: #006600;
+                color: #00ff00;
+                border: 1px solid #00ff00;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                font-family: 'Courier New', monospace;
+                white-space: nowrap;
+              " data-i18n="world.useCurrentPos">📍 使用当前位置</button>
+              <button type="button" id="teleport-coord-btn" style="
+                padding: 6px 10px;
+                height: 31px;
+                background: #00ffff;
+                color: #000;
+                border: 2px solid #00ffff;
+                border-radius: 4px;
+                cursor: pointer;
+                font-weight: bold;
+                font-size: 12px;
+                font-family: 'Courier New', monospace;
+                white-space: nowrap;
+              " data-i18n="world.teleport">🚀 传送</button>
             </div>
             <div id="coord-preview" style="
               display: none;
@@ -1494,7 +1950,7 @@
   <script src="js/lib/TransformControls.js?v=185"></script>
   
   <!-- 直接加载JS源文件（开发模式，无需打包） -->
-  <script src="js/config.js"></script>
+  <script src="js/config.js?v=34"></script>
   <!-- 资产地址协议修正（只做 http:// → https:// 的前缀替换，规避 Mixed Content） -->
   <script src="js/assetProtocolFix.js?v=1"></script>
   <!-- 登录过期弹窗（token 失效时页面内重登，api.js 自动重试原请求） -->
@@ -1512,7 +1968,7 @@
   <!-- 畸形双骨骼链修复（GLTFLoader 去重后缀导致 SkinnedMesh 绑到副本链） -->
   <script src="js/duplicateBoneChainFixer.js"></script>
   <!-- 动作库动画骨骼约定托底补偿（模型 rest 约定与 Mixamo 动作库不一致时自动补偿） -->
-  <script src="js/animConventionCompensator.js?v=2"></script>
+  <script src="js/animConventionCompensator.js?v=3"></script>
   
   <script src="js/animLoader.js"></script>
   <!-- 骨骼物理参数集中配置 + 运行时热调（必须先于 bone-physics.js 加载） -->
@@ -1531,30 +1987,34 @@
   <script src="js/preloadSweeper.js?v=3"></script>
   <script src="js/loadFacing.js?v=1"></script>
   <script src="js/geometryBatcher.js?v=4"></script>
-  <script src="js/capsuleCollision.js?v=10"></script>
+  <script src="js/capsuleCollision.js?v=12"></script>
   <!-- 【2026-09-08 会话2】GLB 解析 Worker 客户端（worker 内 parse，主线程零停顿） -->
-  <script src="js/gltfWorkerClient.js?v=3"></script>
+  <script src="js/gltfWorkerClient.js?v=5"></script>
   <script src="js/loadingProgress.js?v=8"></script>
-  <script src="js/skyManager.js?v=7"></script>
+  <script src="js/skyPresets.js?v=1"></script>
+  <script src="js/skyManager.js?v=9"></script>
   <!-- 地形系统（地形=地块：多块地形各有位置/面积/基准高度；无地形处玩家按 -Y 一直下落） -->
   <script src="js/terrain/terrainNoise.js?v=2"></script>
   <script src="js/terrain/terrainHeight.js?v=8"></script>
   <script src="js/terrain/terrainChunk.js?v=2"></script>
   <script src="js/terrain/terrainSystem.js?v=6"></script>
-  <script src="js/world.js?v=23"></script>
+  <script src="js/world.js?v=34"></script>
+  <!-- 【2026-11-13】世界 NPC 动作：从外部接管 _bakeSkinsToStatic，角色不再被去蒙皮并播 Idle。
+       不改 world.js；删本行 + js/npcAnimator.js 即可完全回退。 -->
+  <script src="js/npcAnimator.js?v=6"></script>
   <script src="js/worldObjectBounds.js?v=3"></script>
-  <script src="js/placeholderField.js?v=5"></script>
+  <script src="js/placeholderField.js?v=7"></script>
   <!-- 【2026-10-22】加载期着色器程序预热闸门：把"首次绘制同步建程序"摊到每帧 1 个对象，
        消除加载期转视角/走动时 2~3 秒的画面冻结（原 prewarmGate/compileBudget 丢失后重建） -->
   <script src="js/loadingPrewarm.js?v=1"></script>
   <script src="js/worldTextureOptimizer.js"></script>
   <script src="js/worldLodAssets.js?v=9"></script>
-  <script src="js/worldInstanceMerger_v2.js?v=13"></script>
+  <script src="js/worldInstanceMerger_v2.js?v=15"></script>
   <script src="js/worldLodStandalone.js?v=7"></script>
   <script>if (window.WorldLodAssets) window.WorldLodAssets.fetchEnabled();</script>
   <!-- frameBudgetScheduler.js 引用移除：该文件从未存在（git 历史为空），每次加载 404 -->
-  <script src="js/worldLoadingOptimizer.js"></script>
-  <script src="js/worldSpatialManager.js?v=1"></script>
+  <script src="js/worldLoadingOptimizer.js?v=2"></script>
+  <script src="js/worldSpatialManager.js?v=4"></script>
   <!-- 【首屏丝滑化 Step1】环境就绪闸门：几何体全上屏 + 队列无<15MB对象（或12s兜底） -->
   <script src="js/worldReadyGate.js?v=2"></script>
   <!-- 【首屏丝滑化 Step3 + 二期B】同模板多玩家复用（解析/显存 N→1，miss 走 Worker）+ 玩家模型调度（就绪放行/视野过滤/让路） -->
@@ -1569,34 +2029,56 @@
   <script src="js/threejsWorldSanitizer.js?v=185fix3"></script>
   <script src="js/threejsCodeRunner.js?v=1"></script>
   <script src="js/customConfigRegistry.js?v=3"></script>
-  <script src="js/modelLighting.js?v=3"></script>
+  <script src="js/modelSurface.js?v=2"></script>
+  <script src="js/modelLighting.js?v=8"></script>
   <script src="js/modelHaloField.js?v=2"></script>
-  <script src="js/customConfigApplier.js?v=4"></script>
+  <script src="js/customConfigApplier.js?v=7"></script>
   <script src="js/galleryRenderer.js?v=1"></script>
   <script src="js/debug_controls.js"></script>
   
-  <script src="js/player.js?v=13"></script>
+  <script src="js/player.js?v=14"></script>
   <script src="js/voice.js?v=2"></script>
   <script src="js/websocket.js?v=11"></script>
   <script src="js/wsPresenceGuard.js?v=1"></script>
   <script src="js/agentPositionSmoother.js?v=4"></script>
   <script src="js/ui.js?v=1"></script>
-  <script src="js/portalManager.js"></script>
+  <script src="js/portalManager.js?v=2"></script>
   <script src="js/mobileControls.js?v=1"></script>
   <script src="js/buildingCopyLoader.js?v=1"></script>
-  <script src="js/buildingCollisionToggle.js?v=2"></script>
-  <script src="js/buildingManager.js?v=5"></script>
-  <script src="js/federationUI.js?v=2"></script>
+  <script src="js/buildingCollisionToggle.js?v=3"></script>
+  <script src="js/buildingManager.js?v=8"></script>
+  <script src="js/adminFlyToggle.js?v=11"></script>
+  <script src="js/worldTeleportLanding.js?v=1"></script><!-- 传送落地门控：必须排在 adminFlyToggle 之后，包装在最外层 -->
+  <script src="js/adminSelectionOutline.js?v=2"></script>
+  <script src="js/adminModelLightingBus.js?v=1"></script>
+  <script src="js/adminModelLightingHandles.js?v=2"></script>
+  <script src="js/adminModelLightingFloat.js?v=3"></script>
+  <script src="js/adminModelLightingTool.js?v=5"></script>
+  <script src="js/adminModelSurfacePick.js?v=3"></script>
+  <script src="js/adminModelLightingPanel.js?v=12"></script>
+  <script src="js/soundFederation.js?v=1"></script>
+  <script src="js/federationUI.js?v=3"></script>
 
-  <script src="js/soundManager.js"></script>
+  <script src="js/audioSynth.js?v=2"></script>
+  <script src="js/soundManager.js?v=4"></script>
+  <script src="js/soundRuntime.js?v=1"></script>
+  <script src="js/soundAmbience.js?v=6"></script>
+  <script src="js/soundMusicRuntime.js?v=1"></script><!-- 进世界自动播放的背景音 -->
   <script src="js/skillManager.js"></script>
   <script src="js/skillHUD.js?v=2"></script>
   <script src="js/chatBubbles.js?v=3"></script>
   <script src="js/nearbyChat.js?v=5"></script>
-  <script src="js/worldInteractions.js?v=2"></script><!-- Phase 6: 真人玩法交互（F键互动/任务/活动/兑换；v2 与操作指南对齐） -->
+  <script src="js/worldInteractions.js?v=3"></script><!-- Phase 6: 真人玩法交互（F键互动/任务/活动/兑换；v2 与操作指南对齐） -->
   <script src="js/worldDoors.js?v=3"></script><!-- 🚪 门的开关（按 E 开门/关门，状态持久化 + 附近玩家同步） -->
   <script src="js/voiceChat.js?v=2"></script>
-  <script src="js/uiControlManager.js"></script>
+  <script src="js/uiControlManager.js?v=3"></script>
+  <!-- 兜底：若 uiControlManager 没能加载或执行（脚本 404 / 报错），
+       3 秒后也要解除防闪遮罩，避免整个 HUD 永久隐形 -->
+  <script>
+    setTimeout(function () {
+      if (document.body) document.body.classList.remove('ui-config-pending');
+    }, 3000);
+  </script>
   <script src="js/main.js?v=4"></script><!-- v4：初始化改在 DOMContentLoaded（不再等可能永不触发的 window.load） -->
   <script src="js/worldGroundSync.js"></script>
   
@@ -1681,7 +2163,7 @@
         });
         
         // 4. 语言切换按钮 title（不含在 data-i18n 中的特殊元素）
-        var langBtn = document.getElementById('lang-btn-label');
+        var langBtn = document.getElementById('btn-language');
         if (langBtn) langBtn.title = i18n.getSwitchText();
         
         console.log('[i18n] 前端翻译已应用:', i18n.getCurrentLocale());

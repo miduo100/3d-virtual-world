@@ -65,6 +65,12 @@
     fab.addEventListener('click', togglePanel);
     document.body.appendChild(fab);
 
+    // 接入后台 UI 控件配置（ui_controls.wi_fab）
+    // 本按钮动态创建，晚于 uiControlManager.init() 的首次应用，必须在这里补一次
+    if (window.uiControlManager && typeof window.uiControlManager.applyControl === 'function') {
+      window.uiControlManager.applyControl('wi_fab', fab);
+    }
+
     panelEl = document.createElement('div');
     panelEl.id = 'wi-panel';
     document.body.appendChild(panelEl);
@@ -156,7 +162,20 @@
   function togglePanel() {
     state.panelOpen = !state.panelOpen;
     panelEl.style.display = state.panelOpen ? 'block' : 'none';
-    if (state.panelOpen) { poll(); renderPanel(); }
+    if (state.panelOpen) {
+      // 面板跟着「玩法」按钮走：按钮位置可在后台 UI 控件管理里改，写死的 CSS 坐标会错位
+      try {
+        const btn = document.getElementById('wi-fab');
+        if (btn) {
+          const r = btn.getBoundingClientRect();
+          panelEl.style.top = Math.round(r.bottom + 6) + 'px';
+          panelEl.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
+          panelEl.style.left = 'auto';
+          panelEl.style.bottom = 'auto';
+        }
+      } catch (e) { /* 定位失败不影响打开 */ }
+      poll(); renderPanel();
+    }
   }
 
   function renderPanel() {

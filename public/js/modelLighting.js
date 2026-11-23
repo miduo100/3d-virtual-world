@@ -5,8 +5,10 @@
 (function () {
   'use strict';
 
-  var VERSION = 1;
-  var MAX_LIGHTS_PER_OBJECT = 32;
+  var VERSION = 2;
+  // 仅作为面板提示用的参考值：不截断配置，模型想加多少灯都存得下。
+  // 真正同时在照的是 MODEL_REAL_LIGHT_SLOTS 个灯槽，其余只有光晕 + 自发光。
+  var LIGHTS_WARN_THRESHOLD = 64;
   var WORLD_LIGHTS_PER_OBJECT = 4;
   var MODEL_REAL_LIGHT_SLOTS = 2;
   var MODEL_LIGHT_MAX_DISTANCE = 60;
@@ -18,6 +20,8 @@
   var _modelActive = [];
   var _modelTimer = null;
   var _modelKickTimer = null;
+  // 编辑态焦点：管理员选中某盏灯时强制占用一个灯槽，否则第 3 盏灯调参毫无反应
+  var _editorFocus = new Map();
 
   function clamp(v, min, max, fallback) {
     var n = Number(v);
@@ -47,21 +51,6 @@
     return /^#[0-9a-fA-F]{6}$/.test(s) ? s.toLowerCase() : '#ffdca8';
   }
 
-  function normalizeSurface(raw) {
-    if (!raw) return null;
-    return {
-      enabled: raw.enabled === true,
-      color: normalizeColor(raw.color),
-      intensity: clamp(raw.intensity, 0, 10, 0.8),
-      useMap: raw.useMap !== false,
-      scope: raw.scope === 'material' ? 'material' : 'mesh',
-      meshName: String(raw.meshName || ''),
-      materialName: String(raw.materialName || ''),
-      materialIndex: Math.max(0, Math.floor(clamp(raw.materialIndex, 0, 64, 0))),
-      path: String(raw.path || '')
-    };
-  }
-
   function normalizeLight(raw, index) {
     raw = raw || {};
     var off = raw.offset || raw.position || {};
@@ -74,24 +63,23 @@
         z: clamp(off.z, -100000, 100000, 0)
       },
       color: normalizeColor(raw.color),
-      intensity: clamp(raw.intensity, 0, 100, 2),
+      intensity: clamp(raw.intensity, 0, 300, 2),
       distance: clamp(raw.distance, 0.1, 500, 12),
       enabled: raw.enabled !== false,
       halo: raw.halo !== false,
-      haloSize: clamp(raw.haloSize, 0.1, 10, 1),
-      surface: normalizeSurface(raw.surface)
+      haloSize: clamp(raw.haloSize, 0.1, 10, 1)
     };
   }
 
   function readLights(config) {
     var lighting = parseConfig(config).lighting;
     if (!lighting || !Array.isArray(lighting.lights)) return [];
-    return lighting.lights.slice(0, MAX_LIGHTS_PER_OBJECT).map(normalizeLight);
+    return lighting.lights.map(normalizeLight);
   }
 
   function writeLights(config, lights) {
     var next = cloneConfig(config);
-    var normalized = (lights || []).slice(0, MAX_LIGHTS_PER_OBJECT).map(normalizeLight);
+    var normalized = (lights || []).map(normalizeLight);
     if (!next.lighting || typeof next.lighting !== 'object') next.lighting = { version: VERSION };
     next.lighting.version = VERSION;
     next.lighting.lights = normalized;
@@ -102,98 +90,13 @@
     return parseInt(normalizeColor(color).slice(1), 16);
   }
 
-  var _surfaceRecords = new WeakMap();
-
-  function nodePath(root, node) {
-    var parts = [];
-    var cur = node;
-    while (cur && cur !== root) {
-      if (!cur.parent) return '';
-      parts.unshift(cur.parent.children.indexOf(cur));
-      cur = cur.parent;
-    }
-    return cur === root ? parts.join('/') : '';
-  }
-
-  function makeSurfaceTarget(root, mesh, materialIndex) {
-    var mat = Array.isArray(mesh.material) ? mesh.material[materialIndex || 0] : mesh.material;
-    return {
-      enabled: false, color: '#ffdca8', intensity: 0.8, useMap: true, scope: 'mesh',
-      meshName: mesh.name || '', materialName: mat && mat.name || '',
-      materialIndex: materialIndex || 0, path: nodePath(root, mesh)
-    };
-  }
-
-  function restoreSurface(root) {
-    var records = _surfaceRecords.get(root);
-    if (!records) return;
-    records.forEach(function (rec, mesh) {
-      mesh.material = rec.original;
-      rec.clones.forEach(function (m) { if (m && m.dispose) m.dispose(); });
-    });
-    _surfaceRecords.delete(root);
-  }
-
-  function surfaceTargets(root, surface) {
-    var out = [];
-    root.traverse(function (mesh) {
-      if (!mesh.isMesh || !mesh.material || mesh.userData.isPickProxy || mesh.userData.__modelLightingHandle) return;
-      var mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      mats.forEach(function (mat, index) {
-        if (!mat) return;
-        if (surface.scope === 'material') {
-          if (surface.materialName && mat.name === surface.materialName) out.push({ mesh: mesh, index: index });
-        } else if ((surface.path && nodePath(root, mesh) === surface.path) ||
-                   (surface.meshName && mesh.name === surface.meshName &&
-                    (!surface.materialName || mat.name === surface.materialName))) {
-          if (index === surface.materialIndex) out.push({ mesh: mesh, index: index });
-        }
-      });
-    });
-    return out;
-  }
-
-  function applySurfaceGlow(root, config) {
-    restoreSurface(root);
-    var applied = 0;
-    readLights(config).forEach(function (light) {
-      var surface = light.surface;
-      if (!surface || !surface.enabled) return;
-      surfaceTargets(root, surface).forEach(function (target) {
-        var records = _surfaceRecords.get(root);
-        if (!records) { records = new Map(); _surfaceRecords.set(root, records); }
-        var rec = records.get(target.mesh);
-        if (!rec) {
-          rec = { original: target.mesh.material, clones: [] };
-          records.set(target.mesh, rec);
-          if (Array.isArray(target.mesh.material)) {
-            var copies = target.mesh.material.slice();
-            copies[target.index] = copies[target.index].clone();
-            rec.clones.push(copies[target.index]);
-            target.mesh.material = copies;
-          } else {
-            target.mesh.material = target.mesh.material.clone();
-            rec.clones.push(target.mesh.material);
-          }
-        }
-        var mat = Array.isArray(target.mesh.material) ? target.mesh.material[target.index] : target.mesh.material;
-        if (!mat || !mat.emissive) return;
-        mat.emissive.set(colorHex(surface.color));
-        mat.emissiveIntensity = surface.intensity;
-        if (surface.useMap && mat.map) mat.emissiveMap = mat.map;
-        else if (!surface.useMap) mat.emissiveMap = null;
-        mat.needsUpdate = true;
-        applied++;
-      });
-    });
-    return applied;
-  }
-
   function canInstance(config) {
     var parsed = parseConfig(config);
     var keys = Object.keys(parsed);
     if (!keys.length || keys.some(function (k) { return k !== 'lighting'; })) return false;
-    return readLights(parsed).every(function (l) { return !l.surface || !l.surface.enabled; });
+    // 只要模型级 surfaces 里有启用的发光，就不能合批
+    if (window.ModelSurface) return window.ModelSurface._diag(parsed).enabled === 0;
+    return true;
   }
 
   function isRootAlive(root) {
@@ -242,7 +145,8 @@
   }
 
   function registerModelLights(root, lights) {
-    var candidates = (lights || []).filter(function (l) { return l.enabled; }).slice(0, WORLD_LIGHTS_PER_OBJECT);
+    // 不截断：全部启用的灯都进候选，否则第 5 盏之后连"选中优先占槽"都轮不到
+    var candidates = (lights || []).filter(function (l) { return l.enabled; });
     if (!candidates.length) return;
     _modelCandidates.set(root, candidates);
     ensureModelSlots();
@@ -283,23 +187,49 @@
     var byKey = new Map();
     candidates.forEach(function (c) { byKey.set(c.key, c); });
 
+    // 编辑态：选中的灯无条件占 1 个槽（不受距离排序与滞回影响）
+    var focus = null;
+    _editorFocus.forEach(function (id, focusRoot) {
+      if (!isRootAlive(focusRoot)) { _editorFocus.delete(focusRoot); return; }
+      var candidateKey = focusRoot.uuid + ':' + id;
+      if (byKey.has(candidateKey)) { focus = byKey.get(candidateKey); return; }
+      // 兜底：候选表里没有（id 对不上 / 超过 60 米），仍要让正在编辑的灯占槽
+      var list = _modelCandidates.get(focusRoot);
+      if (!list) return;
+      for (var i = 0; i < list.length; i++) {
+        if (String(list[i].id) !== String(id)) continue;
+        var wp = new THREE.Vector3(list[i].offset.x, list[i].offset.y, list[i].offset.z);
+        focusRoot.localToWorld(wp);
+        focus = { root: focusRoot, light: list[i], pos: wp, dist: wp.distanceTo(p), key: candidateKey };
+        break;
+      }
+    });
+
     // 滞回：沿用当前灯，只有新灯明显更近（至少近 1 米）才顶替最远灯。
     var active = [];
+    if (focus) active.push(focus);
+    var focusKey = focus ? focus.key : null;
+
     _modelActive.forEach(function (entry) {
+      if (entry.key === focusKey) return;
       var fresh = byKey.get(entry.key);
       if (fresh && active.length < MODEL_REAL_LIGHT_SLOTS) active.push(fresh);
     });
     candidates.forEach(function (candidate) {
+      if (candidate.key === focusKey) return;
       if (active.some(function (a) { return a.key === candidate.key; })) return;
       if (active.length < MODEL_REAL_LIGHT_SLOTS) {
         active.push(candidate);
         return;
       }
-      var worstIndex = 0;
-      for (var i = 1; i < active.length; i++) {
-        if (active[i].dist > active[worstIndex].dist) worstIndex = i;
+      // 编辑中的灯不被顶替
+      var worstIndex = -1;
+      var worstDist = -1;
+      for (var i = 0; i < active.length; i++) {
+        if (active[i].key === focusKey) continue;
+        if (active[i].dist > worstDist) { worstDist = active[i].dist; worstIndex = i; }
       }
-      if (candidate.dist + 1 < active[worstIndex].dist) active[worstIndex] = candidate;
+      if (worstIndex >= 0 && candidate.dist + 1 < worstDist) active[worstIndex] = candidate;
     });
     _modelActive = active;
 
@@ -317,6 +247,30 @@
     });
   }
 
+  /**
+   * 编辑态焦点：让选中的灯强制占用一个真实灯槽
+   * 不设焦点时，槽位只按"离玩家最近"分配，第 3 盏灯调参毫无反应。
+   */
+  function setEditorFocus(root, lightId) {
+    if (!root) return;
+    if (lightId) _editorFocus.set(root, String(lightId));
+    else _editorFocus.delete(root);
+    scheduleModelUpdate();
+  }
+
+  /** 拖动灯泡手柄时同步候选灯位置，避免灯槽停在旧坐标 */
+  function updateLightOffset(root, id, position) {
+    var list = _modelCandidates.get(root);
+    if (!list || !position || id === undefined || id === null) return;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === id) {
+        list[i].offset = { x: position.x, y: position.y, z: position.z };
+        break;
+      }
+    }
+    scheduleModelUpdate();
+  }
+
   function modelLightStats() {
     return {
       slots: _modelSlots.length,
@@ -329,8 +283,9 @@
   function cleanup(root) {
     if (!root) return;
     unregisterModelLights(root);
+    _editorFocus.delete(root);
     if (window.LightPool) window.LightPool.release(root);
-    restoreSurface(root);
+    if (window.ModelSurface) window.ModelSurface.restore(root);
     if (window.ModelHaloField) window.ModelHaloField.unregister(root);
     var previews = [];
     root.traverse(function (node) {
@@ -346,7 +301,7 @@
     if (!root) return { applied: 0 };
     options = options || {};
     cleanup(root);
-    var surface = applySurfaceGlow(root, config);
+    var surface = window.ModelSurface ? window.ModelSurface.apply(root, config) : 0;
     var lights = readLights(config);
     if (!lights.length) return { applied: 0, surface: surface };
 
@@ -399,7 +354,7 @@
 
   window.ModelLighting = {
     VERSION: VERSION,
-    MAX_LIGHTS_PER_OBJECT: MAX_LIGHTS_PER_OBJECT,
+    LIGHTS_WARN_THRESHOLD: LIGHTS_WARN_THRESHOLD,
     MODEL_REAL_LIGHT_SLOTS: MODEL_REAL_LIGHT_SLOTS,
     MODEL_LIGHT_MAX_DISTANCE: MODEL_LIGHT_MAX_DISTANCE,
     parseConfig: parseConfig,
@@ -409,12 +364,21 @@
     colorHex: colorHex,
     readLights: readLights,
     writeLights: writeLights,
-    makeSurfaceTarget: makeSurfaceTarget,
-    applySurfaceGlow: applySurfaceGlow,
-    restoreSurface: restoreSurface,
+    // 发光实现在 modelSurface.js；这里保留旧名字供编辑器端和验收脚本调用
+    makeSurfaceTarget: function (root, mesh, materialIndex) {
+      return window.ModelSurface ? window.ModelSurface.makeTarget(root, mesh, materialIndex) : null;
+    },
+    applySurfaceGlow: function (root, config) {
+      return window.ModelSurface ? window.ModelSurface.apply(root, config) : 0;
+    },
+    restoreSurface: function (root) {
+      if (window.ModelSurface) window.ModelSurface.restore(root);
+    },
     canInstance: canInstance,
     isRootAlive: isRootAlive,
     updateModelLights: updateModelLights,
+    setEditorFocus: setEditorFocus,
+    updateLightOffset: updateLightOffset,
     modelLightStats: modelLightStats,
     apply: apply,
     cleanup: cleanup,

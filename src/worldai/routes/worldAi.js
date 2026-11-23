@@ -71,6 +71,9 @@ router.use('/gameplay', require('./worldAiGameplay'));
 // ── Mission（Phase 7b · §I.6）：长期使命（状态机/里程碑/周计划/月报/月度预算）──
 router.use('/long-missions', require('./worldAiMission'));
 
+// ── 双入口简化（第 1 期）：只读选址，供区域建设/世界建设预览使用 ──
+router.use('/sites', require('./worldAiSites'));
+
 // GET /api/world-ai/config
 router.get('/config', async (req, res) => {
   try {

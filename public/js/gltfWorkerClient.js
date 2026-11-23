@@ -17,7 +17,7 @@
   'use strict';
   if (window.GltfWorkerClient) return;
 
-  var DEFAULT_WORKER_URL = '/js/workers/gltfWorker.js?v=4';
+  var DEFAULT_WORKER_URL = '/js/workers/gltfWorker.js?v=6';
   var PARSE_TIMEOUT_MS = 30000;
 
   /* ---------------- 客户端工厂（二期B）----------------
@@ -272,7 +272,22 @@
       } else if (n.type === 'bone') {
         obj = new THREE.Bone();
       } else if (n.type === 'mesh') {
-        obj = new THREE.Mesh(geos[n.geo], matFor(n.mat));
+        /* 【2026-11-19】EXT_mesh_gpu_instancing：按 payload.inst 重建 InstancedMesh。
+           数据不合法直接抛错 —— parseBuffer 的 reject 会自动回退主线程解析，
+           绝不静默降级成普通 Mesh（那正是实例丢失、模型"变形"的根因）。 */
+        if (n.inst) {
+          var cnt = n.inst.count | 0;
+          var imat = n.inst.matrix;
+          if (!cnt || !imat || !imat.length || imat.length < cnt * 16) throw new Error('inst payload invalid');
+          obj = new THREE.InstancedMesh(geos[n.geo], matFor(n.mat), cnt);
+          obj.instanceMatrix = new THREE.InstancedBufferAttribute(imat, 16);
+          obj.instanceMatrix.needsUpdate = true;
+          obj.count = cnt;
+          obj.computeBoundingBox();
+          obj.computeBoundingSphere();
+        } else {
+          obj = new THREE.Mesh(geos[n.geo], matFor(n.mat));
+        }
       } else {
         obj = new THREE.Group();
       }

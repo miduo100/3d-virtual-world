@@ -11,6 +11,8 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../../database/db');
 const { uploadAnimLib, uploadSound } = require('./uploads');
+// ★ 音效落盘统一入口（自动压缩）
+const soundStore = require('../soundStore');
 const multer = require('multer');
 const path = require('path');
 const { fixAnimUpAxis } = require('./fixAnimUpAxis');
@@ -157,7 +159,12 @@ router.post('/anim-library', uploadAnimLib.fields([
     let soundUrl = null;
     let soundName = null;
     if (soundFile) {
-      soundUrl = '/uploads/character-templates/sounds/' + soundFile.filename;
+      // ★ 走 soundStore：自动压缩（WAV → MP3），规则与上传/AI入库一致
+      const stored = await soundStore.storeSound(soundFile.path, {
+        hint: soundFile.originalname,
+        keepOriginal: true,
+      });
+      soundUrl = stored.ok ? stored.url : ('/uploads/character-templates/sounds/' + soundFile.filename);
       soundName = soundFile.originalname;
     }
     
@@ -259,7 +266,7 @@ router.put('/anim-library/:id', uploadAnimLibEdit.fields([
       glbUrl = '/uploads/anim-library/' + glbFile.filename;
     }
     
-    // 处理新上传的音效文件
+    // 处理新上传的音效文件（★ 走 soundStore：自动压缩，规则与上传/AI入库一致）
     let soundUrl = existing.sound_url;
     let soundName = existing.sound_name;
     if (soundFile) {
@@ -268,7 +275,11 @@ router.put('/anim-library/:id', uploadAnimLibEdit.fields([
         const oldSoundPath = path.join(__dirname, '../../../public' + existing.sound_url);
         try { fs.unlinkSync(oldSoundPath); } catch (e) { console.error('删除旧音效文件失败:', e); }
       }
-      soundUrl = '/uploads/character-templates/sounds/' + soundFile.filename;
+      const stored = await soundStore.storeSound(soundFile.path, {
+        hint: soundFile.originalname,
+        keepOriginal: true,
+      });
+      soundUrl = stored.ok ? stored.url : ('/uploads/character-templates/sounds/' + soundFile.filename);
       soundName = soundFile.originalname;
     }
     

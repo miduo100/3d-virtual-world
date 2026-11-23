@@ -30,9 +30,17 @@
   var THREE = global.THREE;
 
   // ===== 可调参数 =====
-  var BOX_W = 5, BOX_H = 6, BOX_D = 5;      // 占位方块尺寸（与旧版一致）
-  var BOX_Y_OFFSET = 3;                      // 盒子中心相对对象锚点抬高（与旧版一致）
-  var MAX_INSTANCES = 2000;                  // 实例容量（world_objects 全图 + 增量余量）
+  /**
+   * 【2026-11-18 性能优化】占位方块从 5×6×5 缩到 1.5×1.5×1.5。
+   * 原因：办公室那一块同时有 1030 个对象未加载，就是 1030 个 5 米大的盒子同时亮着，
+   * 单块屏幕覆盖约 7.5 万像素 → 7700 万像素次写入，相当于把 1080p 屏幕涂 37 遍。
+   * 缩到 1.5 米后单块像素覆盖降约 40 倍。
+   */
+  var BOX_W = 1.5, BOX_H = 1.5, BOX_D = 1.5;
+  var BOX_Y_OFFSET = 0.75;                   // 盒子中心相对对象锚点抬高（=高度一半）
+  // 占位实例容量。12000 是上一版为"不出现空洞"开的，过大；2000 已够用
+  //（scale=0 的隐藏实例几乎不耗 GPU，但没必要留那么多余量）。
+  var MAX_INSTANCES = 2000;
   var FADE_MS = 250;                         // 渐缩时长
   var REVEAL_TIMEOUT_MS = 5000;              // "模型可见后再藏盒子"的兜底超时
                                              // （2026-09-09 从 600ms 提高：超多 mesh 模型预热可能达数秒，
@@ -136,11 +144,18 @@
   function init(scene) {
     if (mesh || !scene || !THREE) return;
     var geometry = new THREE.BoxGeometry(BOX_W, BOX_H, BOX_D);
-    var material = new THREE.MeshStandardMaterial({
-      color: 0x00ccff,
-      emissive: 0x006688,
-      transparent: true,
-      opacity: 0.5
+    /**
+     * 【2026-11-18 性能优化】材质从不透明化：
+     * 原配置 `transparent:true, opacity:0.5` 是 GPU 的大坑 —— 半透明物体
+     * 拿不到早期深度剔除，重叠部分每个像素都要着色再混合，几百个盒子叠一起
+     * 就是几十倍 overdraw。改成不透明后，被挡住的部分直接被硬件跳过。
+     * 同时把 MeshStandardMaterial 换成 MeshLambertMaterial：占位块不需要 PBR，
+     * Lambert 的片元着色便宜得多。颜色取中性冷灰蓝，表示"未上色的临时占位"。
+     */
+    var material = new THREE.MeshLambertMaterial({
+      color: 0x7f8c9e,
+      transparent: false,
+      opacity: 1
     });
     mesh = new THREE.InstancedMesh(geometry, material, MAX_INSTANCES);
     mesh.frustumCulled = false;      // 实例遍布全图，按整体包围球剔除会整场消失

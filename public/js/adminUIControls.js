@@ -60,6 +60,9 @@ const AdminUIControls = {
   controls: [],
   currentControl: null,
   previewMode: 'desktop', // 'desktop' | 'mobile' | 'vr'
+  // 预览屏的缩放比：预览屏按真实逻辑分辨率（1920×1080 / 375×667）渲染，
+  // 再用 transform:scale 缩到预览框里。拖拽/改尺寸时要按这个比例换算鼠标位移。
+  previewScale: 1,
   mobileOrientation: 'portrait', // 'portrait' | 'landscape'（手机模式下的子方向）
   isDragging: false,
   isResizing: false,
@@ -161,6 +164,28 @@ const AdminUIControls = {
    * 设置事件监听（兼容admin.html和独立页面）
    */
   setupEventListeners() {
+    // 窗口尺寸变化时预览框宽度会随 CSS 断点变化（960/720/600），
+    // 缩放比例必须跟着重算，否则预览内容会溢出或被裁掉。
+    if (!this._resizeBound) {
+      this._resizeBound = true;
+      let resizeTimer;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          const screen = document.getElementById('ui-preview-screen');
+          const frame = document.querySelector('.ui-preview-frame');
+          if (!screen || !frame) return;
+          const logicalW = parseFloat(screen.style.width) || 0;
+          if (!logicalW || !frame.clientWidth) return;
+          const scale = frame.clientWidth / logicalW;
+          if (Math.abs(scale - this.previewScale) > 0.001) {
+            this.previewScale = scale;
+            screen.style.transform = `scale(${scale})`;
+          }
+        }, 200);
+      });
+    }
+
     // 平台切换按钮组（新版三选一）
     const platformBtnGroup = document.getElementById('platformBtnGroup');
     if (platformBtnGroup) {
@@ -622,14 +647,14 @@ const AdminUIControls = {
         </div>
         <div class="ui-form-row">
           <label>${ucT('ucEditHAlign', '水平对齐')}</label>
-          <select id="ui-edit-h-align" onchange="window.uiAdminEditor.updatePositionLabels()">
+          <select id="ui-edit-h-align" onchange="window.AdminUIControls.updatePositionLabels()">
             <option value="left" ${(control.h_align || 'left') === 'left' ? 'selected' : ''}>${ucT('ucEditHLeft', '左对齐 (left)')}</option>
             <option value="right" ${(control.h_align || 'left') === 'right' ? 'selected' : ''}>${ucT('ucEditHRight', '右对齐 (right)')}</option>
           </select>
         </div>
         <div class="ui-form-row">
           <label>${ucT('ucEditVAlign', '垂直对齐')}</label>
-          <select id="ui-edit-v-align" onchange="window.uiAdminEditor.updatePositionLabels()">
+          <select id="ui-edit-v-align" onchange="window.AdminUIControls.updatePositionLabels()">
             <option value="top" ${(control.v_align || 'top') === 'top' ? 'selected' : ''}>${ucT('ucEditVTop', '顶部对齐 (top)')}</option>
             <option value="bottom" ${(control.v_align || 'top') === 'bottom' ? 'selected' : ''}>${ucT('ucEditVBottom', '底部对齐 (bottom)')}</option>
           </select>
@@ -721,14 +746,44 @@ const AdminUIControls = {
     return /^-?\d+(\.\d+)?(px|%|em|rem|vh|vw)$/.test(trimmed);
   },
 
+  /**
+   * 钳制 z-index 到 [0, 9999]
+   * 编辑器 input 声明了 min/max，但原生校验只作用于表单提交，
+   * JS 赋值路径会绕过，这里显式兜底，避免越界值写进数据库。
+   */
+  clampZIndex(value) {
+    const n = parseInt(value, 10);
+    if (Number.isNaN(n)) return 1000;
+    return Math.min(Math.max(n, 0), 9999);
+  },
+
   updatePreviewFromEditor() {
     if (!this.currentControl) return;
 
+    // 对齐方式换算：必须在覆盖 currentControl 之前取旧值
+    // （select 的 input 事件先于 change 触发，模型一旦被覆盖就拿不到旧对齐了）
+    const newHAlign = document.getElementById('ui-edit-h-align')?.value || 'left';
+    const newVAlign = document.getElementById('ui-edit-v-align')?.value || 'top';
+    const oldHAlign = this.currentControl.h_align || 'left';
+    const oldVAlign = this.currentControl.v_align || 'top';
+
     // 位置和大小值（原始值）
-    const rawPosX = document.getElementById('ui-edit-pos-x')?.value || '';
-    const rawPosY = document.getElementById('ui-edit-pos-y')?.value || '';
+    let rawPosX = document.getElementById('ui-edit-pos-x')?.value || '';
+    let rawPosY = document.getElementById('ui-edit-pos-y')?.value || '';
     const rawWidth = document.getElementById('ui-edit-width')?.value || '';
     const rawHeight = document.getElementById('ui-edit-height')?.value || '';
+
+    // 对齐方式变化时换算位置值，保持视觉位置不变（left 42% ↔ right 58%）
+    if (oldHAlign !== newHAlign) {
+      rawPosX = this.convertPositionValue(rawPosX, oldHAlign, newHAlign);
+      const xInput = document.getElementById('ui-edit-pos-x');
+      if (xInput) xInput.value = rawPosX;
+    }
+    if (oldVAlign !== newVAlign) {
+      rawPosY = this.convertPositionValue(rawPosY, oldVAlign, newVAlign);
+      const yInput = document.getElementById('ui-edit-pos-y');
+      if (yInput) yInput.value = rawPosY;
+    }
 
     const updates = {
       control_name: document.getElementById('ui-edit-name')?.value,
@@ -737,9 +792,9 @@ const AdminUIControls = {
       related_module: document.getElementById('ui-edit-module')?.value,
       description: document.getElementById('ui-edit-description')?.value,
       position_type: document.getElementById('ui-edit-position-type')?.value,
-      h_align: document.getElementById('ui-edit-h-align')?.value || 'left',
-      v_align: document.getElementById('ui-edit-v-align')?.value || 'top',
-      z_index: parseInt(document.getElementById('ui-edit-z-index')?.value) || 1000,
+      h_align: newHAlign,
+      v_align: newVAlign,
+      z_index: this.clampZIndex(document.getElementById('ui-edit-z-index')?.value),
       is_visible: document.getElementById('ui-edit-visible')?.checked,
       is_enabled: document.getElementById('ui-edit-enabled')?.checked
     };
@@ -784,7 +839,11 @@ const AdminUIControls = {
   },
 
   /**
-   * 根据对齐方式动态更新位置标签，并同步更新位置值
+   * 根据对齐方式动态更新位置标签
+   * 【注】位置值的对齐换算已移入 updatePreviewFromEditor()：
+   * select 的 input 事件会先于 change 事件触发，若在此处依赖
+   * currentControl.h_align 作为"旧值"，模型已被 input 阶段覆盖，
+   * 换算永远检测不到对齐变化（left 42% ↔ right 58% 互转失效）。
    */
   updatePositionLabels() {
     const hAlignSelect = document.getElementById('ui-edit-h-align');
@@ -799,25 +858,6 @@ const AdminUIControls = {
     }
     if (yLabel) {
       yLabel.textContent = vAlign === 'bottom' ? ucT('ucEditPosYBottom', '距底边缘 (bottom)') : ucT('ucEditPosYTop', '距顶边缘 (top)');
-    }
-
-    // 【修复】当对齐方式改变时，重新计算位置值保持相同视觉位置
-    if (this.currentControl) {
-      const posXInput = document.getElementById('ui-edit-pos-x');
-      const posYInput = document.getElementById('ui-edit-pos-y');
-
-      if (posXInput) {
-        const oldHAlign = this.currentControl.h_align || 'left';
-        if (oldHAlign !== hAlign) {
-          posXInput.value = this.convertPositionValue(posXInput.value, oldHAlign, hAlign);
-        }
-      }
-      if (posYInput) {
-        const oldVAlign = this.currentControl.v_align || 'top';
-        if (oldVAlign !== vAlign) {
-          posYInput.value = this.convertPositionValue(posYInput.value, oldVAlign, vAlign);
-        }
-      }
     }
   },
 
@@ -851,11 +891,37 @@ const AdminUIControls = {
     container.innerHTML = `
       <div class="ui-preview-frame ${frameClass}">
         <div class="ui-preview-screen" id="ui-preview-screen">
-          <div class="ui-preview-label">${label}</div>
-          <!-- 控件预览将在这里渲染 -->
+          <!-- 控件预览将在这里渲染（按真实逻辑分辨率排版后整体缩放） -->
         </div>
+        <div class="ui-preview-label">${label}</div>
       </div>
     `;
+
+    // ===== 等比缩放 =====
+    // 预览屏按「真实逻辑分辨率」渲染，再整体缩放到预览框大小。
+    // 原因：控件位置大量使用百分比（如 left:5%），若直接放在宽 960/720/600 的框里，
+    // 百分比会按缩小后的框宽计算，和真机（1280/1920）差 2~3 倍，
+    // 就会出现「后台里两个按钮挨在一起、到前台却拉得很开」。
+    let logicalW = 1920;
+    let logicalH = 1080;
+    if (isVR) {
+      logicalW = 800; logicalH = 450;
+    } else if (isMobile && isLandscape) {
+      logicalW = 667; logicalH = 375;
+    } else if (isMobile) {
+      logicalW = 375; logicalH = 667;
+    }
+
+    const frame = container.querySelector('.ui-preview-frame');
+    const screen = document.getElementById('ui-preview-screen');
+    if (frame && screen) {
+      const scale = frame.clientWidth / logicalW;
+      screen.style.width = logicalW + 'px';
+      screen.style.height = logicalH + 'px';
+      screen.style.transformOrigin = '0 0';
+      screen.style.transform = `scale(${scale})`;
+      this.previewScale = scale;
+    }
 
     this.updatePreview();
   },
@@ -1113,6 +1179,12 @@ const AdminUIControls = {
       bgColor = 'linear-gradient(135deg, rgba(255, 193, 7, 0.2), rgba(255, 160, 0, 0.3))';
       borderColor = '#ffc107';
       customStyle = 'box-shadow: 0 0 15px rgba(255, 193, 7, 0.3);';
+    } else if (control.control_id === 'btn_language') {
+      // 语言切换按钮 - 与个人资料同款绿色圆形按钮
+      icon = '🌐';
+      bgColor = 'linear-gradient(135deg, rgba(0, 255, 0, 0.2), rgba(0, 200, 0, 0.3))';
+      borderColor = '#00ff00';
+      customStyle = 'box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);';
     } else if (control.control_id === 'skill_voice_btn') {
       // 语音按钮 - 技能栏旁边的红色圆形按钮
       icon = '🎤';
@@ -1126,6 +1198,21 @@ const AdminUIControls = {
       borderColor = '#00ccff';
       isRound = false;
       return this.getPortalButtonHTML(control, isSelected, icon, bgColor, borderColor);
+    } else if (control.control_id === 'wi_fab') {
+      // 玩法按钮 - 深色胶囊，单行「🎮 玩法 (T)」
+      icon = '🎮';
+      bgColor = 'rgba(10, 20, 35, 0.85)';
+      borderColor = '#5b8def';
+      isRound = false;
+      customStyle = 'border-radius: 999px; color: #cfe8ff; font-size: 12px;';
+      return this.getSimpleButtonHTML(control, isSelected, icon, bgColor, borderColor, customStyle, '玩法 (T)');
+    } else if (control.control_id === 'federation_portal_btn') {
+      // 联邦传送按钮 - 绿色圆角矩形、中英双语两行（与 federationUI.js 实际样式一致）
+      icon = '🌍';
+      bgColor = 'linear-gradient(135deg, rgba(0, 255, 0, 0.9), rgba(0, 200, 0, 0.9))';
+      borderColor = '#00ff00';
+      isRound = false;
+      return this.getFederationButtonHTML(control, isSelected, icon, bgColor, borderColor);
     }
 
     const borderRadius = isRound ? '50%' : '8px';
@@ -1175,6 +1262,7 @@ const AdminUIControls = {
         border: ${isSelected ? '3px solid #00ff00' : '2px solid ' + borderColor};
         border-radius: 5px;
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
         position: relative;
@@ -1183,10 +1271,95 @@ const AdminUIControls = {
         font-weight: bold;
         font-size: 14px;
         color: #000;
-        padding: 12px 20px;
+        padding: 6px 14px;
+        line-height: 1.25;
       ">
-        <span style="margin-right: 6px; font-size: 16px;">${icon}</span>
-        <span>传送门管理</span>
+        <span style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 16px;">${icon}</span>
+          <span>${ucT('previewPortalLabel', '世界传送门')}</span>
+        </span>
+        <span style="font-size: 10px; opacity: 0.7; letter-spacing: 0.02em;">${ucT('previewPortalLabelEn', 'World Portal')}</span>
+        <div style="
+          position: absolute;
+          bottom: -25px;
+          left: 50%;
+          transform: translateX(-50%);
+          font-size: 10px;
+          color: #00ff00;
+          white-space: nowrap;
+          background: rgba(0,0,0,0.8);
+          padding: 2px 6px;
+          border-radius: 4px;
+        ">${ucControlName(control)}</div>
+      </div>
+    `;
+  },
+
+  /**
+   * 联邦传送按钮专用HTML
+   * 与 federationUI.js 中 createUI() 的真实按钮样式保持一致：
+   * 绿色背景、贴屏幕右边缘（左侧圆角）、两行中英文字
+   */
+  getFederationButtonHTML(control, isSelected, icon, bgColor, borderColor) {
+    return `
+      <div class="preview-federation-btn ${isSelected ? 'selected' : ''}" style="
+        width: 100%;
+        height: 100%;
+        background: ${bgColor};
+        border: ${isSelected ? '3px solid #00ff00' : '2px solid ' + borderColor};
+        border-radius: 8px 0 0 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        box-shadow: ${isSelected ? '0 0 20px rgba(0,255,0,0.8)' : '0 4px 15px rgba(0,255,0,0.4)'};
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+        color: #000;
+        line-height: 1.3;
+        overflow: hidden;
+      ">
+        <span style="font-size: 13px; white-space: nowrap;">${icon} ${ucT('previewFederationLabel', '联邦传送')}</span>
+        <span style="font-size: 10px; opacity: 0.7; white-space: nowrap;">Federation Teleport</span>
+        <div style="
+          position: absolute;
+          bottom: -25px;
+          left: 50%;
+          transform: translateX(-50%);
+          font-size: 10px;
+          color: #00ff00;
+          white-space: nowrap;
+          background: rgba(0,0,0,0.8);
+          padding: 2px 6px;
+          border-radius: 4px;
+        ">${ucControlName(control)}</div>
+      </div>
+    `;
+  },
+
+  /**
+   * 单行胶囊按钮预览（图标 + 文字横排）
+   */
+  getSimpleButtonHTML(control, isSelected, icon, bgColor, borderColor, extraStyle, label) {
+    return `
+      <div class="preview-simple-btn ${isSelected ? 'selected' : ''}" style="
+        width: 100%;
+        height: 100%;
+        background: ${bgColor};
+        border: ${isSelected ? '3px solid #00ff00' : '2px solid ' + borderColor};
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        position: relative;
+        box-shadow: ${isSelected ? '0 0 20px rgba(0,255,0,0.8)' : 'none'};
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+        ${extraStyle}
+      ">
+        <span style="font-size: 13px;">${icon}</span>
+        <span style="white-space: nowrap;">${label}</span>
         <div style="
           position: absolute;
           bottom: -25px;
@@ -1537,8 +1710,10 @@ const AdminUIControls = {
   handleDragMove(e) {
     if (!this.isDragging || !this.dragTarget) return;
 
-    const dx = e.clientX - this.dragStartX;
-    const dy = e.clientY - this.dragStartY;
+    // 预览屏是缩放显示的：鼠标在屏幕上移动 10px，逻辑坐标要移动 10/scale px
+    const scale = this.previewScale || 1;
+    const dx = (e.clientX - this.dragStartX) / scale;
+    const dy = (e.clientY - this.dragStartY) / scale;
 
     // 【修复】使用内容区相对坐标（CSS left/right/top/bottom 的坐标系）
     // offsetWidth 含 padding，需扣除 padding 得到内容区宽度
@@ -1673,8 +1848,10 @@ const AdminUIControls = {
   handleResizeMove(e) {
     if (!this.isResizing || !this.resizeTarget) return;
 
-    const dx = e.clientX - this.resizeStartX;
-    const dy = e.clientY - this.resizeStartY;
+    // 同拖拽：把屏幕像素位移换算成逻辑像素
+    const scale = this.previewScale || 1;
+    const dx = (e.clientX - this.resizeStartX) / scale;
+    const dy = (e.clientY - this.resizeStartY) / scale;
 
     // 性能监控面板最小尺寸限制
     const minW = (this.resizeControl && this.resizeControl.control_id === 'performance_monitor')

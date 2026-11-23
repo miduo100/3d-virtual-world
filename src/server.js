@@ -12,6 +12,20 @@ const { parseJsonValue } = require('./utils/jsonValue');
 // 加载环境变量 - 明确指定.env路径
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
+// ==================== 未安装时进入安装向导 ====================
+// 【必须放在 autoFixSecrets 之前】
+// autoFixSecrets 在没有 .env 时会拿 .env.example 造一个出来补密钥，
+// 一旦它先跑，下面的"无 .env 即未安装"判定就会失效，表现为装不进去、直接启动主程序后崩。
+//
+// 判定只看 .env 是否存在：没有 .env = 全新机器 → 起安装页；
+// 有 .env（无论有没有 INSTALLED=1）一律按已安装处理，老环境升级不会误入安装页。
+const installer = require('./installer');
+if (!installer.isInstalled()) {
+  installer.startInstaller({ port: Number(process.env.PORT) || 3002 });
+  module.exports = {};
+  return;
+}
+
 // ==================== JWT密钥自动修复（弱密钥/占位符自动替换为随机密钥） ====================
 // 部署到宝塔面板等新环境时，即使忘记手动修改 .env 中的密钥，
 // 首次启动也会自动生成安全随机密钥并写回 .env，杜绝默认密钥泄露风险
@@ -75,6 +89,14 @@ const staticCacheOptions = {
     if (filePath.match(/\.(png|jpg|jpeg|gif|glb|gltf|e8j|mp4|webm|svg|ico|webp)$/i)) {
       res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
     }
+    // ★ 音频补进强缓存（2026-11-03）：此前漏配，音频只吃默认的 7 天缓存，
+    //   每次改音效都要重新下载一遍全量音频。音频是不可变资源（改了就换文件名），
+    //   走 30 天 immutable 是安全的。
+    //   注意 .ogg 虽然在上传白名单里，但 Safari 不支持 Ogg Vorbis（项目已有坑），
+    //   这里只是缓存策略，解码兼容性另说。
+    else if (filePath.match(/\.(mp3|ogg|wav|m4a|aac|opus|weba)$/i)) {
+      res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+    }
     // HTML/JS/CSS 不强缓存：每次都向服务器协商校验（ETag 未变则 304 零负载）。
     // 此前 max-age=3600 导致浏览器 1 小时内跑旧 JS，出现"改了代码用户端不生效"
     else if (filePath.match(/\.(html|js|css)$/i)) {
@@ -110,6 +132,7 @@ app.use('/i18n', express.static(path.join(__dirname, '../public/i18n'), staticCa
 
 // Database initialization
 const { initializeDatabase, query, dbInitIssues } = require('./database/db');
+const { ensureAnimationLibrary } = require('./database/seedAnimLibrary');
 
 // Routes
 const authRoutes = require('./routes/auth');
@@ -200,6 +223,7 @@ app.use('/api/asset-library', apiWriteGuard.forMount('/api/asset-library'), asse
 app.use('/api/part-library', apiWriteGuard.forMount('/api/part-library'), partLibraryRoutes);      // 📚 零件库管理 + 零件检索（独立主页面用）
 app.use('/api/tags', apiWriteGuard.forMount('/api/tags'), tagsRoutes);  // 标签管理路由
 app.use('/api/config', configRoutes);  // 配置管理路由
+app.use('/api/sound-scenes', require('./routes/soundScenes'));  // 🔊 音效库：场景声源（物件/区域音频，管理员）
 // 地形配置（读公开 / 写管理员）：地形 = 地块，一块地形 = 位置+面积+基准高度+生成参数
 app.use('/api/terrain', require('./routes/terrain'));
 app.use('/api/character-templates', apiWriteGuard.forMount('/api/character-templates'), characterTemplatesRoutes);  // 角色模板路由（管理员）
@@ -598,6 +622,24 @@ async function start() {
       console.warn('[自检] world_url 自检失败（不影响启动）:', e.message);
     }
 
+    // 动作库种子：表为空时自动补齐，否则角色没有动作可选、只能停在 T-pose
+    try {
+      const seeded = await ensureAnimationLibrary();
+      if (seeded.status === 'inserted') {
+        console.log(`✅ 动作库种子数据已补齐（${seeded.count} 条）`);
+      } else if (seeded.status === 'skipped' && seeded.count) {
+        console.log(`动作库已有 ${seeded.count} 条，跳过种子补齐`);
+      } else if (seeded.status === 'failed') {
+        console.warn('⚠️ 动作库种子补齐失败（动作库页面可能为空）:', seeded.error);
+      }
+      if (seeded.missing && seeded.missing.length) {
+        console.warn('⚠️ 以下动作的数据存在但文件缺失，对应动作无法播放：');
+        for (const m of seeded.missing) console.warn('   ' + m);
+      }
+    } catch (e) {
+      console.warn('[自检] 动作库种子补齐异常（不影响启动）:', e.message);
+    }
+
     // 启动自检汇总：一次性把「哪些初始化没成功」摆到日志最显眼处
     if (dbInitIssues.length) {
       console.error('');
@@ -659,6 +701,13 @@ async function start() {
       require('./services/chatArchiveService').startArchiveLoop();
     } catch (e) {
       console.warn('[Server] 聊天归档循环启动失败（不影响主服务）:', e.message);
+    }
+
+    // 2026-11-05：自动天气循环（后台开关此前只有 UI + 存储、无任何消费方，等于死开关）
+    try {
+      require('./services/weatherCycleService').startWeatherCycleLoop();
+    } catch (e) {
+      console.warn('[Server] 自动天气循环启动失败（不影响主服务）:', e.message);
     }
 
     // 2026-09-23：AI 接入数据维护循环（agent_sessions / agent_transient_sessions / token_usage）

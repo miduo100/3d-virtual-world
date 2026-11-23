@@ -76,7 +76,8 @@ function renderAIProviders(providers) {
     'image_to_3d': _tcfg('adminSystem.typeImgTo3d'),
     'text_to_3d': _tcfg('adminSystem.typeTextTo3d'),
     'tts': _tcfg('adminSystem.typeTts'),
-    'stt': _tcfg('adminSystem.typeStt')
+    'stt': _tcfg('adminSystem.typeStt'),
+    'sfx': _tcfg('adminSystem.typeSfx')
   };
   
   container.innerHTML = Object.entries(groupedProviders).map(([type, typeProviders]) => `
@@ -104,7 +105,8 @@ function renderProviderCard(provider) {
     'image_to_3d': _tcfg('adminSystem.badgeImgTo3d'),
     'text_to_3d': _tcfg('adminSystem.badgeTextTo3d'),
     'tts': _tcfg('adminSystem.badgeTts'),
-    'stt': _tcfg('adminSystem.badgeStt')
+    'stt': _tcfg('adminSystem.badgeStt'),
+    'sfx': _tcfg('adminSystem.badgeSfx')
   };
   const featureBadges = types.length > 1 
     ? `<div style="margin-top: 6px;">${types.map(t => 

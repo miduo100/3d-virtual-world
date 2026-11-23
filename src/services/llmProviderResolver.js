@@ -29,6 +29,9 @@ const PURPOSE_TYPES = {
   embed: ['embedding'],
   image: ['image_to_3d', 'text_to_3d'],
   ping: ['chat'],
+  // ★ 2026-11-03 音效生成：独立的 sfx 类型（豆包 Seed-Audio / ElevenLabs SFX 等）
+  //   不复用 tts —— TTS 是「文字转语音」，SFX 是「文字转音效」，协议和模型都不同。
+  sfx: ['sfx'],
 };
 
 async function getPool() {
@@ -103,7 +106,13 @@ async function candidates(purpose) {
   });
   const typed = rows.filter(matchType);
   const rest = rows.filter(x => !typed.includes(x));
-  const ordered = [...typed, ...(types.includes('chat') ? [] : rest)];
+  // ★ 只有 chat 类 purpose 才有「类型匹配不到就退回其它 provider」的兜底。
+  //   sfx / image 这类**输出形态特殊**的 purpose 不能兜底：
+  //   音效生成只能由 sfx 类型的 provider 提供，把聊天模型塞进候选链，
+  //   会导致「阿里被当成音效服务商选中 → 404 模型不存在」这种难查的错。
+  //   （image 保留兜底：视频/图片模型缺失时，用聊天模型出图是厂商侧的常见降级路径。）
+  const allowFallback = types.includes('chat') || types.includes('image_to_3d');
+  const ordered = [...typed, ...(allowFallback ? rest : [])];
 
   // 取详情（含解密后的密钥）并过滤掉未配置的
   const out = [];

@@ -367,15 +367,6 @@
     <div class="nav-item" onclick="window.open('/world_editor.html','_blank')">
       <span class="icon">🗺️</span><span>世界编辑器 ↗</span>
     </div>
-    <div class="nav-item" onclick="window.open('/unified_editor.html','_blank')">
-      <span class="icon">🌍</span><span>统一编辑器 ↗</span>
-    </div>
-    <div class="nav-item" onclick="window.open('/character_editor.html','_blank')">
-      <span class="icon">🤺</span><span>角色编辑器 ↗</span>
-    </div>
-    <div class="nav-item" onclick="window.open('/animation_puppeteer.html','_blank')">
-      <span class="icon">🎭</span><span>动画编辑器 ↗</span>
-    </div>
     <div class="nav-item" onclick="window.open('/ai_motion_factory.html','_blank')">
       <span class="icon">🤖</span><span>AI生成动作 ↗</span>
     </div>
@@ -400,7 +391,7 @@
         <span id="langTargetLabel" style="color:#888;font-size:11px;white-space:nowrap;"></span>
       </div>
     </div>
-    <button class="btn-profile-setting" onclick="showPage('profile');if(window.initAdminProfile)window.initAdminProfile()">⚙️ 账户设置</button>
+    <button class="btn-profile-setting" data-i18n="admin.profileSetting" onclick="showPage('profile');if(window.initAdminProfile)window.initAdminProfile()">⚙️ 账户设置</button>
     <button class="btn-logout" onclick="logout()">退出登录</button>
   </div>
 </aside>
@@ -447,6 +438,26 @@
         <div class="stat-card">
           <div class="label" data-i18n="admin.statTodayTeleports">今日传送</div>
           <div class="value" id="stat-today">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="label" data-i18n="admin.statOnline">当前在线</div>
+          <div class="value" id="stat-online">-</div>
+          <div class="sub" id="stat-online-sub">游客 0 · 用户 0</div>
+        </div>
+        <div class="stat-card">
+          <div class="label" data-i18n="admin.statTodayVisitors">今日访客</div>
+          <div class="value" id="stat-visitors">-</div>
+          <div class="sub" id="stat-visitors-sub">进世界人数</div>
+        </div>
+        <div class="stat-card">
+          <div class="label" data-i18n="admin.statAvgStay">平均停留</div>
+          <div class="value" id="stat-avg-stay">-</div>
+          <div class="sub" id="stat-avg-stay-sub">游客</div>
+        </div>
+        <div class="stat-card">
+          <div class="label" data-i18n="admin.statGuestRatio">游客占比</div>
+          <div class="value" id="stat-guest-ratio">-</div>
+          <div class="sub" id="stat-guest-ratio-sub">今日</div>
         </div>
       </div>
 
@@ -872,6 +883,9 @@
               </div>
             </div>
           </div>
+
+          <!-- 天气声音 + 场景背景音：风/雨/雪/雾/雷 各自的候选池，由 js/soundWeather.js 自动挂载 -->
+          <div id="weather-sound-host" style="margin:18px 0"></div>
 
           <!-- 自动天气循环 -->
           <div style="background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px">
@@ -3879,14 +3893,14 @@
 </style>
 
 <script src="js/adminConfig.js" defer></script>
-<script src="js/admin.js" defer></script>
+<script src="js/admin.js?v=2" defer></script>
 <script src="js/adminPortalPaste.js" defer></script>
 <script src="js/adminAIProviders.js" defer></script>
 <script src="js/adminMaintenance.js" defer></script>
 <script src="js/adminGallery.js" defer></script>
 <script src="js/adminFederationTrust.js" defer></script>
 <script src="js/adminProfile.js" defer></script>
-<script src="js/adminSky.js" defer></script>
+<script src="js/adminSky.js?v=5" defer></script>
 <script src="js/adminModelLod.js?v=4" defer></script>
 <script src="js/adminAgentDescBadge.js?v=1" defer></script>
 <script src="js/adminAgentSettings.js?v=4" defer></script>
@@ -3894,6 +3908,8 @@
 <script src="js/adminWorldRegions.js?v=6" defer></script>
 <script src="js/adminWorldPlan.js?v=1" defer></script>
 <script src="js/adminMissionPanel.js?v=2" defer></script><!-- AI World Brain Phase 7b：🎯 长期使命卡（自注入世界规划页签置顶） -->
+<script src="js/awb-lite-core.js?v=2" defer></script><!-- 双入口简化 · 逻辑层 -->
+<script src="js/adminWorldBrainLite.js?v=2" defer></script><!-- 双入口简化 · 界面（最后加载，CSS 折叠旧界面） -->
 <script src="js/adminTerrain.js?v=3" defer></script><!-- 🗺️ 地形（=地块）：列表/新建/位置面积/启用 -->
 <script src="js/adminTerrainForm.js?v=9" defer></script><!-- 🗺️ 地形表单：位置与范围 + 参数 + 俯视预览 -->
 <script src="js/adminRuntimePanel.js?v=2" defer></script><!-- AI World Brain Phase 7：运行状态面板（自注入浮动按钮） -->
@@ -3901,6 +3917,14 @@
 <!-- 📚 零件库（Phase 1）：上传文件夹 / 扫描服务器目录 / 检索 / 库详情 -->
 <script src="js/adminPartLibrary.js?v=3" defer></script>
 <script src="js/adminPartLibraryImport.js?v=8" defer></script>
+<script src="js/audioSynth.js?v=2" defer></script><!-- 音效库：程序化合成兜底层 -->
+<script src="js/soundSections.js?v=4" defer></script><!-- 音效库：分区定义与占位文案 -->
+<script src="js/soundWeatherCard.js?v=3" defer></script><!-- 天气声音：候选池与卡片 HTML -->
+<script src="js/soundMusic.js?v=3" defer></script><!-- 场景背景音：挂在天气控制页的弹窗里 -->
+<script src="js/soundWeatherPanel.js?v=5" defer></script><!-- 天气声音：摘要行 + 弹窗外壳 -->
+<script src="js/soundWeatherUpload.js?v=1" defer></script><!-- 天气声音：面板内直接上传音频 -->
+<script src="js/soundWeather.js?v=14" defer></script><!-- 天气声音：自动挂到「天气控制」的 #weather-sound-host -->
+<script src="js/soundLibrary.js?v=5" defer></script><!-- 音效库：自注入导航项与页面 DOM -->
 <script>
   // ===== 认证 =====
   document.addEventListener('DOMContentLoaded', function checkAdminAuth() {
@@ -11260,15 +11284,14 @@ async function initBoneEditor() {
           }
         });
 
-        // 导航项（22个，顺序必须与HTML .nav-item一致）
+        // 导航项（20个，顺序必须与HTML .nav-item一致）
         // ⚠ 新增 nav-item 时必须在本数组的对应位置插入 key，否则后续全部错位一位
         const navItems = document.querySelectorAll('.nav-item span:last-child');
         const navKeys = [
           'dashboard', 'users', 'world', 'economy',
           'assets', 'partLibrary', '3dgsScenes', 'threejsCodeLibrary', 'characters', 'animations', 'weapons',
           'federation', 'config', 'security-questions', 'maintenance', 'gallery',
-          'uiControls', 'unifiedEditor', 'worldEditor',
-          'characterEditor', 'animationEditor', 'aiMotionFactory',
+          'uiControls', 'worldEditor', 'aiMotionFactory',
           'aiWorldBrain'  // 🧠 AI World Brain（末尾追加，与上方末尾 nav-item 对齐）
         ];
         navItems.forEach((el, i) => {

@@ -141,15 +141,31 @@
     var origAddScene = World.prototype._addModelToScene;
     World.prototype._addModelToScene = function (obj) {
       var ret = origAddScene.call(this, obj);
-      if (window.WorldInstanceMerger && window.WorldInstanceMerger.rescan) {
-        var world = this;
-        if (!world.__mergeRescanTimer) {
-          world.__mergeRescanTimer = setTimeout(function () {
-            world.__mergeRescanTimer = null;
-            try { window.WorldInstanceMerger.rescan(); } catch (e) { /* 防御 */ }
-          }, 300);
+      if (!window.WorldInstanceMerger || !window.WorldInstanceMerger.rescan) return ret;
+      var world = this;
+      if (world.__mergeRescanTimer) return ret;   // 已有待执行的扫描，不重复排队
+
+      /**
+       * 【2026-11-18 性能】合批重扫改成「等加载队列消化完再扫」
+       * ------------------------------------------------------------------
+       * 原实现：每次 _addModelToScene 都排一个 300ms 定时器。只要还在持续加载，
+       * 就变成「每 300ms 全量重扫一次所有合批组」—— 实测每次几十毫秒，主线程被
+       * 反复打断，是加载期掉帧（37 FPS / 最差帧 321ms）的主要来源之一。
+       * 现在：队列或批次还有货就继续等，都空了才扫一次。
+       * 另留 5 秒兜底：玩家持续走动、队列长期不空时，也要让合批生效。
+       */
+      var waited = 0;
+      world.__mergeRescanTimer = setTimeout(function tick() {
+        var busy = (world.loadingQueue && world.loadingQueue.length) ||
+                   (world.loadingBatch && world.loadingBatch.length);
+        waited += 400;
+        if (busy && waited < 5000) {
+          world.__mergeRescanTimer = setTimeout(tick, 400);
+          return;
         }
-      }
+        world.__mergeRescanTimer = null;
+        try { window.WorldInstanceMerger.rescan(); } catch (e) { /* 防御 */ }
+      }, 400);
       return ret;
     };
 

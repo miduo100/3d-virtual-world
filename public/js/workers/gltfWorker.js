@@ -233,6 +233,9 @@ function serializeGltf(gltf, staticMode, strictMode) {
 
   var geometries = [];
   var geoIds = new Map();
+  /* 【2026-11-19】实例矩阵缓冲：EXT_mesh_gpu_instancing 的 instanceMatrix 必须
+     随几何一起传回主线程，否则 InstancedMesh 会退化成单个 Mesh（展厅 719 实例变 56 个）。 */
+  var instBuffers = [];
   var interleaved = [];              // 去重后的交错缓冲 { id, array, stride, offset }
   var ibIds = new Map();
   function ibId(data) {
@@ -312,6 +315,15 @@ function serializeGltf(gltf, staticMode, strictMode) {
     if (Array.isArray(mesh.material)) matIdx = mesh.material.map(matId);
     else matIdx = matId(mesh.material);
     var entry = { geo: serializeGeometry(mesh), mat: matIdx };
+    /* 【2026-11-19】EXT_mesh_gpu_instancing：把实例矩阵原样带回去。
+       校验 count*16，长度不符宁可回退主线程，也不静默降级成普通 Mesh。 */
+    if (mesh.isInstancedMesh) {
+      var im = mesh.instanceMatrix;
+      var need = (mesh.count || 0) * 16;
+      if (!im || !im.array || !need || im.array.length < need) throw { fallback: 'inst-matrix' };
+      entry.inst = { count: mesh.count, matrix: im.array };
+      instBuffers.push(im.array.buffer);
+    }
     if (mesh.isSkinnedMesh && strictMode) {
       // 【二期B】蒙皮绑定数据：skeleton（骨索引 + IBM）+ bindMatrix 全套
       if (!mesh.skeleton || !mesh.skeleton.bones || !mesh.skeleton.bones.length) throw { fallback: 'empty-skeleton' };
@@ -382,6 +394,8 @@ function serializeGltf(gltf, staticMode, strictMode) {
       }
     });
     interleaved.forEach(function (ib) { pushBuf(ib.array.buffer); });
+    // 【2026-11-19】实例矩阵缓冲（transfer 漏了只会变慢，不会算错，但别漏）
+    instBuffers.forEach(function (b) { pushBuf(b); });
     animationsOut.forEach(function (c) {
       c.tracks.forEach(function (t) {
         if (t.times && t.times.buffer) pushBuf(t.times.buffer);
@@ -413,6 +427,8 @@ function serializeGltf(gltf, staticMode, strictMode) {
       var me = meshEntry(n);
       out.geo = me.geo;
       out.mat = me.mat;
+      // 【2026-11-19】实例矩阵必须一路带到节点上，漏了这一句 = 实例数据白序列化
+      if (me.inst) out.inst = me.inst;
       if (me.skinned) {
         out.type = 'skinned';
         out.skinned = me.skinned;

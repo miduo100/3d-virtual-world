@@ -92,7 +92,7 @@ async function handleIncomingHandshake(requestData, sourceIp, federationSystem) 
   if (!settings.trustRequiresApproval) {
     const result = federationSystem.handleHandshake(requestData);
     if (result.success) {
-      await saveTrustedWorld(requestData);
+      await saveTrustedWorld(requestData, federationSystem);
     }
     return result;
   }
@@ -175,7 +175,7 @@ async function approveRequest(requestId, federationSystem) {
       worldName: req.world_name,
       worldUrl: req.world_url,
       publicKey: req.public_key
-    });
+    }, federationSystem);
 
     // 更新待审批状态
     await query(
@@ -229,20 +229,23 @@ async function rejectRequest(requestId) {
 
 /**
  * 把世界信息保存到 trusted_worlds
+ * 【2026-10-31】统一走 trustedWorldStore：以「端点（host[:port][/path]，忽略协议）」为唯一维度，
+ * 同一地址来新身份时原地改绑，不会再堆出「同 URL 不同 world_id」的第二条记录。
+ * @param {object} data { worldId, worldName, worldUrl, publicKey, isCentral }
+ * @param {object} [federationSystem] 传入则同步内存信任表
  */
-async function saveTrustedWorld({ worldId, worldName, worldUrl, publicKey }) {
+async function saveTrustedWorld(data, federationSystem) {
   try {
-    await query(
-      `INSERT INTO trusted_worlds
-       (world_id, world_name, world_url, public_key, created_at, enabled)
-       VALUES ($1, $2, $3, $4, NOW(), true)
-       ON CONFLICT (world_id) DO UPDATE
-       SET world_name = $2, world_url = $3, public_key = $4, updated_at = NOW()`,
-      [worldId, worldName, worldUrl, publicKey]
-    );
+    const { upsertTrustedWorld } = require('./trustedWorldStore');
+    const result = await upsertTrustedWorld(data, federationSystem);
+    if (!result.success) {
+      console.error('❌ 保存信任世界失败:', result.error);
+    }
+    return result;
   } catch (error) {
     console.error('❌ 保存信任世界失败:', error);
     // 数据库错误不抛异常，避免影响握手结果
+    return { success: false, error: error.message };
   }
 }
 

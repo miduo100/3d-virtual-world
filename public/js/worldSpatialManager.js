@@ -72,17 +72,30 @@
     }
 
     // 翻页拉取直到 hasMore=false，防止旧对象被 LIMIT 挤出
+    // 【2026-11-18 提速】改成「首包拿 total → 其余页并行」：
+    // 原来 5 页串行 = 5 × 45ms ≈ 225ms，并行后 ≈ 60ms。
+    // 上限 60 页（30000 条）只是防御，实际由 total 决定页数。
     async _fetchAroundAll(x, z, radius, type) {
-      const result = [];
-      let offset = 0;
-      for (let i = 0; i < 20; i++) {
-        const json = await this._fetchAround(x, z, radius, type, offset);
-        const objs = json.objects || [];
-        result.push(...objs);
-        if (!json.hasMore || objs.length === 0) break;
-        offset += objs.length;
+      const first = await this._fetchAround(x, z, radius, type, 0);
+      const head = first.objects || [];
+      if (!first.hasMore || head.length === 0) return head;
+
+      const pageSize = head.length;
+      const total = Number(first.total) || 0;
+      const pages = Math.min(Math.ceil(total / pageSize), 60);
+      if (pages <= 1) return head;
+
+      const tasks = [];
+      for (let p = 1; p < pages; p++) {
+        tasks.push(this._fetchAround(x, z, radius, type, p * pageSize));
       }
-      return result;
+      // 单页失败不影响整体（allSettled），缺的那页由后续增量拉取补
+      const results = await Promise.allSettled(tasks);
+      const rest = [];
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value && r.value.objects) rest.push(...r.value.objects);
+      }
+      return head.concat(rest);
     }
 
     // type → loadMethod 映射（与 world.js loadGeneratedBuildings 保持一致）
@@ -138,36 +151,28 @@
     async initialLoad() {
       const pos = this._playerPos();
       try {
-        // 1) 专项翻页拉取特殊类型对象（数量少，防止被 uploaded_model 挤出分页）
-        const extra = [];
-        for (const t of ['geometry_building', 'geometry_nature', 'media_image', 'media_video', 'threejs_code', 'gaussian_splat']) {
-          try {
-            const objs = await this._fetchAroundAll(pos.x, pos.z, INITIAL_RADIUS + BOUNDS_MARGIN, t);
-            extra.push(...objs);
-          } catch (e) { /* 单项失败不阻断 */ }
-        }
-        // 2) uploaded_model 翻页拉全（红军+旧模型都拉回，由 merger 视距裁剪控制渲染）
-        try {
-          const ups = await this._fetchAroundAll(pos.x, pos.z, INITIAL_RADIUS + BOUNDS_MARGIN, 'uploaded_model');
-          extra.push(...ups);
-        } catch (e) { /* 失败不阻断 */ }
-        // 3) 全图兜底拉取（翻页拉全）：占位方块需要"全图示意"（产品决策 2026-09-05），
-        //    名单本身每行仅几百字节、真模型加载仍由 updateObjectLoading 按距离入队，
-        //    全图名单不再与加载量挂钩。广告位等未指定类型的对象也在此拉回。
+        /**
+         * 【2026-11-18 提速】原来这里串行发 8 组请求：
+         *   ① 6 个特殊类型各拉一遍（geometry_* / media_* / threejs_code / gaussian_splat）
+         *   ② uploaded_model 再拉一遍
+         *   ③ 最后再拉一遍「全部类型」
+         * ③ 本身就包含所有类型，①② 是纯重复，全靠下面的 deduped 去重收拾，
+         * 白花约 0.7 秒。旧注释担心「uploaded_model 太多把其它类型挤出分页」，
+         * 但那要单类型超过一页(500)且总量超出翻页上限才成立；800 米内总共约 2000 条、
+         * 5 页拉完，不存在挤出。现在只发一请求（内部并行翻页）。
+         */
         let json;
         try {
-          const rest = await this._fetchAroundAll(pos.x, pos.z, 1000000);
-          json = { success: true, objects: rest };
+          const all = await this._fetchAroundAll(pos.x, pos.z, INITIAL_RADIUS + BOUNDS_MARGIN);
+          json = { success: true, objects: all };
         } catch (e) {
-          // 全图拉取失败时退回原半径单次拉取
           json = await this._fetchAround(pos.x, pos.z, INITIAL_RADIUS + BOUNDS_MARGIN);
         }
         if (json.success) {
-          const merged = [...extra, ...(json.objects || [])];
           const seen = new Set();
           const deduped = [];
-          for (const o of merged) {
-            if (o.id === undefined || seen.has(o.id)) continue;
+          for (const o of (json.objects || [])) {
+            if (!o || o.id === undefined || seen.has(o.id)) continue;
             seen.add(o.id);
             deduped.push(o);
           }

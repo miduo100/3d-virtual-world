@@ -13,7 +13,7 @@ router.get('/', async (req, res) => {
     const result = await db.query(
       `SELECT p.*, u.username as creator_name 
        FROM portals p 
-       LEFT JOIN users u ON p.created_by = u.id 
+       LEFT JOIN users u ON p.created_by::text = u.id::text 
        WHERE p.is_active = true 
        ORDER BY p.created_at DESC`
     );
@@ -31,7 +31,7 @@ router.get('/:id', async (req, res) => {
     const result = await db.query(
       `SELECT p.*, u.username as creator_name 
        FROM portals p 
-       LEFT JOIN users u ON p.created_by = u.id 
+       LEFT JOIN users u ON p.created_by::text = u.id::text 
        WHERE p.id = $1`,
       [id]
     );

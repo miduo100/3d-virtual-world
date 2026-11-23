@@ -438,7 +438,7 @@ router.get('/admin/list', authenticateAdminToken, async (req, res) => {
     const result = await query(
       `SELECT us.*, u.username, u.email
        FROM user_subscriptions us
-       JOIN users u ON us.user_id = u.id
+       JOIN users u ON us.user_id::text = u.id::text
        ${whereClause}
        ORDER BY us.created_at DESC
        LIMIT $1 OFFSET $2`,
@@ -446,7 +446,7 @@ router.get('/admin/list', authenticateAdminToken, async (req, res) => {
     );
 
     const totalResult = await query(
-      `SELECT COUNT(*) as total FROM user_subscriptions us JOIN users u ON us.user_id = u.id ${whereClause}`
+      `SELECT COUNT(*) as total FROM user_subscriptions us JOIN users u ON us.user_id::text = u.id::text ${whereClause}`
     );
 
     res.json({

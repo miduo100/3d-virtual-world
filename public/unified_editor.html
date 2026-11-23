@@ -5517,6 +5517,9 @@
             document.getElementById('prop-sx').value = mesh.scale.x.toFixed(2);
             document.getElementById('prop-sy').value = mesh.scale.y.toFixed(2);
             document.getElementById('prop-sz').value = mesh.scale.z.toFixed(2);
+
+            // 接线（唯一一处）：把「声音」属性块挂进属性面板，逻辑在 editorObjectSound.js
+            if (window.EditorObjectSound) window.EditorObjectSound.onSelect(obj);
         }
 
         function updateSelectedProperty() {
@@ -5758,6 +5761,13 @@
             if (selectedObjects.length === 0) {
                 showNotification('⚠️ 请先选择对象', 'info');
                 return;
+            }
+
+            // 出生点不可删除：从批量里剔除，其余对象照常删
+            if (selectedObjects.some(isSpawnPointObject)) {
+                selectedObjects = selectedObjects.filter(function (o) { return !isSpawnPointObject(o); });
+                rejectSpawnPointDelete();
+                if (selectedObjects.length === 0) { updateSelection(); return; }
             }
 
             if (!confirm(`确定要删除 ${selectedObjects.length} 个对象吗？`)) {
@@ -6002,6 +6012,8 @@
         async function deleteObjectById(id) {
             const obj = worldObjects.find(o => o.id === id);
             if (obj) {
+                // 出生点不可删除（系统对象）
+                if (isSpawnPointObject(obj)) { rejectSpawnPointDelete(); return; }
                 selectObject(obj, false);
                 await deleteSelected();
             }
@@ -7019,6 +7031,65 @@
             // TODO: 实现完整的标签管理界面
         }
 
+        // ===== 出生点标记贴图（渐变落点光环）2026-11-15 =====
+        // 与 public/js/world.js 的 SpawnMarkerTexture 保持一致。
+        // ⚠️ 出生点必须保持【单个 Mesh】—— 选中/拖动/保存全部依赖 obj.mesh，
+        //    所以内环与刻度画进同一张 canvas，不拆成 Group。
+        const SpawnMarkerTexture = (function () {
+            let cached = null;
+            return function () {
+                if (cached) return cached;
+                const S = 512;
+                const cv = document.createElement('canvas');
+                cv.width = cv.height = S;
+                const g = cv.getContext('2d');
+                const c = S / 2, R = S / 2;
+
+                const rg = g.createRadialGradient(c, c, R * 0.45, c, c, R);
+                rg.addColorStop(0.000, 'rgba(102,255,204,0.00)');
+                rg.addColorStop(0.620, 'rgba(102,255,204,0.05)');
+                rg.addColorStop(0.860, 'rgba(110,255,214,0.30)');
+                rg.addColorStop(0.965, 'rgba(185,255,240,0.62)');
+                rg.addColorStop(1.000, 'rgba(185,255,240,0.00)');
+                g.fillStyle = rg;
+                g.beginPath(); g.arc(c, c, R, 0, Math.PI * 2); g.fill();
+
+                g.strokeStyle = 'rgba(157,255,232,0.50)';
+                g.lineWidth = Math.max(2, S * 0.010);
+                g.beginPath(); g.arc(c, c, R * 0.76, 0, Math.PI * 2); g.stroke();
+
+                g.fillStyle = 'rgba(216,255,245,0.80)';
+                for (let i = 0; i < 6; i++) {
+                    const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+                    g.beginPath();
+                    g.arc(c + Math.cos(a) * R * 0.88, c + Math.sin(a) * R * 0.88, S * 0.013, 0, Math.PI * 2);
+                    g.fill();
+                }
+
+                const tex = new THREE.CanvasTexture(cv);
+                tex.colorSpace = THREE.SRGBColorSpace;
+                tex.anisotropy = 4;
+                tex.needsUpdate = true;
+                cached = tex;
+                return tex;
+            };
+        })();
+
+        // ===== 出生点保护（2026-11-15）=====
+        // 出生点是系统对象（玩家落点），禁止删除。所有删除入口统一走这两个函数。
+        function isSpawnPointObject(obj) {
+            if (!obj) return false;
+            var uid = (obj.mesh && obj.mesh.userData) ? obj.mesh.userData : null;
+            return obj.id === 'spawn_point' ||
+                   (obj.data && obj.data.id === 'spawn_point') ||
+                   (!!uid && (uid.isSpawnPoint === true ||
+                              uid.objectId === 'spawn_point' ||
+                              uid.worldObjectId === 'spawn_point'));
+        }
+        function rejectSpawnPointDelete() {
+            showNotification('🛡️ 出生点不可删除 —— 它是玩家进入世界的落点，删掉后玩家会掉进虚空。要挪位置请直接拖动它。', 'warning');
+        }
+
         // ===== 添加可编辑的出生点 =====
         async function addSpawnPointIfNotExists() {
             // 检查是否已存在出生点
@@ -7046,17 +7117,22 @@
                 console.warn('⚠️ 加载出生点配置失败，使用默认位置:', error);
             }
             
-            const spawnGeometry = new THREE.CylinderGeometry(2, 2, 0.1, 32);
-            const spawnMaterial = new THREE.MeshStandardMaterial({
-                color: 0x00ff00,
-                emissive: 0x00aa00,
+            const spawnGeometry = new THREE.CircleGeometry(2, 64);
+            spawnGeometry.rotateX(-Math.PI / 2);   // 只转几何体：mesh.rotation 留给 spawnConfig 保存
+            const spawnMaterial = new THREE.MeshBasicMaterial({
+                map: SpawnMarkerTexture(),
+                transparent: true,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+                toneMapped: false,
             });
             const spawnMesh = new THREE.Mesh(spawnGeometry, spawnMaterial);
             spawnMesh.position.set(spawnConfig.position.x, spawnConfig.position.y, spawnConfig.position.z);
             spawnMesh.rotation.set(spawnConfig.rotation.x, spawnConfig.rotation.y, spawnConfig.rotation.z);
             spawnMesh.scale.set(spawnConfig.scale.x, spawnConfig.scale.y, spawnConfig.scale.z);
-            spawnMesh.castShadow = true;
-            spawnMesh.receiveShadow = true;
+            // 半透明贴图不投影也不接收阴影（否则地面阴影会透出脏块）
+            spawnMesh.castShadow = false;
+            spawnMesh.receiveShadow = false;
             spawnMesh.userData.objectId = 'spawn_point';
             
             scene.add(spawnMesh);
@@ -8085,6 +8161,7 @@
 <script src="js/threejsCodeRunner.js?v=1"></script>
 <!-- 缩放 Gizmo 增强：默认等比缩放，按住 Shift = 单轴（模块内部自己等 THREE 就绪） -->
 <script src="js/transformGizmoEnhance.js?v=3"></script>
+<script src="js/editorObjectSound.js?v=1"></script><!-- 对象属性里的「声音」块（挂到 #properties-panel） -->
 <script>
   // ===== 统一编辑器：Three.js 代码块集成 =====
   window.__threejsBlockFrames = window.__threejsBlockFrames || [];

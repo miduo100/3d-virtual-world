@@ -2,26 +2,111 @@
  * 济宁米多信息科技有限公司 版权所有
  * 如需获取软件授权请联系：888@miduo100.com / 15660440944
  */
+/**
+ * 出生点标记贴图（渐变落点光环）· 2026-11-15 视觉改版
+ *
+ * 【为什么画成一张纹理，而不是做 Group】
+ *   出生点在世界编辑器里是**可拖动对象**，链路是：
+ *     worldObjects.push({id:'spawn_point', mesh}) → selectObject → transformControls.attach(obj.mesh)
+ *     → 拖动 → 保存读 mesh.position/rotation/scale
+ *   只要它还是「单个 Mesh」，这四条链路（拾取 / gizmo / 高亮 / 保存）全是零改动。
+ *   一旦改成 Group（外圈盘 + 内环 + 6 刻度分三个 mesh），attach 的材质分支、
+ *   highlightObject 的 traverse、保存时的 transform 读取全要跟着改——得不偿失。
+ *   所以内环和刻度点直接画进同一张 Canvas，一个 CircleGeometry 承载全部视觉。
+ *
+ * 【几何为什么要 rotateX 而不是设 mesh.rotation】
+ *   编辑器的 spawnConfig.rotation 会被写进 mesh.rotation。若在这里顺手写
+ *   mesh.rotation.x = -PI/2，就会和数据库里保存的旋转值打架（每次加载都叠加）。
+ *   所以只旋转几何体本身，mesh.rotation 保持原值。
+ */
+const SpawnMarkerTexture = (function () {
+  let cached = null;
+  return function () {
+    if (cached) return cached;
+    if (typeof THREE === 'undefined') return null;
+
+    const S = 512;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = S;
+    const g = cv.getContext('2d');
+    const c = S / 2;
+    const R = S / 2;
+
+    // 1) 外圈光晕：中心透明 → 0.86R 渐亮 → 边缘淡出（形成"能量落地"的软边）
+    const rg = g.createRadialGradient(c, c, R * 0.45, c, c, R);
+    rg.addColorStop(0.000, 'rgba(102,255,204,0.00)');
+    rg.addColorStop(0.620, 'rgba(102,255,204,0.05)');
+    rg.addColorStop(0.860, 'rgba(110,255,214,0.30)');
+    rg.addColorStop(0.965, 'rgba(185,255,240,0.62)');
+    rg.addColorStop(1.000, 'rgba(185,255,240,0.00)');
+    g.fillStyle = rg;
+    g.beginPath();
+    g.arc(c, c, R, 0, Math.PI * 2);
+    g.fill();
+
+    // 2) 内环：给落点一个明确的边界，避免只剩一团雾
+    g.strokeStyle = 'rgba(157,255,232,0.50)';
+    g.lineWidth = Math.max(2, S * 0.010);
+    g.beginPath();
+    g.arc(c, c, R * 0.76, 0, Math.PI * 2);
+    g.stroke();
+
+    // 3) 6 个刻度点：静态方向锚点（不做自转——自转会污染编辑器保存的 rotation）
+    g.fillStyle = 'rgba(216,255,245,0.80)';
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+      g.beginPath();
+      g.arc(c + Math.cos(a) * R * 0.88, c + Math.sin(a) * R * 0.88, S * 0.013, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    tex.needsUpdate = true;
+    cached = tex;
+    return tex;
+  };
+})();
+
 // 3D World rendering
+/**
+ * 视口 → 相机投影参数（唯一计算入口，2026-11-18）
+ * ------------------------------------------------------------------
+ * 规则：以「水平 FOV 不超过 MAX_HORIZONTAL_FOV」反推垂直 FOV，
+ *      再用 [MIN_VERTICAL_FOV, MAX_VERTICAL_FOV] 双向夹紧。
+ *
+ * 为什么要有上限：原实现只卡下限，竖屏（aspect < 1）按水平 90° 反推
+ * 必然把垂直 FOV 撑到 110~130°，透视外扩 = 用户看到的"画面拉伸变形"。
+ * 加上 68° 上限后：横屏 16:9 仍是 49.6°（观感零变化），
+ * 竖屏 9:19.5 从 130.4° 压到 68°，超宽屏 32:9 仍保底 35°。
+ */
+function computeViewportProjection() {
+  const w = Math.max(1, window.innerWidth || 1);
+  const h = Math.max(1, window.innerHeight || 1);
+  const aspect = w / h;
+  const cfg = (typeof CONFIG !== 'undefined' && CONFIG) ? CONFIG : {};
+  const maxH = cfg.MAX_HORIZONTAL_FOV || 90;
+  const minV = cfg.MIN_VERTICAL_FOV || 35;
+  const maxV = cfg.MAX_VERTICAL_FOV || 68;
+
+  const hRad = maxH * Math.PI / 180;
+  const rawV = 2 * Math.atan(Math.tan(hRad / 2) / aspect) * 180 / Math.PI;
+  const fov = Math.min(Math.max(rawV, minV), maxV);
+  return { width: w, height: h, aspect: aspect, fov: fov, rawFov: rawV };
+}
+
 class World {
   constructor(canvas) {
     this.canvas = canvas;
     this.scene = new THREE.Scene();
     
-    // 计算FOV，使用水平FOV限制法（防止超宽屏变形）
-    const aspectRatio = window.innerWidth / window.innerHeight;
-    const maxHorizontalFOV = CONFIG.MAX_HORIZONTAL_FOV || 90;
-    const minVerticalFOV = CONFIG.MIN_VERTICAL_FOV || 35;
-    
-    // 从水平FOV反推垂直FOV
-    const horizontalFOVRad = maxHorizontalFOV * (Math.PI / 180);
-    const verticalFOVRad = 2 * Math.atan(Math.tan(horizontalFOVRad / 2) / aspectRatio);
-    const fov = verticalFOVRad * (180 / Math.PI);
-    
-    // 设置最小FOV防止过窄
-    const finalFOV = Math.max(fov, minVerticalFOV);
-    
-    console.log(`🖥️ 屏幕宽高比: ${aspectRatio.toFixed(2)}, 水平FOV: ${maxHorizontalFOV}°, 垂直FOV: ${finalFOV.toFixed(1)}°`);
+    // 计算FOV（统一入口：水平FOV反推 + 垂直FOV双向夹紧，见 computeViewportProjection）
+    const vp = computeViewportProjection();
+    const aspectRatio = vp.aspect;
+    const finalFOV = vp.fov;
+
+    console.log(`🖥️ 屏幕 ${vp.width}x${vp.height} 宽高比 ${aspectRatio.toFixed(2)}，垂直FOV ${finalFOV.toFixed(1)}°（反推值 ${vp.rawFov.toFixed(1)}°）`);
     
     this.camera = new THREE.PerspectiveCamera(
       finalFOV,
@@ -39,12 +124,12 @@ class World {
       depth: true,
       alpha: false
     });
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setSize(vp.width, vp.height);
     
     // 优化像素比设置，平衡质量和性能
     const fixedRatio = Math.min(window.devicePixelRatio, 1); // 提高像素比以减少锯齿
     this.renderer.setPixelRatio(fixedRatio);
-    console.log(`🖥️ 渲染器初始化: ${window.innerWidth}x${window.innerHeight}, 固定像素比: ${fixedRatio}`);
+    console.log(`🖥️ 渲染器初始化: ${vp.width}x${vp.height}, 固定像素比: ${fixedRatio}`);
     
     // 启用FXAA抗锯齿作为MSAA的补充
     this.renderer.shadowMap.enabled = false; // 保持阴影禁用以维持性能
@@ -82,6 +167,7 @@ class World {
     
     // 性能监控
     this.frameCount = 0;
+    this._fpsCounter = 0;          // 只用于算 FPS，每秒归零；帧节流仍用 frameCount
     this.lastFPSCheck = performance.now();
     this.currentFPS = 60;
 
@@ -264,7 +350,14 @@ class World {
     this.initObjectPools();
 
     // Handle window resize
-    window.addEventListener('resize', () => this.onWindowResize());
+    // 【2026-11-18】改用去抖调度：旋转过程中 resize 会连发多次，中间帧可能读到
+    // 「新宽 + 旧高」的错位宽高比，直接重算会闪一帧拉伸。另外补 orientationchange
+    // 与两次延迟校正，防止旋转结束时拿到未刷新的 innerWidth/innerHeight。
+    window.addEventListener('resize', () => this._scheduleResize());
+    window.addEventListener('orientationchange', () => this._scheduleResize());
+    // 首帧 + 600ms 各校一次：兜住「resize 事件发生在 World 构造之前」导致永久停留在旧宽高比的情况
+    requestAnimationFrame(() => this.onWindowResize());
+    setTimeout(() => this.onWindowResize(), 600);
 
     // Animation loop
     this.animate();
@@ -276,11 +369,15 @@ class World {
 
     
     // 异步加载AI生成的建筑（不阻塞初始化）
-    setTimeout(() => {
+    // 【2026-11-18 提速】原来是 `setTimeout(..., 1000)` 无条件死等 1 秒：
+    // 初始化其实 200ms 就绪了，剩下 800ms 纯属空转。改成「首帧画完立刻开始」——
+    // requestAnimationFrame 保证第一帧已提交，再排队执行，效果与原来一致（不抢首帧），
+    // 但省掉整段空等。
+    requestAnimationFrame(() => {
       this.loadGeneratedBuildings().catch(err => {
         console.error('加载生成建筑失败:', err);
       });
-    }, 1000);
+    });
   }
 
 
@@ -356,7 +453,11 @@ class World {
       this.scene.fog = new THREE.FogExp2(FOG_COLORS[type] ?? FOG_COLORS.clear, 0.00012);
     }
     const fog = this.scene.fog;
-    fog.color.setHex(FOG_COLORS[type] ?? FOG_COLORS.clear);
+    // 程序化天空自带地平线色：雾色跟随它，避免夜景/星空天空配原来的亮蓝雾导致远景割裂
+    const fogHex = (window.SkyManager && typeof SkyManager.getFogColor === 'function')
+      ? SkyManager.getFogColor(FOG_COLORS[type] ?? FOG_COLORS.clear)
+      : (FOG_COLORS[type] ?? FOG_COLORS.clear);
+    fog.color.setHex(fogHex);
     fog.density = type === 'fog'   ? 0.008 + intensity * 0.025
                 : type === 'storm' ? 0.012 + intensity * 0.015
                 :                    0.00012;   // 晴天/雨/雪：近似无雾
@@ -1683,22 +1784,41 @@ class World {
   }
 
   _createSpawnPointMesh() {
-    const spawnGeometry = new THREE.CylinderGeometry(2, 2, 0.1, 32);
-    const spawnMaterial = new THREE.MeshStandardMaterial({
-      color: 0x00ff00,
-      emissive: 0x00aa00,
+    // 【2026-11-15 视觉改版】原为 CylinderGeometry(2,2,0.1,32) + 纯 #00FF00 + emissive，
+    // 玩家出生就站在一块直径 4m 的荧光绿实心圆盘上，盖住地面纹理、淹没小腿，
+    // 且自发光在草地上泄出一圈绿光。改为「渐变落点光环」：
+    //   · 一张 Canvas 纹理承载 光晕 + 内环 + 6 刻度（保持单个 Mesh，见上方注释）
+    //   · MeshBasicMaterial 不受光照影响 → 昼夜都恒定可见，也不会再自发光
+    //   · depthWrite:false + 半透明 → 地面石板/草地纹理透得出来
+    const spawnGeometry = new THREE.CircleGeometry(2, 64);
+    spawnGeometry.rotateX(-Math.PI / 2);   // 只转几何体，不碰 mesh.rotation（编辑器要存它）
+
+    const spawnMaterial = new THREE.MeshBasicMaterial({
+      map: SpawnMarkerTexture(),
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,                   // 防止色调映射把它压灰
     });
+
     const spawn = new THREE.Mesh(spawnGeometry, spawnMaterial);
     spawn.position.set(
       this.spawnConfig.position.x,
       this.spawnConfig.position.y,
       this.spawnConfig.position.z
     );
-    spawn.castShadow = true;
-    spawn.receiveShadow = true;
+    // 半透明贴图不参与阴影：投影没意义，接收阴影反而会出现暗块脏点
+    spawn.castShadow = false;
+    spawn.receiveShadow = false;
 
     spawn.userData.isSpawnPoint = true;
     spawn.userData.objectId = 'spawn_point';
+    // 【2026-11-15】补 worldObjectId/name：游戏内管理员模式（buildingManager）靠
+    // userData.worldObjectId 走「回退方案5 通用兜底」识别对象，再 PUT
+    // /api/world/objects/spawn_point 保存（后端有专用分支写 system_config）。
+    // 之前只认 objectId，导致该模式下出生点选不中、没有 gizmo 可拖。
+    spawn.userData.worldObjectId = 'spawn_point';
+    spawn.userData.name = '出生点';
 
     this.scene.add(spawn);
     this.spawnPoint = spawn;
@@ -1812,6 +1932,12 @@ class World {
       }
       this.scene.remove(playerData.group);
       this.players.delete(characterId);
+      // 自己这个角色被移除（下线/换场景）时，脚步循环不会经过 idle 切换，
+      // 会一直响下去，这里兜一手
+      if (typeof soundManager !== 'undefined' && soundManager.stopMoveLoop &&
+          typeof GAME_STATE !== 'undefined' && GAME_STATE.characterId === characterId) {
+        soundManager.stopMoveLoop();
+      }
       console.log(`[World] 已移除玩家 ${characterId}`);
     }
   }
@@ -2883,8 +3009,28 @@ class World {
     cg.userData.currentAnimMode  = mode;
 
     // ── 播放动作音效 ──
+    // 走 / 跑是**持续状态**：本函数只在模式真正切换时执行（prevMode === mode 会早退），
+    // 所以按一次性播放的话，按下 W 只响一下脚步，之后一路静音（2026-11-14 修）。
+    // 改法：本机角色的走/跑改成循环播放，离开该状态时淡出；其余动作仍是一次性音效。
     if (typeof soundManager !== 'undefined' && soundManager.playAnimSound) {
-      soundManager.playAnimSound(mode);
+      const isMoveMode = (mode === 'walk' || mode === 'run');
+      const isLocalPlayer = (typeof GAME_STATE !== 'undefined' && characterId === GAME_STATE.characterId);
+
+      if (isLocalPlayer) {
+        if (isMoveMode && soundManager.startMoveLoop) {
+          soundManager.startMoveLoop(mode);
+        } else {
+          // 切到非移动状态（idle/攻击/跳跃/受击/死亡）→ 先停脚步循环再播这一次
+          if (soundManager.stopMoveLoop) soundManager.stopMoveLoop();
+          soundManager.playAnimSound(mode);
+        }
+      } else if (!isMoveMode) {
+        // 远程玩家：走/跑**不播**。
+        // 脚步循环是全局 2D 音效（没有 3D 定位/距离衰减），同屏几个人各循环一条会叠成一片；
+        // 而"一段脚步只播一次"听起来像原地踏步，比没声音更怪。所以远程的走/跑留空，
+        // 远程的攻击/受击等一次性音效照旧。
+        soundManager.playAnimSound(mode);
+      }
     }
 
     return true;
@@ -3324,13 +3470,44 @@ class World {
 
     // 队列容量闸门（常清已保证队列内条目都在半径内，此处仅防御性限流）
     if (this.loadingQueue.length < this.maxLoadingQueueSize) {
+      /**
+       * 【2026-11-18 性能】补货扫描限频
+       * ------------------------------------------------------------
+       * 下面这段要遍历 allWorldObjects 全表（当前 11246 条）并各自算一次表面距离、
+       * 再对几千个候选排序。原来是**每帧**都跑，等于每秒 60 × 11246 次计算 —— CPU
+       * 直接吃满，这是体感卡顿的主因之一（与占位方块的 GPU 开销是两回事）。
+       * 现在只在「队列已经消化空」且「距上次扫描 ≥300ms」时才补货。
+       */
+      const _scanNow = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      const _queueIdle = this.loadingQueue.length === 0;
+      const _scanCooled = !this._lastEnqueueScanAt || (_scanNow - this._lastEnqueueScanAt) >= 300;
+
+      if (_queueIdle && _scanCooled) {
+      this._lastEnqueueScanAt = _scanNow;
+
       // 使用距离平方比较，避免 sqrt 开销
       const loadDistSq = this.loadDistance * this.loadDistance;
       const px = playerPosition.x;
       const pz = playerPosition.z;
-      
+
+      /**
+       * 【2026-11-18 修】入队改成「近的先加载」
+       * ------------------------------------------------------------
+       * 原先按 allWorldObjects 数组顺序扫，队列一满就 break。世界里有 9839 个对象、
+       * 队列上限 200、且串行一次只消费 1 个 —— 后导入的大套件（Office 的 305 块地板砖）
+       * 永远排在队尾：玩家站在它上面等十几分钟，这 234 块仍然是「未加载」，
+       * 表现就是脚下永远有补不上的空洞。
+       * 现在先收集半径内全部候选、按表面距离升序入队，眼前的东西先出现。
+       */
+      const inQueue = new Set();
+      this.loadingQueue.forEach((q) => { if (q) inQueue.add(q.id); });
+      const inBatch = new Set();
+      this.loadingBatch.forEach((b) => { if (b) inBatch.add(b.id); });
+
+      const needLoad = [];
       for (let i = 0; i < this.allWorldObjects.length; i++) {
         const obj = this.allWorldObjects[i];
+        if (!obj) continue;
         if (this.loadedObjects.has(obj.id)) continue;
         // 【2026-09-05】媒体对象走下方独立通道（不进主队列：避免被 GLB 队列阻塞，
         // 也避免混队把几何体批量通道打成串行）
@@ -3338,21 +3515,28 @@ class World {
 
         // 已失败3次的对象不再重复入队，避免无限重试
         if ((this.loadRetryCount.get(obj.id) || 0) >= 3) continue;
+        if (inQueue.has(obj.id) || inBatch.has(obj.id)) continue;
 
         // 距离口径：优先按【玩家到模型表面】判定（WorldObjectBounds），
         // 大模型用锚点判定会导致"人已到模型边上却始终不加载"。
         // 模块缺失时自动退回原中心点逻辑。
         const distSq = this._surfaceDistSq(obj, px, pz);
+        if (distSq >= loadDistSq) continue;
 
-        if (distSq < loadDistSq) {
-          const isInQueue = this.loadingQueue.some(q => q.id === obj.id);
-          const isInBatch = this.loadingBatch.some(b => b.id === obj.id);
-          if (!isInQueue && !isInBatch) {
-            this.loadingQueue.push(obj);
-            if (this.loadingQueue.length >= this.maxLoadingQueueSize) break;
-          }
-        }
+        needLoad.push({ obj: obj, d: distSq });
       }
+
+      // 近的排前面；只排前若干个，避免半径内候选过多时每帧全排序
+      if (needLoad.length > 1) {
+        needLoad.sort((a, b) => a.d - b.d);
+      }
+
+      const room = this.maxLoadingQueueSize - this.loadingQueue.length;
+      const take = Math.min(needLoad.length, room);
+      for (let k = 0; k < take; k++) {
+        this.loadingQueue.push(needLoad[k].obj);
+      }
+      }   // ← 关闭「队列空 + 冷却到期」才补货的条件块（2026-11-18 性能限频）
 
       // 【2026-09-05】媒体对象独立加载通道：按距离直接加载（轻量、无需排队），
       // 卸载由 unloadObject 的 media 分支处理，形成"走近加载/走远卸载"闭环
@@ -4856,30 +5040,39 @@ class World {
 
   // ==================== 传送门系统结束 ====================
 
+  /**
+   * resize 去抖调度（2026-11-18）
+   * rAF 内做一次（跟手响应），320ms 后再做一次（等旋转动画播完、地址栏收起、
+   * 安全区稳定）。两次都是幂等重算，不会累积副作用。
+   */
+  _scheduleResize() {
+    if (this._resizeRaf) cancelAnimationFrame(this._resizeRaf);
+    this._resizeRaf = requestAnimationFrame(() => {
+      this._resizeRaf = null;
+      this.onWindowResize();
+    });
+    clearTimeout(this._resizeTimer);
+    this._resizeTimer = setTimeout(() => this.onWindowResize(), 320);
+  }
+
   onWindowResize() {
-    const aspectRatio = window.innerWidth / window.innerHeight;
-    
-    // 使用水平FOV限制法重新计算垂直FOV
-    const maxHorizontalFOV = CONFIG.MAX_HORIZONTAL_FOV || 90;
-    const minVerticalFOV = CONFIG.MIN_VERTICAL_FOV || 35;
-    
-    const horizontalFOVRad = maxHorizontalFOV * (Math.PI / 180);
-    const verticalFOVRad = 2 * Math.atan(Math.tan(horizontalFOVRad / 2) / aspectRatio);
-    const fov = verticalFOVRad * (180 / Math.PI);
-    const finalFOV = Math.max(fov, minVerticalFOV);
-    
-    this.camera.fov = finalFOV;
-    this.camera.aspect = aspectRatio;
+    const vp = computeViewportProjection();
+
+    this.camera.fov = vp.fov;
+    this.camera.aspect = vp.aspect;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    
-    // 保持固定像素比，提高抗锯齿效果
+    this.renderer.setSize(vp.width, vp.height);
+
+    // 保持固定像素比，提高抗锯齿效果（须在 setSize 之后设置）
     const fixedRatio = Math.min(window.devicePixelRatio, 1); // 提高像素比以减少锯齿
     this.renderer.setPixelRatio(fixedRatio);
-    
-    // 减少日志输出
-    if (this.frameCount % 50 === 0) {
-      // 窗口调整日志静默
+
+    // 仅在视口真正变化时输出一行，方便真机排查（DevTools 打开时每条 log 都是同步开销）
+    const sig = vp.width + 'x' + vp.height + '@' + vp.fov.toFixed(1);
+    if (this._lastViewportSig !== sig) {
+      this._lastViewportSig = sig;
+      const clampNote = vp.rawFov > vp.fov ? `（已按上限钳制，原反推 ${vp.rawFov.toFixed(1)}°）` : '';
+      console.log(`🖥️ 视口更新: ${vp.width}x${vp.height} 宽高比 ${vp.aspect.toFixed(2)} → 垂直FOV ${vp.fov.toFixed(1)}°${clampNote}`);
     }
   }
 
@@ -4897,6 +5090,11 @@ class World {
       this.isLoadingBuildings = true;
       const startTime = performance.now();
       console.log('🔄 开始加载生成的建筑...');
+
+      // 【2026-11-18 首屏诊断】记录启动各阶段时间点（相对页面导航），
+      // 用于定位「刷新后要好几秒才看到占位方块」到底卡在哪一步。只打点不改逻辑。
+      window.__bootTs = window.__bootTs || {};
+      window.__bootTs.enterLoad = Math.round(performance.now());
       
       // 更新加载状态
       this.updateLoadingStatus(0, 1);
@@ -4915,6 +5113,10 @@ class World {
         const worldObjectsResponse = await fetch('/api/world/objects');
         worldObjects = await worldObjectsResponse.json();
       }
+      // 【首屏诊断】清单到手的时间点（initialLoad 内部包含 5 页并行请求）
+      window.__bootTs = window.__bootTs || {};
+      window.__bootTs.listReady = Math.round(performance.now());
+      window.__bootTs.listCount = (worldObjects && worldObjects.objects) ? worldObjects.objects.length : 0;
 
       if (worldObjects.success) {
         // 获取位置覆盖（用于UUID等不在world_objects表中的对象）
@@ -5092,6 +5294,10 @@ class World {
               this.addPlaceholderBuilding(obj.id, obj, 'loading');
             });
           }
+          // 【首屏诊断】占位方块全部摆完的时间点 = 玩家真正"看见场景"的时刻
+          window.__bootTs = window.__bootTs || {};
+          window.__bootTs.placeholders = Math.round(performance.now());
+          window.__bootTs.total = this.allWorldObjects.length;
           
           // 队列留空：由 updateObjectLoading（每30帧）按玩家与模型的【表面距离】
           // （WorldObjectBounds 口径，大模型按边缘而非中心点判定）动态入队
@@ -5258,6 +5464,71 @@ class World {
   }
 
   /**
+   * 克隆一个模型实例（2026-11-18 新增）
+   * ------------------------------------------------------------------
+   * `THREE.Object3D.clone()` 对 SkinnedMesh 是**浅拷贝**：多份克隆共享同一组
+   * Bone/Skeleton，骨骼矩阵互相覆盖，结果是人物塌成一团、飞到原点或者干脆不可见。
+   * （Office 套件里 3 种人物模型各带 Idle/Walk/Run，全踩这个坑。）
+   * 含蒙皮的模型必须走 SkeletonUtils.clone —— 它会重建骨骼并重新绑定。
+   *
+   * SkeletonUtils 是 ESM，而 world.js 可能被 webpack 打包（动态 import() 会被
+   * 解析成 chunk 请求 → 404），所以这里用 module script 注入加载，只加载一次。
+   */
+  _loadSkeletonUtils() {
+    if (window.__vendorSkeletonUtils && typeof window.__vendorSkeletonUtils.clone === 'function') {
+      return Promise.resolve(window.__vendorSkeletonUtils);
+    }
+    if (this.__suPromise) return this.__suPromise;
+
+    const URL = '/js/lib/three-examples/utils/SkeletonUtils.js?v=1';
+    this.__suPromise = new Promise((resolve, reject) => {
+      let done = false;
+      const finish = (fn, arg) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        window.removeEventListener('skeletonutils-ready', onReady);
+        fn(arg);
+      };
+      const onReady = () => {
+        const SU = window.__vendorSkeletonUtils;
+        if (SU && typeof SU.clone === 'function') finish(resolve, SU);
+        else finish(reject, new Error('模块已加载但缺少 clone 导出'));
+      };
+      const timer = setTimeout(() => finish(reject, new Error('加载超时 8s')), 8000);
+      window.addEventListener('skeletonutils-ready', onReady);
+
+      const s = document.createElement('script');
+      s.type = 'module';
+      s.textContent = "import * as SU from '" + URL + "';" +
+        "window.__vendorSkeletonUtils = SU;" +
+        "window.dispatchEvent(new Event('skeletonutils-ready'));";
+      s.onerror = () => finish(reject, new Error('script 加载失败'));
+      document.head.appendChild(s);
+    }).catch((e) => {
+      this.__suPromise = null;
+      throw e;
+    });
+    return this.__suPromise;
+  }
+
+  /** 含蒙皮走 SkeletonUtils.clone，普通模型走原生 clone（更快、材质隔离行为不变） */
+  async _cloneModelPreservingSkin(src) {
+    let hasSkinned = false;
+    try {
+      src.traverse((o) => { if (o.isSkinnedMesh) hasSkinned = true; });
+    } catch (e) { /* ignore */ }
+    if (!hasSkinned) return src.clone();
+    try {
+      const SU = await this._loadSkeletonUtils();
+      return SU.clone(src);
+    } catch (e) {
+      console.warn('[模型] SkeletonUtils 不可用，回退普通 clone（蒙皮可能错乱）:', e && e.message);
+      return src.clone();
+    }
+  }
+
+  /**
    * 将模型添加到缓存
    */
   // 【2026-09-11 抠门加载】估算模型几何体的内存占用（字节数，不含纹理——
@@ -5382,7 +5653,7 @@ class World {
       const cachedModel = await this.getFromModelCache(optimizedModelPath);
       if (cachedModel) {
         console.log('✅ 从缓存加载模型:', optimizedModelPath);
-        const model = cachedModel.clone();
+        const model = await this._cloneModelPreservingSkin(cachedModel);
         
         // 设置位置
         model.position.set(position_x, position_y, position_z);
@@ -6676,7 +6947,12 @@ class World {
           // 继续走下面的加载逻辑
         } else {
         console.log('✅ 从缓存加载模型:', model_path);
-        const model = cachedModel.clone();
+        /* 【2026-11-18 剖析】分段计时，只统计不改变行为。
+           目的：定位「加载一个模型阻塞主线程 100~300ms」里到底哪一段最贵，
+           再决定优化方向（材质共享 / 克隆分帧 / 加场景预热）。 */
+        const __t0 = performance.now();
+        const model = await this._cloneModelPreservingSkin(cachedModel);
+        const __t1 = performance.now();
         // 深克隆材质，保留纹理贴图
         model.traverse((child) => {
           if (child.isMesh && child.material) {
@@ -6687,6 +6963,7 @@ class World {
             }
           }
         });
+        const __t2 = performance.now();
         
         // 设置位置、旋转、缩放
         model.position.set(position_x || 0, position_y || 0, position_z || 0);
@@ -6700,6 +6977,7 @@ class World {
             custom_config: modelData.custom_config
           });
         }
+        const __t3 = performance.now();
         
         // 启用阴影
         model.traverse((child) => {
@@ -6708,12 +6986,23 @@ class World {
             child.receiveShadow = true;
           }
         });
+        const __t4 = performance.now();
 
         // 【修复】移除占位符
         this.removePlaceholder(id);
 
         // 添加到场景（预编译着色器）
         this._addModelToScene(model);
+        const __t5 = performance.now();
+
+        // 累积到全局统计（__cloneStats.reset() 可清零）
+        (function () {
+          var S = window.__cloneStats;
+          if (!S) S = window.__cloneStats = { n: 0, clone: 0, mat: 0, cfg: 0, shadow: 0, scene: 0, mx: { clone: 0, mat: 0, cfg: 0, shadow: 0, scene: 0 } };
+          var d = { clone: __t1 - __t0, mat: __t2 - __t1, cfg: __t3 - __t2, shadow: __t4 - __t3, scene: __t5 - __t4 };
+          S.n++;
+          for (var k in d) { S[k] += d[k]; if (d[k] > S.mx[k]) S.mx[k] = d[k]; }
+        })();
         console.log('✅ 上传模型已添加到场景:', name);
         
         // 设置 userData 用于射线选中的回退匹配
@@ -6776,7 +7065,7 @@ class World {
     const isOBJ = !isGLTF && (_ext === 'obj' || model_type === 'obj' || (!model_type && _ext !== 'glb' && _ext !== 'gltf'));
 
     // 处理模型加载成功后的逻辑
-    const onModelLoaded = (model) => {
+    const onModelLoaded = async (model) => {
       console.log('✅ 上传模型加载成功:', model_path);
       
       // 将模型添加到缓存中（同 URL 仅首次入库，批量副本避免重复序列化+写 IndexedDB）
@@ -6792,7 +7081,8 @@ class World {
         modelClone = model;
       } else {
         // 原路径（OBJ / 未经 texOpt 处理的模型）：克隆 + 材质深隔离
-        modelClone = model.clone();
+        // 含蒙皮时必须走 SkeletonUtils.clone，否则人物会共享源骨骼（塌陷/不可见）
+        modelClone = await this._cloneModelPreservingSkin(model);
         modelClone.traverse((child) => {
           if (child.isMesh && child.material) {
             // 深克隆材质，避免材质共享导致纹理丢失
@@ -7223,7 +7513,7 @@ class World {
         let meshCount = 0;
         cachedModel.traverse(child => { if (child.isMesh) meshCount++; });
         if (meshCount > 0) {
-          model = cachedModel.clone();
+          model = await this._cloneModelPreservingSkin(cachedModel);
           model.traverse(child => {
             if (child.isMesh && child.material) {
               child.material = Array.isArray(child.material) ? child.material.map(m => m.clone()) : child.material.clone();
@@ -7445,7 +7735,7 @@ class World {
       const cachedModel = await this.getFromModelCache(cacheKey);
       if (cachedModel) {
         console.log('✅ 从缓存加载几何体建筑');
-        const buildingGroup = cachedModel.clone();
+        const buildingGroup = await this._cloneModelPreservingSkin(cachedModel);
         
         // 应用变换
         buildingGroup.position.set(
@@ -8093,13 +8383,26 @@ class World {
     // ===== 鼠标旋转 + 玩家更新 结束 =====
     
     // 动态加载和卸载对象（每30帧执行一次，大幅减少CPU占用）
+    // 【2026-11-18 剖析】计时：这是唯一的「全表遍历」入口，6482 个对象逐个算表面距离
     if (this.frameCount % 30 === 0) {
+      var __u0 = performance.now();
       this.updateObjectLoading();
+      var __u1 = performance.now();
+      if (!window.__fnStats) window.__fnStats = { load: 0, loadN: 0, loadMax: 0, cul: 0, culN: 0, culMax: 0 };
+      var __S = window.__fnStats;
+      __S.load += __u1 - __u0; __S.loadN++;
+      if (__u1 - __u0 > __S.loadMax) __S.loadMax = __u1 - __u0;
     }
     
     // 视锥体剔除（每4帧执行一次）
     if (this.frameCount % 4 === 0) {
+      var __c0 = performance.now();
       this.updateFrustumCulling();
+      var __c1 = performance.now();
+      if (!window.__fnStats) window.__fnStats = { load: 0, loadN: 0, loadMax: 0, cul: 0, culN: 0, culMax: 0 };
+      var __S2 = window.__fnStats;
+      __S2.cul += __c1 - __c0; __S2.culN++;
+      if (__c1 - __c0 > __S2.culMax) __S2.culMax = __c1 - __c0;
     }
     
     // 级别细节调整（每6帧执行一次）
@@ -8197,11 +8500,18 @@ class World {
     }
     
     // FPS 监控（仅统计，不调整质量）
-    // 注意：frameCount由此处统一自增，updatePerformanceMonitor中只读不写
+    // ⚠️ 不要再用 frameCount 算 FPS 并每秒清零：它同时被 11 处 `frameCount % N === 0`
+    //    用作帧节流（N 最大到 600）。一旦每秒归零，计数器永远只在 0~60 之间循环，
+    //    `% 120 / % 300 / % 600` 就只在归零那一帧成立 → 设计上「每 10 秒一次」的
+    //    cleanupInstancedMeshes 退化成每秒执行，把场景里所有 InstancedMesh 移除并
+    //    dispose（老世界表现为卡顿/物件闪烁），日志也被高频刷屏。
+    //    现在拆成两个变量：frameCount 只增不清（帧节流用），_fpsCounter 每秒归零（算 FPS 用）。
+    // 注意：frameCount 仍由此处统一自增，updatePerformanceMonitor 中只读不写
     this.frameCount++;
+    this._fpsCounter++;
     if (now - this.lastFPSCheck >= 1000) {
-      this.currentFPS = this.frameCount;
-      this.frameCount = 0;
+      this.currentFPS = this._fpsCounter;
+      this._fpsCounter = 0;
       this.lastFPSCheck = now;
     }
 

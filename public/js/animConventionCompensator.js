@@ -26,9 +26,10 @@
  *       （骨骼世界绑定不变 → IBM 零破坏）、网格随容器清零整体剥离多余旋转。
  *   A 类「动画约定不匹配」：rest 渲染正常但骨骼局部坐标系与动作库不同
  *       （Kipfel 类中段骨骼翻面；zhu 类抵消型根旋转）→ 动画轨道 P×q×K 补偿。
- *   C 类「动画侧容器轴向」（v2.1，实测案例 线上转换的GLB）：动画文件自身骨架
+ *   C 类「动画侧容器轴向」（v2.2，实测案例 线上转换的GLB）：动画文件自身骨架
  *       容器也带 Armature+90°（动画由角色 GLB 导出），模型侧归一后该旋转暴露
- *       → Hips 轨道「窄幅大偏移」→ 左乘 corr = hipsBind × mean⁻¹ 对齐中性姿态。
+ *       → Hips 轨道「每帧偏移都 > 60°」→ 左乘 corr = hipsBind × mean⁻¹ 对齐中性姿态。
+ *       v2.2 起不再要求偏移"窄幅"（旧条件只放行 idle，walk 等全漏判，详见常量注释）。
  *   多类兼有的模型 → 先 B 归一、再 C 轴向、最后 A 的 P/K 细节补偿。
  *
  * 安全边界：
@@ -59,15 +60,24 @@
   /** 容器节点旋转超过此角度（度）才纳入归一候选 */
   var CONTAINER_ROT_DEG = 5;
 
-  /** ── 动画侧容器轴向补偿（C 类暴露层，v2.1）参数 ──
+  /** ── 动画侧容器轴向补偿（C 类暴露层，v2.2）参数 ──
    *  模型侧容器旋转下沉归一后，若动画文件自身的骨架容器也带同样旋转
    *  （动画由「Armature+90°X 角色 GLB」导出），Hips 轨道帧值相对归一后模型
-   *  bind 呈「窄幅大偏移」（实测 线上转换的GLB idle：86.3°±0.3°）→ 播放躺倒。
-   *  触发判据（全模板扫描校准，verify_s5_hips_scan.mjs）：
+   *  bind 呈「大偏移」（实测 线上转换的GLB idle：86.3°±0.3°）→ 播放躺倒。
+   *  触发判据（全库 55 组合扫描校准，2026-11-13）：
    *   - 仅 sunk 模型（模型侧已归一，动画侧旋转才会暴露）
    *   - Hips 轨道逐帧偏移 min > 60°（标准 mixamo 站姿偏移实测 43.3°，间隔充足）
-   *   - 偏移带宽 max-min < 12°（窄幅=恒定轴向特征；舞蹈类动作内容实测带宽 170°） */
+   *
+   *  【v2.2 变更】删除了「带宽 max-min < 12°」条件。原条件意在用"窄幅"识别
+   *  恒定轴向，实测证明不成立：轴向偏移是每帧都存在的，动作一摆带宽必然变宽，
+   *  但偏移量本身没变。旧条件只放行近乎静止的 idle，walk/run/jump/攻击全部漏判
+   *  （线上转换的GLB：idle band 0.3° 命中，walk band 19.6° 被跳过 → 全身躺倒）。
+   *  全库 55 个「模板×动作」实测：旧判据命中 1，新判据命中 16 且全部属于该模板，
+   *  其余 10 个模板 38 个组合 0 误伤（正常模板 min 最高 43.3，异常最低 71.6，
+   *  中间 28.3° 空隙）。该模板唯一不命中的是 death（min 43.9）——死亡躺下是对的。 */
   var ANIM_AXIS_MIN_DEG = 60;
+  /** 【v2.2 已作废】带宽条件曾用于排除舞蹈，实测舞蹈 min=2.2° 已被 MIN_DEG 挡住，
+   *  该条件只会误杀真实轴向偏移。保留常量仅为兼容外部引用，勿重新启用。 */
   var ANIM_AXIS_BAND_DEG = 12;
 
   /** 标准约定表：'骨骼名': [局部qx,qy,qz,qw, 标准父世界qx,qy,qz,qw]
@@ -435,7 +445,9 @@
                 if (dev > mx) mx = dev;
                 acc.x += aq.x; acc.y += aq.y; acc.z += aq.z; acc.w += aq.w;
               }
-              if (mn > ANIM_AXIS_MIN_DEG && (mx - mn) < ANIM_AXIS_BAND_DEG) {
+              // v2.2：判据只看「每帧偏移都大」（min > 60°），不再要求带宽窄。
+              // 带宽窄与否只反映动作摆幅，与轴向偏移是否存在无关（详见常量处注释）。
+              if (mn > ANIM_AXIS_MIN_DEG) {
                 var mean = new T.Quaternion(acc.x, acc.y, acc.z, acc.w).normalize();
                 var corr = hipsBind.clone().multiply(mean.clone().invert());
                 for (var hj = 0; hj < hn; hj++) {
@@ -445,7 +457,8 @@
                 }
                 axisFixed = hn;
                 console.log('[AnimComp] 🔁 检测到动画侧容器轴向偏移（Hips 偏移 ' +
-                  mn.toFixed(0) + '~' + mx.toFixed(0) + '° 窄幅），已对 ' + hn + ' 帧左乘轴向补偿');
+                  mn.toFixed(0) + '~' + mx.toFixed(0) + '°，带宽 ' + (mx - mn).toFixed(0) +
+                  '°），已对 ' + hn + ' 帧左乘轴向补偿');
               }
             }
           }
@@ -495,7 +508,7 @@
 
   root.AnimConventionCompensator = {
     processClip: processClip,
-    version: '2.1.0',
+    version: '2.2.0',
     // 诊断接口（控制台排查用）
     _diag: function (model) {
       var info = getModelBind(model);

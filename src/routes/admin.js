@@ -8,6 +8,7 @@ const { query, pool } = require('../database/db');
 const { ensureShowInListColumn } = require('../database/ensurePortalColumns');
 const { authenticateAdminToken, logAdminAction } = require('../middleware/adminAuth');
 const configService = require('../services/configService');
+const visitorStats = require('../services/visitorStats');
 
 // 管理员认证中间件：所有管理后台API都需要管理员登录
 router.use(authenticateAdminToken);
@@ -457,6 +458,30 @@ router.get('/stats', async (req, res) => {
   } catch (error) {
     console.error('获取统计信息失败:', error);
     res.status(500).json({ error: '获取统计失败' });
+  }
+});
+
+// 获取访客访问统计（口径：进了世界才算一次访问）
+router.get('/visitor-stats', async (req, res) => {
+  try {
+    const { days = 7 } = req.query;
+    const stats = await visitorStats.getStats(days);
+
+    // 当前在线取自 WS 内存（PLAYER_JOIN 登记），比查库实时
+    let online = { total: 0, guest: 0, user: 0 };
+    try {
+      const wsServer = require('../websocket/wsServer');
+      if (typeof wsServer.getOnlineStats === 'function') {
+        online = wsServer.getOnlineStats();
+      }
+    } catch (e) {
+      // WS 未初始化：在线数显示 0，不影响历史统计
+    }
+
+    res.json({ online, ...stats });
+  } catch (error) {
+    console.error('获取访客统计失败:', error);
+    res.status(500).json({ error: '获取访客统计失败' });
   }
 });
 

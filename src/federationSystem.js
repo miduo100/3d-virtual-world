@@ -7,6 +7,10 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const { query } = require('./database/db');
+// 协议自适应握手：http/https 都可达时优先 https；状态检查失败自动换协议重试
+const { establishTrustByProbe, recheckWorldStatus } = require('./services/federationHandshakeClient');
+// 端点键（忽略 http/https）：后台据此识别「同一地址多条信任记录」
+const { endpointKey } = require('./services/trustedWorldStore');
 
 // 骨骼识别和规范化模块
 class BoneNormalization {
@@ -367,7 +371,11 @@ class FederationSystem {
     return Array.from(this.trustedWorlds.values()).map(world => ({
       worldId: world.worldId,
       worldName: world.worldName,
-      worldUrl: world.worldUrl
+      worldUrl: world.worldUrl,
+      // 【2026-10-31】端点键：后台按它识别「同一地址（忽略 http/https）多条记录」
+      endpointKey: endpointKey(world.worldUrl) || world.worldUrl,
+      // 状态检查时若发现对方自报的 worldId 与本地不同 → 建议后台点「重新绑定」
+      identityChanged: (this.worldStatus.get(world.worldId) || {}).identityChanged === true
     }));
   }
 
@@ -504,72 +512,11 @@ class FederationSystem {
    * @param {string} targetWorldUrl - 目标世界的URL
    */
   async establishTrust(targetWorldUrl) {
-    try {
-      // 清理URL末尾斜杠，避免路由404
-      targetWorldUrl = targetWorldUrl.replace(/\/+$/, '');
-      // 向目标世界发送握手请求
-      const response = await axios.post(`${targetWorldUrl}/api/federation/handshake`, {
-        worldId: this.worldId,
-        worldName: this.worldName,
-        worldUrl: this.worldUrl,
-        publicKey: this.publicKey
-      }, {
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        // 允许跨域请求
-        withCredentials: true
-      });
-
-      if (response.data.success) {
-        // 保存目标世界的公钥（无论对方是否开启审批，发起方都信任对方）
-        this.trustWorld(
-          response.data.worldId,
-          response.data.worldName,
-          response.data.worldUrl,
-          response.data.publicKey
-        );
-
-        // 【2026-09-25 修复】把对方世界信息一并返回（worldId/worldName/worldUrl/publicKey）。
-        // 原本这两个成功分支都不返回 worldId，而调用方（routes/federation.js 的 POST /trust、
-        // centralWorldConnector.autoConnectToCentral）都是「用 result.worldId 去内存表取对象再写库」，
-        // get(undefined) 恒为 undefined → 写库整段被静默跳过 →
-        // 表现为「从自己后台添加的世界只存在于内存，一重启互信列表就空了」。
-        const peer = {
-          worldId: response.data.worldId,
-          worldName: response.data.worldName,
-          worldUrl: response.data.worldUrl,
-          publicKey: response.data.publicKey
-        };
-
-        // 对方开启了审批，需要等待对方管理员同意
-        if (response.data.requiresApproval) {
-          return {
-            success: true,
-            requiresApproval: true,
-            ...peer,
-            message: `信任请求已发送给 ${response.data.worldName}，等待对方管理员审批`
-          };
-        }
-
-        return {
-          success: true,
-          ...peer,
-          message: `已与 ${response.data.worldName} 建立信任关系`
-        };
-      }
-
-      return {
-        success: false,
-        error: response.data.error
-      };
-
-    } catch (error) {
-      return {
-        success: false,
-        error: `连接失败: ${error.message}`
-      };
-    }
+    // 【2026-10-31 改造】协议自适应握手：
+    // 先 GET /api/federation/info 探测 http/https 哪套可达（https 优先），
+    // 再用可达协议 POST /api/federation/handshake；失败自动换另一种协议重试。
+    // 实现见 services/federationHandshakeClient.js（本方法只做转调，保持返回结构不变）。
+    return establishTrustByProbe(this, targetWorldUrl);
   }
 
   /**
@@ -1055,42 +1002,10 @@ class FederationSystem {
    * @param {string} worldId - 世界ID
    */
   async checkWorldStatus(worldId) {
-    const world = this.trustedWorlds.get(worldId);
-    if (!world) {
-      return { success: false, error: '世界不存在' };
-    }
-
-    try {
-      const response = await axios.get(`${world.worldUrl}/api/federation/info`, {
-        timeout: 5000
-      });
-
-      if (response.status === 200 && response.data.success) {
-        const status = {
-          status: 'online',
-          lastChecked: new Date(),
-          responseTime: response.config.timeout
-        };
-        this.worldStatus.set(worldId, status);
-        return { success: true, status: status };
-      } else {
-        const status = {
-          status: 'offline',
-          lastChecked: new Date(),
-          error: 'Invalid response'
-        };
-        this.worldStatus.set(worldId, status);
-        return { success: false, status: status };
-      }
-    } catch (error) {
-      const status = {
-        status: 'offline',
-        lastChecked: new Date(),
-        error: error.message
-      };
-      this.worldStatus.set(worldId, status);
-      return { success: false, status: status };
-    }
+    // 【2026-10-31 改造】失败时自动换另一种协议（http↔https）重试；
+    // 成功但记录里的协议不可用则回写正确 URL；并标记对方 worldId 是否已变更
+    // （identityChanged=true 表示对方重置过身份，宜在后台点「重新绑定」）。
+    return recheckWorldStatus(this, worldId);
   }
 
   /**

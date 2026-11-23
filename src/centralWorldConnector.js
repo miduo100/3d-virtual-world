@@ -6,6 +6,8 @@
 const axios = require('axios');
 const { query } = require('./database/db');
 const { classifyUrlHost } = require('./services/worldReachabilityChecker');
+// 【2026-10-31】统一走端点存储层：同一地址（忽略 http/https）换身份时原地改绑
+const { upsertTrustedWorld } = require('./services/trustedWorldStore');
 
 // 【2026-09-25】中心世界默认地址。原来这里是 `|| null`，而 routes/federation.js 的
 // /central-status 与 .env.production.example 都写着"不配置则默认连接 https://miduo100.com"，
@@ -83,14 +85,17 @@ class CentralWorldConnector {
         // 保存到数据库
         const worldInfo = this.federationSystem.trustedWorlds.get(result.worldId);
         if (worldInfo) {
-          await query(
-            `INSERT INTO trusted_worlds 
-             (world_id, world_name, world_url, public_key, is_central, created_at, enabled)
-             VALUES ($1, $2, $3, $4, true, NOW(), true)
-             ON CONFLICT (world_id) DO UPDATE 
-             SET world_name = $2, world_url = $3, public_key = $4, is_central = true, updated_at = NOW()`,
-            [worldInfo.worldId, worldInfo.worldName, worldInfo.worldUrl, worldInfo.publicKey]
-          );
+          // 【2026-10-31】统一走端点存储层：同一 URL（忽略 http/https）换身份时原地改绑
+          const saveResult = await upsertTrustedWorld({
+            worldId: worldInfo.worldId,
+            worldName: worldInfo.worldName,
+            worldUrl: worldInfo.worldUrl,
+            publicKey: worldInfo.publicKey,
+            isCentral: true
+          }, this.federationSystem);
+          if (!saveResult.success) {
+            console.error('❌ 保存中心世界失败:', saveResult.error);
+          }
         }
 
         return { success: true, worldInfo };

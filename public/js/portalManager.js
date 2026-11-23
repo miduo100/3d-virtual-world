@@ -54,12 +54,31 @@ const PortalManager = {
     }
 
     // 坐标输入实时预览
+    // 【2026-11-05 修复】粘贴框只当"解析器"：解析成功即拆入右侧 X/Y/Z 三框，三框是唯一真值来源。
+    // 旧实现把整段文本当作可传送来源，且三框 id 与左下 debug 面板的 span 重名（#coord-x），
+    // getElementById 命中的是 span，导致三框既填不进值、也读不出值 —— 手动输入永远传不出去。
     const coordInput = document.getElementById('coord-input');
     if (coordInput) {
       coordInput.addEventListener('input', () => {
         this.updateCoordPreview();
       });
+      coordInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.updateCoordPreview();
+        }
+      });
     }
+
+    // 手动改 X/Y/Z → 清空粘贴框，避免"粘贴框显示 A、实际传 B"的错觉
+    ['tp-x', 'tp-y', 'tp-z'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('input', () => {
+          this.clearPasteInput();
+        });
+      }
+    });
 
     // 使用当前位置按钮
     const useCurrentPosBtn = document.getElementById('use-current-pos-btn');
@@ -401,7 +420,17 @@ const PortalManager = {
   },
 
   /**
-   * 坐标输入框实时预览
+   * 清空粘贴框与解析提示（手改 X/Y/Z 或"使用当前位置"时调用）
+   */
+  clearPasteInput() {
+    const input = document.getElementById('coord-input');
+    if (input && input.value) input.value = '';
+    const preview = document.getElementById('coord-preview');
+    if (preview) preview.style.display = 'none';
+  },
+
+  /**
+   * 坐标输入框实时预览：解析成功即刻写入 X/Y/Z 三框
    */
   updateCoordPreview() {
     const input = document.getElementById('coord-input');
@@ -412,16 +441,16 @@ const PortalManager = {
     const coord = this.parseCoordString(input.value);
 
     if (coord) {
-      // 同步到手动输入框
-      const xInput = document.getElementById('coord-x');
-      const yInput = document.getElementById('coord-y');
-      const zInput = document.getElementById('coord-z');
+      // 同步到右侧三个数字框（真正参与传送的是它们）
+      const xInput = document.getElementById('tp-x');
+      const yInput = document.getElementById('tp-y');
+      const zInput = document.getElementById('tp-z');
       if (xInput) xInput.value = coord.x;
       if (yInput) yInput.value = coord.y;
       if (zInput) zInput.value = coord.z;
 
       preview.style.display = 'block';
-      preview.innerHTML = '✅ 已识别坐标: X=' + coord.x + ' Y=' + coord.y + ' Z=' + coord.z;
+      preview.innerHTML = '✅ 已填入右侧: X=' + coord.x + ' Y=' + coord.y + ' Z=' + coord.z;
       preview.style.borderColor = '#00ff00';
       preview.style.background = 'rgba(0, 255, 0, 0.1)';
     } else if (input.value.trim()) {
@@ -435,12 +464,12 @@ const PortalManager = {
   },
 
   /**
-   * 从手动输入框获取最终坐标
+   * 从右侧 X/Y/Z 三个数字框读取最终坐标（唯一真值来源）
    */
   getFinalCoord() {
-    const xInput = document.getElementById('coord-x');
-    const yInput = document.getElementById('coord-y');
-    const zInput = document.getElementById('coord-z');
+    const xInput = document.getElementById('tp-x');
+    const yInput = document.getElementById('tp-y');
+    const zInput = document.getElementById('tp-z');
 
     if (!xInput || !yInput || !zInput) return null;
 
@@ -463,9 +492,12 @@ const PortalManager = {
     }
 
     const pos = player.position;
-    document.getElementById('coord-x').value = Math.round(pos.x * 10) / 10;
-    document.getElementById('coord-y').value = Math.round(pos.y * 10) / 10;
-    document.getElementById('coord-z').value = Math.round(pos.z * 10) / 10;
+    document.getElementById('tp-x').value = Math.round(pos.x * 10) / 10;
+    document.getElementById('tp-y').value = Math.round(pos.y * 10) / 10;
+    document.getElementById('tp-z').value = Math.round(pos.z * 10) / 10;
+
+    // 粘贴框里的旧文本会和三框显示不一致，一并清掉
+    this.clearPasteInput();
 
     UI.addChatMessage('系统', '✅ 已填入当前位置');
   },
@@ -484,7 +516,17 @@ const PortalManager = {
     const coord = this.getFinalCoord();
 
     if (!coord) {
-      UI.addChatMessage('系统', '请输入有效的坐标');
+      // 区分"没填完"和"填了非法值"，否则用户只看到一句笼统提示，不知道错在哪
+      const empty = ['tp-x', 'tp-y', 'tp-z'].some((id) => {
+        const el = document.getElementById(id);
+        return !el || String(el.value).trim() === '';
+      });
+      UI.addChatMessage(
+        '系统',
+        empty
+          ? '⚠️ 请填完整的 X / Y / Z（也可在上方粘贴整段坐标自动填入）'
+          : '⚠️ 坐标格式不正确，请检查 X / Y / Z'
+      );
       return;
     }
 

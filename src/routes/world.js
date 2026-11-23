@@ -125,52 +125,69 @@ router.get('/objects', async (req, res) => {
     }));
 
     // 对于几何体建筑，需要附加几何体数据
-    const objectsWithData = await Promise.all(result.rows.map(async (obj) => {
-      if (obj.type === 'geometry_building') {
-        let geometryBuildingId = null;
-
-        // 优先从 model_path 提取ID
-        if (obj.model_path && obj.model_path.startsWith('geometry_building:')) {
-          geometryBuildingId = obj.model_path.replace('geometry_building:', '');
-        }
-        // 回退：通过 building_id 查询
-        else if (obj.building_id) {
-          geometryBuildingId = obj.building_id;
-        }
-
-        if (geometryBuildingId) {
-          try {
-            const geometryResult = await query(
-              'SELECT geometry_data FROM geometry_buildings WHERE id = $1',
-              [geometryBuildingId]
-            );
-
-            if (geometryResult.rows.length > 0) {
-              obj.geometry_data = geometryResult.rows[0].geometry_data;
-            }
-          } catch (err) {
-            console.error('获取几何体数据失败:', err);
-          }
-        }
+    // 为几何体建筑补充 geometry_data
+    // 【2026-11-12 性能】原实现在 Promise.all 里对每个 geometry_building 单独查一次库（N+1），
+    // 52 个建筑就是 52 次往返。改成一次分批 IN 查询，把结果映射回去。
+    const _geoNeed = [];
+    result.rows.forEach(obj => {
+      if (obj.type !== 'geometry_building') return;
+      let gid = null;
+      if (obj.model_path && obj.model_path.startsWith('geometry_building:')) {
+        gid = obj.model_path.replace('geometry_building:', '');
+      } else if (obj.building_id) {
+        gid = obj.building_id;
       }
-      return obj;
-    }));
+      if (gid) _geoNeed.push({ obj: obj, id: String(gid) });
+    });
+
+    if (_geoNeed.length > 0) {
+      try {
+        const ids = Array.from(new Set(_geoNeed.map(x => x.id)));
+        const geoRes = await query(
+          'SELECT id::text AS id, geometry_data FROM geometry_buildings WHERE id::text = ANY($1::text[])',
+          [ids]
+        );
+        const gmap = new Map();
+        geoRes.rows.forEach(r => gmap.set(String(r.id), r.geometry_data));
+        _geoNeed.forEach(x => {
+          if (gmap.has(x.id)) x.obj.geometry_data = gmap.get(x.id);
+        });
+      } catch (err) {
+        console.error('批量获取几何体数据失败:', err);
+      }
+    }
+
+    const objectsWithData = result.rows;
 
     // 合并广告位对象
     const allObjects = [...objectsWithData, ...adSlotObjects];
 
     // 为每个有 model_path 的对象补充文件大小（用于前端优先级排序）
+    // 【2026-11-12 性能】同一 model_path 只 stat 一次：
+    // 原实现对 9145 个对象逐个 fs.existsSync + fs.statSync（Windows 上每次 0.3~1ms），
+    // 单是这段同步文件 IO 就要 2~5 秒，是 /api/world/objects 慢的主因之一。
+    // 实际上 9145 个对象只对应 300 个不同文件，缓存后只需 300 次 stat。
     const publicDir = path.join(__dirname, '..', '..', 'public');
+    const _sizeCache = new Map();   // model_path -> size | null
     allObjects.forEach(obj => {
       if (obj.model_path && obj.model_path !== '__default_portal__') {
+        if (_sizeCache.has(obj.model_path)) {
+          const cached = _sizeCache.get(obj.model_path);
+          if (cached != null) obj.file_size = cached;
+          return;
+        }
         try {
           const modelRelativePath = obj.model_path.startsWith('/') ? obj.model_path.slice(1) : obj.model_path;
           const fullPath = path.join(publicDir, modelRelativePath);
           if (fs.existsSync(fullPath)) {
-            obj.file_size = fs.statSync(fullPath).size;
+            const size = fs.statSync(fullPath).size;
+            _sizeCache.set(obj.model_path, size);
+            obj.file_size = size;
+          } else {
+            _sizeCache.set(obj.model_path, null);
           }
         } catch (err) {
-          // 文件不存在则忽略，file_size 保持 undefined
+          _sizeCache.set(obj.model_path, null);   // 文件不存在/无权限则忽略
         }
       }
     });
@@ -283,6 +300,172 @@ router.post('/objects', async (req, res) => {
       error: 'Failed to create world object',
       details: error.message
     });
+  }
+});
+
+// ===== 对象编组（world_object_groups）=====
+// 组只存「名字 + 成员关系」，不存自身变换：成员坐标始终是世界坐标，
+// 整体拖动组时由前端把世界变换烘焙回每个成员，组本身恒等 → 刷新重建零误差。
+
+// 组列表（带成员数；空组也返回，前端决定是否隐藏）
+router.get('/object-groups', async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT g.id, g.world_id, g.name, g.color, g.collapsed, g.sort_order, g.created_at,
+             COUNT(o.id)::int AS member_count
+      FROM world_object_groups g
+      LEFT JOIN world_objects o ON o.group_id = g.id
+      GROUP BY g.id
+      ORDER BY g.sort_order ASC, g.created_at ASC
+    `);
+    res.json({ success: true, groups: result.rows });
+  } catch (error) {
+    console.error('查询编组失败:', error);
+    res.status(500).json({ success: false, error: '查询编组失败', details: error.message });
+  }
+});
+
+// 建组：把 ids 里的对象收进新组（同批对象从原组移出）
+router.post('/object-groups', async (req, res) => {
+  try {
+    const name = String((req.body && req.body.name) || '').trim().slice(0, 120);
+    const color = (req.body && req.body.color) || null;
+    const ids = Array.isArray(req.body && req.body.ids)
+      ? req.body.ids.map(Number).filter(n => Number.isInteger(n) && n > 0)
+      : [];
+
+    if (!name) return res.status(400).json({ success: false, error: '组名不能为空' });
+    if (ids.length === 0) return res.status(400).json({ success: false, error: 'ids 不能为空' });
+
+    // world_id 跟随第一个成员（编辑器当前只编辑一个世界）
+    const created = await query(`
+      INSERT INTO world_object_groups (world_id, name, color)
+      VALUES ((SELECT world_id FROM world_objects WHERE id = $1), $2, $3)
+      RETURNING *
+    `, [ids[0], name, color]);
+
+    const groupId = created.rows[0].id;
+    await query('UPDATE world_objects SET group_id = $1, updated_at = NOW() WHERE id = ANY($2::int[])', [groupId, ids]);
+
+    res.json({ success: true, group: { ...created.rows[0], member_count: ids.length } });
+  } catch (error) {
+    console.error('创建编组失败:', error);
+    res.status(500).json({ success: false, error: '创建编组失败', details: error.message });
+  }
+});
+
+// 改组：改名 / 折叠状态 / 颜色 / 成员集合（传 ids 表示「用这批对象替换组成员」）
+router.patch('/object-groups/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const body = req.body || {};
+    const fields = [];
+    const values = [];
+    let p = 1;
+
+    if (body.name !== undefined) {
+      const name = String(body.name).trim().slice(0, 120);
+      if (!name) return res.status(400).json({ success: false, error: '组名不能为空' });
+      fields.push(`name = $${p++}`);
+      values.push(name);
+    }
+    if (body.color !== undefined) { fields.push(`color = $${p++}`); values.push(body.color); }
+    if (body.collapsed !== undefined) { fields.push(`collapsed = $${p++}`); values.push(body.collapsed === true); }
+    if (body.sort_order !== undefined) { fields.push(`sort_order = $${p++}`); values.push(Number(body.sort_order) || 0); }
+
+    if (fields.length > 0) {
+      fields.push('updated_at = NOW()');
+      values.push(id);
+      const r = await query(`UPDATE world_object_groups SET ${fields.join(', ')} WHERE id = $${p} RETURNING *`, values);
+      if (r.rows.length === 0) return res.status(404).json({ success: false, error: '编组不存在' });
+    }
+
+    if (Array.isArray(body.ids)) {
+      const ids = body.ids.map(Number).filter(n => Number.isInteger(n) && n > 0);
+      // 先摘掉本组里不在新名单中的旧成员，再把新名单全部收进本组（可从别的组移过来）
+      await query('UPDATE world_objects SET group_id = NULL, updated_at = NOW() WHERE group_id = $1 AND NOT (id = ANY($2::int[]))', [id, ids]);
+      if (ids.length > 0) {
+        await query('UPDATE world_objects SET group_id = $1, updated_at = NOW() WHERE id = ANY($2::int[])', [id, ids]);
+      }
+    }
+
+    const fresh = await query(`
+      SELECT g.id, g.world_id, g.name, g.color, g.collapsed, g.sort_order,
+             COUNT(o.id)::int AS member_count
+      FROM world_object_groups g LEFT JOIN world_objects o ON o.group_id = g.id
+      WHERE g.id = $1 GROUP BY g.id
+    `, [id]);
+
+    res.json({ success: true, group: fresh.rows[0] || null });
+  } catch (error) {
+    console.error('更新编组失败:', error);
+    res.status(500).json({ success: false, error: '更新编组失败', details: error.message });
+  }
+});
+
+// 解组：组成员 group_id 置空（对象本身保留），然后删组记录
+router.delete('/object-groups/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const cleared = await query('UPDATE world_objects SET group_id = NULL, updated_at = NOW() WHERE group_id = $1', [id]);
+    const del = await query('DELETE FROM world_object_groups WHERE id = $1 RETURNING id', [id]);
+    if (del.rows.length === 0) return res.status(404).json({ success: false, error: '编组不存在' });
+    res.json({ success: true, released: cleared.rowCount });
+  } catch (error) {
+    console.error('解组失败:', error);
+    res.status(500).json({ success: false, error: '解组失败', details: error.message });
+  }
+});
+
+// 批量更新世界对象（多选批量面板用）
+// 只允许白名单字段，一条 SQL 更新 N 行 —— 避免前端为几百个对象循环发 PUT。
+// body: { ids: number[], patch: { visible?, cast_shadow?, receive_shadow?, has_collision? } }
+router.post('/objects/batch-update', async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body && req.body.ids) ? req.body.ids.map(Number).filter(n => Number.isInteger(n) && n > 0) : [];
+    const patch = (req.body && req.body.patch) || {};
+
+    if (ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'ids 不能为空' });
+    }
+    if (ids.length > 10000) {
+      return res.status(400).json({ success: false, error: '单次最多更新 10000 个对象' });
+    }
+
+    const updateFields = [];
+    const updateValues = [];
+    let paramIndex = 1;
+
+    if (patch.visible !== undefined) {
+      updateFields.push(`visible = $${paramIndex++}`);
+      updateValues.push(patch.visible === true || patch.visible === 'true' || patch.visible === 1);
+    }
+    if (patch.cast_shadow !== undefined) {
+      updateFields.push(`cast_shadow = $${paramIndex++}`);
+      updateValues.push(patch.cast_shadow === true || patch.cast_shadow === 'true' || patch.cast_shadow === 1);
+    }
+    if (patch.receive_shadow !== undefined) {
+      updateFields.push(`receive_shadow = $${paramIndex++}`);
+      updateValues.push(patch.receive_shadow === true || patch.receive_shadow === 'true' || patch.receive_shadow === 1);
+    }
+    if (patch.has_collision !== undefined) {
+      updateFields.push(`has_collision = $${paramIndex++}`);
+      updateValues.push(patch.has_collision === true || patch.has_collision === 'true' || patch.has_collision === 1);
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ success: false, error: 'patch 里没有可更新字段' });
+    }
+
+    updateFields.push('updated_at = NOW()');
+    const sql = `UPDATE world_objects SET ${updateFields.join(', ')} WHERE id = ANY($${paramIndex}::int[]) RETURNING id`;
+    updateValues.push(ids);
+
+    const result = await query(sql, updateValues);
+    res.json({ success: true, updated: result.rowCount, ids: result.rows.map(r => r.id) });
+  } catch (error) {
+    console.error('批量更新对象错误:', error);
+    res.status(500).json({ success: false, error: '批量更新失败', details: error.message });
   }
 });
 
@@ -541,6 +724,19 @@ router.put('/objects/:id', async (req, res) => {
       updateFields.push(`has_collision = $${paramIndex++}`);
       updateValues.push(has_collision);
     }
+    // 渲染开关（原先前端发了 visible/castShadow/receiveShadow，但这里没有对应列 → 刷新即丢）
+    if (visible !== undefined) {
+      updateFields.push(`visible = $${paramIndex++}`);
+      updateValues.push(visible === true || visible === 'true' || visible === 1);
+    }
+    if (castShadow !== undefined) {
+      updateFields.push(`cast_shadow = $${paramIndex++}`);
+      updateValues.push(castShadow === true || castShadow === 'true' || castShadow === 1);
+    }
+    if (receiveShadow !== undefined) {
+      updateFields.push(`receive_shadow = $${paramIndex++}`);
+      updateValues.push(receiveShadow === true || receiveShadow === 'true' || receiveShadow === 1);
+    }
     // 自定义配置（粒子/动画/材质等参数）
     if (custom_config !== undefined) {
       updateFields.push(`custom_config = $${paramIndex++}`);
@@ -611,6 +807,13 @@ async function clearTransformOverride(objectId) {
 router.delete('/objects/:id', async (req, res) => {
   try {
     const { id } = req.params;
+
+    // 【2026-11-15】出生点是系统对象，数据存在 system_config('world_spawn_point') 里，
+    // 不在 world_objects 表中。前端（world_editor / unified_editor / buildingManager）
+    // 三处入口都已拦截，这里再兜一层，防止直接调接口把落点删没。
+    if (id === 'spawn_point') {
+      return res.status(403).json({ success: false, error: '出生点是系统对象，不可删除' });
+    }
 
     // ---------- 整数 ID：world_objects（主表）/ custom_npcs（SERIAL 主键）----------
     if (!UUID_RE.test(id)) {

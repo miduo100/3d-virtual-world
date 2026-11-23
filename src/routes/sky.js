@@ -31,6 +31,33 @@ const DEFAULT_SKY = {
   url: null, width: null, height: null, use_env: false, builtin: true
 };
 
+// 内置"程序化天空"：前端用 skyPresets.js 纯计算生成，零字节、零请求。
+// 这里只维护 key/名称/缩略图配色，真正的像素在浏览器里算。
+const PROCEDURAL_PRESETS = [
+  { key: 'clear',    name: '晴天', top: '#2e6bc4', bottom: '#c8e4f2' },
+  { key: 'cloudy',   name: '多云', top: '#4a76ad', bottom: '#c2d3e0' },
+  { key: 'overcast', name: '阴天', top: '#6d7985', bottom: '#9dabb6' },
+  { key: 'dusk',     name: '黄昏', top: '#1b2450', bottom: '#ff9b52' },
+  { key: 'night',    name: '夜晚', top: '#08111f', bottom: '#22395c' },
+  { key: 'starry',   name: '星空', top: '#03060f', bottom: '#122036' }
+];
+
+const PROCEDURAL_KEYS = PROCEDURAL_PRESETS.map((p) => p.key);
+
+function proceduralSky(p) {
+  return {
+    id: 'proc:' + p.key, name: p.name, kind: 'procedural', preset: p.key,
+    url: null, width: null, height: null, use_env: false, builtin: true,
+    top: p.top, bottom: p.bottom
+  };
+}
+
+/** 是否为合法的程序化预设 ID（形如 proc:clear） */
+function isProceduralId(id) {
+  const raw = String(id || '');
+  return raw.indexOf('proc:') === 0 && PROCEDURAL_KEYS.indexOf(raw.slice(5)) !== -1;
+}
+
 // ---------- 自动建表（幂等） ----------
 (async () => {
   try {
@@ -78,18 +105,34 @@ const upload = multer({
 });
 
 function rowToSky(r) {
-  return {
+  const out = {
     id: r.id, name: r.name, kind: r.kind,
     url: r.url, width: r.width, height: r.height,
     use_env: !!r.use_env, builtin: false
   };
+  // 文件体积：管理后台卡片直接显示，方便看出哪个天空吃空间
+  try {
+    const fileName = path.basename(r.url || '');
+    if (fileName) {
+      const p = path.join(UPLOAD_DIR, fileName);
+      if (p.startsWith(UPLOAD_DIR) && fs.existsSync(p)) {
+        out.size = fs.statSync(p).size;
+      }
+    }
+  } catch (_) { /* 读不到就算了，不影响列表 */ }
+  return out;
 }
 
 // ---------- 列表（公开读） ----------
 router.get('/list', async (req, res) => {
   try {
     const r = await query('SELECT * FROM world_sky_presets ORDER BY sort_order, id');
-    res.json({ success: true, skies: [DEFAULT_SKY].concat(r.rows.map(rowToSky)) });
+    res.json({
+      success: true,
+      skies: [DEFAULT_SKY]
+        .concat(PROCEDURAL_PRESETS.map(proceduralSky))
+        .concat(r.rows.map(rowToSky))
+    });
   } catch (e) {
     console.error('获取天空库失败:', e);
     res.status(500).json({ success: false, error: '获取天空库失败' });
@@ -221,24 +264,57 @@ router.use((err, req, res, next) => {
  */
 async function resolveSky(weatherCfg) {
   try {
-    const id = weatherCfg && weatherCfg.sky_id;
-    if (id === undefined || id === null || id === 'default' || id === '') return null;
-    const numId = parseInt(id, 10);
-    if (!Number.isInteger(numId)) return null;
-    const r = await query(
-      'SELECT id, name, kind, url, width, height, use_env FROM world_sky_presets WHERE id = $1',
-      [numId]
-    );
-    if (!r.rows.length) return null;
-    return {
-      id: r.rows[0].id, name: r.rows[0].name, kind: r.rows[0].kind,
-      url: r.rows[0].url, width: r.rows[0].width, height: r.rows[0].height,
-      use_env: !!r.rows[0].use_env, builtin: false
-    };
+    const cfg = weatherCfg || {};
+
+    /* 【2026-11-16 天空跟随天气】sky_link=true 时按当前天气类型取槽位。
+       槽位结构：sky_map[type] = { id: 'proc:clear' | 数字id | 'default', env?: boolean }
+       env 为布尔时覆盖「天空记录自带的 use_env」，这样同一条天空
+       可以在晴天当光源、在雨天只当背景。 */
+    if (cfg.sky_link === true && cfg.sky_map && typeof cfg.sky_map === 'object') {
+      const slot = cfg.sky_map[cfg.type || 'clear'];
+      if (!slot || slot.id === undefined || slot.id === null) return null;
+      const base = await resolveSkyId(slot.id);
+      if (base && typeof slot.env === 'boolean') base.use_env = slot.env;
+      return base;
+    }
+
+    // 未开联动：沿用原来的单一 sky_id（旧配置行为完全不变）
+    return await resolveSkyId(cfg.sky_id);
   } catch (e) {
     console.warn('解析天空配置失败，回退默认天空:', e.message);
     return null;
   }
 }
 
-module.exports = { router, resolveSky, DEFAULT_SKY };
+/**
+ * 按单个 id 解析天空对象。
+ * @param {string|number} id  'default' / 'proc:clear' / world_sky_presets.id
+ * @returns {Promise<object|null>} null 表示使用默认天空（前端按天气纯色处理）
+ */
+async function resolveSkyId(id) {
+  if (id === undefined || id === null || id === 'default' || id === '') return null;
+
+  const raw = String(id);
+
+  // 内置程序化预设：不进库，直接按 key 拼出完整对象
+  if (raw.indexOf('proc:') === 0) {
+    const key = raw.slice(5);
+    const preset = PROCEDURAL_PRESETS.filter((p) => p.key === key)[0];
+    return preset ? proceduralSky(preset) : null; // key 失效则安全回退默认天空
+  }
+
+  const numId = parseInt(raw, 10);
+  if (!Number.isInteger(numId)) return null;
+  const r = await query(
+    'SELECT id, name, kind, url, width, height, use_env FROM world_sky_presets WHERE id = $1',
+    [numId]
+  );
+  if (!r.rows.length) return null;
+  return {
+    id: r.rows[0].id, name: r.rows[0].name, kind: r.rows[0].kind,
+    url: r.rows[0].url, width: r.rows[0].width, height: r.rows[0].height,
+    use_env: !!r.rows[0].use_env, builtin: false
+  };
+}
+
+module.exports = { router, resolveSky, resolveSkyId, DEFAULT_SKY, PROCEDURAL_PRESETS, isProceduralId };

@@ -24,8 +24,10 @@
 
     // ===== 模块状态 =====
     let marqueeMode = false;        // 框选模式开关
-    let activeGroup = null;         // 当前编组 THREE.Group
-    let groupMembers = [];          // 组成员 worldObj 引用
+    // 持久化编组后：组的 3D 容器由 worldObjectGroups.js 持有（恒等变换），
+    // 这里只记录「当前激活哪个组」，整体变换一律走多选锚点（onAnchorObjectChange）。
+    let activeGroupId = null;       // 当前激活的组 id（null = 未激活任何组）
+    let groupMembers = [];          // 当前激活组的成员 worldObj 引用
     let _marqueeState = null;       // 框选进行中状态
     let _suppressClickUntil = 0;    // 框选结束后抑制 click 的截止时间
     let _bakeTimer = null;          // 烘焙保存防抖定时器
@@ -38,6 +40,16 @@
     window.deleteSelectedGroupAware = deleteSelectedGroupAware;
     window.cleanupEditorGroup = cleanupEditorGroup;
     window.applyGroupTransform = applyGroupTransform;
+    // 供右侧面板三态判断（编组中优先显示组变换面板，不显示批量/单对象表单）
+    window.__weGroupActive = function () { return !!activeGroupId; };
+    // 供 worldObjectGroups.js 驱动（激活/退出组、查询当前组）
+    window.WorldEditorGrouping = {
+        activate: activateGroup,
+        deactivate: deactivateGroup,
+        activeId: function () { return activeGroupId; },
+        members: function () { return groupMembers.slice(); },
+        bake: function (silent) { bakeGroupAndSave(!!silent); }
+    };
 
     // ===== 初始化：轮询等待编辑器就绪后绑定事件 =====
     function tryInit() {
@@ -287,95 +299,95 @@
         return worldObjects.find(function (o) { return o.id === id; }) || null;
     }
 
-    // ===== 组选择 =====
-    function selectGroupAsWhole() {
-        deselectAll();
-        selectedObjects = groupMembers.slice();
-        groupMembers.forEach(function (obj) {
-            if (obj.mesh) highlightObject(obj.mesh, true);
-        });
+    // ===== 组激活 / 退出（持久化编组）=====
+    // 组的 3D 容器恒等变换（成员坐标 == 世界坐标），整体平移/旋转/缩放走多选锚点。
+    /**
+     * 激活一个组：选中全部成员、gizmo 附着包围盒中心、右侧切成组变换面板。
+     * @param {string} groupId world_object_groups.id
+     */
+    function activateGroup(groupId) {
+        if (!groupId || !window.WorldObjectGroups) return;
+        const members = window.WorldObjectGroups.membersOf(groupId);
+        if (!members.length) {
+            showNotify(weT('group.emptyGroup', '⚠️ 该编组没有成员'), 'info');
+            return;
+        }
+        if (activeGroupId && activeGroupId !== groupId) {
+            // 切组：先把旧组未落库的变换保存掉
+            clearTimeout(_bakeTimer);
+            doBakeMembers(groupMembers.slice(), true);
+        }
+
+        activeGroupId = groupId;
+        groupMembers = members.slice();
+
+        // 手动切换选中集（不能调 deselectAll：它会触发 updateSelection，
+        // 而 updateSelection 里的「不再整组全选就退出组模式」校验会把刚激活的组立刻退掉）
+        if (typeof selectedObjects !== 'undefined') {
+            selectedObjects.forEach(function (o) { if (o && o.mesh) highlightObject(o.mesh, false); });
+            selectedObjects = members.slice();
+        }
+        members.forEach(function (obj) { if (obj.mesh) highlightObject(obj.mesh, true); });
+
         editMode = 'select';
-        document.getElementById('current-mode').textContent = weT('status.modeSelectMove', '选择/移动');
+        const modeEl = document.getElementById('current-mode');
+        if (modeEl) modeEl.textContent = weT('status.modeSelectMove', '选择/移动');
+        const btn = document.getElementById('ctb-group');
+        if (btn) btn.classList.add('active');
+
+        // updateSelection 内部对多选 detach；包装器随后 syncTransformAnchor 建立包围盒锚点
         updateSelection();
-        // updateSelection 对多选会 detach，这里重新附着组
-        transformControls.attach(activeGroup);
-        transformControls.setMode('translate');
         syncGroupPanelUI();
     }
 
-    // ===== 编组 / 解组 =====
-    function groupSelected() {
-        destroyTransformAnchor(); // 编组前清掉多选锚点，成员移入组后锚点失效
-        if (activeGroup) {
-            showNotify(weT('group.alreadyGrouped', '⚠️ 当前已有编组，请先解组'), 'info');
-            return;
-        }
-        if (selectedObjects.length < 2) {
-            showNotify(weT('group.needTwo', '⚠️ 请至少选择 2 个对象进行编组'), 'info');
-            return;
-        }
-        const members = selectedObjects.slice();
-        const group = new THREE.Group();
-        group.userData.isEditorGroup = true;
-        members.forEach(function (obj) {
-            if (obj.mesh) {
-                if (obj.mesh.parent) obj.mesh.parent.remove(obj.mesh);
-                group.add(obj.mesh);
-            }
-        });
-        scene.add(group);
+    /**
+     * 退出组模式（不销毁组本身）。
+     * @param {string} [groupId] 只在当前激活的组等于它时才退出
+     */
+    function deactivateGroup(groupId) {
+        if (!activeGroupId) return;
+        if (groupId && activeGroupId !== groupId) return;
 
-        activeGroup = group;
-        groupMembers = members;
+        // 退出前同步落库（不能等防抖：清空 groupMembers 后定时器就取不到成员了）
+        clearTimeout(_bakeTimer);
+        if (groupMembers.length) doBakeMembers(groupMembers.slice(), true);
 
-        transformControls.attach(group);
-        transformControls.setMode('translate');
-        editMode = 'select';
-        document.getElementById('current-mode').textContent = weT('status.modeSelectMove', '选择/移动');
+        transformControls.detach();
+        destroyTransformAnchor();
+        activeGroupId = null;
+        groupMembers = [];
         const btn = document.getElementById('ctb-group');
-        if (btn) btn.classList.add('active');
-        showNotify(weTp('group.grouped', { count: members.length }, '✅ 已编组 ' + members.length + ' 个对象，可整体拖动'), 'success');
-        updateObjectList();
-        syncGroupPanelUI(); // 右侧显示组变换面板
+        if (btn) btn.classList.remove('active');
+        syncGroupPanelUI();
+    }
+
+    // 兼容旧调用（框选后点「组整体」等场景）
+    function selectGroupAsWhole() {
+        if (activeGroupId) activateGroup(activeGroupId);
+    }
+
+    // ===== 编组 / 解组（转交 worldObjectGroups.js：建组要落库、列表要成树）=====
+    function groupSelected() {
+        if (!window.WorldObjectGroups) {
+            showNotify('❌ 编组模块未加载，请刷新页面', 'error');
+            return;
+        }
+        // 规则：选中的对象已在别的组里 → 提示并禁止（不做「组内再分组」）
+        window.WorldObjectGroups.createFromSelection();
     }
 
     function ungroupActive() {
-        destroyTransformAnchor(); // 解组前清掉多选锚点
-        if (!activeGroup) {
-            showNotify(weT('group.noGroup', '⚠️ 当前没有编组'), 'info');
+        if (!activeGroupId) {
+            showNotify(weT('group.noGroup', '⚠️ 没有选中的编组'), 'info');
             return;
         }
-        const members = groupMembers.slice();
-        members.forEach(function (obj) {
-            if (obj.mesh) {
-                if (obj.mesh.parent) obj.mesh.parent.remove(obj.mesh);
-                scene.attach(obj.mesh);
-            }
-        });
-        if (activeGroup.parent) activeGroup.parent.remove(activeGroup);
-        activeGroup = null;
-        groupMembers = [];
-        transformControls.detach();
-        const btn = document.getElementById('ctb-group');
-        if (btn) btn.classList.remove('active');
-
-        // 解组后重新选中原成员
-        deselectAll();
-        members.forEach(function (obj) {
-            selectedObjects.push(obj);
-            if (obj.mesh) highlightObject(obj.mesh, true);
-        });
-        updateSelection();
-
-        showNotify(weTp('group.ungrouped', { count: members.length }, '✅ 已解组 ' + members.length + ' 个对象'), 'success');
-        updateObjectList();
-        syncGroupPanelUI(); // 解组后恢复普通属性面板
+        window.WorldObjectGroups.release(activeGroupId);
     }
 
     // ===== 烘焙保存（组/多选锚点拖动结束自动写库） =====
     function onGizmoDragEnd(event) {
         if (event.value) return; // 拖动开始
-        if (activeGroup || (transformAnchor && anchorMembers.length)) bakeGroupAndSave();
+        if (activeGroupId || (transformAnchor && anchorMembers.length)) bakeGroupAndSave();
     }
 
     function bakeGroupAndSave(silent) {
@@ -385,18 +397,33 @@
 
     // 通用烘焙保存：组 → 全部成员；多选锚点 → 全部选中；单选 → 单个对象；silent 用于方向键静默保存
     async function doBake(silent) {
-        const members = activeGroup && groupMembers.length
+        const members = (activeGroupId && groupMembers.length)
             ? groupMembers.slice()
             : (selectedObjects.length >= 1 ? selectedObjects.slice() : []);
-        if (!members.length) return;
+        return doBakeMembers(members, silent);
+    }
+
+    // 用显式成员列表烘焙（退出组时要在清空 groupMembers 之前同步调用）
+    async function doBakeMembers(members, silent) {
+        if (!members || !members.length) return;
         const updates = members.map(function (obj) {
-            const mesh = obj.mesh;
-            const pos = new THREE.Vector3();
-            const quat = new THREE.Quaternion();
-            const scale = new THREE.Vector3();
-            mesh.getWorldPosition(pos);
-            mesh.getWorldQuaternion(quat);
-            mesh.getWorldScale(scale);
+            if (!obj) return null;
+            let pos, quat, scale;
+            if (obj.mesh) {
+                pos = new THREE.Vector3();
+                quat = new THREE.Quaternion();
+                scale = new THREE.Vector3();
+                obj.mesh.getWorldPosition(pos);
+                obj.mesh.getWorldQuaternion(quat);
+                obj.mesh.getWorldScale(scale);
+            } else {
+                // 【2026-11-18】未加载成员没有 mesh，原代码在这里直接抛 TypeError
+                //（mesh.getWorldPosition of null）→ 拖组/切组的落库整批失败。
+                // 改用数据字段：它们可能已被整体拖动/旋转写回。
+                pos = objVec3(obj);
+                quat = objQuat(obj);
+                scale = objScl(obj);
+            }
             const euler = new THREE.Euler().setFromQuaternion(quat, 'XYZ');
             return {
                 id: obj.id,
@@ -406,7 +433,7 @@
                     scale_x: scale.x, scale_y: scale.y, scale_z: scale.z
                 }
             };
-        });
+        }).filter(Boolean);
         try {
             const results = await Promise.all(updates.map(function (u) {
                 return fetch(API_BASE + '/objects/' + u.id, {
@@ -427,7 +454,7 @@
                 });
                 if (!silent) {
                     showNotify(
-                        activeGroup
+                        activeGroupId
                             ? weTp('group.saved', { count: members.length }, '💾 组变换已保存 (' + members.length + ' 个对象)')
                             : (selectedObjects.length === 1
                                 ? weT('group.savedSingle', '💾 位置已保存')
@@ -449,7 +476,7 @@
             return;
         }
         // 判断是否整组复制：当前选择 == 全部组成员
-        const isGroupCopy = !!(activeGroup && groupMembers.length &&
+        const isGroupCopy = !!(activeGroupId && groupMembers.length &&
             groupMembers.every(function (m) { return selectedObjects.indexOf(m) >= 0; }) &&
             selectedObjects.every(function (o) { return groupMembers.indexOf(o) >= 0; }));
         const originals = isGroupCopy ? groupMembers.slice() : selectedObjects.slice();
@@ -503,23 +530,11 @@
                 // 副本原位复制后 gizmo 直接附着，复制完即可拖动到目标位置
                 syncTransformAnchor();
             }
-            // 整组复制 → 副本自动重新编组
+            // 整组复制 → 副本自动成组（走后端落库，列表里立刻出现新组）
             if (isGroupCopy && copies.length >= 2) {
-                const group = new THREE.Group();
-                group.userData.isEditorGroup = true;
-                copies.forEach(function (obj) {
-                    if (obj.mesh) {
-                        if (obj.mesh.parent) obj.mesh.parent.remove(obj.mesh);
-                        group.add(obj.mesh);
-                    }
-                });
-                scene.add(group);
-                activeGroup = group;
-                groupMembers = copies;
-                transformControls.attach(group);
-                transformControls.setMode('translate');
-                document.getElementById('ctb-group').classList.add('active');
-                syncGroupPanelUI();
+                selectedObjects = copies.slice();
+                copies.forEach(function (obj) { if (obj.mesh) highlightObject(obj.mesh, true); });
+                if (window.WorldObjectGroups) window.WorldObjectGroups.createFromSelection();
             }
             showNotify(weTp('copy.copied', { count: originals.length }, '✅ 已复制 ' + originals.length + ' 个对象'), 'success');
             updateObjectList();
@@ -533,19 +548,24 @@
     async function deleteSelectedGroupAware() {
         // 组模式下：删除组内任一对象 = 删除整组
         const inGroup = selectedObjects.filter(function (o) {
-            return activeGroup && groupMembers.indexOf(o) >= 0;
+            return activeGroupId && groupMembers.indexOf(o) >= 0;
         });
         if (inGroup.length > 0 && groupMembers.length > 0) {
             const count = groupMembers.length;
             if (!confirm(weTp('group.deleteConfirm', { count: count }, '确定要删除组内 ' + count + ' 个对象吗？'))) return;
+            const groupIdToRelease = activeGroupId;
             try {
                 for (let i = 0; i < groupMembers.length; i++) {
+                    // 【2026-11-15】出生点是系统对象，跳过：后端并无这条记录（只会 404），
+                    // 但本地移除会让玩家当场失去落点。
+                    if (groupMembers[i].id === 'spawn_point') continue;
                     const resp = await fetch(API_BASE + '/objects/' + groupMembers[i].id, { method: 'DELETE' });
                     const data = await resp.json();
                     if (!data.success) throw new Error(data.error || 'delete failed');
                 }
                 // 移除本地引用与场景对象
                 groupMembers.forEach(function (obj) {
+                    if (obj.id === 'spawn_point') return;   // 出生点保留在场景与世界列表里
                     const idx = worldObjects.indexOf(obj);
                     if (idx >= 0) worldObjects.splice(idx, 1);
                     if (obj.mesh) {
@@ -553,8 +573,20 @@
                         disposeObject3D(obj.mesh, obj.type === 'uploaded_model');
                     }
                 });
-                if (activeGroup && activeGroup.parent) activeGroup.parent.remove(activeGroup);
-                activeGroup = null;
+                // 组里成员全删了 → 组记录也要删掉，否则列表留下空组
+                if (groupIdToRelease) {
+                    try {
+                        await fetch(API_BASE + '/object-groups/' + groupIdToRelease, { method: 'DELETE' });
+                    } catch (e) { /* 组已不存在也无所谓 */ }
+                    if (window.WorldObjectGroups) {
+                        window.WorldObjectGroups.state.groups =
+                            window.WorldObjectGroups.state.groups.filter(function (g) { return g.id !== groupIdToRelease; });
+                        const c = window.WorldObjectGroups.containerOf(groupIdToRelease);
+                        if (c && c.parent) c.parent.remove(c);
+                        window.WorldObjectGroups.state.containers.delete(groupIdToRelease);
+                    }
+                }
+                activeGroupId = null;
                 groupMembers = [];
                 selectedObjects = [];
                 transformControls.detach();
@@ -578,16 +610,11 @@
     // ===== 清理（loadWorldObjects 重建前调用） =====
     function cleanupEditorGroup() {
         destroyTransformAnchor(); // 世界重载前清掉多选锚点
-        if (activeGroup) {
-            groupMembers.forEach(function (obj) {
-                if (obj.mesh && obj.mesh.parent) {
-                    obj.mesh.parent.remove(obj.mesh);
-                    scene.add(obj.mesh); // 归还场景，供 loadWorldObjects 统一 scene.remove + dispose
-                }
-            });
-            if (activeGroup.parent) activeGroup.parent.remove(activeGroup);
-            activeGroup = null;
+        // 持久化编组：所有组容器由 worldObjectGroups.js 持有，成员归还场景后统一 dispose
+        if (window.WorldObjectGroups) {
+            window.WorldObjectGroups.cleanupAll();
         }
+        activeGroupId = null;
         groupMembers = [];
         transformControls.detach();
         const btn = document.getElementById('ctb-group');
@@ -600,6 +627,50 @@
     let anchorMembers = [];         // 锚点变换涉及的成员
     let anchorStart = null;         // 锚点初始变换
     let memberStart = {};           // 成员初始本地变换
+
+    /* ---- 未加载成员的变换兜底（2026-11-18）----
+     * 组常见上千个对象，流式加载只把相机附近的拉进来（loadDistance 200m），
+     * 其余 obj.mesh 为空。原实现直接 `const mesh = obj.mesh; mesh.getWorldPosition()`
+     * 会抛 TypeError，导致「拖组」或「切组落库」直接失败；锚点也会因为只统计
+     * 少量已加载对象而飞到远处。这里统一用数据库位置字段兜底。 */
+    function _pnum(v, d) {
+        return (typeof v === 'number' && isFinite(v)) ? v : (typeof d === 'number' ? d : 0);
+    }
+    function objVec3(obj) {
+        const d = (obj && obj.data) || {};
+        return new THREE.Vector3(
+            _pnum(obj && obj.position_x, d.position_x),
+            _pnum(obj && obj.position_y, d.position_y),
+            _pnum(obj && obj.position_z, d.position_z)
+        );
+    }
+    function objQuat(obj) {
+        const d = (obj && obj.data) || {};
+        const e = new THREE.Euler(
+            _pnum(obj && obj.rotation_x, d.rotation_x),
+            _pnum(obj && obj.rotation_y, d.rotation_y),
+            _pnum(obj && obj.rotation_z, d.rotation_z), 'XYZ');
+        return new THREE.Quaternion().setFromEuler(e);
+    }
+    function objScl(obj) {
+        const d = (obj && obj.data) || {};
+        return new THREE.Vector3(
+            _pnum(obj && obj.scale_x, _pnum(d.scale_x, 1)),
+            _pnum(obj && obj.scale_y, _pnum(d.scale_y, 1)),
+            _pnum(obj && obj.scale_z, _pnum(d.scale_z, 1))
+        );
+    }
+    function setObjTransform(obj, pos, quat, scl) {
+        const e = new THREE.Euler().setFromQuaternion(quat, 'XYZ');
+        const body = {
+            position_x: pos.x, position_y: pos.y, position_z: pos.z,
+            rotation_x: e.x, rotation_y: e.y, rotation_z: e.z,
+            scale_x: scl.x, scale_y: scl.y, scale_z: scl.z
+        };
+        Object.assign(obj, body);
+        if (!obj.data) obj.data = {};
+        Object.assign(obj.data, body);
+    }
 
     function createTransformAnchor() {
         if (selectedObjects.length < 2) { destroyTransformAnchor(); return; }
@@ -635,11 +706,57 @@
             return;
         }
 
+        /**
+         * 【2026-11-18 修】gizmo 跑到很远的地方
+         * ------------------------------------------------------------
+         * 上面只统计了「已经有 mesh 的成员」。组往往有上千个对象，流式加载只把
+         * 相机附近的拉进来（loadDistance 200m），其余 obj.mesh 为空被跳过；
+         * 只要此刻恰好有几个远处成员加载完成，包围盒并集中心就会飞到那边，
+         * 表现为「选中组后移动箭头在很远的地方，根本不在组上方」。
+         *
+         * 修法：再用数据库里的位置字段（position_x/y/z，恒可用、与加载状态无关）
+         * 算一个位置中心做交叉校验；两者偏差超过阈值时以位置中心为准。
+         * 位置不会说谎 —— 它描述的是这套东西实际摆在哪。
+         */
+        let px = 0, py = 0, pz = 0, pn = 0;
+        selectedObjects.forEach(function (o) {
+            if (!o) return;
+            if (typeof o.position_x === 'number' && typeof o.position_z === 'number') {
+                px += o.position_x;
+                py += (typeof o.position_y === 'number' ? o.position_y : 0);
+                pz += o.position_z;
+                pn++;
+            }
+        });
+
+        let finalCenter = center.clone();
+        let posCenter = null;
+        if (pn > 0) {
+            posCenter = new THREE.Vector3(px / pn, py / pn, pz / pn);
+            const gap = center.distanceTo(posCenter);
+            /**
+             * 【2026-11-18 二次修】组模式**强制**用位置中心，不再看偏差阈值。
+             * 组动辄上千个成员，网格只加载了零星几个（流式加载按距离），
+             * 采样出来的包围盒中心根本没有代表性 —— 哪怕只差 30 米，gizmo 也是飘的。
+             * 普通多选（非组）成员少、加载基本齐全，仍优先用网格中心。
+             */
+            if (activeGroupId || (pn > 1 && gap > 80)) {
+                finalCenter.copy(posCenter);
+            }
+        }
+
+        console.log('[锚点] 成员=' + selectedObjects.length +
+            ' 有效mesh=' + validCount + ' 有坐标=' + pn +
+            ' | 网格中心=' + center.toArray().map(function (v) { return +v.toFixed(1); }).join(',') +
+            ' | 位置中心=' + (posCenter ? posCenter.toArray().map(function (v) { return +v.toFixed(1); }).join(',') : 'n/a') +
+            ' | 采用=' + finalCenter.toArray().map(function (v) { return +v.toFixed(1); }).join(',') +
+            ' | 组模式=' + (!!activeGroupId));
+
         if (!transformAnchor) {
             transformAnchor = new THREE.Object3D();
             scene.add(transformAnchor);
         }
-        transformAnchor.position.copy(center);
+        transformAnchor.position.copy(finalCenter);
         transformAnchor.quaternion.set(0, 0, 0, 1);
         transformAnchor.scale.set(1, 1, 1);
 
@@ -651,13 +768,12 @@
         };
         memberStart = {};
         anchorMembers.forEach(function (obj) {
+            if (!obj) return;
             const mesh = obj.mesh;
-            if (!mesh) return;
-            memberStart[obj.id] = {
-                pos: mesh.position.clone(),
-                quat: mesh.quaternion.clone(),
-                scl: mesh.scale.clone()
-            };
+            // 未加载成员也要记初始变换，否则整体拖动时它留在原地、组就散了
+            memberStart[obj.id] = mesh
+                ? { pos: mesh.position.clone(), quat: mesh.quaternion.clone(), scl: mesh.scale.clone(), noMesh: false }
+                : { pos: objVec3(obj), quat: objQuat(obj), scl: objScl(obj), noMesh: true };
         });
 
         transformControls.attach(transformAnchor);
@@ -690,22 +806,32 @@
             transformAnchor.scale.z / anchorStart.scl.z
         );
         anchorMembers.forEach(function (obj) {
-            const mesh = obj.mesh;
             const s = memberStart[obj.id];
-            if (!mesh || !s) return;
+            if (!s) return;
             const rel = new THREE.Vector3().subVectors(s.pos, anchorStart.pos);
             rel.multiply(dScl);
             rel.applyQuaternion(dQuat);
-            mesh.position.copy(rel.add(anchorStart.pos).add(dPos));
-            mesh.quaternion.copy(new THREE.Quaternion().multiplyQuaternions(dQuat, s.quat));
-            mesh.scale.set(s.scl.x * dScl.x, s.scl.y * dScl.y, s.scl.z * dScl.z);
+            const newPos = rel.add(anchorStart.pos).add(dPos);
+            const newQuat = new THREE.Quaternion().multiplyQuaternions(dQuat, s.quat);
+            const mesh = obj.mesh;
+            const finalScl = new THREE.Vector3(s.scl.x * dScl.x, s.scl.y * dScl.y, s.scl.z * dScl.z);
+            if (mesh) {
+                mesh.position.copy(newPos);
+                mesh.quaternion.copy(newQuat);
+                mesh.scale.copy(finalScl);
+            }
+            // 【2026-11-18 修】无论有没有 mesh 都同步回对象数据。
+            // 原先只动 mesh、不更新 obj.position_x/z，拖完以后再点这个组，
+            // createTransformAnchor 用「位置中心」算出来的还是拖动前的坐标，
+            // gizmo 就留在原地、跟模型差出两百多米。
+            setObjTransform(obj, newPos, newQuat, finalScl);
         });
         if (transformControls && transformControls.object === transformAnchor) transformControls.update();
     }
 
     // 根据 编辑模式 + 选择状态 同步锚点（select=移动，rotate/scale 同理）
     function syncTransformAnchor() {
-        if (activeGroup || typeof editMode === 'undefined') {
+        if (typeof editMode === 'undefined') {
             destroyTransformAnchor();
             return;
         }
@@ -755,21 +881,35 @@
         const t = e.target;
         if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
         if (transformControls && transformControls.dragging) return; // gizmo 拖动中不响应
-        if (!selectedObjects.length && !activeGroup) return;
+        if (!selectedObjects.length && !activeGroupId) return;
         e.preventDefault(); // 阻止方向键滚动页面
 
-        // 多选且未编组 → 按一次方向键自动编组，之后整体移动
-        if (!activeGroup && selectedObjects.length > 1) {
+        // 多选且未编组 → 先建组（会落库），再按键才整体移动。
+        // 编组已经成为持久概念，不再做「按一下键就偷偷建个临时组」的动作。
+        if (!activeGroupId && selectedObjects.length > 1) {
             groupSelected();
+            return;
         }
-        if (!activeGroup && selectedObjects.length !== 1) return;
+        if (!activeGroupId && selectedObjects.length !== 1) return;
 
         const step = e.shiftKey ? 2 : 0.5;          // 默认步长 0.5，Shift 加速到 2
         const delta = getScreenMoveDelta(key, step);
         if (!delta) return;
 
-        if (activeGroup) {
-            activeGroup.position.add(delta);
+        if (activeGroupId && groupMembers.length) {
+            // 组整体移动：组容器恒等，直接平移每个成员（世界坐标）
+            groupMembers.forEach(function (obj) {
+                if (obj && obj.mesh) obj.mesh.position.add(delta);
+            });
+            // 锚点/起始快照一起前移，否则下次 gizmo 拖动会把这段位移重复应用一次
+            if (transformAnchor) {
+                transformAnchor.position.add(delta);
+                if (anchorStart) anchorStart.pos.add(delta);
+                anchorMembers.forEach(function (obj) {
+                    const s = memberStart[obj.id];
+                    if (s && obj.mesh) s.pos.copy(obj.mesh.position);
+                });
+            }
         } else {
             const mesh = selectedObjects[0].mesh;
             if (!mesh) return;
@@ -842,84 +982,126 @@
     }
 
     // 组面板与普通属性面板的显隐切换 + 数值填充
+    // 面板形态统一交给 world_editor.html 的 setRightPropsMode / refreshRightPanelForSelection 管，
+    // 避免两处各写一套 display 逻辑互相覆盖（属性面板收起后组面板也会被一起藏起来）。
     function syncGroupPanelUI() {
         const panel = document.getElementById('group-transform-panel');
         if (!panel) return;
-        const empty = document.getElementById('right-props-empty');
-        const form = document.getElementById('right-props-form');
-        if (activeGroup) {
+        if (activeGroupId) {
             panel.style.display = 'block';
-            if (empty) empty.style.display = 'none';
-            if (form) form.style.display = 'none';
+            if (typeof window.setRightPropsMode === 'function') {
+                window.setRightPropsMode('group');
+            } else {
+                const empty = document.getElementById('right-props-empty');
+                const form = document.getElementById('right-props-form');
+                if (empty) empty.style.display = 'none';
+                if (form) form.style.display = 'none';
+            }
             refreshGroupPanelValues();
         } else {
             panel.style.display = 'none';
-            if (selectedObjects.length === 1 && typeof updateRightPropsPanel === 'function') {
-                if (empty) empty.style.display = 'none';
-                if (form) form.style.display = 'block';
-                updateRightPropsPanel(selectedObjects[0]);
+            if (typeof window.refreshRightPanelForSelection === 'function') {
+                window.refreshRightPanelForSelection();
             } else {
-                if (empty) empty.style.display = 'block';
-                if (form) form.style.display = 'none';
+                const empty = document.getElementById('right-props-empty');
+                const form = document.getElementById('right-props-form');
+                if (selectedObjects.length === 1 && typeof updateRightPropsPanel === 'function') {
+                    if (empty) empty.style.display = 'none';
+                    if (form) form.style.display = 'block';
+                    updateRightPropsPanel(selectedObjects[0]);
+                } else {
+                    if (empty) empty.style.display = 'block';
+                    if (form) form.style.display = 'none';
+                }
             }
         }
     }
 
+    // 组的锚点 = 全体成员的世界包围盒中心（组容器恒等，自身没有 transform）
+    function groupAnchorCenter() {
+        if (!groupMembers.length) return null;
+        const box = new THREE.Box3();
+        let valid = false;
+        groupMembers.forEach(function (obj) {
+            if (!obj || !obj.mesh) return;
+            try { box.expandByObject(obj.mesh); valid = true; } catch (e) { /* 个别空几何跳过 */ }
+        });
+        if (!valid || box.isEmpty()) return null;
+        const c = box.getCenter(new THREE.Vector3());
+        if (!isFinite(c.x) || !isFinite(c.y) || !isFinite(c.z)) return null;
+        return c;
+    }
+
     function refreshGroupPanelValues() {
-        if (!activeGroup) return;
-        setGroupInput('group-prop-x', activeGroup.position.x);
-        setGroupInput('group-prop-y', activeGroup.position.y);
-        setGroupInput('group-prop-z', activeGroup.position.z);
-        setGroupInput('group-prop-rx', THREE.MathUtils.radToDeg(activeGroup.rotation.x));
-        setGroupInput('group-prop-ry', THREE.MathUtils.radToDeg(activeGroup.rotation.y));
-        setGroupInput('group-prop-rz', THREE.MathUtils.radToDeg(activeGroup.rotation.z));
-        setGroupInput('group-prop-sx', activeGroup.scale.x);
-        setGroupInput('group-prop-sy', activeGroup.scale.y);
-        setGroupInput('group-prop-sz', activeGroup.scale.z);
+        if (!activeGroupId) return;
+        const c = groupAnchorCenter();
+        if (c) {
+            setGroupInput('group-prop-x', c.x);
+            setGroupInput('group-prop-y', c.y);
+            setGroupInput('group-prop-z', c.z);
+        }
+        // 旋转/缩放按「相对增量」处理：每次应用后归零/归一，避免与绝对值输入语义打架
+        setGroupInput('group-prop-rx', 0);
+        setGroupInput('group-prop-ry', 0);
+        setGroupInput('group-prop-rz', 0);
+        setGroupInput('group-prop-sx', 1);
+        setGroupInput('group-prop-sy', 1);
+        setGroupInput('group-prop-sz', 1);
     }
     function setGroupInput(id, v) {
         const el = document.getElementById(id);
         if (el) el.value = (+v).toFixed(2);
     }
 
-    // 应用组变换：旋转/缩放先绕组中心（组锚点=包围盒中心），再烘焙保存
+    // 应用组变换：位置=绝对锚点，旋转/缩放=相对增量，绕包围盒中心作用到每个成员
     function applyGroupTransform() {
-        if (!activeGroup) {
+        if (!activeGroupId || !groupMembers.length) {
             showNotify(weT('group.noGroup', '⚠️ 当前没有编组'), 'info');
             return;
         }
-        recenterGroupPivot();
+        const center = groupAnchorCenter();
+        if (!center) {
+            showNotify('❌ 无法计算编组中心（成员几何体异常）', 'error');
+            return;
+        }
         const num = function (id, dft) {
             const el = document.getElementById(id);
             const v = parseFloat(el ? el.value : '');
             return isFinite(v) ? v : dft;
         };
-        activeGroup.position.set(num('group-prop-x', 0), num('group-prop-y', 0), num('group-prop-z', 0));
-        activeGroup.rotation.set(
+
+        const target = new THREE.Vector3(
+            num('group-prop-x', center.x),
+            num('group-prop-y', center.y),
+            num('group-prop-z', center.z)
+        );
+        const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(
             THREE.MathUtils.degToRad(num('group-prop-rx', 0)),
             THREE.MathUtils.degToRad(num('group-prop-ry', 0)),
-            THREE.MathUtils.degToRad(num('group-prop-rz', 0))
-        );
-        activeGroup.scale.set(
+            THREE.MathUtils.degToRad(num('group-prop-rz', 0)),
+            'XYZ'
+        ));
+        const scl = new THREE.Vector3(
             Math.max(0.01, num('group-prop-sx', 1)),
             Math.max(0.01, num('group-prop-sy', 1)),
             Math.max(0.01, num('group-prop-sz', 1))
         );
-        if (transformControls && transformControls.object === activeGroup) transformControls.update();
-        bakeGroupAndSave();
-        showNotify(weT('group.transformApplied', '✅ 组变换已应用并保存'), 'success');
-    }
 
-    // 把组锚点移到成员包围盒中心（使旋转/缩放绕整体中心）
-    function recenterGroupPivot() {
-        const box = new THREE.Box3();
         groupMembers.forEach(function (obj) {
-            if (obj.mesh) box.expandByObject(obj.mesh);
+            const mesh = obj && obj.mesh;
+            if (!mesh) return;
+            const rel = new THREE.Vector3().subVectors(mesh.position, center);
+            rel.multiply(scl);
+            rel.applyQuaternion(q);
+            mesh.position.copy(target).add(rel);
+            mesh.quaternion.premultiply(q);
+            mesh.scale.set(mesh.scale.x * scl.x, mesh.scale.y * scl.y, mesh.scale.z * scl.z);
         });
-        const center = box.getCenter(new THREE.Vector3());
-        if (isFinite(center.x) && isFinite(center.y) && isFinite(center.z)) {
-            activeGroup.position.copy(center);
-        }
+
+        syncTransformAnchor();      // 重建锚点与起始快照，避免下次拖动跳变
+        bakeGroupAndSave();
+        refreshGroupPanelValues();
+        showNotify(weT('group.transformApplied', '✅ 组变换已应用并保存'), 'success');
     }
 
     // ===== capture 阶段 click 拦截 =====
@@ -931,7 +1113,7 @@
             return;
         }
         // 2. 组模式下点击组成员 → 保持整组选择
-        if (activeGroup && editMode === 'select' && !e.ctrlKey && !e.metaKey &&
+        if (activeGroupId && editMode === 'select' && !e.ctrlKey && !e.metaKey &&
             e.target === renderer.domElement) {
             const hit = hitTestObject(e.clientX, e.clientY);
             if (hit && groupMembers.indexOf(hit) >= 0) {

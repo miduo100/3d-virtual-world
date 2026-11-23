@@ -69,6 +69,10 @@
     "statConnectedWorlds": "连接的世界",
     "statTotalTeleports": "总传送次数",
     "statTodayTeleports": "今日传送",
+    "statOnline": "当前在线",
+    "statTodayVisitors": "今日访客",
+    "statAvgStay": "平均停留",
+    "statGuestRatio": "游客占比",
     "quickEntry": "🔗 快速入口",
     "quickUsers": "用户与角色",
     "quickUsersDesc": "管理用户账号与角色数据",
@@ -119,6 +123,13 @@
     "pg3dgsSub": "3D高斯泼溅场景管理",
     "pgThreejs-blocks": "Three.js 代码库",
     "pgThreejs-blocksSub": "管理 Three.js 代码块与场景脚本",
+    "pgSound-library": "🔊 音效库",
+    "pgSound-librarySub": "按「声音用在哪」分成三区。模型声音去统一编辑器配，天气声音和背景音乐去「世界与场景 → 天气控制」",
+    "pgAi-world-brain": "AI 世界大脑",
+    "pgAi-world-brainSub": "一句话，把世界建出来",
+    "audio": "音频",
+    "soundLibrary": "音效库",
+    "profileSetting": "⚙️ 账户设置",
     "usersSubtab": "👥 用户列表",
     "usersTitle": "👥 用户列表",
     "usersSearchPlaceholder": "搜索用户名/邮箱...",
@@ -403,28 +414,94 @@
     "createFailed": "创建失败",
     "addTagTitle": "➕ 新建标签",
     "templates": {
-      "simple_house": { "name": "简易房屋", "desc": "基础立方体房屋" },
-      "cottage": { "name": "茅草屋", "desc": "带三角屋顶的小屋" },
-      "tower": { "name": "塔楼", "desc": "圆柱形高塔" },
-      "barn": { "name": "谷仓", "desc": "长方形大型建筑" },
-      "shop": { "name": "商店", "desc": "带招牌的商店" },
-      "market": { "name": "市场摊位", "desc": "开放式摊位" },
-      "well": { "name": "水井", "desc": "圆形水井" },
-      "fence": { "name": "围栏", "desc": "木质围栏" },
-      "bridge": { "name": "桥梁", "desc": "简易木桥" },
-      "tree": { "name": "树木", "desc": "圆锥形树" },
-      "rock": { "name": "岩石", "desc": "随机岩石" },
-      "lamp": { "name": "路灯", "desc": "照明路灯" },
-      "castle_wall": { "name": "城墙", "desc": "石质城墙" },
-      "watch_tower": { "name": "瞭望塔", "desc": "高耸的瞭望塔" },
-      "apartment": { "name": "公寓楼", "desc": "多层住宅" },
-      "office": { "name": "办公楼", "desc": "现代办公建筑" },
-      "modern_house": { "name": "现代住宅", "desc": "现代风格的独立住宅" },
-      "futuristic_tower": { "name": "未来塔楼", "desc": "未来风格的高耸塔楼" },
-      "medieval_castle": { "name": "中世纪城堡", "desc": "中世纪风格的城堡" },
-      "forest": { "name": "森林", "desc": "茂密的森林场景" },
-      "lake": { "name": "湖泊", "desc": "宁静的湖泊场景" },
-      "box_primitive": { "name": "长方体", "desc": "可自定义尺寸的长方体，支持碰撞检测" }
+      "simple_house": {
+        "name": "简易房屋",
+        "desc": "基础立方体房屋"
+      },
+      "cottage": {
+        "name": "茅草屋",
+        "desc": "带三角屋顶的小屋"
+      },
+      "tower": {
+        "name": "塔楼",
+        "desc": "圆柱形高塔"
+      },
+      "barn": {
+        "name": "谷仓",
+        "desc": "长方形大型建筑"
+      },
+      "shop": {
+        "name": "商店",
+        "desc": "带招牌的商店"
+      },
+      "market": {
+        "name": "市场摊位",
+        "desc": "开放式摊位"
+      },
+      "well": {
+        "name": "水井",
+        "desc": "圆形水井"
+      },
+      "fence": {
+        "name": "围栏",
+        "desc": "木质围栏"
+      },
+      "bridge": {
+        "name": "桥梁",
+        "desc": "简易木桥"
+      },
+      "tree": {
+        "name": "树木",
+        "desc": "圆锥形树"
+      },
+      "rock": {
+        "name": "岩石",
+        "desc": "随机岩石"
+      },
+      "lamp": {
+        "name": "路灯",
+        "desc": "照明路灯"
+      },
+      "castle_wall": {
+        "name": "城墙",
+        "desc": "石质城墙"
+      },
+      "watch_tower": {
+        "name": "瞭望塔",
+        "desc": "高耸的瞭望塔"
+      },
+      "apartment": {
+        "name": "公寓楼",
+        "desc": "多层住宅"
+      },
+      "office": {
+        "name": "办公楼",
+        "desc": "现代办公建筑"
+      },
+      "modern_house": {
+        "name": "现代住宅",
+        "desc": "现代风格的独立住宅"
+      },
+      "futuristic_tower": {
+        "name": "未来塔楼",
+        "desc": "未来风格的高耸塔楼"
+      },
+      "medieval_castle": {
+        "name": "中世纪城堡",
+        "desc": "中世纪风格的城堡"
+      },
+      "forest": {
+        "name": "森林",
+        "desc": "茂密的森林场景"
+      },
+      "lake": {
+        "name": "湖泊",
+        "desc": "宁静的湖泊场景"
+      },
+      "box_primitive": {
+        "name": "长方体",
+        "desc": "可自定义尺寸的长方体，支持碰撞检测"
+      }
     }
   },
   "admin3dgs": {
@@ -510,6 +587,96 @@
     "nextPage": "下一页",
     "pageInfo": "第 {{page}} / {{total}} 页",
     "loadFailed": "加载失败: {{message}}"
+  },
+  "adminSound": {
+    "sec_actions": "① 角色动作",
+    "sec_actions_intro": "每个角色的 15 个动作 + 5 个武器槽位，逐个显示实际在播什么。",
+    "sec_scenes": "② 环境声景",
+    "sec_scenes_intro": "在坐标上放一段声音，玩家走进半径就响、走出去淡出。",
+    "sec_assets": "③ 声音资产",
+    "sec_assets_intro": "所有声音素材的中央仓库，上面两区都从这里挑声音。",
+    "sec_aigen": "④ AI 生成声音",
+    "sec_aigen_intro": "用提示词生成新音效，试听满意后入库，入库后各处都能直接调用。",
+    "anim_idle": "待机",
+    "anim_idle_desc": "布甲轻呼吸，存在感很低",
+    "anim_walk": "走路",
+    "anim_walk_desc": "布鞋踩土，短促",
+    "anim_run": "奔跑",
+    "anim_run_desc": "脚步更急，带衣料风",
+    "anim_jump": "跳跃",
+    "anim_jump_desc": "蹬地 + 气流上冲",
+    "anim_land": "落地",
+    "anim_land_desc": "体重落地的闷响",
+    "anim_attack1": "普攻1",
+    "anim_attack1_desc": "轻剑横挥破风",
+    "anim_attack2": "普攻2",
+    "anim_attack2_desc": "反手回挥",
+    "anim_attack3": "普攻3",
+    "anim_attack3_desc": "重挥，带重量",
+    "anim_attack_slash": "斩击",
+    "anim_attack_slash_desc": "快速细切破风",
+    "anim_attack_stab": "刺击",
+    "anim_attack_stab_desc": "突刺，锐利",
+    "anim_attack_swing": "挥舞",
+    "anim_attack_swing_desc": "钝器横扫，低沉",
+    "anim_hit": "受击",
+    "anim_hit_desc": "闷噗，钝击体感偏薄",
+    "anim_death": "死亡",
+    "anim_death_desc": "低频闷响下沉，长尾",
+    "anim_draw_sword": "拔剑",
+    "anim_draw_sword_desc": "短促一记嚓，偏钝",
+    "anim_sheath": "收剑",
+    "anim_sheath_desc": "入鞘的嗒，带闷底",
+    "wpn_equip_hum": "常态嗡鸣",
+    "wpn_equip_hum_desc": "低频底噪，几乎听不出内容",
+    "wpn_swing": "挥击",
+    "wpn_swing_desc": "重型武器挥动",
+    "wpn_hit_impact": "命中",
+    "wpn_hit_impact_desc": "极短噗，无锐利瞬态",
+    "wpn_draw": "拔出",
+    "wpn_draw_desc": "拖拽的沙，含混渐起",
+    "wpn_sheath": "收起",
+    "wpn_sheath_desc": "更干更细的刮擦",
+    "statsTotal": "共 20 项",
+    "statsSynth": "合成",
+    "statsPlaceholder": "占位",
+    "statsCustom": "自定义",
+    "statsEmpty": "空着",
+    "statsMuted": "静音",
+    "idleMuteTitle": "按你的要求待机静音",
+    "mutedBadge": "已静音",
+    "btnPreview": "试听",
+    "btnVariants": "变体",
+    "pickTemplateFirst": "请先在上方选择一个角色模板",
+    "groupAnim": "角色动作",
+    "groupWeapon": "武器音效",
+    "unitItems": "项",
+    "filterEmpty": "当前筛选条件下没有内容",
+    "slotEmptyTitle": "空着（不出声）",
+    "slotEmptySub": "待机不配音；动作结束回待机不会再响一声",
+    "slotMutedSub": "你手动关掉了这个声音",
+    "slotVariantSuffix": "（共 {{n}} 个变体）",
+    "slotCustomSub": "你上传的文件",
+    "slotPlaceholderSub": "合成不出真质感，建议后续替换为真实素材",
+    "slotSynthSub": "系统自动生成，不需要上传",
+    "slotOverrideSub": "已选变体（音高 ×{{pitch}}　明亮 ×{{bright}}）",
+    "slotSynthPrefix": "合成音 · ",
+    "slotPlaceholderWrap": "占位（{{desc}}）",
+    "slotUnknown": "未知",
+    "slotUnknownSub": "该键没有可用的声音",
+    "tplLabel": "角色模板",
+    "filterAll": "全部",
+    "filterPlaceholder": "只看占位（待替换）",
+    "filterCustom": "只看自定义",
+    "searchPlaceholder": "搜索动作名",
+    "legendLabel": "色点：",
+    "legendSynth": "灰=合成",
+    "legendPlaceholder": "黄=占位（建议替换）",
+    "legendCustom": "蓝=你上传的",
+    "legendMute": "空=静音",
+    "sectionPlaceholderLead": "这一区将包含",
+    "noTemplates": "（没有角色模板）",
+    "unnamedTpl": "(未命名)"
   },
   "adminThreejs": {
     "pageTitle": "🧩 Three.js 代码库",
@@ -1065,7 +1232,7 @@
     "copyCoords": "复制",
     "minimap": "小地图",
     "controls": "操作指南",
-    "startGame": "开始游戏",
+    "startGame": "知道了",
     "loadTitle": "正在开启你的",
     "loadTitleEm": "世界",
     "loadTip": "首次进入需要加载场景资源，稍等几秒",
@@ -1108,6 +1275,21 @@
     "bio": "个性签名",
     "bioPlaceholder": "介绍一下自己...",
     "avatarColor": "头像颜色",
+    "characterName": "我的角色",
+    "pfNavAccount": "账号信息",
+    "pfTplSub": "点击后会提示刷新页面以应用",
+    "pfBasicSub": "这些信息会展示给同一个世界的其他玩家",
+    "pfAccountSub": "邮箱与账号标识，仅自己可见",
+    "pfTplNote": "选中的形象会立即记录，但需要刷新页面才能完全生效。",
+    "pfTplCount": "个形象 · 点击选择",
+    "pfScrollMore": "下滑查看更多",
+    "pfNicknameHint": "显示在角色头顶的名牌上，同一世界的玩家都能看到",
+    "pfEmailHint": "用于找回账号，仅自己可见",
+    "pfWorldLabel": "所在世界",
+    "pfBackToWorld": "返回世界",
+    "pfPortal": "传送门",
+    "pfExit": "退出登录",
+    "pfSave": "保存",
     "characterTemplate": "角色模板",
     "loadTemplates": "加载模板中...",
     "characterInfo": "角色信息",
@@ -1132,12 +1314,11 @@
     "coordTeleport": "坐标传送",
     "useCurrentPos": "使用当前位置",
     "teleport": "传送",
-    "pasteCoords": "粘贴坐标",
+    "pasteCoords": "粘贴坐标:",
     "portalList": "现有传送门列表",
     "coordFormat": "支持格式: X:8.2 Y:1.5 Z:34.7 | 8.2, 1.5, 34.7 | x=8.2 y=1.5 z=34.7",
     "loading": "加载中...",
     "midoVirtualSpace": "米多虚拟空间 - Mido Virtual Space",
-    "profile": "个人资料",
     "portfolio": "我的物品",
     "closeInventory": "关闭",
     "openPortalManager": "打开传送门管理",
@@ -1147,7 +1328,6 @@
     "portalManagerBtn": "🌀 传送门",
     "exitBtn": "🚪 退出",
     "backToWorldBtn": "🌍 返回",
-    "pasteCoords": "粘贴坐标:",
     "coordPlaceholder": "X:8.2 Y:1.5 Z:34.7",
     "shareYourWorld": "📋 分享你的世界",
     "copyShare": "复制配置",
@@ -1358,7 +1538,7 @@
     "noAIConfigured": "未配置AI",
     "enabled": "启用",
     "disabled": "禁用",
-    "duplicate": "📋 复制",
+    "duplicate": "重复",
     "editCustomNPC": "✏️ 编辑定制NPC",
     "worldName": "世界名称",
     "worldURL": "世界URL",
@@ -1374,6 +1554,12 @@
     "worldRemoved": "已移除信任世界",
     "removeFailed": "移除失败: {{message}}",
     "operationFailed": "操作失败: {{message}}",
+    "identityChanged": "身份已变更",
+    "rebind": "🔄 重新绑定",
+    "rebindConfirm": "将向该地址重新获取对方当前的世界身份并原地改绑，确定继续吗？",
+    "rebindRenamed": "已改绑: {{oldId}} → {{newId}}",
+    "rebindUnchanged": "身份未变，已刷新",
+    "rebindFailed": "重新绑定失败: {{message}}",
     "totalTeleports": "总传送次数",
     "activeUsers": "活跃用户",
     "connectedWorlds": "连接世界",
@@ -1512,12 +1698,19 @@
   },
   "adminSky": {
     "skyTitle": "🌌 天空",
-    "skyHint": "点选哪个天空，世界就用哪个（所有天气通用，天气只影响明暗与雾效）",
+    "skyHint": "点选哪个天空，世界就用哪个；开启「天空跟随天气」后改由天气自动切换，点选不再生效",
     "addSky": "➕ 添加天空",
     "skyTip": "支持 2:1 等距柱状全景图（JPG/PNG）与 HDR（EXR，1K~4K 建议），单个文件 ≤30MB",
     "defaultBadge": "系统默认",
+    "procedural": "程序生成",
+    "skyLink": "天空跟随天气",
+    "skyLinkHint": "开启后天气变化时按下面配置自动切换天空；上面卡片的点选不再生效。",
+    "skyLinkSaved": "天空联动已保存并广播",
+    "skyLinkFailed": "天空联动保存失败",
+    "envTip": "开启后这条天空会作为光源照亮场景；不同天气间状态不一致时，切换会触发一次材质重编译",
     "useEnv": "用作环境光照",
     "delete": "删除",
+    "deleteHint": "删除该天空并移除服务器上的文件",
     "loading": "加载中...",
     "loadFailed": "天空库加载失败",
     "uploadOk": "天空已添加并应用",
@@ -1656,11 +1849,13 @@
     "typeTextTo3d": "✍️ 文字生成3D",
     "typeTts": "🗣️ 文字转语音",
     "typeStt": "👂 语音转文字",
+    "typeSfx": "🔊 文字转音效",
     "badgeChat": "对话",
     "badgeImgTo3d": "图生3D",
     "badgeTextTo3d": "文生3D",
     "badgeTts": "TTS",
     "badgeStt": "STT",
+    "badgeSfx": "SFX",
     "cardConfigure": "⚙️ 配置",
     "cardTest": "🧪 测试连接",
     "cardSetDefault": "⭐ 设为默认",
@@ -2131,7 +2326,8 @@
       "resetCamera": "重置相机",
       "marquee": "框选",
       "group": "编组",
-      "ungroup": "解组"
+      "ungroup": "解组",
+      "lock": "锁定选中对象（锁定后不可编辑/移动/删除）"
     },
     "hint": {
       "title": "🖱️ 控制说明",
@@ -2332,6 +2528,7 @@
       "tabTransform": "📐 属性",
       "tabVideo": "🎬 视频",
       "tabAnimation": "🎯 动画",
+      "tabSound": "🔊 声音",
       "tabAdvanced": "⚙️ 高级参数",
       "positionLabel": "位置 (X, Y, Z)",
       "rotationLabel": "旋转 (X, Y, Z)",
@@ -2355,7 +2552,9 @@
       "animAmplitude": "幅度",
       "animSpeed": "速度",
       "noAdvancedParams": "该类型暂无高级参数",
-      "saveChanges": "保存更改"
+      "saveChanges": "保存更改",
+      "batchApply": "✅ 应用到已选",
+      "collapseProps": "收起属性面板"
     },
     "eventModal": {
       "title": "🎮 交互事件配置",

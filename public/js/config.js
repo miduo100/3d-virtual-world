@@ -64,6 +64,11 @@ const CONFIG = {
   DRAW_DISTANCE: 500,
   MAX_HORIZONTAL_FOV: 90,
   MIN_VERTICAL_FOV: 35,
+  // 【2026-11-18 竖屏畸变修复】垂直 FOV 上限。
+  // 原逻辑只卡了下限 35（防超宽屏过窄），竖屏时按水平 90° 反推会把垂直 FOV
+  // 撑到 130°（390x844 实测），透视外扩极重，表现为"画面拉伸/变形"。
+  // 68° 是竖屏观感与畸变的平衡点，>70° 边缘直线弯曲肉眼可见。
+  MAX_VERTICAL_FOV: 68,
   // 性能配置
   TARGET_FPS: 60,
   MAX_PIXEL_RATIO: 1.0,

@@ -30,7 +30,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.1';   // 1.1.1：整套导入下全量零件（含地形与跨套件借用件），缺件不再静默
   var PER_PAGE = 24;
   var CACHE_TTL_MS = 5 * 60 * 1000;
   var SEARCH_DEBOUNCE_MS = 300;
@@ -190,7 +190,37 @@
       '  cursor:pointer;font-size:11px;}',
       '.fal-pager button:disabled{opacity:.4;cursor:default;}',
       '.fal-empty{padding:18px;text-align:center;color:#7d8798;font-size:12px;line-height:1.7;}',
-      '.fal-dl-row{display:flex;align-items:center;gap:6px;font-size:12px;color:#a9b4c6;cursor:pointer;}'
+      '.fal-dl-row{display:flex;align-items:center;gap:6px;font-size:12px;color:#a9b4c6;cursor:pointer;}',
+      /* ---- 成套场景 ---- */
+      '.fal-tabs{display:flex;gap:6px;margin-bottom:8px;}',
+      '.fal-tab{flex:1 1 0;text-align:center;padding:6px 4px;border-radius:7px;border:1px solid #2a3444;',
+      '  background:#151b26;color:#a9b4c6;font-size:12px;cursor:pointer;user-select:none;}',
+      '.fal-tab.active{background:linear-gradient(135deg,#4d7cff,#8a5bff);color:#fff;border-color:transparent;}',
+      '.fal-kit-grid{display:flex;flex-direction:column;gap:5px;max-height:38vh;overflow:auto;padding:2px;',
+      '  border-radius:8px;background:#0d1219;}',
+      '.fal-kit{display:flex;align-items:center;gap:8px;background:#151b26;border:1px solid #222b3a;',
+      '  border-radius:7px;padding:7px 8px;cursor:pointer;transition:border-color .15s,background .15s;}',
+      '.fal-kit:hover{border-color:#4d7cff;background:#18202c;}',
+      '.fal-kit.sel{border-color:#8a5bff;background:#1b2130;}',
+      '.fal-kit-ico{flex:0 0 30px;height:30px;border-radius:6px;background:#0f141c;display:flex;',
+      '  align-items:center;justify-content:center;font-size:15px;}',
+      '.fal-kit-name{font-size:12px;color:#dfe6f2;line-height:1.3;}',
+      '.fal-kit-meta{font-size:10px;color:#7d8798;margin-top:2px;}',
+      '.fal-partstrip{display:flex;gap:4px;overflow-x:auto;padding:4px 2px;margin-top:6px;}',
+      '.fal-partstrip .fal-thumb{flex:0 0 40px;width:40px;height:40px;}',
+      '.fal-kv{display:flex;justify-content:space-between;font-size:11px;color:#9aa6b8;margin-top:3px;}',
+      '.fal-kv b{color:#dfe6f2;font-weight:500;}',
+      /* 详情块自带深色底：面板分区在部分环境下是浅色底，光靠继承会看不清 */
+      '.fal-kit-box{background:#0d1219;border:1px solid #222b3a;border-radius:8px;padding:8px 9px;margin-top:6px;}',
+      '.fal-btnrow{display:flex;gap:6px;margin-top:8px;}',
+      '.fal-btnrow button{flex:1 1 0;padding:7px 6px;border-radius:7px;border:1px solid #2a3444;',
+      '  background:#151b26;color:#cfd8e6;font-size:12px;cursor:pointer;}',
+      '.fal-btnrow button.primary{background:linear-gradient(135deg,#4d7cff,#8a5bff);border-color:transparent;color:#fff;}',
+      '.fal-btnrow button:disabled{opacity:.45;cursor:default;}',
+      '.fal-keyrow{display:flex;gap:6px;margin-top:6px;align-items:center;}',
+      '.fal-keyrow button{padding:6px 10px;border-radius:6px;border:1px solid #2a3444;background:#151b26;',
+      '  color:#cfd8e6;font-size:11px;cursor:pointer;white-space:nowrap;}'
+
     ].join('');
     var el = document.createElement('style');
     el.id = 'fal-style';
@@ -223,35 +253,70 @@
     div.innerHTML = [
       '<div class="panel-title">🌐 互联网免费模型库</div>',
 
-      '<div class="panel-section">',
-      '  <div class="panel-section-title">🔗 资产源</div>',
-      '  <div class="fal-src-row"><select id="fal-provider"></select></div>',
-      '  <div class="fal-license" id="fal-src-license"></div>',
+      '<div class="fal-tabs">',
+      '  <span class="fal-tab active" data-tab="single">🔍 单个模型</span>',
+      '  <span class="fal-tab" data-tab="kit">🧩 成套场景</span>',
       '</div>',
 
-      '<div class="panel-section">',
-      '  <div class="panel-section-title">🔍 搜索（英文关键词更好命中）</div>',
-      '  <input type="text" id="fal-q" placeholder="如 car / house / tree / boat，回车搜索">',
-      '  <div class="fal-chips" id="fal-chips"></div>',
-      '</div>',
+      /* ===================== 单个模型（原有） ===================== */
+      '<div id="fal-view-single">',
 
-      '<div class="panel-section">',
-      '  <div class="panel-section-title">🖼️ 结果 <span id="fal-count" style="color:#7d8798;font-weight:400;"></span></div>',
-      '  <div class="fal-grid" id="fal-grid"><div class="fal-empty">点上方搜索，或直接切到本面板（默认拉最新 24 件）</div></div>',
-      '  <div class="fal-pager"><button id="fal-prev" type="button">← 上一页</button>',
-      '    <span id="fal-pageinfo">-</span><button id="fal-next" type="button">下一页 →</button></div>',
-      '</div>',
-
-      '<div class="panel-section">',
-      '  <div class="panel-section-title">⚖️ 使用方式与许可</div>',
-      '  <label class="fal-dl-row"><input type="checkbox" id="fal-remote-only"> 只用远程链接（不下载到本服务器）</label>',
-      '  <div class="fal-license" id="fal-dl-tip">',
-      '    <b>默认：点一下 = 下载到本服务器并放置</b>。文件存到 public/models/uploaded/free/&lt;源&gt;/&lt;id&gt;.glb，',
-      '    并登记进「📂 已上传模型」，之后所有玩家都从本服务器加载，不再请求对方 CDN。<br>',
-      '    勾选上面的选项可改为纯远程（热链）：不占本地磁盘，但每次加载都会请求对方 CDN —— ',
-      '    世界/玩家多时会给对方造成压力，不建议长期这样用。<br>',
-      '    许可：第三方条款把「保留自己的副本并对外提供」视为再分发，对外分发场景需另行取得其平台许可。',
+      '  <div class="panel-section">',
+      '    <div class="panel-section-title">🔗 资产源</div>',
+      '    <div class="fal-src-row"><select id="fal-provider"></select></div>',
+      '    <div class="fal-license" id="fal-src-license"></div>',
       '  </div>',
+
+      '  <div class="panel-section">',
+      '    <div class="panel-section-title">🔍 搜索（英文关键词更好命中）</div>',
+      '    <input type="text" id="fal-q" placeholder="如 car / house / tree / boat，回车搜索">',
+      '    <div class="fal-chips" id="fal-chips"></div>',
+      '  </div>',
+
+      '  <div class="panel-section">',
+      '    <div class="panel-section-title">🖼️ 结果 <span id="fal-count" style="color:#7d8798;font-weight:400;"></span></div>',
+      '    <div class="fal-grid" id="fal-grid"><div class="fal-empty">点上方搜索，或直接切到本面板（默认拉最新 24 件）</div></div>',
+      '    <div class="fal-pager"><button id="fal-prev" type="button">← 上一页</button>',
+      '      <span id="fal-pageinfo">-</span><button id="fal-next" type="button">下一页 →</button></div>',
+      '  </div>',
+
+      '  <div class="panel-section">',
+      '    <div class="panel-section-title">⚖️ 使用方式与许可</div>',
+      '    <label class="fal-dl-row"><input type="checkbox" id="fal-remote-only"> 只用远程链接（不下载到本服务器）</label>',
+      '    <div class="fal-license" id="fal-dl-tip">',
+      '      <b>默认：点一下 = 下载到本服务器并放置</b>。文件存到 public/models/uploaded/free/&lt;源&gt;/&lt;id&gt;.glb，',
+      '      并登记进「📂 已上传模型」，之后所有玩家都从本服务器加载，不再请求对方 CDN。<br>',
+      '      勾选上面的选项可改为纯远程（热链）：不占本地磁盘，但每次加载都会请求对方 CDN —— ',
+      '      世界/玩家多时会给对方造成压力，不建议长期这样用。<br>',
+      '      许可：第三方条款把「保留自己的副本并对外提供」视为再分发，对外分发场景需另行取得其平台许可。',
+      '    </div>',
+      '  </div>',
+
+      '</div>',
+
+      /* ===================== 成套场景（新增） ===================== */
+      '<div id="fal-view-kit" style="display:none;">',
+
+      '  <div class="panel-section">',
+      '    <div class="panel-section-title">🧩 成套场景 <span id="fal-kit-count" style="color:#7d8798;font-weight:400;"></span></div>',
+      '    <div class="fal-license">一个套件 = 一整块已经摆好的场景（零件 + 位置 + 朝向）。',
+      '      点一个套件 → 放在当前视角前方，不用再一个个挪。</div>',
+      '    <div class="fal-kit-grid" id="fal-kit-grid"><div class="fal-empty">正在拉取成套场景…</div></div>',
+      '  </div>',
+
+      '  <div class="panel-section" id="fal-kit-detail" style="display:none;"></div>',
+
+      '  <div class="panel-section">',
+      '    <div class="panel-section-title">🔑 套件 API key</div>',
+      '    <div class="fal-license">对方把「整场景摆放关系」只给已登录账号。免费注册（邮箱即可）后',
+      '      在 polyfork.dev/account 建一个 key，粘贴到这里，整个服务器生效。</div>',
+      '    <input type="text" id="fal-key" placeholder="pf_...（只保存在本服务器，不会下发到浏览器之外）">',
+      '    <div class="fal-keyrow">',
+      '      <button id="fal-key-save" type="button">保存 key</button>',
+      '      <span class="fal-license" id="fal-key-status"></span>',
+      '    </div>',
+      '  </div>',
+
       '</div>'
     ].join('');
     host.appendChild(div);
@@ -264,8 +329,8 @@
     var wrapped = function (name) {
       if (name === 'free-assets') {
         try { orig.call(this, name); } catch (e) { /* ignore */ }
-        var nav = document.getElementById('nav-free-assets');
-        if (nav) nav.classList.add('active');
+        // 导航高亮由外层 switchPanel 统一处理（它按 nav-<panelName> 匹配，已包含 nav-free-assets）；
+        // 这里不再手动 add('active')，否则「再点一次收起面板」时图标会留着高亮。
         var panel = document.getElementById('panel-free-assets');
         if (panel) panel.classList.add('active');
         ensureFirstLoad();
@@ -592,6 +657,350 @@
     } catch (e) { /* 列表失败不影响主流程 */ }
   }
 
+  /* ============================ 成套场景（kit） ============================ */
+
+  /**
+   * 一个套件 = 一整块摆好的场景。服务端负责：
+   *   1) 取 layout（需要 API key，对方只给已登录账号）；
+   *   2) 下载 layout 里真正用到的零件（幂等，已在本地就复用）；
+   *   3) 一次批量写 world_objects。
+   * 前端只做三件事：选套件、给落点、刷新世界。
+   */
+  var kitState = {
+    loaded: false,
+    loading: false,
+    kits: [],
+    current: null,        // 当前打开的套件详情
+    importing: false,
+    keyConfigured: false
+  };
+
+  function switchTab(tab) {
+    var single = document.getElementById('fal-view-single');
+    var kit = document.getElementById('fal-view-kit');
+    if (single) single.style.display = tab === 'kit' ? 'none' : '';
+    if (kit) kit.style.display = tab === 'kit' ? '' : 'none';
+    var tabs = document.querySelectorAll('#panel-free-assets .fal-tab');
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].classList.toggle('active', tabs[i].getAttribute('data-tab') === tab);
+    }
+    if (tab === 'kit') {
+      loadKits(false);
+      refreshKeyStatus();
+    }
+  }
+
+  async function loadKits(force) {
+    if (kitState.loading) return;
+    if (kitState.loaded && !force) return;
+    kitState.loading = true;
+    var grid = document.getElementById('fal-kit-grid');
+    if (grid) grid.innerHTML = '<div class="fal-empty">正在拉取成套场景…</div>';
+    try {
+      var r = await fetch('/api/free-assets/kits?provider=' + encodeURIComponent(state.providerId));
+      var j = await r.json();
+      if (!r.ok || !j.success) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      kitState.kits = j.kits || [];
+      kitState.loaded = true;
+      renderKits();
+    } catch (e) {
+      if (grid) {
+        grid.innerHTML = '<div class="fal-empty">❌ ' + esc((e && e.message) || e) +
+          '<br><button class="tool-btn" style="margin-top:8px;" ' +
+          'onclick="window.FreeAssetLibrary.reloadKits()">重试</button></div>';
+      }
+    } finally {
+      kitState.loading = false;
+    }
+  }
+
+  function renderKits() {
+    var grid = document.getElementById('fal-kit-grid');
+    var count = document.getElementById('fal-kit-count');
+    if (count) count.textContent = kitState.kits.length ? '共 ' + kitState.kits.length + ' 套' : '';
+    if (!grid) return;
+    if (!kitState.kits.length) {
+      grid.innerHTML = '<div class="fal-empty">没有可用的成套场景。</div>';
+      return;
+    }
+    grid.innerHTML = kitState.kits.map(function (k) {
+      var sel = kitState.current && String(kitState.current.id) === String(k.id) ? ' sel' : '';
+      /**
+       * placements 来自 composition.placements，为 0 = 对方还没生成场景布局 → 整套导不了。
+       * 列表接口拿不到 layout（详情才带），所以用 placements 作为「能不能整套导」的预判标记：
+       *   status !== published 且 placements=0 → 还在搭建（例：Three Kingdoms Settlements 22/60）
+       *   status === published 且 placements=0 → 已上架但没有布局数据（例：School 60/60）
+       */
+      var dim = '';
+      var meta;
+      if (!k.placements) {
+        var prog = k.partsPublished + (k.partsPlanned && k.partsPlanned !== k.partsPublished
+          ? '/' + k.partsPlanned : '') + ' 件';
+        if (k.status && k.status !== 'published') {
+          meta = '⏳ 搭建中 ' + prog + ' · 暂不可整套导入';
+        } else {
+          meta = '⚠️ 无场景布局 · ' + prog + ' · 只能单件用';
+        }
+        dim = ' style="opacity:.62"';
+      } else {
+        meta = k.partsPublished + ' 个零件 · ' + k.placements + ' 个摆放点';
+        if (k.status && k.status !== 'published') meta += ' · 上架中';
+      }
+      return '<div class="fal-kit' + sel + '" data-kit="' + esc(k.id) + '" title="' + esc(k.title) + '"' + dim + '>' +
+        '<div class="fal-kit-ico">🧩</div>' +
+        '<div class="fal-kit-info"><div class="fal-kit-name">' + esc(k.title) + '</div>' +
+        '<div class="fal-kit-meta">' + esc(meta) + '</div></div></div>';
+    }).join('');
+  }
+
+  async function openKit(kitId) {
+    var box = document.getElementById('fal-kit-detail');
+    if (box) { box.style.display = ''; box.innerHTML = '<div class="fal-empty">正在读取套件详情…</div>'; }
+    try {
+      var r = await fetch('/api/free-assets/kits/' + encodeURIComponent(kitId) +
+        '?provider=' + encodeURIComponent(state.providerId));
+      var j = await r.json();
+      if (!r.ok || !j.success) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      kitState.current = j.kit;
+      renderKits();
+      renderKitDetail();
+    } catch (e) {
+      if (box) box.innerHTML = '<div class="fal-empty">❌ 读取失败：' + esc((e && e.message) || e) + '</div>';
+    }
+  }
+
+  function renderKitDetail() {
+    var box = document.getElementById('fal-kit-detail');
+    var k = kitState.current;
+    if (!box || !k) return;
+
+    var placements = (k.composition && k.composition.placements) || 0;
+    var distinct = (k.composition && k.composition.distinct_parts) || (k.parts || []).length;
+    var thumbs = (k.parts || []).slice(0, 10).map(function (p) {
+      var img = p.thumb
+        ? '<img loading="lazy" src="' + esc(p.thumb) + '" alt="" ' +
+          'onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'<span class=&quot;fal-noimg&quot;>🧊</span>\'">'
+        : '<span class="fal-noimg">🧊</span>';
+      return '<div class="fal-thumb" title="' + esc(p.title) + '">' + img + '</div>';
+    }).join('');
+
+    var canImport = !!k.layout;
+    var statusZh = k.status === 'filling-up' ? '搭建中'
+      : (k.status === 'published' ? '已上架' : (k.status || '未知'));
+    var hint;
+    if (canImport) {
+      hint = '整场景摆放关系已取到，可直接导入。';
+    } else if (k.needsKey && !k.hasKey) {
+      // needsKey = 对方有摆放点数据（composition.placements>0）但 layout 拿不到 → 缺 key
+      hint = '⚠️ 还没配置 API key —— 只能看到零件清单，拿不到「谁摆在哪」。<b>先在下面填 key。</b>';
+    } else if (k.needsKey && k.hasKey) {
+      // 有 key 也有摆放点数据，仍然没 layout → key 本身无效/未激活
+      hint = '⚠️ key 已配置但没拿到布局：key 可能无效/未激活，去 polyfork.dev/account 确认一下。';
+    } else if (k.status && k.status !== 'published') {
+      // composition 为空 + 还在搭建（例：Three Kingdoms Settlements 22/60）→ 对方还没做布局
+      hint = '⏳ 这个套件在 Polyfork 上还是「' + esc(statusZh) + '」状态，已上架 ' +
+        (k.parts || []).length + ' 个零件，但<b>还没有生成场景布局</b>，所以无法整套导入。' +
+        '下面的零件可以单个下载使用；等它上完架再回来试。';
+    } else {
+      // 已上架但 composition 仍为空（例：School 60/60、Primal Future Armory kit）
+      hint = '⚠️ 这个套件已上架（' + (k.parts || []).length +
+        ' 个零件），但 Polyfork 没有给出场景布局数据，只能按单件使用。';
+    }
+
+    box.innerHTML = [
+      '<div class="panel-section-title">🧩 ' + esc(k.title) + '</div>',
+      '<div class="fal-kit-box">',
+      '  <div class="fal-kv"><span>零件</span><b>' + (k.parts || []).length + ' 个（用到 ' + distinct + ' 个）</b></div>',
+      '  <div class="fal-kv"><span>摆放点</span><b>' + (placements || '—') + '</b></div>',
+      '</div>',
+      '<div class="fal-partstrip">' + thumbs + '</div>',
+      '<div class="fal-license" style="margin-top:8px;">' + hint + '</div>',
+      '<div class="fal-keyrow" style="margin-top:8px;">',
+      '  <span class="fal-license">整体再转</span>',
+      '  <input type="text" id="fal-kit-rot" value="0" style="width:56px;padding:4px 6px;border-radius:6px;' +
+      'border:1px solid #2a3444;background:#11161f;color:#dfe6f2;font-size:12px;">',
+      '  <span class="fal-license">度</span>',
+      '  <label class="fal-dl-row" style="margin-left:8px;"><input type="checkbox" id="fal-kit-collision"> 加碰撞</label>',
+      '</div>',
+      '<div class="fal-btnrow">',
+      '  <button type="button" class="' + (canImport ? 'primary' : '') + '" id="fal-kit-import"' +
+      (canImport ? '' : ' disabled') + '>📍 整套导入到当前视角</button>',
+      '</div>',
+      '<div class="fal-license" id="fal-kit-progress"></div>'
+    ].join('');
+
+    try { box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) { /* ignore */ }
+  }
+
+  function kitProgress(msg) {
+    var el = document.getElementById('fal-kit-progress');
+    if (el) el.innerHTML = msg || '';
+  }
+
+  async function importKit() {
+    var k = kitState.current;
+    if (!k) return;
+    if (kitState.importing) { notify('正在导入上一个套件，请稍候…', 'info'); return; }
+    if (!k.layout) {
+      /**
+       * 不再一律甩锅给 API key（2026-11-12 踩到）：
+       * Three Kingdoms Settlements 是 filling-up、composition 为 null、key 明明配好了，
+       * 真正原因是对方还没生成场景布局。按实际情况分开报。
+       */
+      var why;
+      if (k.needsKey && !k.hasKey) {
+        why = '还没配置 Polyfork API key，拿不到「谁摆在哪」';
+      } else if (k.needsKey && k.hasKey) {
+        why = 'key 已配置但被拒（可能无效/未激活），拿不到「谁摆在哪」';
+      } else if (k.status && k.status !== 'published') {
+        why = '这个套件在 Polyfork 上还是「搭建中」，只上架了 ' + (k.parts || []).length +
+          ' 个零件，还没生成场景布局 —— 只能按单件使用，等它上完架再来';
+      } else {
+        why = '这个套件已上架，但 Polyfork 没有给出场景布局数据 —— 只能按单件使用';
+      }
+      notify('❌ ' + why, 'error');
+      return;
+    }
+    if (!ensureLicenseAck()) return;
+
+    var placements = (k.composition && k.composition.placements) || 0;
+    if (placements >= 100 && !window.confirm(
+      '即将在「当前视角前方」导入整套「' + k.title + '」：\n' +
+      '  · 摆放点 ' + placements + ' 个\n' +
+      '  · 会新建同样数量的世界对象（重复导入会重复叠加）\n\n' +
+      '确定导入吗？')) return;
+
+    var rotEl = document.getElementById('fal-kit-rot');
+    var colEl = document.getElementById('fal-kit-collision');
+    var rotateDeg = rotEl ? (Number(rotEl.value) || 0) : 0;
+    var hasCollision = !!(colEl && colEl.checked);
+
+    var pt = dropPoint();
+    var btn = document.getElementById('fal-kit-import');
+    kitState.importing = true;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 导入中…'; }
+    kitProgress('正在下载零件并写入世界。零件首次下载，单个约 1~3 秒，请勿关闭页面…');
+
+    var t0 = Date.now();
+    try {
+      var r = await fetch('/api/free-assets/import-kit', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+        body: JSON.stringify({
+          provider: state.providerId,
+          id: k.id,
+          x: pt.x, y: pt.y, z: pt.z,
+          rotateDeg: rotateDeg,
+          hasCollision: hasCollision,
+          namePrefix: k.title + ' · '
+        })
+      });
+      var j = await r.json().catch(function () { return {}; });
+      if (!r.ok || !j.success) {
+        if (j && j.code === 'NEED_KEY') {
+          kitProgress('⚠️ ' + esc(j.error) + '<br>' + esc(j.hint || ''));
+          var keyInput = document.getElementById('fal-key');
+          if (keyInput) keyInput.focus();
+          return;
+        }
+        // 把后端收集到的首个零件错误带出来 —— 只回一句"都失败了"没法排查
+        var detail = (j && (j.error || j.details)) || ('HTTP ' + r.status);
+        if (j && j.partErrors && j.partErrors.length) {
+          var e0 = j.partErrors[0];
+          detail += '｜首个失败：' + (e0.id || e0.key) + ' → ' + e0.error;
+        }
+        throw new Error(detail);
+      }
+
+      var secs = Math.round((Date.now() - t0) / 100) / 10;
+      var reused = (j.models || []).filter(function (m) { return m.reused; }).length;
+      var lines = ['✅ 已生成 <b>' + j.created + '</b> 个对象（零件 ' + (j.models || []).length +
+        ' 个，其中 ' + reused + ' 个复用本地副本），耗时 ' + secs + ' 秒。'];
+      // 整套导入会自动建一个编组，避免 300+ 个零件平铺在对象列表里
+      if (j.groupId && j.groupName) {
+        lines.push('📦 已自动归入编组「' + esc(j.groupName) + '」，在右侧对象列表里可以折叠/展开。');
+      } else if (j.created >= 2) {
+        lines.push('⚠️ 自动编组没生效（对象已正常导入，可在对象列表里手动编组）。');
+      }
+
+      if (j.hasTerrain) {
+        lines.push('🏞️ 地形已随套件落下（kit 自带地面，不会再是悬空场景）。');
+      } else if (j.skipped && j.skipped.terrain) {
+        lines.push('⚠️ 这个套件没有独立地形资产，' + j.skipped.terrain + ' 处地面程序已跳过。');
+      }
+      if (j.skipped && j.skipped.noPath) {
+        lines.push('⚠️ 有 ' + j.skipped.noPath + ' 处摆放因为零件没下载成功被跳过。');
+      }
+      if (j.foreignParts && j.foreignParts.length) {
+        lines.push('🌿 已一并下载 ' + j.foreignParts.length + ' 个跨套件借用件（草地/树/石头等）。');
+      }
+      if (j.unresolvedKeys && j.unresolvedKeys.length) {
+        lines.push('⚠️ 有 ' + j.unresolvedKeys.length + ' 个零件名没对上资产 id：' +
+          j.unresolvedKeys.slice(0, 5).join('、'));
+      }
+      if (j.partErrors && j.partErrors.length) {
+        var pe = j.partErrors[0];
+        lines.push('⚠️ ' + j.partErrors.length + ' 个零件下载失败，首个：' + (pe.id || pe.key) + ' → ' + pe.error);
+      }
+      kitProgress(lines.join('<br>'));
+      if (j.complete === false) {
+        notify('⚠️ 导入完成但有 ' + (j.partErrors || []).length + ' 个零件失败：' + k.title + '（' + j.created + ' 个对象），可再导一次补齐', 'success');
+      } else {
+        notify('✅ 套件已导入：' + k.title + '（' + j.created + ' 个对象）', 'success');
+      }
+
+      try { if (typeof window.loadWorldObjects === 'function') await window.loadWorldObjects(); } catch (e) { /* ignore */ }
+      try { if (typeof window.updateRightObjectList === 'function') window.updateRightObjectList(); } catch (e) { /* ignore */ }
+      if (j.firstId) setTimeout(function () { focusAndSelect(j.firstId); }, 400);
+    } catch (e) {
+      kitProgress('❌ 导入失败：' + esc((e && e.message) || e));
+      notify('❌ 导入失败：' + ((e && e.message) || e), 'error');
+    } finally {
+      kitState.importing = false;
+      if (btn) { btn.disabled = false; btn.textContent = '📍 整套导入到当前视角'; }
+    }
+  }
+
+  /* ---------------- API key ---------------- */
+
+  async function refreshKeyStatus() {
+    var el = document.getElementById('fal-key-status');
+    try {
+      var r = await fetch('/api/free-assets/key-status?provider=' + encodeURIComponent(state.providerId));
+      var j = await r.json();
+      kitState.keyConfigured = !!(j && j.configured);
+      if (el) {
+        el.innerHTML = j && j.configured
+          ? '✔ 已配置（尾号 ' + esc(j.tail || '****') + (j.fromEnv ? '，来自环境变量' : '') + '）'
+          : '✖ 未配置 —— 未配置只能看零件，不能整场景导入';
+      }
+    } catch (e) {
+      if (el) el.textContent = '';
+    }
+  }
+
+  async function saveKey() {
+    var input = document.getElementById('fal-key');
+    var key = input ? String(input.value || '').trim() : '';
+    if (!key) { notify('请先粘贴 key', 'error'); return; }
+    try {
+      var r = await fetch('/api/free-assets/key', {
+        method: 'PUT',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+        body: JSON.stringify({ provider: state.providerId, key: key })
+      });
+      var j = await r.json().catch(function () { return {}; });
+      if (!r.ok || !j.success) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      if (input) input.value = '';
+      notify('✅ API key 已保存（尾号 ' + (j.tail || '') + '）', 'success');
+      await refreshKeyStatus();
+      // 重新取一次当前套件，把 layout 拿到手
+      if (kitState.current) await openKit(kitState.current.id);
+    } catch (e) {
+      notify('❌ 保存失败：' + ((e && e.message) || e), 'error');
+    }
+  }
+
   /* ============================ 事件绑定 ============================ */
 
   function bindEvents() {
@@ -628,6 +1037,23 @@
       var t = e.target;
       if (!t) return;
 
+      // 顶部 tab（单个模型 / 成套场景）
+      var tab = t.closest ? t.closest('.fal-tab') : null;
+      if (tab) {
+        switchTab(tab.getAttribute('data-tab'));
+        return;
+      }
+
+      // 套件卡片 → 打开详情
+      var kitEl = t.closest ? t.closest('.fal-kit') : null;
+      if (kitEl) {
+        openKit(kitEl.getAttribute('data-kit'));
+        return;
+      }
+
+      if (t.id === 'fal-kit-import') { importKit(); return; }
+      if (t.id === 'fal-key-save') { saveKey(); return; }
+
       // 分类 chips
       var chip = t.closest ? t.closest('.fal-chip') : null;
       if (chip) {
@@ -663,6 +1089,9 @@
   function ensureFirstLoad() {
     if (firstLoadDone) return;
     firstLoadDone = true;
+    // 【2026-11-12 性能】已入库标记（/api/uploaded-models?limit=500&category=all，约 2 秒）
+    // 从页面启动挪到「首次打开资产库面板」——启动时用户根本还没打开这个面板。
+    refreshLocalIds().then(function () { if (state.items.length) renderGrid(); });
     doSearch(false);
   }
 
@@ -679,8 +1108,8 @@
     renderProviderSelect();
     renderChips();
     bindEvents();
-    // 已入库的资产打 ✔（异步，失败不影响使用）
-    refreshLocalIds().then(function () { if (state.items.length) renderGrid(); });
+    // 已入库的资产打 ✔ 挪到 ensureFirstLoad（首次打开面板时才请求），
+    // 启动阶段不再发 /api/uploaded-models?limit=500（原先约 2 秒）。
     console.log('[freeAssetLibrary] 已启动 v' + VERSION + '（源：' + Object.keys(PROVIDERS).join(',') +
       '，默认：下载到本服务器）');
   }
@@ -704,6 +1133,11 @@
       return doSearch(true);
     },
     retry: function () { return doSearch(true); },
+    // 成套场景
+    openKits: function () { switchTab('kit'); },
+    reloadKits: function () { kitState.loaded = false; return loadKits(true); },
+    openKit: function (id) { return openKit(id); },
+    importKit: function () { return importKit(); },
     _diag: function () {
       return {
         version: VERSION,
@@ -717,6 +1151,11 @@
         licenseAck: state.licenseAck,
         localIds: state.localIds.size,
         cacheKeys: searchCache.size,
+        kitsLoaded: kitState.loaded,
+        kits: kitState.kits.length,
+        kitCurrent: kitState.current ? kitState.current.id : null,
+        kitHasLayout: !!(kitState.current && kitState.current.layout),
+        keyConfigured: kitState.keyConfigured,
         navInjected: !!document.getElementById('nav-free-assets'),
         panelInjected: !!document.getElementById('panel-free-assets'),
         panelActive: !!(document.getElementById('panel-free-assets') || {}).classList &&

@@ -119,6 +119,47 @@ function switchTab(tab) {
 
 // ==================== 统计信息 ====================
 
+/** 秒 → 人类可读（45s / 3m 20s / 1h 12m） */
+function fmtDuration(sec) {
+  if (!sec || sec < 0) return '—';
+  if (sec < 60) return sec + 's';
+  const m = Math.floor(sec / 60);
+  if (m < 60) return m + 'm ' + (sec % 60) + 's';
+  return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+}
+
+/**
+ * 访客访问统计（口径：真的进了世界才算一次访问）
+ * 当前在线取 WS 内存，其余按北京时间切日聚合
+ */
+async function loadVisitorStats() {
+  try {
+    const vs = await apiRequest('/admin/visitor-stats?days=7');
+    const set = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+
+    const online = vs.online || { total: 0, guest: 0, user: 0 };
+    set('stat-online', online.total);
+    set('stat-online-sub', `游客 ${online.guest} · 用户 ${online.user}`);
+
+    const today = vs.today || { uv: 0, guest_uv: 0, user_uv: 0, sessions: 0 };
+    set('stat-visitors', today.uv);
+    set('stat-visitors-sub', `游客 ${today.guest_uv} · 登录 ${today.user_uv} · 会话 ${today.sessions}`);
+
+    const avg = vs.avg || { guest: {}, user: {} };
+    set('stat-avg-stay', fmtDuration(avg.guest && avg.guest.avgSec));
+    set('stat-avg-stay-sub', `游客中位 ${fmtDuration(avg.guest && avg.guest.medianSec)} · 登录 ${fmtDuration(avg.user && avg.user.avgSec)}`);
+
+    const ratio = today.uv ? Math.round((today.guest_uv / today.uv) * 100) : null;
+    set('stat-guest-ratio', ratio === null ? '—' : ratio + '%');
+    set('stat-guest-ratio-sub', `近 ${vs.windowDays || 7} 天已结束 ${(avg.guest && avg.guest.closed) || 0} 场游客会话`);
+  } catch (error) {
+    console.error('加载访客统计失败:', error);
+  }
+}
+
 async function loadStats() {
   try {
     const stats = await apiRequest('/admin/stats');
@@ -132,6 +173,9 @@ async function loadStats() {
   } catch (error) {
     console.error('加载统计失败:', error);
   }
+
+  // 访客统计单独兜底：即使上面 /admin/stats 挂了，在线和停留也能显示
+  loadVisitorStats();
 }
 
 // ==================== 传送门管理 ====================
@@ -461,16 +505,35 @@ async function loadWorlds() {
     let worlds = data.worlds || [];
     if (keyword) worlds = worlds.filter(w => w.worldName?.toLowerCase().includes(keyword) || w.worldUrl?.toLowerCase().includes(keyword));
     if (!worlds.length) { container.innerHTML = '<div class="empty-state" data-i18n="adminWorld.noTrustedWorlds">暂无已信任的世界，点击右上角"➕ 添加世界"发起握手</div>'; if (typeof applyAdminTranslations === 'function') applyAdminTranslations(container); return; }
+    // 【2026-10-31】端点重复统计：同一地址（忽略 http/https）出现多条 = 历史遗留，标黄提示人工删
+    const endpointCount = new Map();
+    worlds.forEach(w => {
+      const k = w.endpointKey || w.worldUrl || w.worldId;
+      endpointCount.set(k, (endpointCount.get(k) || 0) + 1);
+    });
     container.innerHTML = `
       <table class="data-table">
         <thead><tr><th data-i18n="adminWorld.worldName">世界名称</th><th data-i18n="adminWorld.worldURL">世界URL</th><th data-i18n="adminWorld.worldID">世界ID</th><th data-i18n="adminWorld.colActions">操作</th></tr></thead>
-        <tbody>${worlds.map(w => `
+        <tbody>${worlds.map(w => {
+          const epKey = w.endpointKey || w.worldUrl || w.worldId;
+          const isDup = (endpointCount.get(epKey) || 0) > 1;
+          const dupBadge = isDup
+            ? `<span style="background:#f59e0b;color:#fff;border-radius:4px;padding:1px 6px;font-size:11px;margin-right:6px" title="${escapeHtml(epKey)}">${window.i18n.t('adminWorld.duplicate')}</span>`
+            : '';
+          const identityBadge = w.identityChanged
+            ? `<span style="background:#ef4444;color:#fff;border-radius:4px;padding:1px 6px;font-size:11px;margin-right:6px">${window.i18n.t('adminWorld.identityChanged')}</span>`
+            : '';
+          return `
           <tr>
-            <td>${escapeHtml(w.worldName) || window.i18n.t('adminWorld.unknown')}</td>
+            <td>${dupBadge}${identityBadge}${escapeHtml(w.worldName) || window.i18n.t('adminWorld.unknown')}</td>
             <td><a href="${escapeHtml(w.worldUrl)}" target="_blank" style="color:var(--blue)">${escapeHtml(w.worldUrl)}</a></td>
             <td style="font-size:11px;color:var(--text-secondary)">${escapeHtml(w.worldId)}</td>
-            <td><button class="btn btn-sm btn-danger" onclick="removeTrustedWorld('${escapeHtml(w.worldId)}')" data-i18n="adminWorld.remove">移除</button></td>
-          </tr>`).join('')}
+            <td>
+              <button class="btn btn-sm" onclick="rebindTrustedWorld('${escapeHtml(w.worldId)}')" data-i18n="adminWorld.rebind">重新绑定</button>
+              <button class="btn btn-sm btn-danger" onclick="removeTrustedWorld('${escapeHtml(w.worldId)}')" data-i18n="adminWorld.remove">移除</button>
+            </td>
+          </tr>`;
+        }).join('')}
         </tbody>
       </table>`;
     if (typeof applyAdminTranslations === 'function') applyAdminTranslations(container);
@@ -487,6 +550,29 @@ async function removeTrustedWorld(worldId) {
     const data = await r.json();
     if (data.success) { showToast(window.i18n.t('adminWorld.worldRemoved')); loadWorlds(); }
     else showToast(window.i18n.t('adminWorld.removeFailed').replace('{{message}}', data.error), 'error');
+  } catch(e) { showToast(window.i18n.t('adminWorld.operationFailed').replace('{{message}}', e.message), 'error'); }
+}
+
+// 【2026-10-31】重新绑定：向该地址取对方当前身份，原地改绑（旧 world_id 自动失效，不新增记录）
+async function rebindTrustedWorld(worldId) {
+  if (!confirm(window.i18n.t('adminWorld.rebindConfirm'))) return;
+  const token = localStorage.getItem('adminToken');
+  try {
+    const r = await fetch(`/api/federation/worlds/${worldId}/rebind`, {
+      method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await r.json();
+    if (data.success) {
+      const msg = data.renamed
+        ? window.i18n.t('adminWorld.rebindRenamed')
+            .replace('{{oldId}}', data.oldWorldId)
+            .replace('{{newId}}', data.newWorldId)
+        : window.i18n.t('adminWorld.rebindUnchanged');
+      showToast(msg);
+      loadWorlds();
+    } else {
+      showToast(window.i18n.t('adminWorld.rebindFailed').replace('{{message}}', data.error || ''), 'error');
+    }
   } catch(e) { showToast(window.i18n.t('adminWorld.operationFailed').replace('{{message}}', e.message), 'error'); }
 }
 

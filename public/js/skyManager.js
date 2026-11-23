@@ -159,8 +159,15 @@
     }
     const tune = WEATHER_TUNE[state.weather] || WEATHER_TUNE.clear;
     if (state.scene.background && state.scene.background.isTexture) {
-      state.scene.backgroundIntensity = tune.intensity;
-      state.scene.backgroundBlurriness = tune.blurriness;
+      if (state.sky && state.sky.kind === 'procedural') {
+        // 程序化天空自身已经表达了晴/阴/夜，天气再叠一层会双重变暗
+        // → 明暗收敛到 [0.85, 1.0]；不做朦胧（会把低频渐变糊成一片死灰）
+        state.scene.backgroundIntensity = 0.85 + tune.intensity * 0.15;
+        state.scene.backgroundBlurriness = 0;
+      } else {
+        state.scene.backgroundIntensity = tune.intensity;
+        state.scene.backgroundBlurriness = tune.blurriness;
+      }
     } else {
       state.scene.backgroundIntensity = 1;
       state.scene.backgroundBlurriness = 0;
@@ -360,6 +367,84 @@
     scheduleEnvironment();
   }
 
+  /* ============ 程序化天空（内置预设，零网络零字节） ============
+   * 由 skyPresets.js 纯计算生成 2:1 等距柱状全景，走与上传图完全相同的背景链路：
+   *   scene.background = 纹理 → backgroundIntensity 调明暗 → （可选）PMREM 生成环境光
+   * 因此 world.js 的既有逻辑一行都不用改，也不产生任何网络请求。
+   * 预设 use_env 固定 false（与默认天空一致），不引入全体材质带 envmap 的重编译成本。
+   */
+  const PROC_W = 1024, PROC_H = 512;
+  const procCache = new Map(); // presetKey -> THREE.Texture（最多留 3 张，来回切不重复计算）
+
+  function makeProceduralTexture(presetKey) {
+    const SP = global.SkyPresets;
+    if (!SP || typeof SP.render !== 'function') {
+      warn('skyPresets.js 未加载，无法生成程序化天空');
+      return null;
+    }
+    try {
+      const t0 = performance.now();
+      const out = SP.render(presetKey, PROC_W, PROC_H);
+      const canvas = document.createElement('canvas');
+      canvas.width = out.width;
+      canvas.height = out.height;
+      const ctx = canvas.getContext('2d');
+      const img = ctx.createImageData(out.width, out.height);
+      img.data.set(out.data);
+      ctx.putImageData(img, 0, 0);
+
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.mapping = THREE.EquirectangularReflectionMapping;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
+      console.log(`[SkyManager] 🎨 程序化天空已生成：${presetKey}（${Math.round(performance.now() - t0)}ms，0 请求）`);
+      return tex;
+    } catch (e) {
+      warn('程序化天空生成失败：' + presetKey, e);
+      return null;
+    }
+  }
+
+  /** 取（或生成）预设纹理；超出 3 张回收最旧的（正在使用的跳过） */
+  function getProceduralTexture(presetKey) {
+    if (procCache.has(presetKey)) return procCache.get(presetKey);
+    const tex = makeProceduralTexture(presetKey);
+    if (!tex) return null;
+    procCache.set(presetKey, tex);
+    if (procCache.size > 3) {
+      for (const [k, t] of procCache) {
+        if (procCache.size <= 3) break;
+        if (t === state.texture || (state.scene && t === state.scene.background)) continue;
+        procCache.delete(k);
+        try { t.dispose(); } catch (e) { /* 忽略清理异常 */ }
+      }
+    }
+    return tex;
+  }
+
+  /** 应用程序化天空预设（同步生成，约 0.1~0.2s） */
+  function applyProcedural(sky) {
+    const key = sky.preset || String(sky.id || '').replace(/^proc:/, '') || 'clear';
+    const tex = getProceduralTexture(key);
+    if (!tex) {                // 生成失败：退回默认纯色，绝不让世界黑屏
+      warn(`程序化天空不可用（${key}），已回退默认天空`);
+      resetToDefault();
+      applyTuning();
+      return;
+    }
+    state.sky = sky;
+    state.deferred = false;
+    state.deferredSky = null;
+    state.loading = false;
+    state._fogCovered = false;
+    state.envToken++;          // 作废排队中的旧 PMREM 任务
+    state.envPrewarmed = false;
+    disposePlaceholder();
+    state.texture = tex;
+    paint();
+    console.log(`🌌 已应用天空：${sky.name || key}（程序化预设，0 请求）`);
+  }
+
   /** 【Step2】程序化渐变占位天空（CanvasTexture，零网络、<5ms） */
   function makeGradientPlaceholder() {
     const w = 512, h = 256;
@@ -519,9 +604,25 @@
 
     const nextId = sky && sky.id ? sky.id : 'default';
     const curId = state.sky && state.sky.id ? state.sky.id : 'default';
-    if (nextId === curId && state.sky) { applyTuning(); return; }
+    // 同一条天空但环境光要求变了（同一张图在不同天气槽位里 env 不同）→ 不能早退，要重挂环境贴图
+    const nextEnv = !!(sky && sky.use_env);
+    const curEnv = !!(state.sky && state.sky.use_env);
+    if (nextId === curId && state.sky && nextEnv === curEnv) { applyTuning(); return; }
 
-    if (!sky || sky.kind === 'default' || !sky.url) {
+    if (!sky || sky.kind === 'default') {
+      resetToDefault();
+      applyTuning();
+      return;
+    }
+
+    // 内置程序化预设：本地计算生成，零网络零等待，不进 loadToken 竞态
+    if (sky.kind === 'procedural') {
+      applyProcedural(sky);
+      applyTuning();
+      return;
+    }
+
+    if (!sky.url) {
       resetToDefault();
       applyTuning();
       return;
@@ -575,6 +676,25 @@
     return new THREE.Color(fallbackColorHex === undefined ? 0x87ceeb : fallbackColorHex);
   }
 
+  /**
+   * world.js 用：取雾色。程序化预设自带地平线色 —— 夜景/星空时若仍用原来的亮蓝雾，
+   * 远景会被染成亮蓝，和深色天空出现割裂。这里让雾色跟随预设地平线色。
+   * @param {number} fallbackHex 该天气原本的雾色
+   * @returns {number} 十六进制颜色
+   */
+  function getFogColor(fallbackHex) {
+    if (state.sky && state.sky.kind === 'procedural' && global.SkyPresets
+        && typeof global.SkyPresets.fogColorHex === 'function') {
+      const hex = global.SkyPresets.fogColorHex(state.sky.preset);
+      if (hex) {
+        try {
+          return new THREE.Color(hex).getHex();
+        } catch (e) { /* 解析失败用 fallback */ }
+      }
+    }
+    return fallbackHex;
+  }
+
   /** WS 迟迟不下发天气时的兜底：主动拉一次天气配置 */
   function fetchFallback() {
     setTimeout(() => {
@@ -592,13 +712,14 @@
     attach,
     applyConfig,
     getBackground,
+    getFogColor,
     fetchFallback,
     setWeather: function (type) { state.weather = type; applyTuning(); },
     WEATHER_TUNE,
     _diag: function () {
       return {
         attached: state.attached,
-        sky: state.sky ? { id: state.sky.id, name: state.sky.name, kind: state.sky.kind, use_env: state.sky.use_env } : null,
+        sky: state.sky ? { id: state.sky.id, name: state.sky.name, kind: state.sky.kind, preset: state.sky.preset, use_env: state.sky.use_env } : null,
         hasTexture: !!state.texture,
         backgroundIsTexture: !!(state.scene && state.scene.background && state.scene.background.isTexture),
         intensity: state.scene ? state.scene.backgroundIntensity : null,

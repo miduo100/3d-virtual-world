@@ -167,6 +167,13 @@ class FederationUI {
     
     document.body.appendChild(teleportButton);
 
+    // 接入后台 UI 控件配置（ui_controls.federation_portal_btn）
+    // 本按钮由本文件动态创建，晚于 uiControlManager.init() 的首次应用，
+    // 因此必须在这里主动补应用一次，否则后台配的位置/可见性不会生效。
+    if (window.uiControlManager && typeof window.uiControlManager.applyControl === 'function') {
+      window.uiControlManager.applyControl('federation_portal_btn', teleportButton);
+    }
+
     // 响应式调整：移动端缩小
     const adjustTeleportBtnSize = () => {
       const isMobile = window.innerWidth <= 768;
@@ -648,6 +655,11 @@ class FederationUI {
       let calibrationConfig = null;
       try { calibrationConfig = JSON.parse(localStorage.getItem('selectedTemplateCalibration') || 'null'); } catch(e) {}
 
+      // 音效（绝对URL）：跨世界传递，实现见 soundFederation.js
+      const _sndCfg = window.SoundFederation
+        ? window.SoundFederation.buildSendConfig()
+        : { animSounds: {}, weaponSounds: {} };
+
       // 生成传送Token
       // ⚠️ 本方法走的是裸 fetch（不是 api.js 的 request），必须自带 token 失效兜底：
       // 世界内浏览/移动/聊天全是免鉴权接口、不触发服务端滑动续期，
@@ -664,6 +676,9 @@ class FederationUI {
             boneMapConfig,
             weaponSocketConfig,
             calibrationConfig,
+            // 音效（绝对URL）：动作 + 武器，与 GLB/动画同期跨世界
+            animSounds:   _sndCfg.animSounds,
+            weaponSounds: _sndCfg.weaponSounds,
             templateName:   localStorage.getItem('selectedTemplateName') || '',
             modelHeight:    localStorage.getItem('selectedTemplateHeight') || '1.8',
             sourceWorldUrl: window.location.origin,

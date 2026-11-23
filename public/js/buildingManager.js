@@ -17,6 +17,10 @@ class BuildingManager {
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
     this.transformControls = null;
+    // 选中框：用 BoxHelper 标框，不改 material.emissive
+    // （旧实现直接把 emissive 写成绿色，会覆盖模型灯光配置，见 addHighlight 注释）
+    this._selectionBox = null;
+    this._boxUpdateRAF = null;
     this.isAdmin = false;
     // 点击调试开关：true 时逐条打印可选/跳过对象明细（默认关，大世界下会产生上千条日志）
     this.debugClicks = false;
@@ -131,15 +135,6 @@ class BuildingManager {
           </div>
           
           <button id="delete-object-btn" style="width: 100%; padding: 8px; background: #f44336; border: none; color: white; border-radius: 4px; cursor: pointer; margin-top: 5px; font-weight: bold;">🗑️ 删除</button>
-        </div>
-        
-        <div style="margin-top: 10px; padding: 8px; background: rgba(0, 0, 0, 0.5); border-radius: 4px; font-size: 10px;">
-          <div style="color: #888; margin-bottom: 5px;">位置 (X, Y, Z):</div>
-          <div id="position-display" style="color: #4CAF50;"></div>
-          <div style="color: #888; margin-top: 5px; margin-bottom: 5px;">旋转 (X, Y, Z):</div>
-          <div id="rotation-display" style="color: #9C27B0;"></div>
-          <div style="color: #888; margin-top: 5px; margin-bottom: 5px;">缩放 (X, Y, Z):</div>
-          <div id="scale-display" style="color: #FF5722;"></div>
         </div>
         
         <button id="deselect-btn" style="width: 100%; padding: 6px; background: #666; border: none; color: white; border-radius: 4px; cursor: pointer; margin-top: 10px;">✖ 取消选中</button>
@@ -310,6 +305,7 @@ class BuildingManager {
     
     this.transformControls.addEventListener('change', () => {
       this.updateObjectInfo();
+      this._updateSelectionBox();
     });
     
     // 拖拽时禁用相机控制，拖拽结束自动保存位置
@@ -439,6 +435,22 @@ class BuildingManager {
       });
     }
     
+    // 出生点（系统对象）· 2026-11-15 接入管理员编辑
+    // 原先 editableObjects 只收「建筑 / 媒体 / 传送门」，出生点不在其中，
+    // 所以游戏内管理员模式点它没有反应（只能在 world_editor.html 里拖）。
+    // 补进来后：射线可命中 → selectObject 走回退5 通用兜底 → attach gizmo
+    // → 拖动结束 dragging-changed 触发 saveChanges → PUT /api/world/objects/spawn_point
+    // （后端 src/routes/world.js 有 id === 'spawn_point' 专用分支，写 system_config）。
+    if (this.world.spawnPoint) {
+      const sp = this.world.spawnPoint;
+      if (!sp.userData.worldObjectId) {
+        sp.userData.worldObjectId = 'spawn_point';
+        sp.userData.name = '出生点';
+      }
+      editableObjects.push(sp);
+      if (debugDetail) console.log('   ➕ 可选(出生点): ID=spawn_point');
+    }
+
     console.log(`📦 可选择对象总数: ${editableObjects.length}` + (skipped.placeholder > 0 ? `（另有 ${skipped.placeholder} 个对象未加载，仅占位方块，不参与选择）` : ''));
     if (skipped.missing > 0) {
       // 只在"既无 model 又非占位"这种真正异常时告警，且最多列 10 条，避免 DevTools 持有 700+ 活引用
@@ -689,47 +701,36 @@ class BuildingManager {
   updateObjectInfo() {
     if (!this.selectedObject) return;
     
-    const pos = this.selectedObject.position;
-    const rot = this.selectedObject.rotation;
-    const scale = this.selectedObject.scale;
-    
-    document.getElementById('position-display').textContent = 
-      `${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}`;
-    document.getElementById('rotation-display').textContent = 
-      `${(rot.x * 180 / Math.PI).toFixed(0)}°, ${(rot.y * 180 / Math.PI).toFixed(0)}°, ${(rot.z * 180 / Math.PI).toFixed(0)}°`;
-    document.getElementById('scale-display').textContent = 
-      `${scale.x.toFixed(2)}, ${scale.y.toFixed(2)}, ${scale.z.toFixed(2)}`;
+    // 坐标数值显示已从面板移除（2026-11-05），这里不再写 position/rotation/scale 文本
     
     // 模型级碰撞开关状态回填（模块见 buildingCollisionToggle.js，内部做变化检测）
     if (window.BuildingCollisionToggle) window.BuildingCollisionToggle.sync(this);
   }
   
   /**
-   * 添加高亮效果
+   * 添加选中高亮：线框包围盒，不再改写 material.emissive
+   *
+   * 旧实现把 emissive 直接写成 0x00ff00，会和模型灯光配置（surface glow）抢同一字段：
+   * 选中状态整辆模型染绿 → 调光看不出效果；只备份颜色没备份 intensity/map → 恢复不干净；
+   * 选中期间应用灯光配置还会把"绿着的材质"存成原材质 → 取消选中后残留绿光。
+   * 实现放在 adminSelectionOutline.js（本文件已超 1000 行，不再长代码）。
    */
   addHighlight(object) {
-    object.traverse((child) => {
-      if (child.isMesh) {
-        child.userData.originalEmissive = child.material.emissive ? child.material.emissive.getHex() : 0x000000;
-        if (child.material.emissive) {
-          child.material.emissive.setHex(0x00ff00);
-        }
-      }
-    });
+    if (window.AdminSelectionOutline) window.AdminSelectionOutline.apply(this, object);
   }
-  
+
   /**
-   * 移除高亮效果
+   * 移除选中高亮
    */
   removeHighlight(object) {
-    object.traverse((child) => {
-      if (child.isMesh && child.userData.originalEmissive !== undefined) {
-        if (child.material.emissive) {
-          child.material.emissive.setHex(child.userData.originalEmissive);
-        }
-        delete child.userData.originalEmissive;
-      }
-    });
+    if (window.AdminSelectionOutline) window.AdminSelectionOutline.remove(this, object);
+  }
+
+  /**
+   * 拖动时更新选中框（每帧最多算一次）
+   */
+  _updateSelectionBox() {
+    if (window.AdminSelectionOutline) window.AdminSelectionOutline.update(this);
   }
   
   /**
@@ -913,7 +914,16 @@ class BuildingManager {
    */
   async deleteObject() {
     if (!this.selectedObject) return;
-    
+
+    // 【2026-11-15】出生点是系统对象，禁止删除。
+    // 后端 DELETE /objects/spawn_point 只会 404（world_objects 表里没有这条），
+    // 但下面的 scene.remove() 会把它从当前会话里摘掉 —— 玩家下一帧就没有落点了。
+    if (this.selectedObject.userData.isSpawnPoint ||
+        this.selectedObject.userData.worldObjectId === 'spawn_point') {
+      UI.showNotification('🛡️ 出生点不可删除', '它是玩家进入世界的落点，删掉后玩家会掉进虚空。要挪位置请直接拖动它。', 3500);
+      return;
+    }
+
     const confirmed = confirm(`确定要删除 "${this.selectedObject.userData.name || '此建筑'}" 吗？\n此操作无法撤销！`);
     if (!confirmed) return;
     

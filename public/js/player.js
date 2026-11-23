@@ -528,6 +528,10 @@ class Player {
               }
             }
           }
+        } else {
+          // 【2026-11-06 修复】飞行态原本缺 else：movement 算完就被丢弃，
+          // 第三人称飞行时 WASD 完全不动（只有第一人称分支写了这句）。
+          this.position.add(movement);
         }
         
         // Don't auto-rotate player in third-person mode

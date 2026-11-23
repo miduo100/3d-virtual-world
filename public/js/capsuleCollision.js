@@ -278,13 +278,16 @@
     }
 
     var pending = 0;
-    var modelRec = { id: id, model: model, meshes: meshRecs, ready: 0, staticSnapshot: isStaticSnapshot };
+    // pending：还没建好 BVH 的 mesh 数。0 表示胶囊已能真正挡人（被禁用的 mesh 不计）。
+    // 【即时生效】调用方靠它决定"兜底 AABB 盒能不能收掉"——早收就会开出一段无碰撞空窗。
+    var modelRec = { id: id, model: model, meshes: meshRecs, ready: 0, pending: 0, staticSnapshot: isStaticSnapshot };
     meshRecs.forEach(function (mr) {
       mr.aabb = new THREE.Box3();
       mr.hasBVH = false;
       var done = function () {
         mr.hasBVH = true;
         modelRec.ready++;
+        if (modelRec.pending > 0) modelRec.pending--;
         // BVH 异步就绪后网格索引必须重建（注册时建格必然为空：BVH 尚未就绪，
         // hasBVH 全 false 会被 _buildGrid 全部跳过——否则碰撞静默失效）
         modelRec._gridDirty = true;
@@ -298,16 +301,24 @@
         mr.invMatrix = _IDENTITY;
         mr.aabb.copy(mr.geometry.boundingBox);
         mr.private = true;
-        _buildPrivateBVH(mr.geometry, done);
         pending++;
+        modelRec.pending++;
+        _buildPrivateBVH(mr.geometry, done);
       } else {
         mr.uniformScale = _worldScaleAvg(mr.mesh.matrixWorld);
         mr.worldMatrix = mr.mesh.matrixWorld; // 活引用（模型被移动时自动跟随）
         mr.aabbMatrix = new Float32Array(16);
         mr.invMatrix = new THREE.Matrix4();
+        // 必须先计数再 acquire：几何已在别处的 BVH 会让 onDone 同步触发，
+        // 顺序反了会把这次递减吃掉，pending 永久不为 0（兜底盒永远收不掉）
+        pending++;
+        modelRec.pending++;
         var ok = _acquireBVH(mr.geometry, done);
-        if (!ok) mr.disabled = true;
-        else pending++;
+        if (!ok) {
+          mr.disabled = true;
+          pending--;
+          modelRec.pending--;
+        }
       }
     });
     if (pending === 0) return false;
@@ -408,7 +419,9 @@
   // 严禁 Float32Array 截断——那会导致每次比较都失配、每帧全量重建，v4 教训）
   function _ensureModelSpatial(rec) {
     var now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-    var allReady = rec.ready >= rec.meshes.length;
+    // pending===0 表示"能建 BVH 的 mesh 都建完了"（被禁用的不计），比 ready>=总数 更准：
+    // 含禁用 mesh 的模型用旧判据会永远判未就绪，导致网格每秒重建一次
+    var allReady = (rec.pending || 0) === 0;
     var dirty = rec._gridDirty || !rec.grid;
     var el = rec.model.matrixWorld.elements;
     var snap = rec._mwEls;
@@ -433,8 +446,13 @@
     var st = ++_stamp;
     REG.forEach(function (modelRec) {
       var model = modelRec.model;
-      // 不在场景中的模型：合批静态快照仍参与碰撞；其余（视距摘除等）跳过
-      if (!model.parent && !modelRec.staticSnapshot) return;
+      // 不在场景中的模型：合批静态快照仍参与碰撞；其余（视距摘除等）跳过。
+      // 【2026-11-06 修复"退出编辑模式后能穿墙"】必须实时读 __geometryBatched：
+      // 进/出编辑模式会 unbatchAll/rebatchAll，模型在场景内外来回切换，
+      // 而 modelRec.staticSnapshot 是注册那一刻的快照，会过期——
+      // 典型时序：编辑模式里开碰撞（模型在场景→快照 false）→ 退出编辑模式
+      // （模型被合批移出场景）→ 守卫把它整条跳过，碰撞静默消失。
+      if (!model.parent && !model.userData.__geometryBatched && !modelRec.staticSnapshot) return;
       _ensureModelSpatial(modelRec);
       if (!modelRec.grid) return;
       var cs = GRID_CELL;
@@ -623,6 +641,15 @@
     });
   }
 
+  /**
+   * 胶囊是否已经"能挡住人"：至少一个 mesh 的 BVH 就绪，且没有还在排队的。
+   * 【即时生效 2026-11-06】兜底 AABB 盒只在这之后才允许回收——BVH 是空闲分帧建的
+   * （实测 34 mesh 的楼要约 5s），提前收盒会开出一段"开关开了反而能穿"的空窗。
+   */
+  function _recReady(rec) {
+    return !!rec && rec.ready > 0 && (rec.pending || 0) === 0;
+  }
+
   // ---- 烘焙快照编辑跟随检测 ----
 
   // 单元素比较：相对容差 1e-6（float64 确定性重算本应完全相等，容差仅兜底重计算噪声）
@@ -700,6 +727,8 @@
     if (!world.collisionObjects) return;
     // 1) 已接管模型周期性清理其 AABB（幂等）
     REG.forEach(function (rec, id) {
+      // 【即时生效】BVH 还没建完的注册项保留兜底盒，否则这段窗口内玩家能穿过模型
+      if (!_recReady(rec)) return;
       var entry = world.generatedBuildings.get(id);
       if (entry && entry.data) _removeAabbFor(world, id, entry);
     });
@@ -718,7 +747,8 @@
         seenId.add(key);
         var entry = world.generatedBuildings.get(c.id);
         if (!entry || entry.isPlaceholder || !entry.model) { remove.add(i); continue; } // 3) 已卸载
-        if (REG.has(c.id)) { remove.add(i); continue; } // 1) 胶囊已接管
+        // 【即时生效】胶囊接管但 BVH 未就绪 → 兜底盒先留着挡人
+        if (REG.has(c.id) && _recReady(REG.get(c.id))) { remove.add(i); continue; } // 1) 胶囊已接管
         if (entry.data && entry.data.has_collision === true) {
           // 4) 兜底盒 vs 实时包围盒
           try {
@@ -764,7 +794,9 @@
       }
       if (!rec) {
         if (registerModel(id, entry.model)) {
-          _removeAabbFor(world, id, entry);
+          // 【即时生效】只在 BVH 全部就绪时才收兜底盒；未就绪就留它继续挡人，
+          // 由 _reconcileAabbs 在就绪后回收
+          if (_recReady(REG.get(id))) _removeAabbFor(world, id, entry);
         }
       } else if (_bakedDiffersFromBake(rec)) {
         // 【碰撞同步】模型被编辑挪动/缩放：连续两次观测一致（拖拽已结束）才重建，
@@ -783,7 +815,7 @@
       var entry = world.generatedBuildings.get(id);
       unregisterModel(id);
       if (entry && registerModel(id, entry.model)) {
-        _removeAabbFor(world, id, entry);
+        if (_recReady(REG.get(id))) _removeAabbFor(world, id, entry);
       }
     });
     // 注销已卸载的对象
@@ -866,7 +898,10 @@
     if (!entry.data || entry.data.has_collision !== true) return false;
     if (TRI_LIMIT_FAILED.has(id)) return false;
     if (!registerModel(id, entry.model)) return false;
-    _removeAabbFor(world, id, entry);
+    // 【即时生效】这里不再立刻 _removeAabbFor：BVH 是异步建的，注册成功≠能挡人。
+    // 兜底盒留着挡到 BVH 全就绪，由 _reconcileAabbs(每 2s) 在 _recReady 后回收。
+    // 就绪的那一瞬也能收：下面顺手清一次（已就绪时不会造成空窗）。
+    if (_recReady(REG.get(id))) _removeAabbFor(world, id, entry);
     return true;
   }
 
@@ -890,7 +925,12 @@
       return true;
     });
     if (!entry.data || entry.data.has_collision !== true) return before !== world.collisionObjects.length;
-    if (REG.has(id) || TRI_LIMIT_FAILED.has(id)) return before !== world.collisionObjects.length;
+    // 【即时生效 2026-11-06】只有"胶囊已真正能挡人"才不需要方盒：
+    //  - BVH 还在排队（REG 有但未 ready）→ 必须建，否则这段窗口内可穿；
+    //  - 面数超限（TRI_LIMIT_FAILED）→ 胶囊永久不可用，方盒就是唯一碰撞（设计本意）。
+    if (!TRI_LIMIT_FAILED.has(id) && REG.has(id) && _recReady(REG.get(id))) {
+      return before !== world.collisionObjects.length;
+    }
     try {
       entry.model.updateWorldMatrix(true, true);
       var live = new THREE.Box3().setFromObject(entry.model);

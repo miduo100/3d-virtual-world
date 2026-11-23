@@ -72,6 +72,7 @@
   let cullRaf = null;
   let enabled = true;
   const skinnedNotified = new Set(); // 已提示过含蒙皮网格的 url（日志去重）
+  const instancedNotified = new Set(); // 已提示过含实例化网格的 url（日志去重）
 
   // ===== 严格分带修复（2026-09-14）=====
   // candidateCounts：最近一次扫描的 url → 实例数。供 cullUnmerged 在正式合批前
@@ -149,6 +150,18 @@
 
     sample.traverse((child) => {
       if (aborted || !child.isMesh || !child.geometry) return;
+      /* 【2026-11-19】模型自带 EXT_mesh_gpu_instancing 时不能参与合批：
+         合批只取 geometry 再按"每个世界副本一个实例"重写矩阵，会把模型内部的
+         实例矩阵整组丢掉（719 实例退化成 1 个），等于二次变形。
+         返回空模板 → mergeGroup 返回 false → 该 URL 记入 mergeFailedUrls，不再重试。 */
+      if (child.isInstancedMesh) {
+        aborted = true;
+        if (!instancedNotified.has(url)) {
+          instancedNotified.add(url);
+          console.log('[合批] 跳过含实例化网格的模型（保持自带实例渲染）:', url);
+        }
+        return;
+      }
       const mat = child.material;
       if (Array.isArray(mat) && (!child.geometry.groups || !child.geometry.groups.length)) {
         aborted = true;
@@ -439,13 +452,23 @@
   // 覆盖 model.visible 造成的竞争。
   // ===== 远距占位 box（真模型被视距裁剪摘除时，用轻量方块标识"这里有东西"）=====
   // 共享几何体/材质（全部实例复用，无额外显存），保证"不渲染的位置也有内容感"
+  /**
+   * 【2026-11-18 性能优化】远距/待载代理方块
+   * ------------------------------------------------------------
+   * 原配置：5×6×5 基准 + `transparent:true, opacity:0.7` + 鲜蓝 0x0066ff
+   *        + 单边可放大 20 倍（s 上限 20）→ 最大 100×120×100 米
+   * 半透明大盒子拿不到早期深度剔除，几百个叠在视野里 = 几十倍 overdraw，
+   * 是这次 GPU 吃满的另一个主要来源。
+   * 改法：不透明（恢复深度剔除）+ 颜色与加载占位块统一为冷灰蓝 + 放大幅度上限 20→4
+   *（4 倍即 20×24×20 米，仍能表达"这里有一大块东西"，但不会糊满屏幕）。
+   */
   let _farBoxGeo = null, _farBoxMat = null;
   function sharedFarBoxGeo() {
     if (!_farBoxGeo) _farBoxGeo = new THREE.BoxGeometry(5, 6, 5);
     return _farBoxGeo;
   }
   function sharedFarBoxMat() {
-    if (!_farBoxMat) _farBoxMat = new THREE.MeshBasicMaterial({ color: 0x0066ff, transparent: true, opacity: 0.7 });
+    if (!_farBoxMat) _farBoxMat = new THREE.MeshBasicMaterial({ color: 0x7f8c9e });
     return _farBoxMat;
   }
 
@@ -572,7 +595,7 @@
   let _farBoxIm = null;
   function ensureFarBoxIm() {
     if (!_farBoxIm) {
-      _farBoxIm = new THREE.InstancedMesh(sharedFarBoxGeo(), sharedFarBoxMat(), 8192);
+      _farBoxIm = new THREE.InstancedMesh(sharedFarBoxGeo(), sharedFarBoxMat(), 2000);
       _farBoxIm.frustumCulled = false;
       _farBoxIm.castShadow = false;
       _farBoxIm.receiveShadow = false;
@@ -595,7 +618,7 @@
         const ud = model.userData || {};
         if (!model.parent && !ud[CULL_MARK] && !ud.__lodPending && !ud.__lodCandidatePending) return;
         if (model.parent) return;                                  // 正在渲染，跳过
-        if (farCount < 8192) {
+        if (farCount < 2000) {
           // 占位方块按模型半径缩放，大模型在远处也保留体积感（上限 20 倍）
           const s = B ? Math.min(Math.max(B.radiusOf(id) / 10, 1), 20) : 1;
           _posV.set(model.position.x, model.position.y, model.position.z);
@@ -610,14 +633,14 @@
     mergedGroups.forEach((rec) => {
       const positions = rec.instancePositions;
       const r = B ? B.radiusByUrl(rec.url) : 0;
-      const s = Math.min(Math.max(r / 10, 1), 20);
+      const s = Math.min(Math.max(r / 10, 1), 4);
       const farLimit = rec.farLimit || MAX_RENDER_DIST;
       for (let i = 0; i < positions.length; i++) {
         const dx = positions[i].x - playerPos.x;
         const dy = positions[i].y - playerPos.y;
         const dz = positions[i].z - playerPos.z;
         const surface = Math.sqrt(dx * dx + dy * dy + dz * dz) - r;
-        if (surface > farLimit && farCount < 8192) {
+        if (surface > farLimit && farCount < 2000) {
           _posV.set(positions[i].x, positions[i].y, positions[i].z);
           _scaleV.set(s, s, s);
           tmp2.compose(_posV, _quat, _scaleV);
@@ -631,8 +654,8 @@
       const pend = rec.pendingIdx;
       if (!pend || !pend.length) return;
       const r = B ? B.radiusByUrl(rec.url) : 0;
-      const s = Math.min(Math.max(r / 10, 1), 20);
-      for (let k = 0; k < pend.length && farCount < 8192; k++) {
+      const s = Math.min(Math.max(r / 10, 1), 4);
+      for (let k = 0; k < pend.length && farCount < 2000; k++) {
         const pos = rec.instancePositions[pend[k]];
         if (!pos) continue;
         _posV.set(pos.x, pos.y, pos.z);
@@ -671,6 +694,7 @@
       return;
     }
     _cullRafCount++;
+    const __k0 = performance.now();   // 【2026-11-18 剖析】合批剔除耗时起点
     if (_lastCullPos) {
       const dx = player.position.x - _lastCullPos.x;
       const dy = player.position.y - _lastCullPos.y;
@@ -769,6 +793,15 @@
     syncFarBoxes(world, playerPos, maxDistSq);
 
     stats.culledInstances = totalCulled;
+    // 【2026-11-18 剖析】累计合批剔除耗时（每帧一次的独立 rAF 循环）
+    {
+      const __k1 = performance.now();
+      if (!window.__fnStats) window.__fnStats = { load: 0, loadN: 0, loadMax: 0, cul: 0, culN: 0, culMax: 0 };
+      const F = window.__fnStats;
+      F.cull = (F.cull || 0) + (__k1 - __k0);
+      F.cullN = (F.cullN || 0) + 1;
+      if (__k1 - __k0 > (F.cullMax || 0)) F.cullMax = __k1 - __k0;
+    }
     cullRaf = requestAnimationFrame(runCull);
   }
 

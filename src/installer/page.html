@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>创世虚拟世界CRM · 创世 Genesis</title>
+<link rel="icon" href="/install/logo.png" type="image/png">
+<style>
+  :root{
+    --brand:#1f6feb; --brand-dark:#1558c0; --bg:#f5f7fa; --card:#fff;
+    --text:#1f2328; --muted:#6b7280; --border:#e3e6ea;
+    --ok:#16a34a; --warn:#d97706; --err:#dc2626;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font:14px/1.65 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:20px 18px 56px}
+  .brand{display:flex;align-items:flex-start;gap:10px;margin-bottom:4px}
+  .logo{width:36px;height:36px;flex-shrink:0;display:block;object-fit:contain;margin-top:1px}
+  .brand-text{flex:1;min-width:0}
+  h1{font-size:18px;margin:0;font-weight:650;line-height:1.35}
+  .sub{color:var(--muted);font-size:13px;margin:2px 0 22px}
+  .lang-switch{display:flex;gap:2px;font-size:12px;flex-shrink:0}
+  .lang-switch button{
+    border:1px solid var(--border);background:#fff;color:var(--muted);
+    padding:3px 9px;border-radius:5px;cursor:pointer;font:inherit;line-height:1.4;
+  }
+  .lang-switch button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+
+  .steps{display:flex;gap:6px;margin-bottom:18px}
+  .steps div{flex:1;height:4px;border-radius:2px;background:#dfe3e8;transition:background .25s}
+  .steps div.on{background:var(--brand)}
+  .steps div.done{background:#8bb8f8}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:22px}
+  .card h2{font-size:15px;margin:0 0 4px;font-weight:650}
+  .card .hint{color:var(--muted);font-size:12.5px;margin:0 0 18px}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid .full{grid-column:1/-1}
+  @media(max-width:560px){.grid{grid-template-columns:1fr}}
+
+  label{display:block;font-size:12.5px;color:#374151;margin-bottom:5px;font-weight:550}
+  label .req{color:var(--err);margin-left:2px}
+  input[type=text],input[type=password],input[type=email],input[type=number]{
+    width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;
+    font:inherit;background:#fff;color:var(--text);transition:border-color .15s,box-shadow .15s;
+  }
+  input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(31,111,235,.12)}
+  input:disabled{background:#f3f4f6;color:var(--muted)}
+  .field{margin-bottom:0}
+
+  .row{display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap}
+  button{
+    font:inherit;cursor:pointer;border-radius:7px;border:1px solid transparent;
+    padding:9px 18px;transition:all .15s;
+  }
+  .btn-primary{background:var(--brand);color:#fff;font-weight:600}
+  .btn-primary:hover:not(:disabled){background:var(--brand-dark)}
+  .btn-primary:disabled{opacity:.55;cursor:not-allowed}
+  .btn-ghost{background:#fff;border-color:var(--border);color:#374151}
+  .btn-ghost:hover{background:#f9fafb}
+  .btn-sm{padding:7px 14px;font-size:13px}
+  .spacer{flex:1}
+
+  .msg{margin-top:14px;padding:11px 13px;border-radius:7px;font-size:13px;display:none;white-space:pre-wrap;word-break:break-word}
+  .msg.show{display:block}
+  .msg.ok{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}
+  .msg.err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
+  .msg.warn{background:#fffbeb;border:1px solid #fde68a;color:#92400e}
+  .msg.info{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
+  .msg b{font-weight:650}
+
+  .lang-card{text-align:center;padding:34px 22px}
+  .lang-card h2{font-size:17px;margin-bottom:6px}
+  .lang-card .hint{margin-bottom:24px}
+  .lang-btns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  .lang-btns button{
+    min-width:150px;padding:16px 22px;border:1.5px solid var(--border);border-radius:10px;
+    background:#fff;font-size:15px;font-weight:600;color:var(--text);
+  }
+  .lang-btns button:hover{border-color:var(--brand);color:var(--brand);background:#f7faff}
+  .lang-btns button small{display:block;font-size:11.5px;font-weight:400;color:var(--muted);margin-top:3px}
+
+  .bar{height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden;margin:16px 0 10px}
+  .bar > i{display:block;height:100%;width:30%;background:var(--brand);border-radius:3px;
+    animation:slide 1.4s ease-in-out infinite}
+  @keyframes slide{0%{margin-left:-30%}100%{margin-left:100%}}
+  .stage{font-size:13px;color:#374151}
+  .stage .t{color:var(--muted);font-size:12px}
+
+  .done-box{text-align:center;padding:8px 0 4px}
+  .done-icon{width:56px;height:56px;border-radius:50%;background:#f0fdf4;color:var(--ok);
+    display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px}
+  .kv{display:grid;grid-template-columns:96px 1fr;gap:8px 12px;font-size:13px;text-align:left;
+    background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:16px}
+  .kv dt{color:var(--muted)}
+  .kv dd{margin:0;word-break:break-all}
+  .kv a{color:var(--brand);text-decoration:none}
+  .kv a:hover{text-decoration:underline}
+  .tips{font-size:12.5px;color:var(--muted);text-align:left;margin-top:14px;line-height:1.8}
+  .tips code{background:#eef1f5;padding:1px 5px;border-radius:4px;font-size:12px}
+
+  .foot{text-align:center;color:#9aa1a9;font-size:11.5px;margin-top:22px;line-height:1.85}
+  .foot .contact{margin-top:6px}
+  .foot a{color:var(--brand);text-decoration:none}
+  .foot a:hover{text-decoration:underline}
+
+  /* 双语并排：主行 + 副行 */
+  .en-line{display:block;font-size:.82em;font-weight:400;color:var(--muted);margin-top:5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brand">
+    <img class="logo" src="/install/logo.png" alt="米多科技 Miduo">
+    <div class="brand-text">
+      <h1 id="brandTitle">创世虚拟世界CRM · 创世 Genesis</h1>
+      <div class="sub" id="brandSub">安装向导</div>
+    </div>
+    <div class="lang-switch" id="langSwitch" style="display:none">
+      <button type="button" data-lang="zh">中文</button>
+      <button type="button" data-lang="en">EN</button>
+    </div>
+  </div>
+
+  <div class="steps" id="steps" style="display:none">
+    <div class="on"></div><div></div><div></div><div></div>
+  </div>
+
+  <!-- ============ 第 0 步：选择语言（始终双语并排，不随语言切换）============ -->
+  <div class="card lang-card" id="step0">
+    <h2>请选择安装语言<span class="en-line">Choose your language</span></h2>
+    <p class="hint">选择后整个安装过程都使用这个语言<span class="en-line">The whole installation will use this language</span></p>
+    <div class="lang-btns">
+      <button type="button" data-lang="zh">中文<small>Chinese</small></button>
+      <button type="button" data-lang="en">English<small>英语</small></button>
+    </div>
+  </div>
+
+  <!-- ============ 第 1 步：数据库 ============ -->
+  <div class="card" id="step1" style="display:none">
+    <h2 data-i18n="s1Title">第一步 · 数据库连接</h2>
+    <p class="hint" data-i18n="s1Hint"></p>
+
+    <div class="grid">
+      <div class="field">
+        <label><span data-i18n="fHost"></span><span class="req">*</span></label>
+        <input type="text" id="dbHost" value="127.0.0.1" placeholder="127.0.0.1">
+      </div>
+      <div class="field">
+        <label><span data-i18n="fPort"></span><span class="req">*</span></label>
+        <input type="number" id="dbPort" value="5432">
+      </div>
+      <div class="field">
+        <label><span data-i18n="fDbName"></span><span class="req">*</span></label>
+        <input type="text" id="dbName" value="virtual_world" placeholder="virtual_world">
+      </div>
+      <div class="field">
+        <label><span data-i18n="fDbUser"></span><span class="req">*</span></label>
+        <input type="text" id="dbUser" value="postgres">
+      </div>
+      <div class="field full">
+        <label data-i18n="fDbPass"></label>
+        <input type="password" id="dbPass" data-i18n-ph="fDbPassPh">
+      </div>
+    </div>
+
+    <div class="row">
+      <button class="btn-ghost btn-sm" id="btnTest" data-i18n="btnTest"></button>
+      <span class="spacer"></span>
+      <button class="btn-primary" id="btnNext1" disabled data-i18n="btnNext"></button>
+    </div>
+
+    <div class="msg" id="msg1"></div>
+
+    <div id="confirmWrap" style="display:none">
+      <div class="msg warn show" id="confirmWarn"></div>
+      <div class="field" style="margin-top:12px">
+        <label><span data-i18n="fConfirm"></span><span class="req">*</span></label>
+        <input type="text" id="confirmName" data-i18n-ph="fConfirmPh">
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 第 2 步：世界 ============ -->
+  <div class="card" id="step2" style="display:none">
+    <h2 data-i18n="s2Title"></h2>
+    <p class="hint" data-i18n="s2Hint"></p>
+
+    <div class="grid">
+      <div class="field full">
+        <label><span data-i18n="fWorldName"></span><span class="req">*</span></label>
+        <input type="text" id="worldName" maxlength="50">
+      </div>
+      <div class="field full">
+        <label><span data-i18n="fWorldUrl"></span><span class="req">*</span></label>
+        <input type="text" id="worldUrl" placeholder="http://your-ip:3002">
+        <div class="hint" style="margin:6px 0 0" data-i18n="fWorldUrlHint"></div>
+      </div>
+    </div>
+
+    <div class="msg" id="msg2"></div>
+
+    <div class="row">
+      <button class="btn-ghost" id="btnBack2" data-i18n="btnBack"></button>
+      <span class="spacer"></span>
+      <button class="btn-primary" id="btnNext2" data-i18n="btnNext"></button>
+    </div>
+  </div>
+
+  <!-- ============ 第 3 步：管理员 ============ -->
+  <div class="card" id="step3" style="display:none">
+    <h2 data-i18n="s3Title"></h2>
+    <p class="hint" data-i18n="s3Hint"></p>
+
+    <div class="grid">
+      <div class="field">
+        <label><span data-i18n="fAdmUser"></span><span class="req">*</span></label>
+        <input type="text" id="admUser" value="admin" maxlength="30">
+      </div>
+      <div class="field">
+        <label data-i18n="fAdmEmail"></label>
+        <input type="email" id="admEmail" data-i18n-ph="fAdmEmailPh">
+      </div>
+      <div class="field">
+        <label><span data-i18n="fAdmPass"></span><span class="req">*</span></label>
+        <input type="password" id="admPass" data-i18n-ph="fAdmPassPh">
+      </div>
+      <div class="field">
+        <label><span data-i18n="fAdmPass2"></span><span class="req">*</span></label>
+        <input type="password" id="admPass2" data-i18n-ph="fAdmPass2Ph">
+      </div>
+    </div>
+
+    <div class="msg" id="msg3"></div>
+
+    <div class="row">
+      <button class="btn-ghost" id="btnBack3" data-i18n="btnBack"></button>
+      <span class="spacer"></span>
+      <button class="btn-primary" id="btnInstall" data-i18n="btnInstall"></button>
+    </div>
+  </div>
+
+  <!-- ============ 第 4 步：执行中 ============ -->
+  <div class="card" id="step4" style="display:none">
+    <h2 id="runTitle"></h2>
+    <p class="hint" id="runHint"></p>
+    <div class="bar" id="runBar"><i></i></div>
+    <div class="stage"><span id="stageText"></span> <span class="t" id="stageTime"></span></div>
+    <div class="msg err" id="msg4"></div>
+    <div class="row" id="failRow" style="display:none">
+      <button class="btn-ghost" id="btnRetry" data-i18n="btnRetry"></button>
+      <button class="btn-primary" id="btnRetryAgain" data-i18n="btnRetryAgain"></button>
+    </div>
+  </div>
+
+  <!-- ============ 完成 ============ -->
+  <div class="card" id="step5" style="display:none">
+    <div class="done-box">
+      <div class="done-icon">✓</div>
+      <h2 style="margin-bottom:6px" data-i18n="doneTitle"></h2>
+      <p class="hint" id="doneHint"></p>
+    </div>
+    <dl class="kv">
+      <dt data-i18n="kvHome"></dt><dd><a id="linkHome" href="/" target="_blank">—</a></dd>
+      <dt data-i18n="kvAdmin"></dt><dd><a id="linkAdmin" href="/admin.html" target="_blank">—</a></dd>
+      <dt data-i18n="kvUser"></dt><dd id="doneUser">—</dd>
+      <dt data-i18n="kvWorldId"></dt><dd id="doneWorldId" style="font-family:ui-monospace,monospace;font-size:12px">—</dd>
+    </dl>
+    <div class="tips" id="doneTips"></div>
+    <div class="row">
+      <span class="spacer"></span>
+      <button class="btn-primary" id="btnGo" data-i18n="btnGo"></button>
+    </div>
+  </div>
+
+  <div class="foot" id="footText">
+    <div>济宁米多信息科技有限公司 · 创世 Genesis</div>
+    <div>Jining Miduo Information Technology Co., Ltd.</div>
+    <div class="contact">
+      电话 Tel 15660440944 &nbsp;·&nbsp; 邮箱 Email 888@miduo100.com
+      &nbsp;·&nbsp; 演示世界 Demo <a href="https://miduo100.com" target="_blank" rel="noopener">miduo100.com</a>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ================= 文案字典 ================= */
+  var I18N = {
+    zh: {
+      docTitle: '创世虚拟世界CRM · 创世 Genesis',
+      brandTitle: '创世虚拟世界CRM · 创世 Genesis',
+      brandSub: '安装向导',
+      foot: '济宁米多信息科技有限公司 · 创世 Genesis',
+
+      langTitle: '请选择安装语言',
+      langHint: '选择后整个安装过程都使用这个语言',
+
+      s1Title: '第一步 · 数据库连接',
+      s1Hint: '请先在面板里建好一个 PostgreSQL 数据库，把信息填进下面。先点「测试连接」确认能连上。',
+      fHost: '数据库地址', fPort: '端口', fDbName: '数据库名', fDbUser: '用户名', fDbPass: '密码',
+      fDbPassPh: '数据库密码',
+      btnTest: '测试连接', btnNext: '下一步', btnBack: '上一步',
+      btnInstall: '开始安装', btnInstallQuick: '复用并完成',
+      btnRetry: '返回修改', btnRetryAgain: '原样重试',
+      btnGo: '进入世界',
+      fConfirm: '请输入库名确认', fConfirmPh: '原样输入上面的库名',
+
+      s2Title: '第二步 · 世界信息',
+      s2Hint: '这两项决定这个世界的名字，以及别的世界怎么找到它。',
+      fWorldName: '世界名称', fWorldUrl: '对外访问地址',
+      fWorldUrlHint: '已自动带出当前浏览器地址。若之后换域名，请到管理后台「系统配置 → 系统参数 → 世界URL（对外域名）」里改。',
+      defWorldName: '我的虚拟世界',
+
+      s3Title: '第三步 · 管理员账号',
+      s3Hint: '用来登录管理后台。装好之后可以用它进后台改密码、配世界。',
+      fAdmUser: '管理员账号', fAdmEmail: '邮箱（选填）', fAdmEmailPh: '用于找回密码',
+      fAdmPass: '密码', fAdmPassPh: '至少 6 位', fAdmPass2: '确认密码', fAdmPass2Ph: '再输一次',
+
+      testing: '连接中…',
+      errNeedFields: '请先填写数据库地址、库名和用户名。',
+      errNeedPass: '请填写数据库密码。如果这个用户确实没有密码，请先在数据库面板里给它设一个。',
+      okEmpty: '连接成功 · PostgreSQL {v} · 库 <b>{db}</b> 是空的，可以安装。',
+      okInit: '连接成功 · PostgreSQL {v} · 库 <b>{db}</b> 已经有 {n} 张表，是初始化过的库。<br>可以 <b>跳过建表直接完成配置</b>（几秒钟）。',
+      okInitExtra: '<br>这个库已有世界身份 <b style="font-family:monospace">{id}</b>，将原样沿用（不会重新生成，联邦关系不受影响）。',
+      confirmReuse: '复用会覆盖这个库里的<b>管理员账号</b>和<b>世界配置</b>（数据表不动）。确认这是你要用的库，请在下面原样输入库名 <b>{db}</b>。',
+      errForeign: '这个库里有 <b>{n} 张表</b>，但没有本程序的标志性表，看起来是别的系统的库。请换一个空库，或在数据库面板里新建一个专用的。',
+      errHasUsers: '这个库里已经初始化过，而且有 <b>{n} 个用户</b> 在用。继续会覆盖管理员账号和世界配置，请换一个库。',
+      errTestFirst: '请先点「测试连接」。',
+      errConfirmMismatch: '库名确认不一致，无法继续。',
+      errNameEmpty: '世界名称不能为空。',
+      errUrlInvalid: '对外地址必须以 http:// 或 https:// 开头。',
+      errAdmName: '管理员账号 3-30 位，只能用字母、数字、下划线、点、横线。',
+      errAdmPass: '密码至少 6 位。',
+      errAdmPass2: '两次输入的密码不一致。',
+
+      runTitle: '正在安装',
+      runTitleQuick: '正在复用已有库…',
+      runHint: '请勿关闭本页面，整个过程大约 10-40 秒。',
+      runHintQuick: '跳过建表，只写入管理员、世界身份和配置文件，一般几秒钟。',
+      stageStarting: '准备中…',
+      stageProcessing: '处理中…',
+      elapsed: '已用 {n} 秒',
+      failTitle: '安装失败',
+      aborted: '已中止',
+      rolledBack: '\n\n数据库已回滚，没有留下半成品表，改完参数可以直接重试。',
+
+      doneTitle: '安装完成',
+      doneRestarting: '世界已就绪，正在重启服务…',
+      doneWaiting: '正在等待服务重启…（{n} 秒）',
+      doneReady: '服务已就绪，正在跳转…',
+      doneNoAuto: '服务没有自动起来。请到面板的 Node 项目里点<b>启动</b>，然后刷新本页。',
+      doneReused: '（沿用已有身份，未重新生成）',
+      doneWorldIdLater: '（启动后在后台首页查看）',
+      doneTips: '· 如果 20 秒后页面仍然打不开，说明服务没有被守护进程拉起，请在面板里点一下<b>启动</b>。<br>· 第一次启动会自动补齐数据库里的剩余结构，稍等几秒即可。<br>· 建议尽快到后台把管理员密码改掉，并备份服务器上的 <code>.env</code> 文件。',
+
+      kvHome: '首页', kvAdmin: '管理后台', kvUser: '管理员', kvWorldId: '世界 ID'
+    },
+
+    en: {
+      docTitle: 'Genesis Virtual World CRM · Genesis',
+      brandTitle: 'Genesis Virtual World CRM · Genesis',
+      brandSub: 'Setup Wizard',
+      foot: 'Jining Miduo Information Technology Co., Ltd.',
+
+      langTitle: 'Choose language',
+      langHint: 'The whole installation will use this language',
+
+      s1Title: 'Step 1 · Database',
+      s1Hint: 'Create a PostgreSQL database in your panel first, then fill in the details below. Click "Test connection" to verify.',
+      fHost: 'Host', fPort: 'Port', fDbName: 'Database', fDbUser: 'Username', fDbPass: 'Password',
+      fDbPassPh: 'Database password',
+      btnTest: 'Test connection', btnNext: 'Next', btnBack: 'Back',
+      btnInstall: 'Start installation', btnInstallQuick: 'Reuse and finish',
+      btnRetry: 'Back to edit', btnRetryAgain: 'Retry as is',
+      btnGo: 'Enter world',
+      fConfirm: 'Type the database name to confirm', fConfirmPh: 'Exact database name',
+
+      s2Title: 'Step 2 · World',
+      s2Hint: 'These two fields define your world name and how other worlds reach it.',
+      fWorldName: 'World name', fWorldUrl: 'Public address',
+      fWorldUrlHint: 'Filled with the current browser address. To change the domain later, go to Admin → System Config → System Parameters → World URL.',
+      defWorldName: 'My Virtual World',
+
+      s3Title: 'Step 3 · Administrator',
+      s3Hint: 'Used to sign in to the admin panel. You can change it after installation.',
+      fAdmUser: 'Admin username', fAdmEmail: 'Email (optional)', fAdmEmailPh: 'For password recovery',
+      fAdmPass: 'Password', fAdmPassPh: 'At least 6 characters', fAdmPass2: 'Confirm password', fAdmPass2Ph: 'Type again',
+
+      testing: 'Connecting…',
+      errNeedFields: 'Please fill in host, database name and username.',
+      errNeedPass: 'Please enter the database password. If this user really has no password, set one in your database panel first.',
+      okEmpty: 'Connected · PostgreSQL {v} · database <b>{db}</b> is empty, ready to install.',
+      okInit: 'Connected · PostgreSQL {v} · database <b>{db}</b> already has {n} tables and looks initialized.<br>You can <b>skip table creation</b> and finish in seconds.',
+      okInitExtra: '<br>This database already has world identity <b style="font-family:monospace">{id}</b>; it will be kept as is (federation links stay intact).',
+      confirmReuse: 'Reusing will overwrite the <b>admin account</b> and <b>world settings</b> in this database (data tables are untouched). Type the database name <b>{db}</b> below to confirm.',
+      errForeign: 'This database has <b>{n} tables</b> but none of this application&#39;s tables. It looks like another system. Please use an empty database.',
+      errHasUsers: 'This database is already initialized and has <b>{n} users</b>. Continuing would overwrite the admin account and world settings. Please use another database.',
+      errTestFirst: 'Please click "Test connection" first.',
+      errConfirmMismatch: 'Database name does not match.',
+      errNameEmpty: 'World name is required.',
+      errUrlInvalid: 'Public address must start with http:// or https://.',
+      errAdmName: 'Admin username must be 3-30 chars: letters, digits, underscore, dot or dash.',
+      errAdmPass: 'Password must be at least 6 characters.',
+      errAdmPass2: 'Passwords do not match.',
+
+      runTitle: 'Installing',
+      runTitleQuick: 'Reusing existing database…',
+      runHint: 'Do not close this page. It usually takes 10-40 seconds.',
+      runHintQuick: 'Skipping table creation; only admin, world identity and config files are written. Takes seconds.',
+      stageStarting: 'Preparing…',
+      stageProcessing: 'Working…',
+      elapsed: '{n}s elapsed',
+      failTitle: 'Installation failed',
+      aborted: 'Aborted',
+      rolledBack: '\n\nDatabase was rolled back — no half-created tables left. Fix the settings and retry.',
+
+      doneTitle: 'Installation complete',
+      doneRestarting: 'World is ready, restarting the service…',
+      doneWaiting: 'Waiting for the service to restart… ({n}s)',
+      doneReady: 'Service is up, redirecting…',
+      doneNoAuto: 'The service did not come back automatically. Click <b>Start</b> on the Node project in your panel, then refresh.',
+      doneReused: ' (existing identity kept)',
+      doneWorldIdLater: ' (visible in admin after startup)',
+      doneTips: '· If the page still will not load after 20 seconds, the service was not restarted by a process manager — click <b>Start</b> in your panel.<br>· The first startup fills in the remaining database structure, give it a few seconds.<br>· Change the admin password soon, and back up the <code>.env</code> file on the server.',
+
+      kvHome: 'Home', kvAdmin: 'Admin panel', kvUser: 'Administrator', kvWorldId: 'World ID'
+    }
+  };
+
+  var LANG = 'zh';
+  var S = { step: 0, tested: false, tableCount: 0, polling: null, startAt: 0, mode: 'full', dbInfo: null };
+
+  function $(id) { return document.getElementById(id); }
+  function val(id) { var e = $(id); return e ? e.value.trim() : ''; }
+
+  function T(key, vars) {
+    var dict = I18N[LANG] || I18N.zh;
+    var s = dict[key] != null ? dict[key] : (I18N.zh[key] != null ? I18N.zh[key] : key);
+    if (vars) {
+      Object.keys(vars).forEach(function (k) {
+        s = s.replace(new RegExp('\\{' + k + '\\}', 'g'), vars[k]);
+      });
+    }
+    return s;
+  }
+
+  /** 刷新所有静态文案 */
+  function applyI18n() {
+    document.title = T('docTitle');
+    $('brandTitle').textContent = T('brandTitle');
+    $('brandSub').textContent = T('brandSub');
+    // 页脚联系方式、语言选择页文案都是固定双语并排，不参与切换
+
+    Array.prototype.forEach.call(document.querySelectorAll('[data-i18n]'), function (el) {
+      el.textContent = T(el.getAttribute('data-i18n'));
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-i18n-ph]'), function (el) {
+      el.placeholder = T(el.getAttribute('data-i18n-ph'));
+    });
+
+    // 世界名：没填过就用当前语言的默认值
+    var wn = $('worldName');
+    if (!wn.value || wn.value === I18N.zh.defWorldName || wn.value === I18N.en.defWorldName) {
+      wn.value = T('defWorldName');
+    }
+
+    Array.prototype.forEach.call(document.querySelectorAll('.lang-switch button'), function (b) {
+      b.classList.toggle('on', b.getAttribute('data-lang') === LANG);
+    });
+    document.documentElement.lang = (LANG === 'en') ? 'en' : 'zh-CN';
+  }
+
+  function setLang(lang) {
+    LANG = (lang === 'en') ? 'en' : 'zh';
+    try { localStorage.setItem('installer_lang', LANG); } catch (e) {}
+    applyI18n();
+  }
+
+  function setStep(n) {
+    S.step = n;
+    for (var i = 0; i <= 5; i++) {
+      var el = $('step' + i);
+      if (el) el.style.display = (i === n) ? '' : 'none';
+    }
+    $('steps').style.display = (n >= 1) ? '' : 'none';
+    $('langSwitch').style.display = (n >= 1) ? '' : 'none';
+    var bars = $('steps').children;
+    for (var j = 0; j < bars.length; j++) {
+      bars[j].className = (j + 1 < n) ? 'done' : (j + 1 === n ? 'on' : '');
+    }
+    if (n >= 1) window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function showMsg(id, kind, html) {
+    var e = $(id);
+    if (!e) return;
+    e.className = 'msg ' + kind + ' show';
+    e.innerHTML = html;
+  }
+  function hideMsg(id) { var e = $(id); if (e) { e.className = 'msg'; e.innerHTML = ''; } }
+
+  function dbPayload() {
+    return {
+      host: val('dbHost'),
+      port: Number(val('dbPort')) || 5432,
+      database: val('dbName'),
+      user: val('dbUser'),
+      password: $('dbPass').value
+    };
+  }
+
+  // ---------- 语言按钮（选择页 + 右上角切换共用）----------
+  Array.prototype.forEach.call(document.querySelectorAll('[data-lang]'), function (btn) {
+    btn.addEventListener('click', function () {
+      setLang(btn.getAttribute('data-lang'));
+      if (S.step === 0) setStep(1);
+    });
+  });
+
+  // ---------- 第 1 步 ----------
+  $('btnTest').addEventListener('click', async function () {
+    var btn = this;
+    hideMsg('msg1');
+    $('confirmWrap').style.display = 'none';
+    $('btnNext1').disabled = true;
+    S.tested = false;
+
+    if (!val('dbHost') || !val('dbName') || !val('dbUser')) {
+      return showMsg('msg1', 'err', T('errNeedFields'));
+    }
+    if (!$('dbPass').value) {
+      return showMsg('msg1', 'err', T('errNeedPass'));
+    }
+
+    btn.disabled = true;
+    btn.textContent = T('testing');
+    try {
+      var r = await fetch('/api/install/test-db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ db: dbPayload() })
+      });
+      var d = await r.json();
+      if (!d.ok) throw new Error(d.error || 'connection failed');
+
+      S.tested = true;
+      S.dbInfo = d;
+      S.tableCount = d.tableCount || 0;
+      $('confirmWrap').style.display = 'none';
+
+      if (d.state === 'foreign') {
+        S.mode = 'none';
+        showMsg('msg1', 'err', T('errForeign', { n: d.tableCount }));
+      } else if (d.state === 'initialized') {
+        if (d.userCount > 0) {
+          S.mode = 'none';
+          showMsg('msg1', 'err', T('errHasUsers', { n: d.userCount }));
+        } else {
+          S.mode = 'quick';
+          var extra = d.reservedWorldId ? T('okInitExtra', { id: d.reservedWorldId }) : '';
+          showMsg('msg1', 'info', T('okInit', { v: d.version, db: d.dbName, n: d.tableCount }) + extra);
+          $('confirmWarn').innerHTML = T('confirmReuse', { db: d.dbName });
+          $('confirmWrap').style.display = '';
+        }
+      } else {
+        S.mode = 'full';
+        showMsg('msg1', 'ok', T('okEmpty', { v: d.version, db: d.dbName }));
+        $('btnNext1').disabled = false;
+      }
+    } catch (e) {
+      showMsg('msg1', 'err', e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = T('btnTest');
+    }
+  });
+
+  $('confirmName').addEventListener('input', function () {
+    var ok = S.mode === 'quick' && this.value.trim() === val('dbName') && S.tested;
+    $('btnNext1').disabled = !ok;
+  });
+
+  $('btnNext1').addEventListener('click', function () {
+    if (!S.tested) return showMsg('msg1', 'err', T('errTestFirst'));
+    if (S.mode === 'none') return;
+    if (S.mode === 'quick' && val('confirmName') !== val('dbName')) {
+      return showMsg('msg1', 'err', T('errConfirmMismatch'));
+    }
+    if (!$('worldUrl').value) $('worldUrl').value = location.origin;
+    setStep(2);
+  });
+
+  // ---------- 第 2 步 ----------
+  $('btnBack2').addEventListener('click', function () { setStep(1); });
+
+  $('btnNext2').addEventListener('click', function () {
+    hideMsg('msg2');
+    if (!val('worldName')) return showMsg('msg2', 'err', T('errNameEmpty'));
+    if (!/^https?:\/\/[^\s]+$/i.test(val('worldUrl'))) {
+      return showMsg('msg2', 'err', T('errUrlInvalid'));
+    }
+    $('btnInstall').textContent = (S.mode === 'quick') ? T('btnInstallQuick') : T('btnInstall');
+    setStep(3);
+  });
+
+  // ---------- 第 3 步 ----------
+  $('btnBack3').addEventListener('click', function () { setStep(2); });
+
+  function adminPayload() {
+    return { username: val('admUser'), password: $('admPass').value, email: val('admEmail') };
+  }
+
+  function collectBody() {
+    return {
+      mode: S.mode,
+      language: (LANG === 'en') ? 'en-US' : 'zh-CN',
+      db: dbPayload(),
+      world: {
+        name: val('worldName'),
+        url: val('worldUrl'),
+        // 中心世界地址与接入开关固定：新世界一律接入中心世界，界面不提供选项
+        centralUrl: 'https://miduo100.com',
+        autoConnect: true
+      },
+      admin: adminPayload(),
+      confirmName: val('confirmName'),
+      port: Number(location.port) || 3002
+    };
+  }
+
+  $('btnInstall').addEventListener('click', async function () {
+    hideMsg('msg3');
+    var a = adminPayload();
+    if (!/^[A-Za-z0-9_.-]{3,30}$/.test(a.username)) {
+      return showMsg('msg3', 'err', T('errAdmName'));
+    }
+    if (!a.password || a.password.length < 6) {
+      return showMsg('msg3', 'err', T('errAdmPass'));
+    }
+    if (a.password !== $('admPass2').value) {
+      return showMsg('msg3', 'err', T('errAdmPass2'));
+    }
+
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = '…';
+
+    try {
+      var r = await fetch('/api/install/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(collectBody())
+      });
+      var d = await r.json();
+      if (!d.ok) throw new Error(d.error || 'failed to start');
+
+      $('runTitle').textContent = (S.mode === 'quick') ? T('runTitleQuick') : T('runTitle');
+      $('runHint').textContent = (S.mode === 'quick') ? T('runHintQuick') : T('runHint');
+      $('runBar').style.display = '';
+      $('stageText').textContent = T('stageStarting');
+      $('stageTime').textContent = '';
+      $('failRow').style.display = 'none';
+      hideMsg('msg4');
+
+      S.startAt = Date.now();
+      setStep(4);
+      startPolling();
+    } catch (e) {
+      showMsg('msg3', 'err', e.message);
+      btn.disabled = false;
+      btn.textContent = T('btnInstall');
+    }
+  });
+
+  // ---------- 第 4 步：轮询 ----------
+  function startPolling() {
+    if (S.polling) clearInterval(S.polling);
+    S.polling = setInterval(tick, 900);
+    tick();
+  }
+
+  /** 后端阶段名 → 当前语言文案 */
+  function stageLabel(stage) {
+    var map = {
+      connecting: ['正在连接数据库…', 'Connecting to database…'],
+      begin: ['开启事务…', 'Starting transaction…'],
+      executing: ['正在建表并写入初始数据（约 10-30 秒）…', 'Creating tables and seeding data (10-30s)…'],
+      commit: ['提交事务…', 'Committing…'],
+      admin: ['正在创建管理员…', 'Creating administrator…'],
+      world: ['正在生成世界身份…', 'Generating world identity…'],
+      env: ['正在写入配置文件…', 'Writing configuration…'],
+      restarting: ['安装完成，正在重启服务…', 'Done, restarting service…'],
+      done: ['安装完成', 'Done']
+    };
+    var m = map[stage];
+    if (!m) return '';
+    return (LANG === 'en') ? m[1] : m[0];
+  }
+
+  async function tick() {
+    try {
+      var r = await fetch('/api/install/status', { cache: 'no-store' });
+      var d = await r.json();
+
+      if (d.stage === 'failed') {
+        clearInterval(S.polling); S.polling = null;
+        $('runTitle').textContent = T('failTitle');
+        $('runBar').style.display = 'none';
+        $('stageText').textContent = T('aborted');
+        var detail = d.error || 'error';
+        if (d.rolledBack) detail += T('rolledBack');
+        showMsg('msg4', 'err', detail);
+        $('failRow').style.display = '';
+        return;
+      }
+
+      $('stageText').textContent = stageLabel(d.stage) || T('stageProcessing');
+      var sec = Math.floor((Date.now() - (d.startedAt || S.startAt)) / 1000);
+      $('stageTime').textContent = sec > 0 ? T('elapsed', { n: sec }) : '';
+
+      if (d.stage === 'restarting' || d.stage === 'done') {
+        clearInterval(S.polling); S.polling = null;
+        showDone(d);
+      }
+    } catch (e) { /* 重启瞬间连接会断，忽略 */ }
+  }
+
+  function showDone(d) {
+    setStep(5);
+    var origin = location.origin;
+    $('linkHome').textContent = origin;
+    $('linkHome').href = origin;
+    $('linkAdmin').textContent = origin + '/admin.html';
+    $('linkAdmin').href = origin + '/admin.html';
+    $('doneUser').textContent = d.adminUser || 'admin';
+    $('doneWorldId').textContent = (d.worldId || T('doneWorldIdLater'))
+      + (d.worldIdReused ? T('doneReused') : '');
+    $('doneTips').innerHTML = T('doneTips');
+    $('doneHint').textContent = T('doneRestarting');
+    waitRestart();
+  }
+
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  async function waitRestart() {
+    var hint = $('doneHint');
+    for (var i = 0; i < 30; i++) {
+      await sleep(1500);
+      try {
+        var r = await fetch('/api/health', { cache: 'no-store' });
+        if (r.ok) {
+          hint.textContent = T('doneReady');
+          setTimeout(function () { location.href = '/'; }, 900);
+          return;
+        }
+      } catch (e) { /* 还在重启 */ }
+      hint.textContent = T('doneWaiting', { n: Math.round((i + 1) * 1.5) });
+    }
+    hint.innerHTML = T('doneNoAuto');
+  }
+
+  $('btnRetry').addEventListener('click', async function () {
+    try { await fetch('/api/install/dismiss', { method: 'POST' }); } catch (e) {}
+    $('runBar').style.display = '';
+    $('failRow').style.display = 'none';
+    hideMsg('msg4');
+    $('btnInstall').disabled = false;
+    $('btnInstall').textContent = T('btnInstall');
+    setStep(1);
+  });
+
+  $('btnRetryAgain').addEventListener('click', async function () {
+    try { await fetch('/api/install/dismiss', { method: 'POST' }); } catch (e) {}
+    $('failRow').style.display = 'none';
+    hideMsg('msg4');
+    setStep(3);
+    $('btnInstall').click();
+  });
+
+  $('btnGo').addEventListener('click', function () { location.href = '/'; });
+
+  // ---------- 初始化 ----------
+  var saved = '';
+  try { saved = localStorage.getItem('installer_lang') || ''; } catch (e) {}
+  if (saved === 'zh' || saved === 'en') {
+    // 选过语言：直接进第 1 步
+    setLang(saved);
+    if (!$('worldUrl').value) $('worldUrl').value = location.origin;
+    setStep(1);
+  } else {
+    // 没选过：先给一个语言选择页（按浏览器语言预选，但不自动进入）
+    LANG = ((navigator.language || '').toLowerCase().indexOf('zh') === 0) ? 'zh' : 'en';
+    applyI18n();
+    if (!$('worldUrl').value) $('worldUrl').value = location.origin;
+    setStep(0);
+  }
+})();
+</script>
+</body>
+</html>

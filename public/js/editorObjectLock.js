@@ -68,7 +68,8 @@
     }
 
     function isArmed(id) {
-        return !!(id !== undefined && _arm && _arm.id === id);
+        // String 比较：内联 onclick 传进来的 id 可能是字符串，而 _arm.id 是原始类型
+        return !!(id !== undefined && _arm && String(_arm.id) === String(id));
     }
 
     // 确认态标红：同时命中左右两个列表中的同 id 按钮
@@ -86,7 +87,9 @@
 
     function findObj(id) {
         if (typeof worldObjects === 'undefined' || !worldObjects) return null;
-        return worldObjects.find(function (o) { return o && o.id === id; }) || null;
+        // String 归一化：world_objects 的 id 是数字、ad_slots 的 id 是 UUID 字符串，
+        // 内联 onclick 传进来的又一律是字符串，直接 === 会让数字 id 的对象找不到。
+        return worldObjects.find(function (o) { return o && String(o.id) === String(id); }) || null;
     }
 
     // ===== 锁定/解锁 =====
@@ -201,6 +204,32 @@
     }
 
     // ===== 列表按钮 HTML =====
+    /* 内联 onclick 里的 id 必须当 JS 字面量处理，且要按原类型输出：
+       - 不加引号：onclick="toggleObjectLock(spawn_point, event)" → 当变量名 → ReferenceError
+       - 一律加引号：数字 id 变字符串 '1'，与严格比较的查找对不上 → 点了没反应
+       所以 number 原样、其余加单引号。 */
+    function _jsStr(v) {
+        return "'" + String(v == null ? '' : v)
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'")
+            .replace(/\r/g, '\\r')
+            .replace(/\n/g, '\\n')
+            .replace(/</g, '\\x3c') + "'";
+    }
+
+    function _jsId(v) {
+        if (typeof v === 'number' && isFinite(v)) return String(v);
+        return _jsStr(v);
+    }
+
+    function _attr(v) {
+        return String(v == null ? '' : v)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
     function renderLockButton(obj) {
         if (!isLockable(obj)) return '';
         var locked = isLocked(obj);
@@ -209,9 +238,9 @@
             ? '已锁定 · 点两下解锁（防误触）'
             : '锁定此对象（锁定后不可编辑/移动/删除）';
         return '<button class="lock-btn' + (locked ? ' locked' : '') +
-            '" data-lock-btn="' + obj.id + '"' +
-            ' onclick="EditorObjectLock.toggleObjectLock(' + obj.id + ', event)"' +
-            ' title="' + title + '">' + icon + '</button>';
+            '" data-lock-btn="' + _attr(obj.id) + '"' +
+            ' onclick="EditorObjectLock.toggleObjectLock(' + _jsId(obj.id) + ', event)"' +
+            ' title="' + _attr(title) + '">' + icon + '</button>';
     }
 
     // ===== 对外暴露 =====

@@ -13,6 +13,9 @@ class UIControlManager {
     this.config = {};
     this.platform = this.detectPlatform();
     this.initialized = false;
+    // 记录元素原本的内联 display（如 flex / grid）。
+    // 不能把 display 置空来「恢复显示」——那会删掉元素自身的 flex 布局，容器会退化成 block。
+    this._originalDisplay = new WeakMap();
   }
 
   /**
@@ -88,6 +91,9 @@ class UIControlManager {
    * 初始化并加载配置
    */
   async init() {
+    // 兜底：无论配置是否成功（网络失败、接口报错），最多 3 秒后解除首屏防闪遮罩，
+    // 避免 HUD 永久隐形
+    this._bootGuardTimer = setTimeout(() => this.releaseBootGuard(), 3000);
     try {
       console.log(`[UIControlManager] 初始化，平台: ${this.platform}`);
       this.initVRDetection();
@@ -97,7 +103,21 @@ class UIControlManager {
       console.log('[UIControlManager] 初始化完成');
     } catch (error) {
       console.error('[UIControlManager] 初始化失败:', error);
+    } finally {
+      this.releaseBootGuard();
     }
+  }
+
+  /**
+   * 解除首屏防闪遮罩（body.ui-config-pending）
+   * 配置应用完成（或失败）后调用，让被 visibility:hidden 压住的 HUD 显示出来。
+   */
+  releaseBootGuard() {
+    if (this._bootGuardTimer) {
+      clearTimeout(this._bootGuardTimer);
+      this._bootGuardTimer = null;
+    }
+    if (document.body) document.body.classList.remove('ui-config-pending');
   }
 
   /**
@@ -168,6 +188,7 @@ class UIControlManager {
         controlId === 'skill_hud' || 
         controlId === 'skill_voice_btn' ||
         controlId === 'federation_portal_btn' ||  // 联邦传送按钮由 federationUI.js 动态创建
+        controlId === 'wi_fab' ||  // 玩法按钮由 worldInteractions.js 动态创建
         controlId === 'copy_coords_btn';  // 复制坐标按钮是 debug_panel 子元素，不单独控制
       if (!isDynamicControl) {
         console.warn(`[UIControlManager] 未找到控件: ${controlId}`);
@@ -184,8 +205,12 @@ class UIControlManager {
     // 控件ID到DOM元素选择器的映射
     const selectorMap = {
       // 桌面端控件
-      'btn_profile': '#user-quick-actions',
+      // 注意：必须指向按钮本身，不能指向它的父容器 #user-quick-actions。
+      // 指向容器会把这个 flex 行当按钮来摆，容器被强加 48px 宽高、display 被覆盖，
+      // 结果三个图标会散开换行，且与 btn_inventory 的粒度不一致、间距无法对账。
+      'btn_profile': '#btn-profile',
       'btn_inventory': '#btn-inventory',
+      'btn_language': '#btn-language',  // 语言切换按钮
 
       // 通用控件
       'health_bar': '#health-bar',
@@ -194,6 +219,7 @@ class UIControlManager {
       'skill_voice_btn': '#skill-voice-btn',  // 语音按钮（由 skillHUD.js 动态创建）
       'voice_indicator': '#voiceIndicator',  // 语音录制指示器（录音时的动画效果）
       'portal_btn': '#world-portal-btn',  // 世界传送门按钮
+      'wi_fab': '#wi-fab',  // 玩法按钮（由 worldInteractions.js 动态创建）
       'federation_portal_btn': '#federation-teleport-btn',  // 联邦传送门按钮
       // copy_coords_btn 是 debug_panel 的子元素，不单独控制
       'performance_monitor': '#performance-panel',  // 性能监控面板
@@ -223,6 +249,11 @@ class UIControlManager {
    */
   applyStyles(element, config) {
     if (!element || !config) return;
+
+    // 首次接管时记下元素自身的 display（flex/grid/block…），供恢复显示时还原
+    if (!this._originalDisplay.has(element)) {
+      this._originalDisplay.set(element, element.style.display || '');
+    }
 
     const styles = {};
 
@@ -298,10 +329,20 @@ class UIControlManager {
     if (config.z_index) styles.zIndex = config.z_index;
 
     // 可见性
+    // 注意：恢复显示时必须还原元素原本的 display（如 flex），
+    // 不能赋空字符串——空字符串会删除内联 display，容器会退化成 block，布局被打散。
     if (config.is_visible === false) {
       styles.display = 'none';
     } else {
-      styles.display = '';
+      const originalDisplay = this._originalDisplay.get(element);
+      if (originalDisplay && originalDisplay !== 'none') {
+        // 还原元素自身的 flex/grid，别破坏它原来的布局
+        styles.display = originalDisplay;
+      } else {
+        // 原本就是隐藏的（HTML 里写死 display:none）：交回 CSS 决定，
+        // 否则会把 none 当“原样”再写回去，后台点“显示”也不生效
+        styles.display = '';
+      }
     }
 
     // 应用样式

@@ -391,7 +391,7 @@ class AIProviderService {
         SELECT pal.*, p.display_name as provider_display_name, u.username 
         FROM ai_provider_audit_log pal
         LEFT JOIN ai_providers p ON pal.provider_id = p.id
-        LEFT JOIN users u ON pal.changed_by = u.id
+        LEFT JOIN users u ON pal.changed_by::text = u.id::text
       `;
       
       if (providerId) {
@@ -435,10 +435,40 @@ class AIProviderService {
           return { success: false, message: `缺少必需配置: ${field.label}` };
         }
       }
-      
+
+      // ★ 2026-11-03：sfx（音效生成）类型做**真实调用**测试。
+      //   为什么单独处理：音效生成的失败模式太隐蔽——Key 存在但没开通语音权限时，
+      //   配置校验一律通过，真正调用才 401。不测真实接口，用户会以为配好了，
+      //   进到生成界面才报错，排查成本很高。
+      //   ⚠️ 会真实调一次生成接口，**产生少量费用**（1 秒音频）。
+      const ptype = String(provider.provider_type || '').toLowerCase();
+      if (ptype.split(',').map(t => t.trim()).includes('sfx')) {
+        const sfxClient = require('./sfxClient');
+        try {
+          const r = await sfxClient.ping({ provider });
+          return {
+            success: true,
+            message: '音效生成服务连通正常（已实际生成 1 秒测试音频）'
+              + (r.durationSec ? '，时长 ' + Number(r.durationSec).toFixed(1) + ' 秒' : ''),
+            latencyMs: r.latencyMs,
+            providerName: r.providerName,
+            model: r.model,
+          };
+        } catch (e) {
+          const diag = e && e.diagnosis ? e.diagnosis : '';
+          const hint = e && e.hint ? e.hint : '';
+          return {
+            success: false,
+            message: (diag ? diag + '：' : '') + (e && e.message ? e.message : '调用失败')
+              + (hint ? '　→　' + hint : ''),
+            errorCode: e && e.code ? e.code : 'SFX_TEST_FAILED',
+          };
+        }
+      }
+
       // TODO: 这里可以添加实际的API测试调用
       // 根据不同的provider_type调用不同的测试接口
-      
+
       return { success: true, message: '配置验证通过' };
     } catch (error) {
       return { success: false, message: error.message };

@@ -798,3 +798,17 @@
     padding-left: 0;
   }
 }
+
+/* ===== 控件名标签：默认隐藏，悬停或选中时才显示 =====
+   它用 position:absolute; bottom:-25px 挂在控件下方，常显时会压住下一个控件
+   （实测「世界传送门」的标签正好盖住「联邦传送」的中文行，看起来像英文/中文消失了）。
+   保留信息但不干扰排版：平时透明，鼠标移上去或选中时出现。 */
+.ui-preview-control div[style*="bottom: -25px"] {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+.ui-preview-control:hover div[style*="bottom: -25px"],
+.ui-preview-control.selected div[style*="bottom: -25px"] {
+  opacity: 1;
+}

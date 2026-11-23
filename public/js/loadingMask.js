@@ -270,6 +270,12 @@
   // 这正是想要的语义（阻塞期结束、画面已恢复）。
   var _lastFrames = -1;
   var _aliveSeen = false;
+
+  // 旧 #loadingScreen 的 inline display 上一次看到的值（用于「边沿触发」）。
+  // 为什么必须记录上一次：见 _tick 里的说明——只看当前值会让信号被反复消费，
+  // 造成 done → show() → running → done 的死循环。
+  var _lastLegacyDisp = null;
+
   function _renderAlive() {
     var f = _frames();
     if (f == null) return false;
@@ -323,9 +329,27 @@
 
     // 旧 #loadingScreen 的 inline display 是外部意图信号：
     //   'flex' = handleTeleportArrival（传送到达）→ 重新启用；'none' = showLoginScreen → 收工
+    //
+    // 【必须边沿触发 + 消费信号】原实现只看当前值：
+    //   display 一旦被外部设成 'flex'，_finish 后 phase='done' 的那一 tick 又看到 'flex'
+    //   → 再次 show() → phase 回到 'running' → 就绪 → _finish('ready') → 'done' → 又 show()，
+    //   形成死循环（线上实测每 1.75 秒撤一次罩、无限刷屏）。
+    //   更糟的是 show() 会给 body 加 .lm-masking，CSS 里 `body.lm-masking #guestBanner`
+    //   会把顶部游客提示条反复隐藏。
+    //   而 UI.hideLoadingScreen 又被 _patchUIHide 拦住（phase !== 'done' 直接 return），
+    //   没法把这个信号复位 → 永远出不来。
+    //   现在：只在「值发生变化」时响应一次，并把该信号消费掉（置回 ''）。
     var legacyDisp = legacyEl ? legacyEl.style.display : '';
-    if (legacyDisp === 'flex' && phase === 'done') { show(); }
-    else if (legacyDisp === 'none' && phase === 'running') { _hardStop(); }
+    if (legacyDisp !== _lastLegacyDisp) {
+      _lastLegacyDisp = legacyDisp;
+      if (legacyDisp === 'flex' && phase === 'done') {
+        if (legacyEl) legacyEl.style.display = '';   // 消费信号，避免下一 tick 再触发
+        _lastLegacyDisp = '';
+        show();
+      } else if (legacyDisp === 'none' && phase === 'running') {
+        _hardStop();
+      }
+    }
     if (phase !== 'running') return;
 
     var elapsed = Date.now() - startedAt;

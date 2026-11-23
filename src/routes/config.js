@@ -6,7 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../database/db');
 const { parseJsonValue } = require('../utils/jsonValue');
-const { resolveSky } = require('./sky');
+const { resolveSky, isProceduralId } = require('./sky');
 // SEO 默认值同源（首页服务端注入器）：避免"后台看到一套、页面注入另一套"
 const { DEFAULT_SEO } = require('../services/seoHtmlInjector');
 const { authenticateAdminToken } = require('../middleware/adminAuth');
@@ -394,6 +394,28 @@ router.get('/building-floor-height', async (req, res) => {
 
 // ===== 天气系统 =====
 
+/**
+ * 把前端传来的天空 id 规范化并校验。
+ * 合法形态：'default'（默认纯色）/ 'proc:xxx'（内置程序化预设）/ world_sky_presets.id
+ * @returns {{ok:true,id:string|number}|{ok:false,status:number,error:string}}
+ */
+async function normalizeSkyId(input) {
+  if (input === undefined || input === null || input === '' || input === 'default') {
+    return { ok: true, id: 'default' };
+  }
+  const raw = String(input);
+  if (raw.indexOf('proc:') === 0) {
+    // 内置程序化预设：不进库，只需校验 key 合法
+    if (!isProceduralId(raw)) return { ok: false, status: 400, error: '无效的天空预设' };
+    return { ok: true, id: raw };
+  }
+  const num = parseInt(raw, 10);
+  if (!Number.isInteger(num)) return { ok: false, status: 400, error: '无效的天空ID' };
+  const r = await query('SELECT id FROM world_sky_presets WHERE id = $1', [num]);
+  if (!r.rows.length) return { ok: false, status: 404, error: '选中的天空不存在' };
+  return { ok: true, id: num };
+}
+
 // 获取当前天气配置
 router.get('/weather', async (req, res) => {
   try {
@@ -424,36 +446,73 @@ router.get('/weather', async (req, res) => {
 // 保存并广播天气配置（需要管理员 token，已接 authenticateAdminToken）
 router.put('/weather', authenticateAdminToken, async (req, res) => {
   try {
-    const { type, intensity, wind, auto_cycle, cycle_interval, sky_id } = req.body;
+    const { type, intensity, wind, auto_cycle, cycle_interval, sky_id, sky_link, sky_map } = req.body;
     const validTypes = ['clear', 'rain', 'snow', 'fog', 'storm'];
     if (!validTypes.includes(type)) {
       return res.status(400).json({ error: '无效的天气类型' });
     }
 
-    // 天空库选中项：'default'（默认天空）或 world_sky_presets.id
-    let skyId = 'default';
-    if (sky_id !== undefined && sky_id !== null && sky_id !== '' && sky_id !== 'default') {
-      const skyIdNum = parseInt(sky_id, 10);
-      if (!Number.isInteger(skyIdNum)) {
-        return res.status(400).json({ error: '无效的天空ID' });
+    // 天空库选中项：'default'（默认天空）/ proc:xxx（内置程序化预设）/ world_sky_presets.id
+    const skyNorm = await normalizeSkyId(sky_id);
+    if (!skyNorm.ok) return res.status(skyNorm.status).json({ error: skyNorm.error });
+    const skyId = skyNorm.id;
+
+    /* 【2026-11-16 天空跟随天气】开联动时按天气分别存天空槽位。
+       sky_map[type] = { id, env }，env 覆盖天空记录自带的 use_env；
+       未配置的天气回落默认天空（纯色），不会因为漏配而报错。 */
+    const nextSkyLink = sky_link === true;
+    let skyMap = {};
+    if (nextSkyLink) {
+      const srcMap = (sky_map && typeof sky_map === 'object') ? sky_map : {};
+      for (const t of validTypes) {
+        const slot = srcMap[t];
+        if (!slot) continue;
+        const norm = await normalizeSkyId(slot.id);
+        if (!norm.ok) {
+          return res.status(norm.status).json({ error: '天气「' + t + '」：' + norm.error });
+        }
+        if (norm.id === 'default') continue;   // 默认天空不必占槽位
+        skyMap[t] = { id: norm.id, env: slot.env === true };
       }
-      const skyExists = await query('SELECT id FROM world_sky_presets WHERE id = $1', [skyIdNum]);
-      if (!skyExists.rows.length) {
-        return res.status(404).json({ error: '选中的天空不存在' });
+    }
+
+    /* 自动天气循环的计时锚点（2026-11-05，与 services/weatherCycleService.js 配套）：
+       已经在循环中（关→关、改强度/天空）就沿用原锚点，不打断周期；
+       从"关→开"则重置为现在，保证第一次切换在一个完整间隔之后，而不是立刻变天。 */
+    const nextAutoCycle = !!auto_cycle;
+    let lastSwitchAt = null;
+    if (nextAutoCycle) {
+      try {
+        const prev = await query(
+          'SELECT config_value FROM game_config WHERE config_key = \'world_weather\''
+        );
+        if (prev.rows.length) {
+          const prevCfg = JSON.parse(prev.rows[0].config_value);
+          if (prevCfg && prevCfg.auto_cycle === true && prevCfg.last_switch_at) {
+            lastSwitchAt = prevCfg.last_switch_at;
+          }
+        }
+      } catch (e) {
+        // 读旧配置失败就当"新开启"处理，退化为重置锚点
+        console.warn('读取旧天气配置失败，天气循环锚点按新开启处理:', e.message);
       }
-      skyId = skyIdNum;
+      if (!lastSwitchAt) lastSwitchAt = new Date().toISOString();
     }
 
     const weatherConfig = {
       type,
       intensity:      Math.min(100, Math.max(0, parseInt(intensity) || 50)),
       wind:           Math.min(100, Math.max(0, parseInt(wind) || 20)),
-      auto_cycle:     !!auto_cycle,
+      auto_cycle:     nextAutoCycle,
       cycle_interval: Math.min(120, Math.max(5, parseInt(cycle_interval) || 30)),
+      last_switch_at: lastSwitchAt,
       sky_id:         skyId,
-      sky:            await resolveSky({ sky_id: skyId }),
+      sky_link:       nextSkyLink,
+      sky_map:        skyMap,
       updated_at:     new Date().toISOString()
     };
+    // 解析当前应生效的天空：联动开启时按 type 取槽位，否则用 sky_id
+    weatherConfig.sky = await resolveSky(weatherConfig);
 
     await query(
       `INSERT INTO game_config (config_key, config_value, updated_at)

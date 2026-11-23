@@ -69,6 +69,10 @@
     "statConnectedWorlds": "Connected Worlds",
     "statTotalTeleports": "Total Teleports",
     "statTodayTeleports": "Today's Teleports",
+    "statOnline": "Online Now",
+    "statTodayVisitors": "Today's Visitors",
+    "statAvgStay": "Avg. Stay",
+    "statGuestRatio": "Guest Share",
     "quickEntry": "🔗 Quick Entry",
     "quickUsers": "Users & Roles",
     "quickUsersDesc": "Manage user accounts & character data",
@@ -119,6 +123,13 @@
     "pg3dgsSub": "3D Gaussian splatting scene management",
     "pgThreejs-blocks": "Three.js Code Library",
     "pgThreejs-blocksSub": "Manage Three.js code blocks and scene scripts",
+    "pgSound-library": "🔊 Sound Library",
+    "pgSound-librarySub": "Split by where the sound is used. Model sounds are configured in the Unified Editor; weather sounds and background music live under World & Scenes → Weather Control.",
+    "pgAi-world-brain": "AI World Brain",
+    "pgAi-world-brainSub": "Say it in one sentence. The world gets built.",
+    "audio": "Audio",
+    "soundLibrary": "Sound Library",
+    "profileSetting": "⚙️ Account Settings",
     "usersSubtab": "👥 User List",
     "usersTitle": "👥 User List",
     "usersSearchPlaceholder": "Search username/email...",
@@ -403,28 +414,94 @@
     "createFailed": "Create failed",
     "addTagTitle": "➕ New Tag",
     "templates": {
-      "simple_house": { "name": "Simple House", "desc": "Basic cubic house" },
-      "cottage": { "name": "Thatched Cottage", "desc": "Small house with triangular roof" },
-      "tower": { "name": "Tower", "desc": "Cylindrical tall tower" },
-      "barn": { "name": "Barn", "desc": "Large rectangular building" },
-      "shop": { "name": "Shop", "desc": "Shop with sign" },
-      "market": { "name": "Market Stall", "desc": "Open stall" },
-      "well": { "name": "Well", "desc": "Round well" },
-      "fence": { "name": "Fence", "desc": "Wooden fence" },
-      "bridge": { "name": "Bridge", "desc": "Simple wooden bridge" },
-      "tree": { "name": "Tree", "desc": "Conical tree" },
-      "rock": { "name": "Rock", "desc": "Random rock" },
-      "lamp": { "name": "Street Lamp", "desc": "Illumination street lamp" },
-      "castle_wall": { "name": "Castle Wall", "desc": "Stone castle wall" },
-      "watch_tower": { "name": "Watch Tower", "desc": "Tall watch tower" },
-      "apartment": { "name": "Apartment Building", "desc": "Multi-story residence" },
-      "office": { "name": "Office Building", "desc": "Modern office building" },
-      "modern_house": { "name": "Modern House", "desc": "Modern standalone residence" },
-      "futuristic_tower": { "name": "Futuristic Tower", "desc": "Futuristic tall tower" },
-      "medieval_castle": { "name": "Medieval Castle", "desc": "Medieval-style castle" },
-      "forest": { "name": "Forest", "desc": "Dense forest scene" },
-      "lake": { "name": "Lake", "desc": "Tranquil lake scene" },
-      "box_primitive": { "name": "Box Primitive", "desc": "Customizable box with collision support" }
+      "simple_house": {
+        "name": "Simple House",
+        "desc": "Basic cubic house"
+      },
+      "cottage": {
+        "name": "Thatched Cottage",
+        "desc": "Small house with triangular roof"
+      },
+      "tower": {
+        "name": "Tower",
+        "desc": "Cylindrical tall tower"
+      },
+      "barn": {
+        "name": "Barn",
+        "desc": "Large rectangular building"
+      },
+      "shop": {
+        "name": "Shop",
+        "desc": "Shop with sign"
+      },
+      "market": {
+        "name": "Market Stall",
+        "desc": "Open stall"
+      },
+      "well": {
+        "name": "Well",
+        "desc": "Round well"
+      },
+      "fence": {
+        "name": "Fence",
+        "desc": "Wooden fence"
+      },
+      "bridge": {
+        "name": "Bridge",
+        "desc": "Simple wooden bridge"
+      },
+      "tree": {
+        "name": "Tree",
+        "desc": "Conical tree"
+      },
+      "rock": {
+        "name": "Rock",
+        "desc": "Random rock"
+      },
+      "lamp": {
+        "name": "Street Lamp",
+        "desc": "Illumination street lamp"
+      },
+      "castle_wall": {
+        "name": "Castle Wall",
+        "desc": "Stone castle wall"
+      },
+      "watch_tower": {
+        "name": "Watch Tower",
+        "desc": "Tall watch tower"
+      },
+      "apartment": {
+        "name": "Apartment Building",
+        "desc": "Multi-story residence"
+      },
+      "office": {
+        "name": "Office Building",
+        "desc": "Modern office building"
+      },
+      "modern_house": {
+        "name": "Modern House",
+        "desc": "Modern standalone residence"
+      },
+      "futuristic_tower": {
+        "name": "Futuristic Tower",
+        "desc": "Futuristic tall tower"
+      },
+      "medieval_castle": {
+        "name": "Medieval Castle",
+        "desc": "Medieval-style castle"
+      },
+      "forest": {
+        "name": "Forest",
+        "desc": "Dense forest scene"
+      },
+      "lake": {
+        "name": "Lake",
+        "desc": "Tranquil lake scene"
+      },
+      "box_primitive": {
+        "name": "Box Primitive",
+        "desc": "Customizable box with collision support"
+      }
     }
   },
   "admin3dgs": {
@@ -510,6 +587,96 @@
     "nextPage": "Next",
     "pageInfo": "Page {{page}} / {{total}}",
     "loadFailed": "Load failed: {{message}}"
+  },
+  "adminSound": {
+    "sec_actions": "① Character Actions",
+    "sec_actions_intro": "15 animations + 5 weapon slots per character, showing what is actually playing.",
+    "sec_scenes": "② Ambient Scenes",
+    "sec_scenes_intro": "Place a sound at a coordinate. It plays inside the radius and fades out beyond it.",
+    "sec_assets": "③ Sound Assets",
+    "sec_assets_intro": "Central repository for all audio. The sections above pick their sounds from here.",
+    "sec_aigen": "④ AI Generated Sound",
+    "sec_aigen_intro": "Generate new effects from a prompt, preview them, then save to the library for use anywhere.",
+    "anim_idle": "Idle",
+    "anim_idle_desc": "Soft cloth breathing, barely there",
+    "anim_walk": "Walk",
+    "anim_walk_desc": "Cloth shoes on dirt, short and dry",
+    "anim_run": "Run",
+    "anim_run_desc": "Quicker steps with cloth flutter",
+    "anim_jump": "Jump",
+    "anim_jump_desc": "Push off, air rushing up",
+    "anim_land": "Land",
+    "anim_land_desc": "Muffled thud of body weight",
+    "anim_attack1": "Attack 1",
+    "anim_attack1_desc": "Light sword sweeping across",
+    "anim_attack2": "Attack 2",
+    "anim_attack2_desc": "Backhand return swing",
+    "anim_attack3": "Attack 3",
+    "anim_attack3_desc": "Heavy swing, full weight",
+    "anim_attack_slash": "Slash",
+    "anim_attack_slash_desc": "Quick thin cut through air",
+    "anim_attack_stab": "Stab",
+    "anim_attack_stab_desc": "Sharp thrust",
+    "anim_attack_swing": "Swing",
+    "anim_attack_swing_desc": "Blunt sweep, low and dull",
+    "anim_hit": "Hit",
+    "anim_hit_desc": "Muffled thud, blunt impact feels thin",
+    "anim_death": "Death",
+    "anim_death_desc": "Low rumble sinking, long tail",
+    "anim_draw_sword": "Draw Sword",
+    "anim_draw_sword_desc": "Short scrape, on the dull side",
+    "anim_sheath": "Sheathe",
+    "anim_sheath_desc": "Click into sheath, muffled base",
+    "wpn_equip_hum": "Idle Hum",
+    "wpn_equip_hum_desc": "Low noise floor, barely audible",
+    "wpn_swing": "Swing",
+    "wpn_swing_desc": "Heavy weapon swing",
+    "wpn_hit_impact": "Impact",
+    "wpn_hit_impact_desc": "Very short puff, no sharp transient",
+    "wpn_draw": "Draw",
+    "wpn_draw_desc": "Dragging sand, blurry fade-in",
+    "wpn_sheath": "Put Away",
+    "wpn_sheath_desc": "Drier, finer scrape",
+    "statsTotal": "20 items",
+    "statsSynth": "Synth",
+    "statsPlaceholder": "Placeholder",
+    "statsCustom": "Custom",
+    "statsEmpty": "Empty",
+    "statsMuted": "Muted",
+    "idleMuteTitle": "Idle muted as you requested",
+    "mutedBadge": "Muted",
+    "btnPreview": "Preview",
+    "btnVariants": "Variants",
+    "pickTemplateFirst": "Pick a character template above first",
+    "groupAnim": "Character Actions",
+    "groupWeapon": "Weapon Sounds",
+    "unitItems": "items",
+    "filterEmpty": "Nothing matches the current filter",
+    "slotEmptyTitle": "Empty (silent)",
+    "slotEmptySub": "Idle stays silent; returning to idle after an action will not replay anything",
+    "slotMutedSub": "You muted this sound manually",
+    "slotVariantSuffix": " ({{n}} variants)",
+    "slotCustomSub": "Your uploaded file",
+    "slotPlaceholderSub": "Synth cannot reach the real texture, replace with real audio later",
+    "slotSynthSub": "Auto-generated, no upload needed",
+    "slotOverrideSub": "Variant applied (pitch ×{{pitch}}, brightness ×{{bright}})",
+    "slotSynthPrefix": "Synth · ",
+    "slotPlaceholderWrap": "Placeholder ({{desc}})",
+    "slotUnknown": "Unknown",
+    "slotUnknownSub": "No audio available for this slot",
+    "tplLabel": "Character Template",
+    "filterAll": "All",
+    "filterPlaceholder": "Placeholders only",
+    "filterCustom": "Custom only",
+    "searchPlaceholder": "Search action name",
+    "legendLabel": "Dot colors: ",
+    "legendSynth": "gray = synth",
+    "legendPlaceholder": "yellow = placeholder (replace)",
+    "legendCustom": "blue = yours",
+    "legendMute": "empty = muted",
+    "sectionPlaceholderLead": "This section will include",
+    "unnamedTpl": "(unnamed)",
+    "noTemplates": "(no character templates)"
   },
   "adminThreejs": {
     "pageTitle": "🧩 Three.js Code Library",
@@ -1065,7 +1232,7 @@
     "copyCoords": "Copy",
     "minimap": "Minimap",
     "controls": "Controls Guide",
-    "startGame": "Start Game",
+    "startGame": "Got it",
     "loadTitle": "Opening your",
     "loadTitleEm": "world",
     "loadTip": "First visit loads scene assets — a few seconds",
@@ -1108,6 +1275,21 @@
     "bio": "💬 Bio",
     "bioPlaceholder": "Tell us about yourself...",
     "avatarColor": "🎭 Avatar Color",
+    "characterName": "My Character",
+    "pfNavAccount": "Account",
+    "pfTplSub": "You will be asked to refresh to apply",
+    "pfBasicSub": "Shown to other players in this world",
+    "pfAccountSub": "Email and account info, private to you",
+    "pfTplNote": "Your pick is saved right away, but a page refresh is needed for it to fully apply.",
+    "pfTplCount": " avatars · tap to choose",
+    "pfScrollMore": "Scroll for more",
+    "pfNicknameHint": "Shown on the name tag above your avatar, visible to everyone in this world",
+    "pfEmailHint": "For account recovery, private to you",
+    "pfWorldLabel": "World",
+    "pfBackToWorld": "Back to world",
+    "pfPortal": "Portals",
+    "pfExit": "Sign out",
+    "pfSave": "Save",
     "characterTemplate": "🎮 Character Template",
     "loadTemplates": "Loading templates...",
     "characterInfo": "📊 Character Info",
@@ -1132,12 +1314,11 @@
     "coordTeleport": "🎯 Coordinate Teleport",
     "useCurrentPos": "📍 Use Current Position",
     "teleport": "🚀 Teleport",
-    "pasteCoords": "Paste Coordinates",
+    "pasteCoords": "Paste Coordinates:",
     "portalList": "📋 Portal List",
     "coordFormat": "Supported formats: X:8.2 Y:1.5 Z:34.7 | 8.2, 1.5, 34.7 | x=8.2 y=1.5 z=34.7",
     "loading": "Loading...",
     "midoVirtualSpace": "Mido Virtual Space",
-    "profile": "Profile",
     "portfolio": "My Items",
     "closeInventory": "Close",
     "openPortalManager": "Open Portal Manager",
@@ -1147,7 +1328,6 @@
     "portalManagerBtn": "🌀 Portals",
     "exitBtn": "🚪 Exit",
     "backToWorldBtn": "🌍 Back",
-    "pasteCoords": "Paste Coordinates:",
     "coordPlaceholder": "X:8.2 Y:1.5 Z:34.7",
     "shareYourWorld": "📋 Share Your World",
     "copyShare": "Copy Config",
@@ -1358,7 +1538,7 @@
     "noAIConfigured": "No AI configured",
     "enabled": "Enabled",
     "disabled": "Disabled",
-    "duplicate": "📋 Duplicate",
+    "duplicate": "Duplicate",
     "editCustomNPC": "✏️ Edit Custom NPC",
     "worldName": "World Name",
     "worldURL": "World URL",
@@ -1374,6 +1554,12 @@
     "worldRemoved": "Trusted world removed",
     "removeFailed": "Remove failed: {{message}}",
     "operationFailed": "Operation failed: {{message}}",
+    "identityChanged": "Identity changed",
+    "rebind": "🔄 Rebind",
+    "rebindConfirm": "Fetch the world identity currently served at this URL and rebind in place. Continue?",
+    "rebindRenamed": "Rebound: {{oldId}} → {{newId}}",
+    "rebindUnchanged": "Identity unchanged, refreshed",
+    "rebindFailed": "Rebind failed: {{message}}",
     "totalTeleports": "Total Teleports",
     "activeUsers": "Active Users",
     "connectedWorlds": "Connected Worlds",
@@ -1512,12 +1698,19 @@
   },
   "adminSky": {
     "skyTitle": "🌌 Sky",
-    "skyHint": "Pick a sky and the world uses it (applies to all weather; weather only changes brightness, haze and fog)",
+    "skyHint": "Pick a sky to use it everywhere; once \"Sky follows weather\" is on, the sky switches with the weather and picking cards no longer applies",
     "addSky": "➕ Add Sky",
     "skyTip": "Supports 2:1 equirectangular panoramas (JPG/PNG) and HDR (EXR, 1K~4K recommended), max 30MB per file",
     "defaultBadge": "System Default",
+    "procedural": "Generated",
+    "skyLink": "Sky follows weather",
+    "skyLinkHint": "When enabled, the sky switches automatically with the weather per the rows below; picking cards above no longer applies.",
+    "skyLinkSaved": "Sky linkage saved and broadcast",
+    "skyLinkFailed": "Failed to save sky linkage",
+    "envTip": "When enabled this sky lights the scene. Mixed on/off states across weathers cause a material recompile on each switch.",
     "useEnv": "Use as environment light",
     "delete": "Delete",
+    "deleteHint": "Delete this sky and remove its file from the server",
     "loading": "Loading...",
     "loadFailed": "Failed to load sky library",
     "uploadOk": "Sky added and applied",
@@ -1656,11 +1849,13 @@
     "typeTextTo3d": "✍️ Text to 3D",
     "typeTts": "🗣️ Text to Speech",
     "typeStt": "👂 Speech to Text",
+    "typeSfx": "🔊 Text to Sound Effect",
     "badgeChat": "Chat",
     "badgeImgTo3d": "Img3D",
     "badgeTextTo3d": "Text3D",
     "badgeTts": "TTS",
     "badgeStt": "STT",
+    "badgeSfx": "SFX",
     "cardConfigure": "⚙️ Configure",
     "cardTest": "🧪 Test Connection",
     "cardSetDefault": "⭐ Set as Default",
@@ -2131,7 +2326,8 @@
       "resetCamera": "Reset Camera",
       "marquee": "Box Select",
       "group": "Group",
-      "ungroup": "Ungroup"
+      "ungroup": "Ungroup",
+      "lock": "Lock selected objects (no edit / move / delete after locking)"
     },
     "hint": {
       "title": "🖱️ Controls",
@@ -2332,6 +2528,7 @@
       "tabTransform": "📐 Properties",
       "tabVideo": "🎬 Video",
       "tabAnimation": "🎯 Animation",
+      "tabSound": "🔊 Sound",
       "tabAdvanced": "⚙️ Advanced",
       "positionLabel": "Position (X, Y, Z)",
       "rotationLabel": "Rotation (X, Y, Z)",
@@ -2355,7 +2552,9 @@
       "animAmplitude": "Amplitude",
       "animSpeed": "Speed",
       "noAdvancedParams": "No advanced parameters for this type",
-      "saveChanges": "Save Changes"
+      "saveChanges": "Save Changes",
+      "batchApply": "✅ Apply to selected",
+      "collapseProps": "Collapse properties panel"
     },
     "eventModal": {
       "title": "🎮 Interaction Config",

@@ -162,8 +162,12 @@ async function handleTeleportArrival(teleportToken) {
             if (cc.animUrls[k]) localStorage.setItem('selectedTemplateAnim_' + k, cc.animUrls[k]);
           });
         }
+        // 音效（绝对URL）：跨世界传递，实现在 soundFederation.js
+        const _sndCount = window.SoundFederation
+          ? window.SoundFederation.applyReceived(cc)
+          : { anim: 0, weapon: 0 };
         if (window.SelfContainedChar) window.SelfContainedChar.applyReceived(cc);
-        console.log('✅ [Teleport] 角色配置已从源世界同步:', cc.sourceWorldUrl, '| GLB:', cc.glbUrl);
+        console.log('✅ [Teleport] 角色配置已从源世界同步:', cc.sourceWorldUrl, '| GLB:', cc.glbUrl, '| 音效:', _sndCount.anim + '动作/' + _sndCount.weapon + '武器');
       }
 
       // ── 写入源世界背包API信息（目标世界背包将直接读取源世界数据）──
@@ -723,14 +727,20 @@ async function initializeGame() {
     }
 
     // ── 加载角色模板音效到内存 ──
-    if (_currentTmplData && typeof soundManager !== 'undefined' && soundManager.loadTemplateAudio) {
-      soundManager.loadTemplateAudio({
-        anim_sounds: _currentTmplData.anim_sounds || {},
-        weapon_sounds: _currentTmplData.weapon_sounds || {}
-      });
-      console.log('✅ [main] 模板音效已加载:', Object.keys(_currentTmplData.anim_sounds || {}).join('/') || '(无动作音效)', Object.keys(_currentTmplData.weapon_sounds || {}).join('/') || '(无武器音效)');
+    // 模板音效优先；跨世界到达（_currentTmplData 为空）时用源世界带来的音效。
+    // 判定与缓存实现在 soundFederation.js（本文件已超 500 行，只保留调用）。
+    // 注意：即使音效为空也必须调用 loadTemplateAudio —— 它还负责预热合成音。
+    if (typeof soundManager !== 'undefined' && soundManager.loadTemplateAudio) {
+      const _sndPick = window.SoundFederation
+        ? window.SoundFederation.resolveForLoad(_currentTmplData)
+        : { cfg: { anim_sounds: {}, weapon_sounds: {} }, from: 'none' };
+      soundManager.loadTemplateAudio(_sndPick.cfg);
+      const _srcName = _sndPick.from === 'federated' ? '跨世界' : (_sndPick.from === 'template' ? '本地模板' : '无配置');
+      console.log('✅ [main] 音效加载（' + _srcName + '）:',
+        Object.keys(_sndPick.cfg.anim_sounds || {}).join('/') || '(无动作音效)',
+        Object.keys(_sndPick.cfg.weapon_sounds || {}).join('/') || '(无武器音效)');
     } else {
-      console.log('[main] 无模板音效可加载:', { hasTmplData: !!_currentTmplData, soundManagerLoaded: typeof soundManager !== 'undefined' });
+      console.log('[main] soundManager 未就绪，跳过音效加载');
     }
 
     // Send player join message with spawn position（此时 selectedAnimUrls 已被 loadTemplateFromApi 填充）
@@ -2272,6 +2282,10 @@ function openProfilePage() {
   // 显示面板
   profilePage.style.display = 'flex';
 
+  // 每次打开都回到第一页（角色模板），避免停留在上次看过的页
+  const _navFirst = document.querySelector('#profile-nav button[data-page="0"]');
+  if (_navFirst) _navFirst.click();
+
   // 加载用户数据
   loadProfileData();
 
@@ -2322,6 +2336,13 @@ async function loadProfileData() {
       document.getElementById('profile-userid').textContent = userId.substring(0, 8) + '...';
       document.getElementById('profile-level').textContent = char.level || 1;
       document.getElementById('profile-joindate').textContent = new Date(char.created_at).toLocaleDateString('zh-CN');
+
+      // 左栏显示角色名：填完即摘掉 data-i18n，否则切语言时会被占位文案覆盖
+      const pfNameEl = document.getElementById('pf-name-text');
+      if (pfNameEl) {
+        pfNameEl.textContent = char.name || '-';
+        pfNameEl.removeAttribute('data-i18n');
+      }
     }
 
     // 加载角色模板列表
@@ -2355,17 +2376,14 @@ async function loadCharacterTemplates() {
       data.templates.forEach(template => {
         const templateEl = document.createElement('div');
         templateEl.className = 'template-option';
-        templateEl.style.cssText = `
-          border: 2px solid #444;
-          border-radius: 8px;
-          padding: 10px;
-          cursor: pointer;
-          text-align: center;
-          transition: all 0.3s;
-        `;
+        // 样式全部交给 CSS（.pf-tpl-grid .template-option），此处不再写内联样式
+        const _curTplId = localStorage.getItem('selectedTemplateId');
+        if (_curTplId && String(_curTplId) === String(template.id)) {
+          templateEl.classList.add('on');
+        }
         templateEl.innerHTML = `
-          <div style="font-size: 32px; margin-bottom: 5px;">${template.icon || '🎭'}</div>
-          <div style="font-size: 11px; color: #00ff00;">${template.name}</div>
+          <div class="pf-tpl-thumb">${template.icon || '🎭'}</div>
+          <div class="pf-tpl-name">${template.name}</div>
         `;
 
         templateEl.addEventListener('click', (e) => {
@@ -2373,14 +2391,9 @@ async function loadCharacterTemplates() {
           // 弹出确认框，提醒用户需要刷新网页才能完全生效
           const shouldReload = confirm('切换角色模板需要刷新网页才能完全生效（避免显示T-pose问题）。\n\n点击"确定"立即刷新网页，切换将生效。\n点击"取消"仅选择模板，稍后可手动刷新。');
 
-          // 移除其他选中状态
-          document.querySelectorAll('.template-option').forEach(el => {
-            el.style.borderColor = '#444';
-            el.style.background = 'transparent';
-          });
-          // 添加选中状态
-          templateEl.style.borderColor = '#00ff00';
-          templateEl.style.background = 'rgba(0, 255, 0, 0.1)';
+          // 切换选中态（视觉样式由 CSS 的 .on 承担）
+          document.querySelectorAll('.template-option').forEach(el => el.classList.remove('on'));
+          templateEl.classList.add('on');
 
           // 若切换了模板，清除旧模板的动画 URL 缓存，避免污染新模板
           const _ANIM_KEYS_PROFILE = ['idle','walk','run','jump','attack1','attack2','attack3','hit','death',
@@ -2481,6 +2494,10 @@ async function loadCharacterTemplates() {
 
         templateGrid.appendChild(templateEl);
       });
+
+      // 模板数量（数字与单位分离：数字由这里写，单位交给 i18n 翻译）
+      const totalEl = document.getElementById('pf-tpl-total');
+      if (totalEl) totalEl.textContent = String(data.templates.length);
     }
   } catch (error) {
     console.error('[Profile] 加载角色模板失败:', error);
@@ -2793,6 +2810,12 @@ if (document.readyState === 'loading') {
  * 初始化个人资料面板事件
  */
 function initializeProfilePage() {
+  // 右上角关闭按钮
+  const closeBtn = document.getElementById('profile-close-btn');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closeProfilePage);
+  }
+
   // 返回世界按钮
   const backBtn = document.getElementById('back-to-world-btn');
   if (backBtn) {
@@ -2839,53 +2862,55 @@ function initializeProfilePage() {
     });
   });
 
-  // 初始化手风琴折叠面板
-  initProfileAccordion();
+  // 初始化左侧导航分页
+  initProfileTabs();
 }
 
 /**
- * 手风琴折叠面板交互 - 同时只能展开一个区域
+ * 个人资料面板 · 左侧导航分页（原手风琴折叠改为双栏切页）
+ * 三个页面常驻 DOM 只切换显隐，不重建节点，因此 i18n 与表单值都不受影响
  */
-function initProfileAccordion() {
-  const headers = document.querySelectorAll('.accordion-header');
-  if (!headers.length) return;
+function initProfileTabs() {
+  const main = document.getElementById('pf-main');
+  const nav = document.getElementById('profile-nav');
+  const scroll = document.getElementById('profile-scroll');
+  if (!main || !nav) return;
 
-  headers.forEach(header => {
-    // 移除旧事件（防止重复绑定）
-    const newHeader = header.cloneNode(true);
-    header.parentNode.replaceChild(newHeader, header);
+  const pages = main.querySelectorAll('.pf-page');
+  const buttons = nav.querySelectorAll('button[data-page]');
+  const saveBtn = document.getElementById('save-profile-btn');
+  if (!pages.length || !buttons.length) return;
 
-    newHeader.addEventListener('click', () => {
-      const section = newHeader.getAttribute('data-section');
-      const content = document.querySelector('.accordion-content[data-section="' + section + '"]');
-      const arrow = newHeader.querySelector('.accordion-arrow');
-      const isOpen = content.style.maxHeight && content.style.maxHeight !== '0px';
+  const show = (idx) => {
+    main.setAttribute('data-page', String(idx));
+    pages.forEach(p => p.classList.toggle('on', parseInt(p.getAttribute('data-page'), 10) === idx));
+    buttons.forEach(b => b.classList.toggle('on', parseInt(b.getAttribute('data-page'), 10) === idx));
+    // 角色模板页不需要「保存」：点模板即生效，只是需要刷新后才完全应用
+    if (saveBtn) saveBtn.classList.toggle('is-hidden', idx === 0);
+    if (scroll) scroll.scrollTop = 0;
+    updateProfileFade();
+  };
 
-      // 先关闭所有
-      document.querySelectorAll('.accordion-content').forEach(c => {
-        c.style.maxHeight = '0px';
-        c.style.padding = '0 10px';
-        const h = c.previousElementSibling;
-        if (h) {
-          const a = h.querySelector('.accordion-arrow');
-          if (a) a.style.transform = 'rotate(0deg)';
-        }
-      });
-
-      // 如果之前未打开，现在打开
-      if (!isOpen) {
-        content.style.maxHeight = content.scrollHeight + 'px';
-        content.style.padding = '0 10px';
-        if (arrow) arrow.style.transform = 'rotate(180deg)';
-      }
-    });
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => show(parseInt(btn.getAttribute('data-page'), 10) || 0));
   });
 
-  // 默认展开第一个面板
-  const firstHeader = document.querySelector('.accordion-header[data-section="basic"]');
-  if (firstHeader) {
-    firstHeader.click();
-  }
+  if (scroll) scroll.addEventListener('scroll', updateProfileFade);
+  window.addEventListener('resize', updateProfileFade);
+
+  show(0);
+  setTimeout(updateProfileFade, 120);
+}
+
+/**
+ * 右侧内容区是否还有未滚完的部分 → 底部渐隐 +「下滑查看更多」
+ */
+function updateProfileFade() {
+  const scroll = document.getElementById('profile-scroll');
+  const main = document.getElementById('pf-main');
+  if (!scroll || !main) return;
+  const remain = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight;
+  main.classList.toggle('has-more', remain > 6);
 }
 
 /**

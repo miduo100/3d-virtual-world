@@ -276,7 +276,7 @@ class ConfigService {
       const result = await pool.query(
         `SELECT cal.*, u.username 
          FROM config_audit_log cal
-         LEFT JOIN users u ON cal.changed_by = u.id
+         LEFT JOIN users u ON cal.changed_by::text = u.id::text
          ORDER BY cal.changed_at DESC
          LIMIT $1`,
         [limit]

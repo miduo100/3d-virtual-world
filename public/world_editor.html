@@ -165,12 +165,46 @@
         /* ===== 右侧内容面板 ===== */
         #panel-content {
             width: 280px;
+            /* 关键：面板不参与 flex 伸缩。否则画布（renderer.setSize 会给 canvas 设内联宽度）
+               撑破父容器后，flex 会把 280px 的面板压缩到只剩 padding + 滚动条。 */
+            flex: 0 0 280px;
+            position: relative;   /* 关闭按钮绝对定位的锚点 */
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
             padding: 12px;
             overflow-y: auto;
             box-shadow: 2px 0 20px rgba(0,0,0,0.1);
             max-height: 100vh;
+        }
+
+        /* 面板区默认收起：打开编辑器只看到左侧图标栏，点图标才滑出对应面板 */
+        #panel-content.collapsed {
+            display: none;
+        }
+
+        /* 面板区关闭按钮（右上角 ×）：比"再点一次图标"更明确，不会误触 */
+        #panel-close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            border-radius: 5px;
+            background: rgba(0, 0, 0, 0.06);
+            color: #888;
+            font-size: 14px;
+            line-height: 1;
+            cursor: pointer;
+            z-index: 20;
+        }
+
+        #panel-close-btn:hover {
+            background: rgba(0, 0, 0, 0.14);
+            color: #333;
         }
 
         .panel-title {
@@ -269,6 +303,10 @@
         /* ===== 3D画布容器 ===== */
         #canvas-container {
             flex: 1;
+            /* min-width:0 是关键：canvas 有 setSize 写下的内联宽度（面板收起时 1204px），
+               没有它 flex 项的最小宽度等于内容宽度，会把旁边的面板挤扁。 */
+            min-width: 0;
+            overflow: hidden;
             position: relative;
         }
 
@@ -1496,6 +1534,7 @@
             z-index: 90;
             box-shadow: -4px 0 20px rgba(0,0,0,0.3);
             backdrop-filter: blur(10px);
+            overflow: hidden;   /* 列表 min-height + 属性面板上限同时生效时不允许把面板撑出屏幕 */
         }
 
         .right-panel-header {
@@ -1529,13 +1568,15 @@
             background: rgba(255,255,255,0.25);
         }
 
-        /* 上半部分：对象列表 */
+        /* 上半部分：对象列表
+           min-height 兜底：任何选中状态下列表都得留出 5 行以上可视区，
+           不够时宁可让下方属性面板内部滚动，也不要把列表压死。 */
         .right-scene-list-section {
             flex: 1;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            min-height: 0;
+            min-height: 220px;
         }
 
         .right-scene-list-header {
@@ -1654,6 +1695,13 @@
             color: #fff;
         }
 
+        /* 组行复选框半选态：组内只有部分成员被选中 */
+        .right-object-check.partial {
+            background: rgba(255, 193, 7, 0.6);
+            border-color: #ffc107;
+            color: #fff;
+        }
+
         .right-object-info {
             flex: 1;
             min-width: 0;
@@ -1715,29 +1763,39 @@
             background: rgba(235, 51, 73, 0.5);
         }
 
-        /* 批量操作栏 */
+        /* 批量操作栏（4 个按钮：取消/编组/解组/删除。「全选」2026-11-16 移除） */
         .right-batch-actions {
-            padding: 10px 16px;
+            padding: 8px 10px;
             background: rgba(0,0,0,0.2);
             display: flex;
-            gap: 8px;
+            gap: 5px;
         }
 
         .right-batch-btn {
             flex: 1;
-            padding: 8px;
+            min-width: 0;
+            padding: 7px 2px;
             border: none;
             border-radius: 6px;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
             background: rgba(255,255,255,0.1);
             color: white;
+            white-space: nowrap;
         }
 
         .right-batch-btn:hover {
             background: rgba(255,255,255,0.2);
+        }
+
+        .right-batch-btn.group {
+            background: rgba(102, 126, 234, 0.35);
+        }
+
+        .right-batch-btn.group:hover {
+            background: rgba(102, 126, 234, 0.6);
         }
 
         .right-batch-btn.delete-all {
@@ -1748,18 +1806,137 @@
             background: rgba(235, 51, 73, 0.6);
         }
 
-        /* 下半部分：属性面板 */
-        .right-props-section {
+        /* ===== 编组行（列表树）=====
+           刻意不用 border：虚拟列表按实测行距滚动，多 2px 就会让后面所有行错位。
+           用 box-shadow inset 画边框，不占布局尺寸。 */
+        .gp-group-row {
+            background: rgba(102, 126, 234, 0.16);
+            box-shadow: inset 0 0 0 1px rgba(102, 126, 234, 0.35);
+        }
+
+        .gp-group-row:hover {
+            background: rgba(102, 126, 234, 0.28);
+        }
+
+        .gp-group-row.gp-active {
+            background: rgba(102, 126, 234, 0.4);
+            box-shadow: inset 0 0 0 1px rgba(102, 126, 234, 0.85);
+        }
+
+        .gp-arrow {
+            flex: 0 0 14px;
+            width: 14px;
+            text-align: center;
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+            user-select: none;
+            margin-right: 4px;
+        }
+
+        .gp-arrow:hover {
+            color: #fff;
+        }
+
+        .gp-icon {
+            flex: 0 0 auto;
+            font-size: 15px;
+            margin-right: 8px;
+        }
+
+        .gp-info {
             flex: 1;
+            min-width: 0;
+        }
+
+        .gp-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .gp-meta {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 2px;
+        }
+
+        .gp-actions {
+            display: flex;
+            gap: 3px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .gp-group-row:hover .gp-actions {
+            opacity: 1;
+        }
+
+        .gp-btn {
+            width: 22px;
+            height: 22px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+        }
+
+        .gp-btn:hover {
+            background: rgba(255, 255, 255, 0.26);
+        }
+
+        .gp-btn.danger {
+            background: rgba(235, 51, 73, 0.32);
+        }
+
+        .gp-btn.danger:hover {
+            background: rgba(235, 51, 73, 0.6);
+        }
+
+        /* 组内成员行：左侧竖线 + 缩进表达层级（padding 只改水平方向，不影响行高） */
+        .gp-member-row {
+            padding-left: 24px !important;
+            box-shadow: inset 2px 0 0 rgba(102, 126, 234, 0.45);
+        }
+
+        .gp-more-row {
+            padding: 8px 12px;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.45);
+            text-align: center;
+        }
+
+        /* 下半部分：属性面板
+           三态：hidden（未选中/手动收起 → 完全不占高度，列表吃满）
+                 single（选中 1 个 → 单对象表单）
+                 multi （选中 ≥2 个 → 批量面板）
+                 group （编辑器编组态 → 组变换面板，由 worldEditorGrouping 注入）
+           高度上限 46vh：选中后列表仍保留一半以上可视区，避免"选一个就看不全列表"。 */
+        .right-props-section {
+            flex: 0 0 auto;
             display: flex;
             flex-direction: column;
             overflow: hidden;
             min-height: 0;
+            /* 上限双重约束：不超过 40vh，也给上方列表留够 320px（header+搜索+5行+批量栏） */
+            max-height: min(40vh, calc(100vh - 320px));
             border-top: 1px solid rgba(255,255,255,0.1);
         }
 
+        .right-props-section[data-mode="hidden"] {
+            display: none;
+        }
+
         .right-props-header {
-            padding: 12px 16px;
+            padding: 10px 16px;
             background: rgba(0,0,0,0.2);
             font-size: 13px;
             font-weight: 600;
@@ -1767,6 +1944,93 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            flex: 0 0 auto;
+        }
+
+        .right-props-header .props-collapse-btn {
+            margin-left: auto;
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.18);
+            color: #fff;
+            width: 22px;
+            height: 22px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+        }
+
+        .right-props-header .props-collapse-btn:hover {
+            background: rgba(255,255,255,0.24);
+            color: #fff;
+        }
+
+        /* ===== 多选批量面板 ===== */
+        .right-batch-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2px 10px;
+        }
+
+        .right-batch-grid .right-prop-switch {
+            padding: 6px 0;
+            border-bottom: none;
+        }
+
+        .right-batch-grid .right-prop-switch-label {
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        .right-batch-summary {
+            font-size: 12px;
+            color: rgba(255,255,255,0.75);
+            padding: 2px 0 8px;
+        }
+
+        .right-batch-summary b {
+            color: #38ef7d;
+            font-size: 14px;
+        }
+
+        .right-batch-hint {
+            font-size: 10px;
+            line-height: 1.4;
+            color: rgba(255,255,255,0.4);
+            margin-top: 6px;
+        }
+
+        .right-batch-apply {
+            width: 100%;
+            margin-top: 8px;
+            padding: 9px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #11998e, #38ef7d);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .right-batch-apply:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(17, 153, 142, 0.4);
+        }
+
+        /* 三态开关：混合状态（indeterminate）用琥珀色 + 居中短滑钮表示 */
+        .right-switch input:indeterminate + .right-switch-slider {
+            background: rgba(255, 193, 7, 0.55);
+        }
+
+        .right-switch input:indeterminate + .right-switch-slider:before {
+            transform: translateX(9px);
+            width: 13px;
+            opacity: 0.85;
         }
 
         .right-props-content {
@@ -2029,7 +2293,7 @@
         <div class="sidebar-logo">🌍</div>
         
         <!-- 导航项 -->
-        <div class="nav-item active" id="nav-models" onclick="switchPanel('models')">
+        <div class="nav-item" id="nav-models" onclick="switchPanel('models')">
             📦
             <span class="nav-text" data-i18n="worldEditor.nav.models">模型</span>
             <span class="nav-tooltip" data-i18n="worldEditor.nav.modelsTooltip">📦 模型库</span>
@@ -2067,8 +2331,9 @@
     </div>
 
     <!-- ===== 右侧内容面板 ===== -->
-    <div id="panel-content">
-        
+    <div id="panel-content" class="collapsed">
+        <button id="panel-close-btn" onclick="collapsePanelContent()" title="收起面板（扩大编辑区）">✕</button>
+
         <!-- 模型库面板 -->
         <div id="panel-models" class="panel-view active">
             <div class="panel-title" data-i18n="worldEditor.panelModels.title">📦 模型库</div>
@@ -2119,11 +2384,18 @@
                     <span><span data-i18n="worldEditor.panelModels.uploadedTitle">📂 已上传模型</span> (<span id="uploaded-count">0</span>)</span>
                     <button class="icon-btn" onclick="refreshUploadedModels()" title="刷新模型列表" data-i18n-title="worldEditor.panelModels.refreshTitle">🔄</button>
                 </div>
+                <!-- 搜索框：仅在已加载过模型库后显示 -->
+                <div id="uploaded-models-tools" style="display:none; margin-bottom:8px;">
+                    <input id="uploaded-models-search" type="text" placeholder="🔍 搜索模型名 / 路径…"
+                           oninput="onUploadedSearchInput(this.value)"
+                           style="width:100%; box-sizing:border-box; padding:6px 8px; font-size:12px; border:1px solid #ddd; border-radius:6px;">
+                </div>
                 <div class="object-list" id="uploaded-models-list">
                     <div style="text-align: center; padding: 15px; color: #999; font-size: 12px;" data-i18n="worldEditor.panelModels.emptyModels">
                         暂无上传的模型
                     </div>
                 </div>
+                <div id="uploaded-models-pager"></div>
             </div>
         </div>
 
@@ -2145,9 +2417,7 @@
             <div class="panel-section">
                 <div class="panel-section-title" data-i18n="worldEditor.panelScene.batchTitle">⚡ 批量操作</div>
                 <div class="tool-grid">
-                    <button class="tool-btn" onclick="selectAll()">
-                        <span>☑️</span> <span data-i18n="worldEditor.panelScene.selectAll">全选</span>
-                    </button>
+                    <!-- 【2026-11-16】「全选」已移除，理由同右侧面板：与「删除」相邻，误触即全场景选中 -->
                     <button class="tool-btn" onclick="deselectAll()">
                         <span>⬜</span> <span data-i18n="worldEditor.panelScene.deselect">取消</span>
                     </button>
@@ -2607,18 +2877,64 @@
                 </div>
             </div>
             <div class="right-batch-actions">
-                <button class="right-batch-btn" onclick="selectAllRightPanel()" data-i18n="worldEditor.rightPanel.selectAll">☑️ 全选</button>
-                <button class="right-batch-btn" onclick="deselectAllRightPanel()" data-i18n="worldEditor.rightPanel.deselectAll">⬜ 取消</button>
-                <button class="right-batch-btn delete-all" onclick="deleteAllSelectedRightPanel()" data-i18n="worldEditor.rightPanel.deleteAll">🗑️ 删除</button>
+                <!-- 【2026-11-16】「全选」按钮已移除：与旁边「🗑️删除」只隔一个按钮，
+                     一点就是全场景选中，确认一次即批量删库，误触代价太大。
+                     需要批量选：视口框选 / 逐行勾选。 -->
+                <button class="right-batch-btn" onclick="deselectAllRightPanel()" title="取消选择" data-i18n="worldEditor.rightPanel.deselectAll">⬜取消</button>
+                <button class="right-batch-btn group" onclick="groupSelected()" title="把选中的对象收进一个新编组">🔗编组</button>
+                <button class="right-batch-btn" onclick="ungroupActive()" title="解散当前选中的编组">✂️解组</button>
+                <button class="right-batch-btn delete-all" onclick="deleteAllSelectedRightPanel()" title="删除选中的对象" data-i18n="worldEditor.rightPanel.deleteAll">🗑️删除</button>
             </div>
         </div>
 
-        <!-- 下半部分：属性面板 -->
-        <div class="right-props-section">
+        <!-- 下半部分：属性面板（data-mode 由 setRightPropsMode() 控制，默认 hidden 不占高度） -->
+        <div class="right-props-section" id="right-props-section" data-mode="hidden">
             <div class="right-props-header">
-                <span data-i18n="worldEditor.rightPanel.propsTitle">⚙️ 属性面板</span>
+                <span id="right-props-title" data-i18n="worldEditor.rightPanel.propsTitle">⚙️ 属性面板</span>
+                <button class="props-collapse-btn" onclick="collapseRightProps()" title="收起属性面板" data-i18n-title="worldEditor.rightPanel.collapseProps">▾</button>
             </div>
             <div class="right-props-content" id="right-props-content">
+                <!-- 多选批量面板（选中 ≥2 个对象时显示）
+                     320px 宽里用 2×2 网格排 4 个开关，整块高度约 150px，
+                     保证对象列表在任何选中状态下都还能看见 5 行以上。 -->
+                <div id="right-batch-form" style="display: none;">
+                    <div class="right-batch-summary">已选 <b id="right-batch-count">0</b> 个对象</div>
+
+                    <div class="right-batch-grid">
+                        <div class="right-prop-switch">
+                            <span class="right-prop-switch-label" data-i18n="worldEditor.rightPanel.visibility">👁 可见</span>
+                            <label class="right-switch">
+                                <input type="checkbox" id="right-batch-visible" onchange="this.dataset.dirty='1'">
+                                <span class="right-switch-slider"></span>
+                            </label>
+                        </div>
+                        <div class="right-prop-switch">
+                            <span class="right-prop-switch-label" data-i18n="worldEditor.rightPanel.collision">🔲 碰撞</span>
+                            <label class="right-switch">
+                                <input type="checkbox" id="right-batch-collision" onchange="this.dataset.dirty='1'">
+                                <span class="right-switch-slider"></span>
+                            </label>
+                        </div>
+                        <div class="right-prop-switch">
+                            <span class="right-prop-switch-label" data-i18n="worldEditor.rightPanel.castShadow">🌑 投射阴影</span>
+                            <label class="right-switch">
+                                <input type="checkbox" id="right-batch-cast-shadow" onchange="this.dataset.dirty='1'">
+                                <span class="right-switch-slider"></span>
+                            </label>
+                        </div>
+                        <div class="right-prop-switch">
+                            <span class="right-prop-switch-label" data-i18n="worldEditor.rightPanel.receiveShadow">⬜ 接收阴影</span>
+                            <label class="right-switch">
+                                <input type="checkbox" id="right-batch-receive-shadow" onchange="this.dataset.dirty='1'">
+                                <span class="right-switch-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="right-batch-hint">琥珀色 = 状态不一致；只提交你点过的开关</div>
+                    <button class="right-batch-apply" onclick="applyRightBatchProps()" data-i18n="worldEditor.rightPanel.batchApply">✅ 应用到已选</button>
+                </div>
+
                 <div class="right-props-empty" id="right-props-empty">
                     <div class="icon">👆</div>
                     <div class="text"><span data-i18n="worldEditor.rightPanel.emptyHint1">请选择一个对象</span><br><span data-i18n="worldEditor.rightPanel.emptyHint2">以编辑其属性</span></div>
@@ -2643,7 +2959,8 @@
                         <button class="right-props-tab active" onclick="switchRightPropsTab('transform')" id="right-tab-transform" data-i18n="worldEditor.rightPanel.tabTransform">📐 属性</button>
                         <button class="right-props-tab" onclick="switchRightPropsTab('video')" id="right-tab-video" data-i18n="worldEditor.rightPanel.tabVideo">🎬 视频</button>
                         <button class="right-props-tab" onclick="switchRightPropsTab('animation')" id="right-tab-animation" data-i18n="worldEditor.rightPanel.tabAnimation">🎯 动画</button>
-                        <button class="right-props-tab" onclick="switchRightPropsTab('advanced')" id="right-tab-advanced" style="display:none;" data-i18n="worldEditor.rightPanel.tabAdvanced">⚙️ 高级参数</button>
+                        <button class="right-props-tab" onclick="switchRightPropsTab('sound')" id="right-tab-sound" data-i18n="worldEditor.rightPanel.tabSound">🔊 声音</button>
+                        <button class="right-props-tab" onclick="switchRightPropsTab('advanced')" id="right-tab-advanced" style="display:none;" title="高级参数" data-i18n="worldEditor.rightPanel.tabAdvanced">⚙️ 高级参数</button>
                     </div>
 
                     <!-- 变换属性 -->
@@ -2762,6 +3079,11 @@
                             <div class="right-prop-label" data-i18n="worldEditor.rightPanel.animSpeed">速度</div>
                             <input type="number" step="0.1" class="right-prop-input" id="right-prop-anim-speed" value="1" style="width: 100%;">
                         </div>
+                    </div>
+
+                    <!-- 声音（模型声源）-->
+                    <div id="right-props-tab-sound" style="display: none;">
+                        <div class="weos-sub">给这个模型挂一段声音：玩家走近才响，走远自动消失。</div>
                     </div>
 
                     <!-- 高级参数（custom_config） -->
@@ -3118,10 +3440,13 @@
     <script src="js/lib/VOXLoader.js?v=1"></script>
     <script src="js/meshoptSetup.js"></script>
     <!-- GLB 解析 Worker 客户端：编辑器解析不再阻塞主线程（见 pumpGlbParse） -->
-    <script src="js/gltfWorkerClient.js?v=3"></script>
+    <script src="js/gltfWorkerClient.js?v=5"></script>
     <script src="js/gaussianSplatLoader.js"></script>
     <script src="js/gaussianSplatRenderer.js"></script>
-    <script src="js/worldEditorGrouping.js"></script>
+    <script src="js/worldEditorGrouping.js?v=6"></script>
+    <script src="js/worldObjectGroups.js?v=2"></script>
+    <!-- 方框层原型（默认不启用；Console 里 WorldBoxLayer.enable() 打开）。验证完可整行删除 -->
+    <script src="js/worldBoxLayer.js?v=1"></script>
     <!-- 国际化核心库 -->
     <script src="/i18n/i18n.js"></script>
     <script src="js/geometryTemplates.js"></script>
@@ -3139,9 +3464,11 @@
     <script src="js/worldEditorThreejsCode.js"></script>
     <script src="js/worldEditor3dgs.js"></script>
     <script src="js/worldEditorCameraMove.js"></script>
-    <script src="js/editorObjectLock.js"></script>
+    <script src="js/editorObjectLock.js?v=2"></script>
     <script src="js/agentDescEditor.js?v=1"></script>
     <script src="js/uploadMetaDialog.js?v=1"></script>
+    <!-- 右侧属性面板「🔊 声音」页签：上传 / 音频库 / URL / 试听，写 custom_config.audio -->
+    <script src="js/worldEditorObjectSound.js?v=1"></script>
     <script src="js/mediaAgentDesc.js?v=1"></script>
     <script src="js/worldEditorRightPanel.js?v=2"></script>
     <!-- 对象列表虚拟化（会话3 P2-1）：只渲染视口内行，DOM 8.6 万 → 约 1 千 -->
@@ -3406,15 +3733,16 @@
             // ===== 拖拽旋转/平移后抑制误触发的 click =====
             // 浏览器只要 mousedown/mouseup 在同一元素上就派发 click（与移动距离无关），
             // 而 onMouseClick 会做全场景 raycast——松手瞬间卡顿的根因。
-            // 位移超过 8px 视为"拖拽"而非"点击"，拖拽结束 600ms 内抑制拾取。
+            // 位移超过 12px 视为"拖拽"而非"点击"（原 8px 太敏感：高 DPI 鼠标/触控板
+            // 轻微手抖就超阈值，click 被丢 600ms，表现为"要点好几下才选中"）。
             let _dragStartX = 0, _dragStartY = 0, _dragDown = false;
             renderer.domElement.addEventListener('pointerdown', (e) => {
                 if (e.button === 0) { _dragDown = true; _dragStartX = e.clientX; _dragStartY = e.clientY; }
             }, { passive: true });
             renderer.domElement.addEventListener('pointerup', (e) => {
                 if (_dragDown && e.button === 0) {
-                    if (Math.abs(e.clientX - _dragStartX) > 8 || Math.abs(e.clientY - _dragStartY) > 8) {
-                        _suppressClickUntil = Date.now() + 600;
+                    if (Math.abs(e.clientX - _dragStartX) > 12 || Math.abs(e.clientY - _dragStartY) > 12) {
+                        _suppressClickUntil = Date.now() + 300;
                     }
                     _dragDown = false;
                 }
@@ -3447,6 +3775,12 @@
                 _skipIdleFrame = !_skipIdleFrame;
                 if (_skipIdleFrame) {
                     controls.update();
+                    // 【2026-11-12】空闲跳帧时也要推进加载巡检。
+                    // 原先这里直接 return，而 updateRangeLoading() 在下面 → 相机一停就进入
+                    // 「静止 2 秒 → 跳帧 → 加载巡检也停」的死循环：越等越不加载，
+                    // 表现为「眼前 945 个对象只出来 30 个，然后就没动静了」。
+                    // 加载是 IO 任务，不该跟着渲染帧一起停。
+                    updateRangeLoading();
                     if (window.onEditorGaussianTick) window.onEditorGaussianTick(camera, renderer);
                     return;
                 }
@@ -3612,8 +3946,11 @@
             }
             proxy.position.copy(sph.center);
             // 共享单位盒 → 用 scale 表达尺寸（不再重建几何）
-            proxy.scale.setScalar(r);
-            proxy.userData.pickRadius = r;          // 局部空间半径（= 边长）
+            // ★ 必须 ×2：BoxGeometry(1,1,1) 顶点是 ±0.5，scale=r 只能得到「边长 r」，
+            //   而 r 是外接球半径 → 盒子只罩住物体中间一半，细长物体（墙/栏杆/树）
+            //   两端全是点击死区。乘 2 后边长 = 直径，才真正包住外接球。
+            proxy.scale.setScalar(r * 2);
+            proxy.userData.pickRadius = r;          // 局部空间半径（半边长，需再 ×0.5 换算成半边长）
             proxy.userData.pickCenter = sph.center; // 局部空间中心（世界中心由 mesh.matrixWorld 变换得到）
             return proxy;
         }
@@ -3630,6 +3967,7 @@
         function onMouseClick(event) {
             // 拖动变换控件结束后的 click 是拖动产生的，直接忽略（防止误取消选中）
             if (Date.now() < _suppressClickUntil) return;
+            const _pickT0 = performance.now();
 
             // 忽略来自UI面板的点击
             const target = event.target;
@@ -3654,25 +3992,83 @@
             camera.getWorldDirection(camFwd);
             const camPos = camera.position;
             const _pc = new THREE.Vector3();
+
+            // 【拾取性能】屏幕空间粗筛：把代理中心投影到屏幕，只保留鼠标附近的对象。
+            // 原来 9146 个对象全部塞进 raycast（几千次 ray-box），一次点击 50~150ms；
+            // 投影一次比 ray-box 便宜得多，且能把候选从几千降到几十。
+            // 安全前提：包围球在屏幕上不覆盖鼠标点 → 射线不可能与该球相交 → 不可能被点中。
+            // 大屏占比对象（screenR 超过阈值，如长墙/大建筑）一律保留，避免中心投影跑出屏幕被误剔。
+            const _cv = renderer.domElement;
+            const _W = _cv.clientWidth || 1;
+            const _H = _cv.clientHeight || 1;
+            const _mousePxX = (mouse.x * 0.5 + 0.5) * _W;
+            const _mousePxY = (-mouse.y * 0.5 + 0.5) * _H;
+            const PICK_SCREEN_PAD = 24;      // 屏幕容差(px)：给边缘点击留余量
+            const PICK_SCREEN_BIG = 160;     // 屏幕半径超过此值不做剔除
+            const _isPersp = !!camera.isPerspectiveCamera;
+            const _fovK = _isPersp ? (_H / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2))) : 0;
+            const _proj = new THREE.Vector3();
+            let screenCulled = 0;
+
             const proxies = [];
+            const lockedProxies = [];   // 锁定对象单独放：不参与主拾取，避免它们挡住后面的对象
             let proxiesCulled = 0;
             for (let i = 0; i < worldObjects.length; i++) {
                 const wo = worldObjects[i];
                 if (!wo || !wo.mesh) continue;
+                // 被距离裁剪隐藏的对象不可拾取：three.js 的 raycaster 不看 visible，
+                // 不挡掉的话会「点到画面里看不见的东西」。
+                if (wo.mesh.visible === false) continue;
                 const proxy = getPickProxy(wo);
                 if (!proxy) continue;
                 if (proxy.userData.pickCenter) {
                     _pc.copy(proxy.userData.pickCenter).applyMatrix4(wo.mesh.matrixWorld);
-                    const wr = (proxy.userData.pickRadius || 0.1) * 0.5 * _maxWorldScale(wo.mesh.matrixWorld);
+                    // 代理盒半边长 = pickRadius（盒边长 2r，见 getPickProxy 的 ×2）
+                    const wr = (proxy.userData.pickRadius || 0.1) * _maxWorldScale(wo.mesh.matrixWorld);
                     const dot = (_pc.x - camPos.x) * camFwd.x + (_pc.y - camPos.y) * camFwd.y + (_pc.z - camPos.z) * camFwd.z;
                     if (dot < -wr) { proxiesCulled++; continue; }
+
+                    if (_isPersp) {
+                        const dxw = _pc.x - camPos.x, dyw = _pc.y - camPos.y, dzw = _pc.z - camPos.z;
+                        const dist = Math.sqrt(dxw * dxw + dyw * dyw + dzw * dzw);
+                        const screenR = dist > 1e-6 ? (wr * _fovK / dist) : 1e6;
+                        if (screenR <= PICK_SCREEN_BIG) {
+                            _proj.copy(_pc).project(camera);
+                            if (_proj.z > 1) { screenCulled++; continue; }
+                            const sx = (_proj.x * 0.5 + 0.5) * _W;
+                            const sy = (-_proj.y * 0.5 + 0.5) * _H;
+                            const ddx = sx - _mousePxX, ddy = sy - _mousePxY;
+                            const reach = screenR + PICK_SCREEN_PAD;
+                            if (ddx * ddx + ddy * ddy > reach * reach) { screenCulled++; continue; }
+                        }
+                    }
                 }
-                proxies.push(proxy);
+                // 锁定对象不参与主拾取：
+                // 原先锁定的模型（尤其是大建筑）仍会吃掉射线，点它后面/旁边的小模型时
+                // 先命中锁定对象 → 弹「已锁定」并 return，后面的对象永远点不到。
+                // 现在锁定对象单独收集，只有「什么都没点中」时再用它提示一下。
+                if (window.EditorObjectLock && window.EditorObjectLock.isLocked(wo)) {
+                    lockedProxies.push(proxy);
+                } else {
+                    proxies.push(proxy);
+                }
             }
-            window.__weLastPick = { total: worldObjects.length, candidates: proxies.length, culled: proxiesCulled };
+            window.__weLastPick = { total: worldObjects.length, candidates: proxies.length, locked: lockedProxies.length, culled: proxiesCulled, screenCulled: screenCulled };
 
             if (proxies.length === 0) {
-                console.log('⚠️ 没有可选择的对象');
+                // 主拾取没有候选：如果这一下正好点在锁定对象上，给个「已锁定」提示；
+                // 否则就是点在空白 → 取消选择（不再空跑 raycast）
+                if (lockedProxies.length > 0) {
+                    const hitL = raycaster.intersectObjects(lockedProxies, false);
+                    if (hitL.length > 0 && window.EditorObjectLock) {
+                        let t = hitL[0].object;
+                        while (t.parent && !t.userData.objectId) t = t.parent;
+                        const lid = t.userData.objectId;
+                        const lobj = lid ? worldObjects.find(o => o.id === lid) : null;
+                        if (lobj) { window.EditorObjectLock.notifyLocked(lobj); return; }
+                    }
+                }
+                if (!event.ctrlKey && !event.metaKey) deselectAll();
                 return;
             }
 
@@ -3697,7 +4093,14 @@
 
                     const worldObj = worldObjects.find(obj => obj.id === candId);
                     let pickDist = intersects[i].distance;
-                    if (worldObj && worldObj.mesh && countMeshVerts(worldObj.mesh) <= PICK_REFINE_MAX_VERTS) {
+                    // 【2026-11-12】只对「已加载真实模型」的对象做精确检测。
+                    // 未加载时 mesh 里只有 1×1×1 的占位小盒（真实模型还没克隆进来），
+                    // 拿它去和射线求交必然打空 → pickDist=Infinity → 判定「没点中」，
+                    // 表现就是「远处没加载过的大模型怎么点都选不上」。
+                    // 这类对象退回代理盒距离，点中后会立即 forceLoadObject 加载真实模型。
+                    const _hasReal = !!(worldObj && worldObj.mesh &&
+                        worldObj.mesh.userData && worldObj.mesh.userData._realMesh);
+                    if (_hasReal && countMeshVerts(worldObj.mesh) <= PICK_REFINE_MAX_VERTS) {
                         // 精确检测：排除拾取代理自身的交点（代理是立方体包围盒，轮廓常大于模型，
                         // 不排除会"点A→命中A的代理罩子→距离最近→误选A"）。
                         // 真实模型未命中则淘汰该候选，避免大代理罩子抢选（如 324 边长 129.8 的罩子）
@@ -3713,7 +4116,8 @@
                 }
 
                 const objectId = bestObjectId;
-                console.log('🖱️ 点击对象:', objectId);
+                window.__wePickMs = +(performance.now() - _pickT0).toFixed(1);
+                console.log('🖱️ 点击对象:', objectId, '(' + window.__wePickMs + 'ms)');
                 
                 if (objectId) {
                     const worldObj = worldObjects.find(obj => obj.id === objectId);
@@ -3744,6 +4148,19 @@
                     }
                 }
             } else {
+                window.__wePickMs = +(performance.now() - _pickT0).toFixed(1);
+                // 没命中任何可拾取对象：先看是不是点在了锁定对象上（这时不该取消选择，
+                // 而是提示「已锁定」）。主拾取已经跳过了锁定对象，所以它们不会挡住别的模型。
+                if (lockedProxies.length > 0 && window.EditorObjectLock) {
+                    const hitL = raycaster.intersectObjects(lockedProxies, false);
+                    if (hitL.length > 0) {
+                        let t = hitL[0].object;
+                        while (t.parent && !t.userData.objectId) t = t.parent;
+                        const lid = t.userData.objectId;
+                        const lobj = lid ? worldObjects.find(o => o.id === lid) : null;
+                        if (lobj) { window.EditorObjectLock.notifyLocked(lobj); return; }
+                    }
+                }
                 console.log('🖱️ 点击空白处');
                 // 点击空白处取消选择
                 if (!event.ctrlKey && !event.metaKey) {
@@ -3754,6 +4171,14 @@
 
         // ===== 键盘事件 =====
         function onKeyDown(event) {
+            // 【2026-11-16】焦点在输入框/文本域/下拉框/可编辑区时不响应编辑器快捷键。
+            // 该监听挂在 window 上，原先没有这层判断：在搜索框里按退格会触发删除选中对象，
+            // Ctrl+A 则会全选整个场景（再确认一次就批量删库），且 preventDefault 会吃掉
+            // 输入框内的原生「全选文本」行为。与 modelLightingEditor.js / worldEditorGrouping.js
+            // 的守卫保持一致。
+            const _t = event.target;
+            if (_t && (/^(INPUT|TEXTAREA|SELECT)$/.test(_t.tagName) || _t.isContentEditable)) return;
+
             if (event.key === 'Delete' || event.key === 'Backspace') {
                 if (selectedObjects.length > 0) {
                     deleteSelectedGroupAware();
@@ -3761,9 +4186,6 @@
                 }
             } else if (event.key === 'Escape') {
                 deselectAll();
-            } else if (event.ctrlKey && event.key === 'a') {
-                selectAll();
-                event.preventDefault();
             } else if (event.ctrlKey && event.key === 'd') {
                 copySelectedGroupAware();
                 event.preventDefault();
@@ -4149,6 +4571,28 @@
             }
         }
 
+        // ===== 渲染开关（visible / cast_shadow / receive_shadow）DB → mesh =====
+        // 列默认 TRUE；旧数据为 null 时不覆盖，保持各分支原有默认，避免历史世界观感变化。
+        function applyShadowFlagsTo(target, obj) {
+            if (!target || !obj) return;
+            if (typeof obj.cast_shadow === 'boolean') {
+                target.traverse(function (c) {
+                    if (c.isMesh || c.isPoints) c.castShadow = obj.cast_shadow;
+                });
+            }
+            if (typeof obj.receive_shadow === 'boolean') {
+                target.traverse(function (c) {
+                    if (c.isMesh || c.isPoints) c.receiveShadow = obj.receive_shadow;
+                });
+            }
+        }
+
+        function applyRenderFlagsToMesh(mesh, obj) {
+            if (!mesh || !obj) return;
+            if (obj.visible === false) mesh.visible = false;
+            applyShadowFlagsTo(mesh, obj);
+        }
+
         // ===== 加载世界对象 =====
         async function loadWorldObjects() {
             try {
@@ -4177,12 +4621,23 @@
                     });
                     worldObjects = [];
 
+                    // 编组：先拉组列表，加载对象时才知道该挂到哪个组容器里
+                    if (window.WorldObjectGroups) {
+                        await window.WorldObjectGroups.load(true);
+                    }
+
                     // 加载新对象
                     data.objects.forEach(obj => {
                         const mesh = createMeshFromObject(obj);
                         if (mesh) {
                             mesh.userData.objectId = obj.id;
-                            scene.add(mesh);
+                            applyRenderFlagsToMesh(mesh, obj);
+                            // 有 group_id → 挂到恒等组容器；否则挂场景根
+                            if (window.WorldObjectGroups) {
+                                window.WorldObjectGroups.attachObject(mesh, obj);
+                            } else {
+                                scene.add(mesh);
+                            }
                             worldObjects.push({
                                 id: obj.id,
                                 data: obj,
@@ -4210,7 +4665,12 @@
         const EDITOR_LOAD_RADIUS = 120;    // 进入此半径才加载真实模型
         const EDITOR_UNLOAD_RADIUS = 240;  // 超出此半径切换回占位符显示（占位符常驻）
         let EDITOR_RANGE_SCAN_MS = 400;  // 范围巡检节流（随档位切换）
-        let EDITOR_MAX_LOAD_PER_SCAN = 1; // 单次巡检最多触发加载数（随档位切换：快速=10 标准=3 慢速=1）
+        let EDITOR_MAX_LOAD_PER_SCAN = 1; // 保留旧变量（档位联动仍在写它），实际由 EDITOR_BATCH_LOAD 控制
+        // 【2026-11-12】单轮巡检最多触发多少个加载。原逻辑用 EDITOR_MAX_LOAD_PER_SCAN（标准档=3），
+        // 按 250ms 一轮算只有 12 个/秒，945 个近处对象要 79 秒。
+        // 现在「缓存直通」让同模型实例不再排下载队列，可以把单轮批量放大到 40 个：
+        // 首次遇到的模型仍受下载/解析并发限制，后续同模型实例走分帧克隆，很便宜。
+        const EDITOR_BATCH_LOAD = 40;
         console.log('✅ [范围加载优化 v2] 已启用：相机运动抑制 + 档位联动供应 + 分帧克隆 + 队列节流');
         let _lastRangeScanAt = 0;
         const _rangeScanVec = new THREE.Vector3(); // 复用向量，避免每帧 GC
@@ -4455,8 +4915,40 @@
             if (!wo || !wo.mesh) return;
             const p = wo.mesh.userData || {};
             if (p.pendingGlb && p.pendingGlb.modelPath) {
-                enqueueGlbLoad({ placeholder: wo.mesh, loaderMesh: p.pendingGlb.loaderMesh, obj: p.pendingGlb.obj, modelPath: p.pendingGlb.modelPath }, urgent);
+                const task = {
+                    placeholder: wo.mesh,
+                    loaderMesh: p.pendingGlb.loaderMesh,
+                    obj: p.pendingGlb.obj,
+                    modelPath: p.pendingGlb.modelPath
+                };
                 p.pendingGlb = null;
+
+                // 【2026-11-12 性能】缓存直通：同一 model_path 的第 2~N 个实例不需要联网。
+                // 原先进下载队列后按 GLB_QUEUE_INTERVAL(标准档 80ms/个) 排队，
+                // 8756 个对象就是 ~11 分钟，表现成「眼前的模型半天不出来」。
+                // 这里命中缓存直接分帧克隆，完全不占下载队列。
+                const cached = editorModelCache.get(task.modelPath);
+                if (cached && cached.scene) {
+                    cloneModelForInstancingAsync(cached.scene, function (inst) {
+                        try {
+                            inst.userData.sharedModel = true;
+                            if (task.loaderMesh) task.loaderMesh.visible = false;
+                            const ph = task.placeholder;
+                            if (ph) {
+                                ph.userData._loaderMesh = task.loaderMesh;
+                                ph.userData._realMesh = inst;
+                                ph.userData._showReal = true;
+                                ph.add(inst);
+                                applyShadowFlagsTo(inst, task.obj);
+                                invalidatePickCaches(ph);
+                            }
+                        } catch (e) {
+                            console.warn('[缓存直通] 克隆挂载失败:', e);
+                        }
+                    });
+                } else {
+                    enqueueGlbLoad(task, urgent);
+                }
             } else if (p.pendingGeometry) {
                 loadGeometryBuilding(wo.mesh, p.pendingGeometry);
                 p.pendingGeometry = null;
@@ -4473,6 +4965,29 @@
         function forceLoadObject(wo, urgent) {
             if (!wo || wo.loaded || !wo.mesh) return;
             triggerRealLoad(wo, urgent);
+        }
+
+        // ===== 点击辐射加载 =====
+        // 用户点中一个占位格（线框）= 明确表示「我要看这一块」，
+        // 比被动等巡检更符合意图。以点击对象为中心，把周围一圈未加载的对象插队加载，
+        // 离中心越近越先出（逆序 unshift 让最近的排在队首）。
+        const _aroundVec = new THREE.Vector3();
+        function loadAroundObjects(centerObj, radius, maxCount) {
+            if (!centerObj || !centerObj.mesh) return 0;
+            const cx = centerObj.mesh.getWorldPosition(_rangeScanVec).clone();
+            const cands = [];
+            for (let i = 0; i < worldObjects.length; i++) {
+                const wo = worldObjects[i];
+                if (!wo || !wo.mesh || wo.loaded) continue;
+                if (wo === centerObj) continue;
+                const d = wo.mesh.getWorldPosition(_aroundVec).distanceTo(cx);
+                if (d <= radius) cands.push({ wo: wo, d: d });
+            }
+            if (!cands.length) return 0;
+            cands.sort(function (a, b) { return a.d - b.d; });
+            const n = Math.min(cands.length, maxCount || 40);
+            for (let i = n - 1; i >= 0; i--) triggerRealLoad(cands[i].wo, true);
+            return n;
         }
 
         // 范围巡检：相机 120m 内显示真实模型；超出 240m 切换回占位符；占位符始终可见
@@ -4508,23 +5023,47 @@
             }
             const cameraStill = _camStillFrames >= 3;
             const cam = camera.position;
-            let loadedThisScan = 0; // 单次巡检最多触发 EDITOR_MAX_LOAD_PER_SCAN 个加载，摊开加载
+
+            // 【2026-11-12】先收集候选再按距离排序：
+            // 原来按 worldObjects 数组顺序（created_at DESC）取前 3 个加载，
+            // 结果「最后创建的」先出来，你正前方那一片永远排不上队。
+            // 现在单轮最多触发 EDITOR_BATCH_LOAD 个，且只挑离相机最近的。
+            const candidates = [];
             for (let i = 0; i < worldObjects.length; i++) {
                 const wo = worldObjects[i];
                 if (!wo.mesh) continue;
                 if (selectedObjects.indexOf(wo) >= 0) {
                     // 选中 → 强制加载并显示真实模型（无视距离），插队优先
+                    // 被距离裁剪隐藏的，选中时立刻恢复可见（否则框选/全选到远处对象会「选中了但看不见」）
+                    if (wo.mesh.visible === false && wo._hiddenByDist) {
+                        wo.mesh.visible = true;
+                        wo._hiddenByDist = false;
+                    }
                     forceLoadObject(wo, true);
                     showReal(wo);
                     continue;
                 }
                 const wp = wo.mesh.getWorldPosition(_rangeScanVec);
                 const d = cam.distanceTo(wp);
-                if (!wo.loaded) {
-                    if (d <= EDITOR_LOAD_RADIUS && cameraStill && loadedThisScan < EDITOR_MAX_LOAD_PER_SCAN) {
-                        triggerRealLoad(wo);
-                        loadedThisScan++;
+
+                // 【2026-11-12 统一裁剪】geometry:模板 / threejs_code 这类「同步建真几何、
+                // 没有占位符」的对象，原先完全没有距离概念——拉多远都实心画着
+                //（世界原点那 110 个草树/动物/塔楼就是它们）。这里给所有类型统一一套规则。
+                const _u = wo.mesh.userData || {};
+                const noPlaceholder = !_u._realMesh && !_u._loaderMesh &&
+                    !_u.pendingGlb && !_u.pendingGeometry && !_u.pendingGaussian;
+                if (noPlaceholder) {
+                    if (d > EDITOR_UNLOAD_RADIUS) {
+                        if (wo.mesh.visible) { wo.mesh.visible = false; wo._hiddenByDist = true; }
+                    } else if (wo._hiddenByDist && d <= EDITOR_LOAD_RADIUS) {
+                        wo.mesh.visible = true;
+                        wo._hiddenByDist = false;
                     }
+                    continue;   // 这类对象不参与加载队列
+                }
+
+                if (!wo.loaded) {
+                    if (d <= EDITOR_LOAD_RADIUS) candidates.push({ wo: wo, d: d });
                     // 远处未加载 → 占位符一直显示中，无需处理
                 } else if (d > EDITOR_UNLOAD_RADIUS) {
                     showPlaceholder(wo); // 远处 → 切换回占位符
@@ -4533,6 +5072,29 @@
                 }
                 // 120m~240m 渐变区：保持当前显示，避免往返抖动
             }
+
+            // 相机还在动就不触发新加载（只做上面的显隐切换），避免甩视角时集中下载
+            if (!cameraStill || candidates.length === 0) return;
+
+            candidates.sort(function (a, b) { return a.d - b.d; });
+            const limit = Math.min(candidates.length, EDITOR_BATCH_LOAD);
+
+            // 【2026-11-12 插队】分两路触发：
+            //   ① 模型已在缓存里（只需克隆）→ 按距离近→远顺序启动，眼前先出；
+            //   ② 需要下载/解析的 → 逆序 unshift 到队首，让最近的排在最前。
+            // 原先全部 push 到队尾，导致「镜头切到新区域后，任务排在几百个旧任务后面，
+            // 要等 3~5 秒才开始显示」。
+            const needClone = [];
+            const needNet = [];
+            for (let i = 0; i < limit; i++) {
+                const wo = candidates[i].wo;
+                const p = wo.mesh && wo.mesh.userData && wo.mesh.userData.pendingGlb;
+                const path = p && p.modelPath;
+                if (path && editorModelCache.has(path)) needClone.push(wo);
+                else needNet.push(wo);
+            }
+            needClone.forEach(function (wo) { triggerRealLoad(wo, false); });
+            for (let i = needNet.length - 1; i >= 0; i--) triggerRealLoad(needNet[i], true);
         }
 
         // 显示真实模型、隐藏占位符
@@ -4663,7 +5225,10 @@
             if (!selectedObjects.includes(worldObj)) {
                 selectedObjects.push(worldObj);
                 highlightObject(worldObj.mesh, true);
-                forceLoadObject(worldObj); // 选中即加载真实模型（无视距离）
+                forceLoadObject(worldObj, true); // 选中即加载真实模型（无视距离），并插队
+                // 点中的是占位格（线框）→ 以它为中心把周围一圈也插队加载，
+                // 免得「只出来点中的那一个，四周还是一片格子」
+                try { loadAroundObjects(worldObj, 80, 40); } catch (e) { /* 不影响选中 */ }
             }
 
             updateSelection();
@@ -4740,15 +5305,28 @@
                     }
                 }
             }
+            // 组激活态跟随选中集合：一旦不再「整组全选」（点空白取消、单选某个成员、勾了一半），
+            // 就退出组模式，否则顶部编组按钮会一直亮着，看着像卡住了。
+            if (typeof window.WorldEditorGrouping !== 'undefined' && window.WorldEditorGrouping) {
+                const activeId = window.WorldEditorGrouping.activeId();
+                if (activeId) {
+                    const members = window.WorldEditorGrouping.members();
+                    const stillAll = members.length > 0 && members.every(m => selectedObjects.indexOf(m) >= 0);
+                    if (!stillAll) window.WorldEditorGrouping.deactivate();
+                }
+            }
+
             // 更新变换控制器
             if (selectedObjects.length === 1) {
                 transformControls.attach(selectedObjects[0].mesh);
                 updatePropertiesPanel();
                 updateEventList();                            // 事件列表只在选中集合变化时重建
-                updateRightPropsPanel(selectedObjects[0]);    // 右侧面板随选中变化同步
             } else {
                 transformControls.detach();
             }
+
+            // 右侧面板随选中数量切换形态（0=收起 / 1=单对象 / ≥2=批量 / 编组=组变换）
+            refreshRightPanelForSelection();
 
             // 更新状态
             document.getElementById('selected-count').textContent = selectedObjects.length;
@@ -5514,6 +6092,13 @@
                 return;
             }
 
+            // 出生点不可删除：从批量里剔除，其余对象照常删（不打断正常删除流程）
+            if (selectedObjects.some(isSpawnPointObject)) {
+                selectedObjects = selectedObjects.filter(function (o) { return !isSpawnPointObject(o); });
+                rejectSpawnPointDelete();
+                if (selectedObjects.length === 0) { updateSelection(); return; }
+            }
+
             if (!confirm(weTp('delete.confirm', {count: selectedObjects.length}, `确定要删除 ${selectedObjects.length} 个对象吗？`))) {
                 return;
             }
@@ -5530,7 +6115,7 @@
                     }
 
                     // 从场景中移除
-                    if (obj.mesh) scene.remove(obj.mesh);
+                    if (obj.mesh && obj.mesh.parent) obj.mesh.parent.remove(obj.mesh);
                 }
 
                 // 从数组中移除
@@ -5725,27 +6310,36 @@
                 overscan: 5,
                 fallbackPitch: 66,
                 renderRow: function (obj, isSelected) {
+                    // 编组行 / 超量提示行
+                    if (obj.__isGroup) return window.WorldObjectGroups.renderGroupRow(obj, 'scene-object-item');
+                    if (obj.__isGroupMore) return window.WorldObjectGroups.renderMoreRow(obj);
+
                     const type = obj.data?.type || 'unknown';
                     const name = _listObjName(obj);
                     const icon = getObjectIcon(type);
                     const locked = _listObjLocked(obj);
                     const lockBtn = _listObjLockBtn(obj);
+                    // 组内成员：点行 = 单选编辑（组 gizmo 让位），与组外对象的"只定位"不同
+                    const inGroup = !!obj.__inGroup;
+                    const clickAttr = inGroup
+                        ? `WorldObjectGroups.selectMember(${jsId(obj.id)})`
+                        : `selectObjectById(${jsId(obj.id)}, event)`;
 
                     return `
-                    <div class="scene-object-item ${isSelected ? 'selected' : ''} ${locked ? 'locked-row' : ''}" 
-                         onclick="selectObjectById(${obj.id}, event)"
+                    <div class="scene-object-item ${isSelected ? 'selected' : ''} ${locked ? 'locked-row' : ''} ${inGroup ? 'gp-member-row' : ''}" 
+                         onclick="${clickAttr}"
                          data-id="${obj.id}">
                         <div class="obj-icon">${icon}</div>
                         <div class="obj-info">
-                            <div class="obj-name" title="${escapeHtml(name)}">${locked ? '🔒 ' : ''}${escapeHtml(name)}</div>
+                            <div class="obj-name" title="${escapeAttr(name)}">${locked ? '🔒 ' : ''}${escapeHtml(name)}</div>
                             <div class="obj-meta">
-                                <span class="obj-id">${obj.id}</span>
+                                <span class="obj-id">${escapeHtml(obj.id)}</span>
                             </div>
                         </div>
                         <div class="obj-actions">
                             ${lockBtn}
-                            <button class="action-btn" onclick="downloadObject(${obj.id}); event.stopPropagation();" title="${weT('list.actionPlace', '落地')}">📍</button>
-                            <button class="action-btn delete" onclick="deleteObjectById(${obj.id}); event.stopPropagation();" title="${weT('list.actionDelete', '删除')}">🗑️</button>
+                            <button class="action-btn" onclick="downloadObject(${jsId(obj.id)}); event.stopPropagation();" title="${weT('list.actionPlace', '落地')}">📍</button>
+                            <button class="action-btn delete" onclick="deleteObjectById(${jsId(obj.id)}); event.stopPropagation();" title="${weT('list.actionDelete', '删除')}">🗑️</button>
                         </div>
                     </div>
                 `;
@@ -5770,7 +6364,7 @@
 
             const vl = ensureLeftList();
             if (!vl) return;    // 虚拟化模块缺失 → 保持容器原样（不破坏页面）
-            vl.setItems(worldObjects);
+            vl.setItems(window.WorldObjectGroups ? window.WorldObjectGroups.buildRows(worldObjects) : worldObjects);
             vl.setSelected(selectedObjects);
             if (lockDirty) vl.invalidate();
             vl.render(lockDirty);
@@ -5802,28 +6396,36 @@
                 overscan: 5,
                 fallbackPitch: 58,
                 renderRow: function (obj, isSelected) {
+                    // 编组行 / 超量提示行
+                    if (obj.__isGroup) return window.WorldObjectGroups.renderGroupRow(obj, 'right-object-item');
+                    if (obj.__isGroupMore) return window.WorldObjectGroups.renderMoreRow(obj);
+
                     const type = obj.data?.type || 'unknown';
                     const name = _listObjName(obj);
                     const icon = getObjectIcon(type);
                     const locked = _listObjLocked(obj);
                     const lockBtn = _listObjLockBtn(obj);
+                    const inGroup = !!obj.__inGroup;
+                    const clickAttr = inGroup
+                        ? `WorldObjectGroups.selectMember(${jsId(obj.id)})`
+                        : `selectObjectByIdRightPanel(${jsId(obj.id)}, event)`;
 
                     return `
-                    <div class="right-object-item ${isSelected ? 'selected' : ''} ${locked ? 'locked-row' : ''}"
-                         onclick="selectObjectByIdRightPanel(${obj.id}, event)"
+                    <div class="right-object-item ${isSelected ? 'selected' : ''} ${locked ? 'locked-row' : ''} ${inGroup ? 'gp-member-row' : ''}"
+                         onclick="${clickAttr}"
                          data-id="${obj.id}">
                         <div class="right-object-check ${isSelected ? 'checked' : ''}"
-                             onclick="event.stopPropagation(); toggleRightObjectSelection(${obj.id});"
+                             onclick="event.stopPropagation(); toggleRightObjectSelection(${jsId(obj.id)});"
                              title="${weT('list.selectToggle', '选择')}">✓</div>
                         <div class="right-object-icon">${icon}</div>
                         <div class="right-object-info">
-                            <div class="right-object-name" title="${escapeHtml(name)}">${locked ? '🔒 ' : ''}${escapeHtml(name)}</div>
-                            <div class="right-object-type">${type.toUpperCase()} · ID: ${obj.id}</div>
+                            <div class="right-object-name" title="${escapeAttr(name)}">${locked ? '🔒 ' : ''}${escapeHtml(name)}</div>
+                            <div class="right-object-type">${type.toUpperCase()} · ID: ${escapeHtml(obj.id)}</div>
                         </div>
                         <div class="right-object-actions">
                             ${lockBtn}
-                            <button class="right-object-btn locate" onclick="focusObjectRightPanel(${obj.id}); event.stopPropagation();" title="${weT('list.actionLocate', '定位')}">📍</button>
-                            <button class="right-object-btn delete" onclick="deleteObjectByIdRightPanel(${obj.id}); event.stopPropagation();" title="${weT('list.actionDelete', '删除')}">🗑️</button>
+                            <button class="right-object-btn locate" onclick="focusObjectRightPanel(${jsId(obj.id)}); event.stopPropagation();" title="${weT('list.actionLocate', '定位')}">📍</button>
+                            <button class="right-object-btn delete" onclick="deleteObjectByIdRightPanel(${jsId(obj.id)}); event.stopPropagation();" title="${weT('list.actionDelete', '删除')}">🗑️</button>
                         </div>
                     </div>
                 `;
@@ -5852,7 +6454,7 @@
 
             const vl = ensureRightList();
             if (!vl) return;
-            vl.setItems(worldObjects);
+            vl.setItems(window.WorldObjectGroups ? window.WorldObjectGroups.buildRows(worldObjects) : worldObjects);
             vl.setSelected(selectedObjects);
             if (lockDirty) vl.invalidate();
             vl.render(lockDirty);
@@ -5865,23 +6467,45 @@
             }
         }
 
-        // 搜索右侧对象列表（虚拟化后改为数据级过滤：只渲染命中的行，语义与原「按行文本 contains」一致）
+        // 搜索右侧对象列表（虚拟化后改为数据级过滤：只渲染命中的行）
+        // 组相关：命中组名 → 整组（含成员）保留；命中成员 → 强制展开所有组，避免被折叠挡住。
         function filterRightObjectList(searchText) {
             const vl = ensureRightList();
             if (!vl) return;
             const term = String(searchText || '').toLowerCase();
-            if (!term) { vl.setFilter(null); return; }
-            vl.setFilter(function (obj) {
-                const type = (obj.data?.type || 'unknown').toUpperCase();
+
+            if (!term) {
+                vl.setItems(window.WorldObjectGroups ? window.WorldObjectGroups.buildRows(worldObjects) : worldObjects);
+                vl.setFilter(null);
+                return;
+            }
+
+            const rows = window.WorldObjectGroups
+                ? window.WorldObjectGroups.buildRows(worldObjects, true)
+                : worldObjects;
+            vl.setItems(rows);
+
+            const hitGroups = new Set();
+            if (window.WorldObjectGroups) {
+                window.WorldObjectGroups.state.groups.forEach(function (g) {
+                    if ((g.name || '').toLowerCase().indexOf(term) >= 0) hitGroups.add(g.id);
+                });
+            }
+
+            vl.setFilter(function (row) {
+                if (row.__isGroup) return hitGroups.has(row.group.id);
+                if (row.__isGroupMore) return false;
+                if (row.__inGroup && hitGroups.has(row.__inGroup)) return true;
+                const type = (row.data?.type || 'unknown').toUpperCase();
                 // 原实现匹配的是行内文本：名称（含 🔒 前缀）+ "TYPE · ID: n"
-                const text = ((_listObjLocked(obj) ? '🔒 ' : '') + _listObjName(obj) + ' ' + type + ' · id: ' + obj.id).toLowerCase();
+                const text = ((_listObjLocked(row) ? '🔒 ' : '') + _listObjName(row) + ' ' + type + ' · id: ' + row.id).toLowerCase();
                 return text.indexOf(term) >= 0;
             });
         }
 
         // 在右侧面板定位对象（点击整行仅定位相机并跟随，不打勾、不改变选中状态）
         function selectObjectByIdRightPanel(id, event) {
-            const obj = worldObjects.find(o => o.id === id);
+            const obj = worldObjects.find(o => sameId(o.id, id));
             if (obj) {
                 // 仅定位相机并更新属性面板，不改变勾选状态（复选框不打勾）
                 focusObject(id);
@@ -5897,7 +6521,7 @@
 
         // 点击复选框：切换勾选状态（多选，不影响其他已选对象；不定位相机、不滚动列表）
         function toggleRightObjectSelection(id) {
-            const obj = worldObjects.find(o => o.id === id);
+            const obj = worldObjects.find(o => sameId(o.id, id));
             if (!obj) return;
             // 锁定对象不允许被勾选
             if (window.EditorObjectLock && window.EditorObjectLock.isLocked(obj)) {
@@ -5920,6 +6544,8 @@
                 transformControls.detach();
             }
             document.getElementById('selected-count').textContent = selectedObjects.length;
+            // 勾选数量变化 → 右侧面板在「单对象 / 批量 / 收起」之间切换
+            refreshRightPanelForSelection();
             // 刷新两侧列表（跳过自动滚动）
             updateObjectList(true);
         }
@@ -5931,8 +6557,10 @@
 
         // 在右侧面板删除对象
         function deleteObjectByIdRightPanel(id) {
-            const obj = worldObjects.find(o => o.id === id);
+            const obj = worldObjects.find(o => sameId(o.id, id));
             if (!obj) return;
+            // 出生点不可删除（系统对象）
+            if (isSpawnPointObject(obj)) { rejectSpawnPointDelete(); return; }
             // 锁定对象禁止删除
             if (window.EditorObjectLock && window.EditorObjectLock.isLocked(obj)) {
                 window.EditorObjectLock.notifyLocked(obj);
@@ -5940,7 +6568,7 @@
             }
 
             // 直接删除，不重复确认（删除单个对象不需要再次确认）
-            if (obj.mesh) scene.remove(obj.mesh);
+            if (obj.mesh && obj.mesh.parent) obj.mesh.parent.remove(obj.mesh);
 
             // 从数组中移除
             const index = worldObjects.indexOf(obj);
@@ -5981,6 +6609,12 @@
                 showNotification(weT('list.selectDeleteFirst', '请先选择要删除的对象'), 'warning');
                 return;
             }
+            // 出生点不可删除：先从批量里剔除
+            if (selectedObjects.some(isSpawnPointObject)) {
+                selectedObjects = selectedObjects.filter(function (o) { return !isSpawnPointObject(o); });
+                rejectSpawnPointDelete();
+                if (selectedObjects.length === 0) { updateSelection(); return; }
+            }
             const count = selectedObjects.length;
             if (!confirm(weTp('list.confirmDeleteSelected', { count }, `确定要删除选中的 ${count} 个对象吗？`))) {
                 return;
@@ -5993,7 +6627,7 @@
                         throw new Error(data.error);
                     }
                     // 从场景中移除
-                    if (obj.mesh) scene.remove(obj.mesh);
+                    if (obj.mesh && obj.mesh.parent) obj.mesh.parent.remove(obj.mesh);
                 }
                 // 从 worldObjects 数组中移除
                 selectedObjects.forEach(obj => {
@@ -6019,20 +6653,171 @@
             document.getElementById('right-props-tab-transform').style.display = 'none';
             document.getElementById('right-props-tab-video').style.display = 'none';
             document.getElementById('right-props-tab-animation').style.display = 'none';
+            document.getElementById('right-props-tab-sound').style.display = 'none';
             document.getElementById('right-props-tab-advanced').style.display = 'none';
             document.getElementById(`right-props-tab-${tabName}`).style.display = 'block';
+        }
+
+        // ===== 右侧属性面板三态控制 =====
+        // hidden = 未选中/手动收起（整块不占高度，对象列表吃满）
+        // single = 选中 1 个（单对象表单）
+        // multi  = 选中 ≥2 个（批量开关面板）
+        // group  = 编辑器编组中（worldEditorGrouping 注入的组变换面板接管内容区）
+        let _rightPropsMode = 'hidden';
+
+        function setRightPropsMode(mode) {
+            const section = document.getElementById('right-props-section');
+            if (!section) return;
+            _rightPropsMode = mode;
+            section.setAttribute('data-mode', mode);
+
+            const empty = document.getElementById('right-props-empty');
+            const form = document.getElementById('right-props-form');
+            const batch = document.getElementById('right-batch-form');
+            const title = document.getElementById('right-props-title');
+
+            // group 模式：三者全隐藏，内容区只显示编组模块自己注入的 #group-transform-panel
+            if (empty) empty.style.display = (mode === 'hidden' || mode === 'group') ? 'block' : 'none';
+            if (form) form.style.display = (mode === 'single') ? 'block' : 'none';
+            if (batch) batch.style.display = (mode === 'multi') ? 'block' : 'none';
+            if (mode === 'group' && empty) empty.style.display = 'none';
+
+            // 编组面板由 worldEditorGrouping 注入；这里一并控制显隐，避免依赖两边的调用顺序出现空白帧
+            const gp = document.getElementById('group-transform-panel');
+            if (gp) gp.style.display = (mode === 'group') ? 'block' : 'none';
+
+            if (title) {
+                if (!title.dataset.origText) title.dataset.origText = title.textContent;
+                title.textContent = mode === 'multi' ? '🧩 批量属性'
+                    : mode === 'group' ? '📦 编组'
+                    : title.dataset.origText;
+            }
+
+            if (mode === 'multi') updateRightBatchPanel();
+        }
+
+        // 手动收起（选中状态不变，下次点选对象会重新展开）
+        function collapseRightProps() {
+            setRightPropsMode('hidden');
+        }
+
+        // 按当前选中集合决定面板形态（编组优先）
+        function refreshRightPanelForSelection() {
+            if (typeof window.__weGroupActive === 'function' && window.__weGroupActive()) {
+                setRightPropsMode('group');
+                return;
+            }
+            const n = selectedObjects.length;
+            if (n >= 2) { setRightPropsMode('multi'); return; }
+            if (n === 1) { updateRightPropsPanel(selectedObjects[0]); return; }
+            setRightPropsMode('hidden');
+        }
+
+        // 读取单个对象的开关值（以数据库字段为准，回落到 mesh 实际状态）
+        // 用 DB 而不是 mesh：真实模型是异步克隆的，mesh 上的值可能被 three 默认值覆盖，
+        // 拿 mesh 当"属性真值"会让面板显示与实际保存值不一致。
+        function _batchReadFlag(obj, key) {
+            if (!obj) return false;
+            const d = obj.data || {};
+            if (key === 'has_collision') return d.has_collision === true;
+            if (key === 'visible') return d.visible !== false;
+            if (key === 'cast_shadow') return d.cast_shadow !== false;
+            if (key === 'receive_shadow') return d.receive_shadow !== false;
+            return false;
+        }
+
+        // 三态回填：全 true → 勾选；全 false → 不勾；混合 → 半选（琥珀色）
+        // 每次回填都清掉 dirty 标记：只有用户在本次会话里真正点过的开关才允许写库，
+        // 否则"全体一致"的开关会被当成修改意图，把 mesh 的临时状态（如 GLB 加载后
+        // 丢失 castShadow 的默认 false）反向写进数据库。
+        function _setTriState(inputId, values) {
+            const el = document.getElementById(inputId);
+            if (!el) return;
+            const allTrue = values.length > 0 && values.every(v => v === true);
+            const allFalse = values.length > 0 && values.every(v => v === false);
+            el.indeterminate = !allTrue && !allFalse;
+            el.checked = allTrue;
+            delete el.dataset.dirty;
+        }
+
+        function updateRightBatchPanel() {
+            const objs = selectedObjects;
+            const countEl = document.getElementById('right-batch-count');
+            if (countEl) countEl.textContent = objs.length;
+            ['visible', 'cast_shadow', 'receive_shadow', 'has_collision'].forEach(function (key) {
+                _setTriState('right-batch-' + key.replace(/_/g, '-'), objs.map(o => _batchReadFlag(o, key)));
+            });
+        }
+
+        // 批量应用：内存即时生效 + 一次请求落库（不循环发 PUT）
+        async function applyRightBatchProps() {
+            const objs = selectedObjects.slice();
+            if (objs.length < 2) {
+                showNotification(weT('save.selectObjects', '请至少选择 2 个对象'), 'warning');
+                return;
+            }
+
+            // 只提交用户本次真正点过的开关（半选且未点击 = 不动）
+            const read = function (id) {
+                const el = document.getElementById(id);
+                if (!el || el.dataset.dirty !== '1') return null;
+                return el.checked;
+            };
+            const visible = read('right-batch-visible');
+            const castShadow = read('right-batch-cast-shadow');
+            const receiveShadow = read('right-batch-receive-shadow');
+            const collision = read('right-batch-collision');
+
+            const patch = {};
+            if (visible !== null) patch.visible = visible;
+            if (castShadow !== null) patch.cast_shadow = castShadow;
+            if (receiveShadow !== null) patch.receive_shadow = receiveShadow;
+            if (collision !== null) patch.has_collision = collision;
+
+            if (Object.keys(patch).length === 0) {
+                showNotification(weT('save.noBatchChange', '⚠️ 没有要修改的项（琥珀色=状态不一致，点一下开关即统一）'), 'info');
+                return;
+            }
+
+            // 1) 内存 / mesh 立即生效
+            objs.forEach(function (o) {
+                if (!o.mesh) return;
+                if (visible !== null) o.mesh.visible = visible;
+                if (castShadow !== null) o.mesh.traverse(c => { if (c.isMesh || c.isPoints) c.castShadow = castShadow; });
+                if (receiveShadow !== null) o.mesh.traverse(c => { if (c.isMesh || c.isPoints) c.receiveShadow = receiveShadow; });
+                if (collision !== null) {
+                    o.data = o.data || {};
+                    o.data.has_collision = collision;
+                }
+            });
+
+            // 2) 一次批量落库
+            try {
+                const resp = await fetch(`${API_BASE}/objects/batch-update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: objs.map(o => o.id), patch: patch })
+                });
+                const data = await resp.json();
+                if (!resp.ok || !data.success) throw new Error(data.error || ('HTTP ' + resp.status));
+                showNotification(weTp('save.batchUpdated', { count: data.updated }, `✅ 已更新 ${data.updated} 个对象`), 'success');
+                updateRightBatchPanel();
+            } catch (err) {
+                console.error('批量更新失败:', err);
+                showNotification(weT('save.batchFailed', '❌ 批量更新失败: ') + err.message, 'error');
+            }
         }
 
         // 更新右侧属性面板显示
         function updateRightPropsPanel(obj) {
             if (!obj || !obj.mesh) {
-                document.getElementById('right-props-empty').style.display = 'block';
-                document.getElementById('right-props-form').style.display = 'none';
+                setRightPropsMode('hidden');   // 未选中 → 整块收起，对象列表吃满高度
+                // 声音页签跟随选中状态清空
+                if (window.WorldEditorObjSound) window.WorldEditorObjSound.render(null);
                 return;
             }
 
-            document.getElementById('right-props-empty').style.display = 'none';
-            document.getElementById('right-props-form').style.display = 'block';
+            setRightPropsMode('single');
 
             const data = obj.data || {};
             const type = data.type || 'unknown';
@@ -6053,10 +6838,10 @@
             document.getElementById('right-prop-sy').value = weNum(obj.mesh.scale.y);
             document.getElementById('right-prop-sz').value = weNum(obj.mesh.scale.z);
 
-            // 开关
-            document.getElementById('right-prop-visible').checked = obj.mesh.visible;
-            document.getElementById('right-prop-cast-shadow').checked = obj.mesh.castShadow;
-            document.getElementById('right-prop-receive-shadow').checked = obj.mesh.receiveShadow;
+            // 开关（以 DB 字段为准，mesh 状态仅作回落 —— 与批量面板同一口径）
+            document.getElementById('right-prop-visible').checked = data.visible !== false;
+            document.getElementById('right-prop-cast-shadow').checked = data.cast_shadow !== false;
+            document.getElementById('right-prop-receive-shadow').checked = data.receive_shadow !== false;
             document.getElementById('right-prop-collision').checked = data.has_collision === true;
 
             // 轴动画
@@ -6151,6 +6936,10 @@
                 videoTab.style.display = 'none';
                 videoTabContent.style.display = 'none';
             }
+
+            // ===== 声音页签（模型声源）：读/写 custom_config.audio =====
+            // 逻辑全在 js/worldEditorObjectSound.js，这里只做一行接线
+            if (window.WorldEditorObjSound) window.WorldEditorObjSound.render(obj);
         }
 
         // 应用右侧面板属性更改
@@ -6245,16 +7034,13 @@
 
         // 监听选中对象变化，同步更新右侧属性面板
         function updateRightPropsOnSelection() {
-            if (selectedObjects.length === 1) {
-                updateRightPropsPanel(selectedObjects[0]);
-            } else {
-                updateRightPropsPanel(null);
-            }
+            // 统一走三态刷新（0=收起 / 1=单对象 / ≥2=批量 / 编组=组变换）
+            refreshRightPanelForSelection();
         }
 
         // 让对象落地
         function downloadObject(id) {
-            const obj = worldObjects.find(o => o.id === id);
+            const obj = worldObjects.find(o => sameId(o.id, id));
             if (obj && obj.mesh) {
                 // 计算模型的边界盒，获取高度
                 const box = new THREE.Box3().setFromObject(obj.mesh);
@@ -6288,7 +7074,7 @@
         }
 
         function selectObjectById(id, event) {
-            const obj = worldObjects.find(o => o.id === id);
+            const obj = worldObjects.find(o => sameId(o.id, id));
             if (obj) {
                 if (event.ctrlKey || event.metaKey) {
                     toggleSelection(obj);
@@ -6301,7 +7087,7 @@
         }
 
         function focusObject(id) {
-            const obj = worldObjects.find(o => o.id === id);
+            const obj = worldObjects.find(o => sameId(o.id, id));
             if (obj && obj.mesh) {
                 const pos = obj.mesh.position;
                 camera.position.set(pos.x + 20, pos.y + 15, pos.z + 20);
@@ -6354,8 +7140,10 @@
         }
 
         async function deleteObjectById(id) {
-            const obj = worldObjects.find(o => o.id === id);
+            const obj = worldObjects.find(o => sameId(o.id, id));
             if (!obj) return;
+            // 出生点不可删除（系统对象）
+            if (isSpawnPointObject(obj)) { rejectSpawnPointDelete(); return; }
             // 锁定对象禁止删除
             if (window.EditorObjectLock && window.EditorObjectLock.isLocked(obj)) {
                 window.EditorObjectLock.notifyLocked(obj);
@@ -6365,13 +7153,37 @@
             await deleteSelected();
         }
 
+        // 搜索左侧对象列表（原实现遍历 .object-item DOM，虚拟化改造后该 class 已不存在 → 一直无效，
+        // 顺带改成数据级过滤，与右侧同一套规则）
         function filterObjects(searchTerm) {
-            const items = document.querySelectorAll('.object-item');
-            const term = searchTerm.toLowerCase();
+            const vl = _leftVirtualList;
+            if (!vl) return;
+            const term = String(searchTerm || '').toLowerCase();
 
-            items.forEach(item => {
-                const text = item.textContent.toLowerCase();
-                item.style.display = text.includes(term) ? 'flex' : 'none';
+            if (!term) {
+                vl.setItems(window.WorldObjectGroups ? window.WorldObjectGroups.buildRows(worldObjects) : worldObjects);
+                vl.setFilter(null);
+                return;
+            }
+
+            const rows = window.WorldObjectGroups
+                ? window.WorldObjectGroups.buildRows(worldObjects, true)
+                : worldObjects;
+            vl.setItems(rows);
+
+            const hitGroups = new Set();
+            if (window.WorldObjectGroups) {
+                window.WorldObjectGroups.state.groups.forEach(function (g) {
+                    if ((g.name || '').toLowerCase().indexOf(term) >= 0) hitGroups.add(g.id);
+                });
+            }
+
+            vl.setFilter(function (row) {
+                if (row.__isGroup) return hitGroups.has(row.group.id);
+                if (row.__isGroupMore) return false;
+                if (row.__inGroup && hitGroups.has(row.__inGroup)) return true;
+                const type = (row.data?.type || 'unknown').toUpperCase();
+                return (_listObjName(row) + ' ' + type + ' · id: ' + row.id).toLowerCase().indexOf(term) >= 0;
             });
         }
 
@@ -6390,19 +7202,65 @@
 
         // ===== 3D模型上传功能 =====
         let uploadedModels = [];
+        // 【2026-11-12 性能】模型库改为「按需加载 + 服务端分页 + 搜索」
+        // 原实现页面初始化就 fetch 全表（500 条 + 500 次串行 fs.stat ≈ 2.5 秒），
+        // 而用户打开编辑器只是想看世界，根本不关心素材库里有几个模型。
+        let uploadedModelsLoadedOnce = false;   // 是否已经拉过一次
+        let uploadedModelsLoading = false;      // 请求进行中（防重复点击）
+        let uploadedModelsTotal = 0;            // 服务端总数
+        let uploadedModelsPage = 1;
+        let uploadedModelsPageSize = 40;
+        let uploadedModelsQuery = '';
+        let _uploadedSearchTimer = null;
 
-        // 加载已上传的模型列表
-        async function loadUploadedModels() {
+        // 加载已上传的模型列表（分页 + 搜索）
+        async function loadUploadedModels(opts) {
+            if (uploadedModelsLoading) return;
+            const o = opts || {};
+            const page = o.page || uploadedModelsPage || 1;
+            const q = (o.q !== undefined) ? o.q : uploadedModelsQuery;
+            uploadedModelsPage = page;
+            uploadedModelsQuery = q;
+            uploadedModelsLoading = true;
             try {
-                const response = await fetch('/api/uploaded-models');
+                const url = '/api/uploaded-models?page=' + page +
+                    '&pageSize=' + uploadedModelsPageSize +
+                    (q ? ('&q=' + encodeURIComponent(q)) : '');
+                const response = await fetch(url);
                 if (response.ok) {
                     const data = await response.json();
                     uploadedModels = data.models || [];
+                    uploadedModelsTotal = (typeof data.total === 'number') ? data.total : uploadedModels.length;
+                    uploadedModelsLoadedOnce = true;
                     updateUploadedModelsList();
                 }
             } catch (error) {
                 console.error('加载上传模型列表失败:', error);
+            } finally {
+                uploadedModelsLoading = false;
             }
+        }
+
+        // 首次点击「加载模型库」时才真正拉数据（首屏不发请求）
+        function ensureUploadedModels() {
+            if (uploadedModelsLoadedOnce) return;
+            loadUploadedModels({ page: 1, q: '' });
+        }
+
+        // 搜索输入（300ms 防抖，避免每敲一个字都发请求）
+        function onUploadedSearchInput(val) {
+            const q = String(val || '').trim();
+            clearTimeout(_uploadedSearchTimer);
+            _uploadedSearchTimer = setTimeout(function () {
+                loadUploadedModels({ page: 1, q: q });
+            }, 300);
+        }
+
+        function gotoUploadedPage(page) {
+            const totalPages = Math.max(1, Math.ceil(uploadedModelsTotal / uploadedModelsPageSize));
+            const p = Math.min(Math.max(1, page), totalPages);
+            if (p === uploadedModelsPage) return;
+            loadUploadedModels({ page: p });
         }
 
         // 手动刷新已上传模型列表（重新从服务器拉取）
@@ -6415,11 +7273,31 @@
         function updateUploadedModelsList() {
             const listContainer = document.getElementById('uploaded-models-list');
             const countElement = document.getElementById('uploaded-count');
-            
-            countElement.textContent = uploadedModels.length;
+
+            // 计数显示服务端总数（分页时 uploadedModels.length 只是一页）
+            countElement.textContent = uploadedModelsTotal || uploadedModels.length;
+
+            const toolsEl = document.getElementById('uploaded-models-tools');
+            if (toolsEl) toolsEl.style.display = uploadedModelsLoadedOnce ? 'block' : 'none';
+
+            // 未加载过 → 显示「点击加载」占位（首屏不发请求）
+            if (!uploadedModelsLoadedOnce) {
+                listContainer.innerHTML =
+                    '<div style="text-align:center;padding:18px 10px;">' +
+                    '<button onclick="ensureUploadedModels()" style="background:rgba(102,126,234,.16);border:1px solid rgba(102,126,234,.45);color:#667eea;border-radius:6px;padding:8px 14px;font-size:12px;cursor:pointer;">📂 点击加载模型库</button>' +
+                    '<div style="margin-top:8px;color:#999;font-size:11px;">按需加载，不占用编辑器启动时间</div>' +
+                    '</div>';
+                const pager0 = document.getElementById('uploaded-models-pager');
+                if (pager0) pager0.innerHTML = '';
+                return;
+            }
 
             if (uploadedModels.length === 0) {
-                listContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: #999; font-size: 13px;">' + weT('list.noUploadedModels', '暂无上传的模型') + '</div>';
+                const tip = uploadedModelsQuery
+                    ? ('没有匹配「' + escapeHtml(uploadedModelsQuery) + '」的模型')
+                    : weT('list.noUploadedModels', '暂无上传的模型');
+                listContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: #999; font-size: 13px;">' + tip + '</div>';
+                renderUploadedPager();
                 return;
             }
 
@@ -6456,6 +7334,39 @@
                     </div>
                 `;
             }).join('');
+            renderUploadedPager();
+        }
+
+        // 分页控件（‹ 1 2 3 › 共 N 个）
+        function renderUploadedPager() {
+            const el = document.getElementById('uploaded-models-pager');
+            if (!el) return;
+            const total = uploadedModelsTotal || 0;
+            const totalPages = Math.max(1, Math.ceil(total / uploadedModelsPageSize));
+            if (totalPages <= 1) {
+                el.innerHTML = '<div style="text-align:center;color:#999;font-size:11px;padding:6px 0;">共 ' + total + ' 个</div>';
+                return;
+            }
+            const cur = uploadedModelsPage;
+            const btn = function (label, page, disabled, active) {
+                const style = 'min-width:26px;height:24px;padding:0 6px;border-radius:5px;font-size:11px;cursor:' +
+                    (disabled || active ? 'default' : 'pointer') + ';' +
+                    (active
+                        ? 'background:#667eea;border:1px solid #667eea;color:#fff;'
+                        : 'background:#fff;border:1px solid #d8d8d8;color:' + (disabled ? '#ccc' : '#555') + ';');
+                return '<button ' + (disabled ? 'disabled ' : '') +
+                    'onclick="gotoUploadedPage(' + page + ')" style="' + style + '">' + label + '</button>';
+            };
+            let start = Math.max(1, cur - 2);
+            let end = Math.min(totalPages, start + 4);
+            start = Math.max(1, end - 4);
+            let html = '<div style="display:flex;align-items:center;justify-content:center;gap:4px;padding:8px 0;flex-wrap:wrap;">';
+            html += btn('‹', cur - 1, cur <= 1, false);
+            for (let p = start; p <= end; p++) html += btn(p, p, false, p === cur);
+            html += btn('›', cur + 1, cur >= totalPages, false);
+            html += '<span style="color:#999;font-size:11px;margin-left:4px;">共 ' + total + ' 个</span>';
+            html += '</div>';
+            el.innerHTML = html;
         }
 
         // ===== 模型拖拽到画布 =====
@@ -6898,12 +7809,53 @@
             return div.innerHTML;
         }
 
+        /* 用于把对象 id 安全地嵌进「内联 onclick 的 JS 字面量」里。
+           ⚠️ 两个坑必须同时避开：
+           1. 不加引号 → onclick="selectObjectById(spawn_point, event)" 会被当变量名解析
+              （ReferenceError: spawn_point is not defined；UUID 则报 SyntaxError）。
+           2. 一律加引号 → 数字 id 变成字符串 '1'，而查找用的是 o.id === id 严格比较，
+              1 === '1' 为 false → 数字 id 的对象反而点不动了。
+           所以按原类型输出：number 原样（不加引号），其余按字符串加单引号。 */
+        function jsId(v) {
+            if (typeof v === 'number' && isFinite(v)) return String(v);
+            return jsStr(v);
+        }
+
+        /* 查找时的 id 比较：容忍 number / string 混用（内联 onclick 传进来的可能是字符串）。
+           用 String() 归一化，避免 1 === '1' 为 false 导致「点了没反应」。 */
+        function sameId(a, b) {
+            return String(a) === String(b);
+        }
+
+        /* 用于把值安全地嵌进「内联 onclick 的 JS 字面量」里（字符串场景）。 */
+        function jsStr(v) {
+            return "'" + String(v == null ? '' : v)
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/\r/g, '\\r')
+                .replace(/\n/g, '\\n')
+                .replace(/</g, '\\x3c') + "'";
+        }
+
+        /* 用于 HTML 属性值（title="..." 等）。escapeHtml 走 textContent→innerHTML，
+           不转义双引号：名字里带 " 就会把属性截断，后面整段 HTML 结构错乱。 */
+        function escapeAttr(v) {
+            return String(v == null ? '' : v)
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
         // ===== 初始化 =====
         window.addEventListener('DOMContentLoaded', () => {
             initThreeJS();
             loadTerrainPanel(); // 地形（原"地块"）：与后台 /api/terrain 同一份数据
             loadWorldObjects(); // 会自动添加出生点
-            loadUploadedModels(); // 加载已上传的模型列表
+            // 【2026-11-12 性能】启动时不再拉模型库（500 条 + 500 次串行 stat ≈ 2.5 秒）。
+            // 只渲染「点击加载模型库」占位；用户点一下才发请求，首屏不受影响。
+            updateUploadedModelsList();
             loadThreejsCodeBlocks(); // 加载 Three.js 代码库
             initCanvasDropZone(); // 初始化画布拖放区域
             setEditMode('select');
@@ -6922,6 +7874,68 @@
                 });
             }
         });
+
+        // ===== 出生点标记贴图（渐变落点光环）2026-11-15 =====
+        // 与 public/js/world.js 里的 SpawnMarkerTexture 保持一致。
+        // ⚠️ 必须保持出生点是【单个 Mesh】：选中靠 selectObject→highlightObject(mesh)，
+        //    拖动靠 transformControls.attach(obj.mesh)，保存读 mesh.position/rotation/scale。
+        //    所以内环与刻度全部画进同一张 canvas，不拆成 Group。
+        const SpawnMarkerTexture = (function () {
+            let cached = null;
+            return function () {
+                if (cached) return cached;
+                const S = 512;
+                const cv = document.createElement('canvas');
+                cv.width = cv.height = S;
+                const g = cv.getContext('2d');
+                const c = S / 2, R = S / 2;
+
+                const rg = g.createRadialGradient(c, c, R * 0.45, c, c, R);
+                rg.addColorStop(0.000, 'rgba(102,255,204,0.00)');
+                rg.addColorStop(0.620, 'rgba(102,255,204,0.05)');
+                rg.addColorStop(0.860, 'rgba(110,255,214,0.30)');
+                rg.addColorStop(0.965, 'rgba(185,255,240,0.62)');
+                rg.addColorStop(1.000, 'rgba(185,255,240,0.00)');
+                g.fillStyle = rg;
+                g.beginPath(); g.arc(c, c, R, 0, Math.PI * 2); g.fill();
+
+                g.strokeStyle = 'rgba(157,255,232,0.50)';
+                g.lineWidth = Math.max(2, S * 0.010);
+                g.beginPath(); g.arc(c, c, R * 0.76, 0, Math.PI * 2); g.stroke();
+
+                g.fillStyle = 'rgba(216,255,245,0.80)';
+                for (let i = 0; i < 6; i++) {
+                    const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+                    g.beginPath();
+                    g.arc(c + Math.cos(a) * R * 0.88, c + Math.sin(a) * R * 0.88, S * 0.013, 0, Math.PI * 2);
+                    g.fill();
+                }
+
+                const tex = new THREE.CanvasTexture(cv);
+                tex.colorSpace = THREE.SRGBColorSpace;
+                tex.anisotropy = 4;
+                tex.needsUpdate = true;
+                cached = tex;
+                return tex;
+            };
+        })();
+
+        // ===== 出生点保护（2026-11-15）=====
+        // 出生点是系统对象：玩家进入世界的落点。被删掉后玩家会被送回虚空。
+        // 编辑器里有 5 个删除入口（deleteSelected / deleteObjectById / deleteObjectByIdRightPanel /
+        // deleteAllSelectedRightPanel / 分组 Ctrl+Delete），逐个写判断容易漏，统一走这两个函数。
+        function isSpawnPointObject(obj) {
+            if (!obj) return false;
+            var uid = (obj.mesh && obj.mesh.userData) ? obj.mesh.userData : null;
+            return obj.id === 'spawn_point' ||
+                   (obj.data && obj.data.id === 'spawn_point') ||
+                   (!!uid && (uid.isSpawnPoint === true ||
+                              uid.objectId === 'spawn_point' ||
+                              uid.worldObjectId === 'spawn_point'));
+        }
+        function rejectSpawnPointDelete() {
+            showNotification('🛡️ 出生点不可删除 —— 它是玩家进入世界的落点，删掉后玩家会掉进虚空。要挪位置请直接拖动它。', 'warning');
+        }
 
         // ===== 添加可编辑的出生点 =====
         async function addSpawnPointIfNotExists() {
@@ -6950,17 +7964,22 @@
                 console.warn('⚠️ 加载出生点配置失败，使用默认位置:', error);
             }
             
-            const spawnGeometry = new THREE.CylinderGeometry(2, 2, 0.1, 32);
-            const spawnMaterial = new THREE.MeshStandardMaterial({
-                color: 0x00ff00,
-                emissive: 0x00aa00,
+            const spawnGeometry = new THREE.CircleGeometry(2, 64);
+            spawnGeometry.rotateX(-Math.PI / 2);   // 只转几何体：mesh.rotation 留给 spawnConfig 保存
+            const spawnMaterial = new THREE.MeshBasicMaterial({
+                map: SpawnMarkerTexture(),
+                transparent: true,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+                toneMapped: false,
             });
             const spawnMesh = new THREE.Mesh(spawnGeometry, spawnMaterial);
             spawnMesh.position.set(spawnConfig.position.x, spawnConfig.position.y, spawnConfig.position.z);
             spawnMesh.rotation.set(spawnConfig.rotation.x, spawnConfig.rotation.y, spawnConfig.rotation.z);
             spawnMesh.scale.set(spawnConfig.scale.x, spawnConfig.scale.y, spawnConfig.scale.z);
-            spawnMesh.castShadow = true;
-            spawnMesh.receiveShadow = true;
+            // 半透明贴图不投影也不接收阴影（否则地面阴影会透出脏块）
+            spawnMesh.castShadow = false;
+            spawnMesh.receiveShadow = false;
             spawnMesh.userData.objectId = 'spawn_point';
             
             scene.add(spawnMesh);
@@ -7026,13 +8045,56 @@
         };
 
         // ===== 抽屉导航面板切换 =====
-        function switchPanel(panelName) {
-            // 更新左侧导航选中状态
-            const navItems = ['models', 'threejs-code', 'scene', 'images', 'videos', 'live', '3dgs', 'ground', 'props'];
-            navItems.forEach(item => {
-                const el = document.getElementById('nav-' + item);
-                if (el) el.classList.toggle('active', item === panelName);
+        // 当前展开的面板名（null = 面板区整体收起，只剩左侧图标栏）
+        let _activePanelName = null;
+        let _lastPanelToggleAt = 0;
+
+        function _syncCanvasSize() {
+            // 面板收起/展开后画布宽度变了，延后一帧再量（display 切换当帧 clientWidth 可能还是旧值）
+            requestAnimationFrame(function () {
+                try { if (typeof onWindowResize === 'function') onWindowResize(); } catch (e) { /* ignore */ }
             });
+        }
+
+        // 收起整个面板区（点同一个图标时触发）
+        function collapsePanelContent() {
+            const content = document.getElementById('panel-content');
+            if (content) content.classList.add('collapsed');
+            _activePanelName = null;
+            document.querySelectorAll('#sidebar .nav-item').forEach(el => el.classList.remove('active'));
+            _syncCanvasSize();
+        }
+
+        function switchPanel(panelName) {
+            const content = document.getElementById('panel-content');
+
+            // 【2026-11-12】点同一个已展开的图标 → 收起整个面板区
+            // 防抖 450ms：浏览器双击会连发两次 click，没有这层保护时
+            // 「展开 → 立刻收起」，看起来就是「点图标弹不出来」。
+            if (_activePanelName === panelName && content && !content.classList.contains('collapsed')) {
+                const now = performance.now();
+                if (now - _lastPanelToggleAt < 450) return;
+                _lastPanelToggleAt = now;
+                collapsePanelContent();
+                return;
+            }
+
+            // 展开面板区
+            if (content) content.classList.remove('collapsed');
+            _activePanelName = panelName;
+            // 记录展开时刻：紧随其后的第二次 click（双击的第二下）会被上面的防抖挡掉
+            _lastPanelToggleAt = performance.now();
+
+            // 更新左侧导航选中状态（用通用选择器，这样 freeAssetLibrary 注入的
+            // 「互联网」等外部导航项也能正确高亮/熄灭，不必维护硬编码列表）
+            document.querySelectorAll('#sidebar .nav-item').forEach(el => {
+                el.classList.toggle('active', (el.id || '') === ('nav-' + panelName));
+            });
+
+            // 切到「模型库」时自动拉一次已上传模型（用户点图标即视为要看素材）
+            if (panelName === 'models' && typeof ensureUploadedModels === 'function') {
+                ensureUploadedModels();
+            }
 
             // 切换右侧内容面板
             const panelViews = ['models', 'threejs-code', 'scene', 'images', 'videos', 'live', '3dgs', 'ground', 'props'];
@@ -7052,6 +8114,8 @@
                     updatePropertiesPanel();
                 }
             }
+
+            _syncCanvasSize();
         }
 
         // ===== 初始化媒体库 =====
@@ -8251,14 +9315,74 @@
             return c;
         }
 
-        // 分帧浅克隆：每帧最多克隆 4ms，避免大场景树一次性递归克隆阻塞主线程
+        /**
+         * 重绑蒙皮（2026-11-18 新增）
+         * ------------------------------------------------------------------
+         * cloneNodeShallow 是「逐节点 new + copy」，复制出来的 SkinnedMesh 仍然指向
+         * **源模型的 Skeleton**（THREE.SkinnedMesh.copy 只做引用复制）。结果是所有
+         * 实例共用一份骨骼矩阵：人物塌成一团、跑到原点、或干脆看不见。
+         * （Office 套件 3 种人物各带 Idle/Walk/Run 蒙皮，全踩这个坑。）
+         *
+         * 这里补上 SkeletonUtils.clone 的后半段：把 skeleton.bones 换成克隆树里的
+         * 对应骨骼节点，再 bind 一次重算绑定矩阵。两棵树的遍历顺序一致，按下标映射即可。
+         */
+        function rebindSkinnedMeshes(srcRoot, dstRoot) {
+            if (!srcRoot || !dstRoot) return 0;
+            const srcArr = [];
+            const dstArr = [];
+            srcRoot.traverse(function (n) { srcArr.push(n); });
+            dstRoot.traverse(function (n) { dstArr.push(n); });
+            if (srcArr.length !== dstArr.length) {
+                console.warn('[蒙皮] 克隆树与源树节点数不一致，跳过重绑:', srcArr.length, 'vs', dstArr.length);
+                return 0;
+            }
+            const srcToDst = new Map();
+            for (let i = 0; i < srcArr.length; i++) srcToDst.set(srcArr[i], dstArr[i]);
+
+            let fixed = 0;
+            for (let i = 0; i < dstArr.length; i++) {
+                const dst = dstArr[i];
+                if (!dst || !dst.isSkinnedMesh) continue;
+                const src = srcArr[i];
+                if (!src || !src.skeleton || !src.skeleton.bones) continue;
+                try {
+                    const sk = src.skeleton.clone();
+                    sk.bones = src.skeleton.bones.map(function (b) { return srcToDst.get(b) || b; });
+                    dst.bind(sk, src.bindMatrix);
+                    fixed++;
+                } catch (e) {
+                    console.warn('[蒙皮] 重绑失败:', e && e.message);
+                }
+            }
+            return fixed;
+        }
+
+        // ===== 克隆预算：动态（相机静止时 8ms，一有输入立刻回 4ms）=====
+        // 背景：9145 个对象共用 300 个模型，每处都要克隆一份独立场景树（才能单独选中/编辑）。
+        // 克隆是主线程同步操作，只能分帧做：固定 4ms/帧 时实测约 7 个/秒，390 个要 55 秒，
+        // 体感就是「眼前的模型一个个慢慢冒出来」。
+        // 这里改成动态预算：用户没在操作时多给 4ms（约 14 个/秒），
+        // 一旦有鼠标/键盘/滚轮输入就立刻退回 4ms，保证拖动视角不卡。
+        let _lastUserInputAt = 0;
+        (function initInputTracker() {
+            const bump = function () { _lastUserInputAt = performance.now(); };
+            ['pointerdown', 'pointermove', 'wheel', 'keydown', 'touchstart'].forEach(function (ev) {
+                window.addEventListener(ev, bump, { passive: true, capture: true });
+            });
+        })();
+        const CLONE_BUDGET_IDLE = 8;   // 无输入时的每帧预算(ms)
+        const CLONE_BUDGET_BUSY = 4;   // 有输入时的每帧预算(ms)
+
+        // 分帧浅克隆：每帧按预算克隆，避免大场景树一次性递归克隆阻塞主线程
         // （甩动视角后多个模型连续同步克隆是旋转结束卡顿的重要来源之一）
         function cloneModelForInstancingAsync(root, onDone) {
             const jobs = [{ src: root, dstParent: null }];
             let clonedRoot = null;
             const step = () => {
                 const start = performance.now();
-                while (jobs.length > 0 && performance.now() - start < 4) {
+                const busy = (start - _lastUserInputAt) < 200;
+                const budget = busy ? CLONE_BUDGET_BUSY : CLONE_BUDGET_IDLE;
+                while (jobs.length > 0 && performance.now() - start < budget) {
                     const job = jobs.shift();
                     const node = cloneNodeShallow(job.src);
                     if (job.dstParent) job.dstParent.add(node);
@@ -8367,7 +9491,7 @@
             }
             // 拖动期不再取新任务解析（解析 + 纹理降采样都是主线程重活，会和拖动抢帧）
             while (glbParseActiveCount < GLB_PARSE_CONCURRENCY && glbParseQueue.length > 0 && !isEditorDragging()) {
-                const { buffer, modelPath, placeholder, loaderMesh } = glbParseQueue.shift();
+                const { buffer, modelPath, placeholder, loaderMesh, obj } = glbParseQueue.shift();
                 glbParseActiveCount++;
                 let settled = false;
                 const done = () => {
@@ -8400,12 +9524,19 @@
                             cloneModelForInstancingAsync(gltf.scene, (inst) => {
                                 try {
                                     inst.userData.sharedModel = true;
+                                    // 蒙皮模型必须重绑骨骼：浅克隆出来的 SkinnedMesh 仍指向源骨骼，
+                                    // 不重绑会出现人物塌陷 / 跑到原点 / 完全不显示
+                                    const _skinFixed = rebindSkinnedMeshes(gltf.scene, inst);
+                                    if (_skinFixed) console.log('🦴 [蒙皮] 已重绑', _skinFixed, '个 SkinnedMesh:', modelPath);
                                     // 范围加载：占位符隐藏保留，供远处恢复占位符
                                     loaderMesh.visible = false;
                                     placeholder.userData._loaderMesh = loaderMesh;
                                     placeholder.userData._realMesh = inst;
                                     placeholder.userData._showReal = true;
                                     placeholder.add(inst);
+                                    // 真实模型是异步克隆出来的，加载占位符时应用的阴影开关对它无效，
+                                    // 这里补一次，否则「投射/接收阴影」在模型加载完成后被 three 默认值覆盖。
+                                    applyShadowFlagsTo(inst, obj);
                                     invalidatePickCaches(placeholder);
                                 } catch (e) {
                                     console.error('❌ 克隆实例挂载失败:', e);
@@ -8460,6 +9591,7 @@
                         placeholder.userData._realMesh = inst;
                         placeholder.userData._showReal = true;
                         placeholder.add(inst);
+                        applyShadowFlagsTo(inst, obj);
                         resolve();
                     });
                     return;
@@ -8472,7 +9604,7 @@
                     })
                     .then((buffer) => {
                         // 阶段2：解析入队（串行执行）；下载已完成，立即释放并发槽位
-                        enqueueGlbParse({ buffer, modelPath, placeholder, loaderMesh });
+                        enqueueGlbParse({ buffer, modelPath, placeholder, loaderMesh, obj });
                         resolve();
                     })
                     .catch((error) => {
@@ -9013,6 +10145,6 @@
     <!-- 性能现场诊断（默认零开销，控制台 EditorDiag.start()/report() 才启用） -->
     <script src="js/editorPerfDiag.js?v=1"></script>
     <!-- 🌐 互联网免费模型库（Polyfork 等第三方在线资产，按需热链；默认不下载、不落盘） -->
-    <script src="js/freeAssetLibrary.js?v=3"></script>
+    <script src="js/freeAssetLibrary.js?v=5"></script>
 </body>
 </html>
