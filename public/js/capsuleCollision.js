@@ -93,6 +93,11 @@
   var _seg = new THREE.Line3();
   var _segLocal = new THREE.Line3();
   var _box = new THREE.Box3();
+  // 射线查询专用临时对象（不复用上面的 _v1/_v2/_v3：_collectNear 内部也会动它们）
+  var _rv1 = new THREE.Vector3();
+  var _rv2 = new THREE.Vector3();
+  var _rv3 = new THREE.Vector3();
+  var _rvRay = new THREE.Ray();
 
   // ==================== BVH 构建（空闲分帧） ====================
 
@@ -623,6 +628,66 @@
     return REG.size > 0;
   }
 
+  /**
+   * 相机遮挡用：从世界点 origin 沿方向 dir 求最近的模型真实表面距离。
+   *
+   * 【为什么必须走 BVH 而不是 AABB】玩家站在建筑/房间**内部**时，AABB 只能给出
+   * 「盒外表面」的出射距离——实测一个 26.5×9.3×23.7 的盒，玩家在中心附近出射约 10m，
+   * 远超相机臂长 4.5m，被判成「无遮挡」，于是相机直接穿墙；而真实内墙可能只有 1~2m。
+   * AABB 天然区分不了「盒里面有什么」，BVH 打的是真实三角面，内部同样精确。
+   *
+   * 必须 DoubleSide：从模型内部往外打，命中的是背面，FrontSide 会全部漏掉。
+   *
+   * @param {number} ox,oy,oz 射线起点（世界坐标）
+   * @param {number} dx,dy,dz 方向（单位向量，世界坐标）
+   * @param {number} maxDist 最大探测距离
+   * @returns {number|null} 最近命中距离（世界单位）；无命中返回 null
+   */
+  function raycastDistance(ox, oy, oz, dx, dy, dz, maxDist) {
+    if (REG.size === 0 || !(maxDist > 0)) return null;
+    // 粗筛：以射线段中点为球心取候选（起点在模型内部时按起点选会漏）
+    var mx = ox + dx * maxDist * 0.5;
+    var my = oy + dy * maxDist * 0.5;
+    var mz = oz + dz * maxDist * 0.5;
+    var candidates = _collectNear(mx, my, mz, maxDist * 0.5 + 1);
+    if (candidates.length === 0) return null;
+
+    var best = Infinity;
+    for (var i = 0; i < candidates.length; i++) {
+      var mr = candidates[i];
+      var bt = mr.geometry && mr.geometry.boundsTree;
+      if (!bt) continue;
+
+      // 世界 → 本地
+      _rv1.set(ox, oy, oz).applyMatrix4(mr.invMatrix);
+      _rv2.set(dx, dy, dz).transformDirection(mr.invMatrix);
+      if (_rv2.lengthSq() < 1e-12) continue;
+      _rv2.normalize();
+      _rvRay.origin.copy(_rv1);
+      _rvRay.direction.copy(_rv2);
+
+      var hits;
+      if (typeof bt.raycastFirst === 'function') {
+        var first = bt.raycastFirst(_rvRay, THREE.DoubleSide);
+        hits = first ? [first] : null;
+      } else {
+        hits = bt.raycast(_rvRay, THREE.DoubleSide);
+      }
+      if (!hits || hits.length === 0) continue;
+
+      for (var h = 0; h < hits.length; h++) {
+        var pt = hits[h] && hits[h].point;
+        if (!pt) continue;
+        // 本地点 → 世界点，按世界距离比较（等比缩放 ≠ 1 时本地距离不可直接用）
+        _rv3.copy(pt).applyMatrix4(mr.worldMatrix);
+        var ddx = _rv3.x - ox, ddy = _rv3.y - oy, ddz = _rv3.z - oz;
+        var d = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
+        if (d < best) best = d;
+      }
+    }
+    return isFinite(best) ? best : null;
+  }
+
   // ==================== 自愈扫描（对账 generatedBuildings） ====================
 
   // 模型已被胶囊表面碰撞接管后，移除其整盒 AABB：
@@ -946,6 +1011,7 @@
     clear: clear,
     getGroundHeight: getGroundHeight,
     checkCapsule: checkCapsule,
+    raycastDistance: raycastDistance,
     isEnabled: isEnabled,
     sweep: sweep,
     refresh: refresh,

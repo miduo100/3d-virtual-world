@@ -3,6 +3,49 @@
  * 如需获取软件授权请联系：888@miduo100.com / 15660440944
  */
 // Player controller
+
+// ==================== 第三人称弹簧臂相机（2026-11-24） ====================
+// 旧实现是「绕人物公转 + 无条件 lookAt 胸口」，距离锁死 5m、无遮挡检测：
+//   ① 视角转到模型另一侧时相机直接穿进模型内部；
+//   ② 半径缩到 0 得到的是「站在头顶往下看自己」，不是第一人称（无法做退化）。
+// 现改为标准弹簧臂：机位 = 眼位 − 视线方向 × d，朝向由 pitch/yaw 直设。
+// d 由遮挡检测收缩，收到 min 即天然第一人称（本体自动隐藏），朝向零跳变。
+//
+// 运行时开关（控制台可随时改，立即生效）：
+//   window.__CAM_SPRING  = false  完整退回旧公转实现（同一份代码保留在后面）
+//   window.__CAM_OCCLUDE = false  关掉遮挡检测，只留弹簧距离
+//   window.__CAM_DIST    = 6      覆盖期望距离（默认 4.5）
+//   window.__CAM_PITCH_SIGN = -1  翻转俯仰方向（默认 1 与旧实现同向）
+const CAM_SPRING = {
+  distance: 4.5,     // 期望距离（米）。旧实现是 5，收紧一点减少遮挡触发频率
+  min: 0.02,         // 遮挡收缩下限（≈0 即第一人称，不取 0 避免数学退化）
+  padding: 0.25,     // 命中点前留白，避免贴面穿模
+  hideDist: 1.2,     // 低于此距离隐藏本体模型（等同第一人称观感）
+  eye: 1.6,          // 眼高（相对人物锚点，GLB 脚底口径）
+  rise: 0.4,         // 相机额外抬升：d=期望值 时 1.6+0.4=2.0，与旧实现 +2.0 对齐
+  pitchBias: 0.1,    // 俯角补偿（rad，约 5.7°）：抵消旧实现恒定 lookAt 胸口的下压
+  pull: 0.65,        // 拉近系数（每秒比例基准）：60fps 约 2~3 帧到位。
+                     //   不取瞬时——瞬时拉近会让「转头 1 度推一下」变成硬跳；
+                     //   但也不能太小，否则快速跑向墙时约 50cm 的滞后就会穿模。
+                     //   边缘跳变交给 histLen 窗口过滤，不靠这里拖慢。
+  ret: 0.12,         // 回弹系数（每秒比例），约 0.3s 归位
+  retDead: 0.2,      // 回弹死区（米）：差值小于此不回弹，压掉命中边缘的单帧跳变
+  retDelay: 120,     // 回弹延迟（ms）：需持续超出死区这么久才开始回弹
+  histLen: 3,        // 目标距离滑动窗口（帧）：取窗口最小值（保守），过滤边缘跳变
+  refreshMs: 400,    // 遮挡盒刷新间隔（ms）
+  moveEps: 2.0,      // 玩家位移超过此值也强制刷新候选盒
+  maxBoxes: 96,      // 候选盒上限（防极端场景遍历爆量；精筛后通常只有几个到十几个）
+  minHeight: 1.2,    // 低于此高度的物体不挡镜头（草丛/矮台沿/薄片）
+  maxSpan: 120       // 水平跨度超过此值的盒不参与拉近（地形块/世界边界，交给地面 clamp）
+};
+
+// 查询热路径零分配用的临时对象
+const _csEye = new THREE.Vector3();
+const _csDir = new THREE.Vector3();
+const _csHit = new THREE.Vector3();
+const _csRay = new THREE.Ray();
+const _csEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+
 class Player {
   constructor(world, characterId, characterData, glbUrl = null) {
     this.world = world;
@@ -783,6 +826,15 @@ class Player {
         this.worldObject.rotation.y = MOUSE.rotationY;
       }
       
+      // ===== 弹簧臂相机（默认路径）=====
+      // 机位/朝向/遮挡收缩见 _updateSpringCamera。
+      // 旧「公转 + lookAt」实现保留在下方，供 window.__CAM_SPRING=false 完整回退。
+      if (typeof window !== 'undefined' && window.__CAM_SPRING !== false) {
+        this._updateSpringCamera(camera);
+        return;
+      }
+
+      // ===== 旧实现：绕人物公转 + lookAt 胸口（2026-11-24 前的行为，仅回退用）=====
       // Third-person camera: 自由旋转视角，只基于鼠标旋转（不受人物旋转影响）
       const cameraDistance = 5;
       
@@ -849,6 +901,345 @@ class Player {
       euler.x = MOUSE.rotationX;
       camera.quaternion.setFromEuler(euler);
     }
+  }
+
+  /**
+   * 第三人称弹簧臂：机位 = 眼位 − 视线方向 × d，d 由遮挡检测收缩。
+   * 收到 min（≈0）时相机正好落在眼睛上，天然第一人称——不改 GAME_STATE.cameraMode，
+   * 所以 WASD 手感、广播朝向、飞行覆写（adminFlyToggle 压 _fs）全都不受影响。
+   */
+  _updateSpringCamera(camera) {
+    const base = (typeof window.__CAM_DIST === 'number' && window.__CAM_DIST > 0)
+      ? window.__CAM_DIST : CAM_SPRING.distance;
+    if (typeof this._camD !== 'number') this._camD = base;
+
+    const fs = this._fs || 1;
+    const h = MOUSE.rotationY;
+    const v = MOUSE.rotationX;
+    // 俯仰符号：默认 1 = 与旧实现同向（鼠标上移 → 相机抬高 → 视线下压）
+    const psign = (window.__CAM_PITCH_SIGN === -1) ? -1 : 1;
+
+    // 眼位 → 相机的方向（视线反方向），与旧公式同一象限：
+    //   旧 camera = P + (-sinθ·d·cosφ, sinφ·d + 2, -cosθ·d·cosφ)
+    const cosV = Math.cos(v);
+    const bx = -Math.sin(h) * cosV;
+    const by = Math.sin(v) * psign;
+    const bz = -Math.cos(h) * cosV;
+
+    // 眼高恒定 1.6（**不能随 d 变化**）。
+    // 【2026-11-24 修振荡】早先写成 eyeY = 1.6 + 0.4*(d/base)：眼位随距离抬降，
+    // 而距离又由以眼位为起点的射线决定 →「距离变→眼位变→命中变→距离变」正反馈。
+    // 模型上沿与眼位齐平时射线在命中/不命中之间反复，表现为镜头来回拉近拉远。
+    const eyeY = this.position.y + CAM_SPRING.eye;
+    _csEye.set(this.position.x, eyeY, this.position.z);
+    _csDir.set(bx, by, bz);
+    if (_csDir.lengthSq() < 1e-8) _csDir.set(0, 0, -1);
+    _csDir.normalize();
+
+    // ---- 遮挡：允许的最大距离 ----
+    let want = base;
+    if (window.__CAM_OCCLUDE !== false) {
+      this._refreshOccluders(base, _csEye);
+      want = this._occludedDistance(_csEye, _csDir, base);
+      // 滑动窗口取最小值：压掉射线在盒边缘「命中 / 不命中」的单帧跳变。
+      // 用 min 而不是平均——宁可保守少放一点，也不放过去导致穿模。
+      const n = CAM_SPRING.histLen;
+      if (!this._camHist || this._camHist.length !== n) {
+        this._camHist = new Array(n).fill(want);
+        this._camHi = 0;
+      }
+      this._camHi = (this._camHi + 1) % n;
+      this._camHist[this._camHi] = want;
+      want = Math.min.apply(null, this._camHist);
+    } else {
+      this._camHist = null;
+    }
+
+    // ---- 距离平滑：非对称（拉近快 / 回弹慢 + 死区 + 延迟）----
+    // 【2026-11-24 修来回抽动】原来拉近是瞬时的：模型边缘每触发一次就是一次硬推镜，
+    // 贴着边缘转头时 want 在两值间反复 → 视觉上就是「来回拉近拉远」。现在拉近也带
+    // 时间常数（~3 帧），回弹则要超出死区并持续 retDelay 才动。
+    const nowMs = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    if (want < this._camD) {
+      this._camD += (want - this._camD) * (1 - Math.pow(1 - CAM_SPRING.pull, fs));
+      if (this._camD - want < 0.005) this._camD = want;
+      this._camRetAt = 0;
+    } else if (want - this._camD > CAM_SPRING.retDead) {
+      if (!this._camRetAt) this._camRetAt = nowMs;
+      else if (nowMs - this._camRetAt >= CAM_SPRING.retDelay) {
+        this._camD += (want - this._camD) * (1 - Math.pow(1 - CAM_SPRING.ret, fs));
+        if (want - this._camD < 0.01) this._camD = want;
+      }
+    } else {
+      this._camRetAt = 0;   // 差值落在死区内：视为稳定，不动作
+    }
+    if (this._camD < CAM_SPRING.min) this._camD = CAM_SPRING.min;
+
+    camera.position.copy(_csEye).addScaledVector(_csDir, this._camD);
+    // 抬升只加在相机上、不参与求交：d=base 时 1.6+0.4=2.0 与旧实现对齐，d→0 归零为真眼高
+    camera.position.y += CAM_SPRING.rise * Math.min(1, this._camD / base);
+
+    // ---- 地面约束：不允许钻到地面以下（旧实现没有这层）----
+    // 只在相机低于眼位时才查（by<0：抬头时相机降到人物下方），避免每帧多跑一次地形/碰撞遍历。
+    // 飞行态跳过：飞行本来就要能穿地形，clamp 会把人卡在地表。
+    if (by < 0.05 && !this.isFlying && !this._flyLanding &&
+        this.world && typeof this.world.getGroundHeight === 'function') {
+      try {
+        const gy = this.world.getGroundHeight(camera.position);
+        if (gy !== null && isFinite(gy) && camera.position.y < gy + 0.3) {
+          camera.position.y = gy + 0.3;
+        }
+      } catch (e) { /* 地形查询异常不阻塞相机 */ }
+    }
+
+    // ---- 朝向：欧拉直设，避免 lookAt 在视线垂直向下时 up 向量退化 ----
+    // 俯角补偿随距离淡出（d=base 时约 5.7°，与旧 lookAt 的观感对齐；d→0 归零）
+    const bias = CAM_SPRING.pitchBias * Math.min(1, this._camD / base);
+    _csEuler.set(-v * psign - bias, h + Math.PI, 0, 'YXZ');
+    camera.quaternion.setFromEuler(_csEuler);
+
+    // ---- 贴脸隐藏本体：等同第一人称观感，但不切 cameraMode ----
+    if (this.worldObject) {
+      this.worldObject.visible = this._camD > CAM_SPRING.hideDist;
+    }
+  }
+
+  /**
+   * 刷新遮挡候选盒（按 400ms / 位移 2m 节流）。
+   * 两个来源：
+   *   ① world.collisionObjects —— 开了碰撞的模型（AABB，现成数组，零成本）
+   *   ② generatedBuildings 里已加载的模型本体 —— 覆盖没开碰撞的装饰模型（'周边都是模型' 的主场景）
+   * 盒缓存在 WorldObjectBounds（有 TTL 自愈），这里只做锚点粗筛，不每帧 setFromObject。
+   */
+  _refreshOccluders(base, eye) {
+    const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    const p = this.position;
+    const moved = this._occPos
+      ? Math.hypot(p.x - this._occPos.x, p.z - this._occPos.z) : Infinity;
+    if (this._occBoxes && (now - (this._occAt || 0)) < CAM_SPRING.refreshMs &&
+        moved < CAM_SPRING.moveEps) {
+      return;
+    }
+    this._occAt = now;
+    this._occPos = { x: p.x, z: p.z };
+
+    const boxes = this._occBoxes || (this._occBoxes = []);
+    // 复用旧数组元素位置，减少 GC：只重置长度
+    boxes.length = 0;
+    const eyeRef = eye || _csEye;
+    // 精筛阈值：盒到眼位超过「臂长 + 1m」的一律不要（锚点粗筛放宽后靠这条收口）
+    const nearLimit = base + 1;
+
+    // 锚点粗筛半径。两个源的锚点可信度不同：
+    //  · collisionObjects 的 position 基本就是盒中心 → 60m 够
+    //  · 模型条目的锚点可能离本体上百米（整栋楼锚点在楼外、装配期偏移），必须给宽
+    // 之前统一用 base+40，等于把「人贴着墙、锚点却很远」的墙全漏掉了（用户实机 bug）。
+    const R2C = (base + 60) * (base + 60);
+    const R2M = (base + 200) * (base + 200);
+
+    // ---- ① 世界碰撞盒 ----
+    const colliders = (this.world && this.world.collisionObjects) || [];
+    for (let i = 0; i < colliders.length && boxes.length < CAM_SPRING.maxBoxes; i++) {
+      const o = colliders[i];
+      if (!o || !o.position || !o.size) continue;
+      const dx = o.position.x - p.x, dz = o.position.z - p.z;
+      if (dx * dx + dz * dz > R2C) continue;
+      const w = o.size.width ?? o.size.x ?? 0;
+      const hgt = o.size.height ?? o.size.y ?? 0;
+      const dep = o.size.depth ?? o.size.z ?? 0;
+      if (w <= 0 || hgt <= 0 || dep <= 0) continue;
+      if (hgt < CAM_SPRING.minHeight) continue;   // 矮台沿/薄板不挡镜头
+      // 地形块 / 世界边界级大盒不参与拉近：低头时射线会打中地面，导致「一低头镜头怼脸」。
+      // 这种情况交给下面的地面 clamp 处理。
+      if (Math.max(w, dep) > CAM_SPRING.maxSpan) continue;
+      // 优先用已有 boundingBox（地形方块带锚点偏移，不能只按 position+size 推）
+      let b;
+      if (o.boundingBox && o.boundingBox.min && isFinite(o.boundingBox.min.y)) {
+        b = o.boundingBox.clone();
+      } else {
+        b = new THREE.Box3(
+          new THREE.Vector3(o.position.x - w / 2, o.position.y - hgt / 2, o.position.z - dep / 2),
+          new THREE.Vector3(o.position.x + w / 2, o.position.y + hgt / 2, o.position.z + dep / 2)
+        );
+      }
+      // 精筛：盒到眼位太远的不要（锚点可信度有限，用盒本身收口）
+      if (b.distanceToPoint(eyeRef) > nearLimit) continue;
+      boxes.push(b);
+    }
+
+    // ---- ② 已加载模型本体 ----
+    const gb = this.world && this.world.generatedBuildings;
+    if (gb && typeof gb.forEach === 'function') {
+      const WB = (typeof window !== 'undefined') ? window.WorldObjectBounds : null;
+      gb.forEach((entry, id) => {
+        if (boxes.length >= CAM_SPRING.maxBoxes) return;
+        if (!entry || entry.isPlaceholder || !entry.model) return;
+        if (entry.model === this.worldObject) return;        // 自己不算遮挡
+        if (entry.model.visible === false) return;
+        const data = entry.data || {};
+        // 【2026-11-24 修「穿过模型时镜头拉近又弹开」】
+        // 能穿过去的模型不该挡镜头：否则玩家走向它时相机被推开，走进去后眼位落进盒内
+        // → containsPoint 跳过该盒 → 距离从 3.5 弹回 4.5（人已经穿过去了、镜头还卡在外侧）。
+        // 语义跟物理保持一致：has_collision=false 的东西既不挡人，也不挡镜头。
+        // 想让装饰模型也挡镜头：后台给模型打开「碰撞」开关，或临时 window.__CAM_OCCLUDE_ALL = true。
+        if (window.__CAM_OCCLUDE_ALL !== true && data.has_collision !== true) return;
+        const ax = (typeof data.position_x === 'number') ? data.position_x : null;
+        const az = (typeof data.position_z === 'number') ? data.position_z : null;
+        if (ax !== null && az !== null) {
+          const dx = ax - p.x, dz = az - p.z;
+          if (dx * dx + dz * dz > R2M) return;
+        }
+        let box = null;
+        if (WB && typeof WB.ensure === 'function') {
+          try { box = WB.ensure(id, entry.model, data); } catch (e) { box = null; }
+        }
+        if (!box || box.isEmpty()) {
+          // 兜底：无包围盒注册表时现算（仅在 400ms 刷新节奏下发生，可接受）
+          try { box = new THREE.Box3().setFromObject(entry.model); } catch (e) { return; }
+        }
+        if (!box || box.isEmpty()) return;
+        if ((box.max.y - box.min.y) < CAM_SPRING.minHeight) return;  // 矮物不挡
+        // 大跨度盒（地形块/整片地台）不参与：低头射线会命中原地面，表现是「低头就怼脸」
+        if (Math.max(box.max.x - box.min.x, box.max.z - box.min.z) > CAM_SPRING.maxSpan) return;
+        // 精筛：盒到眼位超过臂长 + 1m 的不要。眼位在盒内时 distanceToPoint = 0（保留），
+        // 这正是「站在屋里的墙」这种关键情况。
+        if (box.distanceToPoint(eyeRef) > nearLimit) return;
+        boxes.push(box);
+      });
+    }
+  }
+
+  /**
+   * 沿「眼位 → 相机」方向求最近命中距离。
+   * @returns {number} 允许的相机距离（已扣 padding，钳在 [min, maxD]）
+   */
+  _occludedDistance(eye, dir, maxD) {
+    const boxes = this._occBoxes || [];
+    let best = maxD;
+    let hitAny = false;
+
+    // ---- ① 精确路径：BVH 真实三角面（开碰撞的模型都建了 BVH）----
+    // 【2026-11-24 修「站在建筑内部 / 四周是墙却不拉近」】
+    // 玩家在包围盒内部时 AABB 只能给出「盒外表面」的出射距离：实测 26.5×9.3×23.7 的盒，
+    // 人在其中出射约 10m，远超臂长 4.5 → 判成无遮挡 → 相机穿墙；真实内墙可能只有 1~2m。
+    // AABB 区分不了盒里有什么，BVH 可以。
+    const CC = (typeof window !== 'undefined') ? window.CapsuleCollision : null;
+    let usedBvh = false;
+    if (CC && typeof CC.raycastDistance === 'function' &&
+        typeof CC.isEnabled === 'function' && CC.isEnabled() &&
+        window.__CAM_OCCLUDE_ALL !== true) {
+      try {
+        const d = CC.raycastDistance(eye.x, eye.y, eye.z, dir.x, dir.y, dir.z, maxD + 1);
+        if (d !== null && d < best) {
+          best = d;
+          hitAny = true;
+          // 只有「BVH 真的命中」才跳过 AABB。命中不到时仍跑 AABB 兜底——
+          // 宁可过度拉近（难受），不能穿模（更糟）；这种情形只出现在 BVH 未就绪
+          // 或模型超面数被跳过的时候。
+          usedBvh = true;
+        }
+      } catch (e) {
+        usedBvh = false;   // 精确查询异常 → 退回 AABB
+      }
+    }
+
+    // ---- ② 兜底路径：AABB（无 BVH 覆盖 / 强制全部遮挡时；走 BVH 时整段跳过）----
+    _csRay.origin.copy(eye);
+    _csRay.direction.copy(dir);
+    for (let i = 0; i < boxes.length && !usedBvh; i++) {
+      const b = boxes[i];
+      // 【2026-11-24 修「四周是墙却不拉近、直接穿模」】
+      // 眼位落在盒内时**绝对不能跳过**：玩家站在房间/墙体的包围盒内部是常态
+      // （走进屋里、贴着大模型侧面），跳过等于把最近的那堵墙从遮挡列表里删掉。
+      // Ray.intersectBox 在起点位于盒内时返回**出射点**，正是相机该停的位置：
+      //   · 小房间（盒 3~6m）→ 出射距离小 → 正常拉近
+      //   · 大建筑外包围盒（盒上百米）→ 出射距离远超 maxD → 自动不起作用
+      const hit = _csRay.intersectBox(b, _csHit);
+      if (!hit) continue;
+      const dist = eye.distanceTo(_csHit);
+      if (dist < best) { best = dist; hitAny = true; }
+    }
+    // 没命中任何盒时必须原样返回 maxD——不能减 padding，
+    // 否则「附近有盒但都没挡路」的场合相机被永久缩短 0.25m（实测过的真 bug）。
+    return hitAny ? Math.max(best - CAM_SPRING.padding, CAM_SPRING.min) : maxD;
+  }
+
+  /**
+   * 遮挡诊断（控制台）：`__camDiag()` 或 `__camDiag(40)`
+   * 列出当前位置附近的对象、它们的包围盒、是否开碰撞、盒到眼位的距离。
+   * 用来排查「四周是墙却不拉近 / 直接穿模」——一眼就能看出是漏了、被过滤了、还是没开碰撞。
+   */
+  _camDiag(radius) {
+    radius = radius || 30;
+    const p = this.position;
+    const eye = new THREE.Vector3(p.x, p.y + CAM_SPRING.eye, p.z);
+    const col = (this.world && this.world.collisionObjects) || [];
+    const summary = {
+      位置: [+p.x.toFixed(1), +p.y.toFixed(1), +p.z.toFixed(1)],
+      眼位y: +eye.y.toFixed(2),
+      当前距离: this._camD ? +this._camD.toFixed(2) : null,
+      候选盒数: this._occBoxes ? this._occBoxes.length : 0,
+      碰撞盒总数: col.length,
+      开关: {
+        spring: window.__CAM_SPRING !== false,
+        occlude: window.__CAM_OCCLUDE !== false,
+        occludeAll: window.__CAM_OCCLUDE_ALL === true,
+        dist: (typeof window.__CAM_DIST === 'number') ? window.__CAM_DIST : CAM_SPRING.distance
+      },
+      // BVH = 有精确三角面射线（开碰撞的模型）；AABB兜底 = 只能测包围盒（盒内会失效）
+      遮挡精度: (() => {
+        const c = window.CapsuleCollision;
+        if (!c || typeof c.raycastDistance !== 'function') return '模块未加载';
+        return c.isEnabled() ? 'BVH' : 'AABB兜底（无已注册碰撞模型）';
+      })(),
+      附近碰撞盒: 0
+    };
+
+    // 附近 collisionObjects（已开碰撞的，一定有盒）
+    col.forEach(o => {
+      if (!o || !o.position) return;
+      const w = o.size.width ?? o.size.x ?? 0;
+      const h = o.size.height ?? o.size.y ?? 0;
+      const d = o.size.depth ?? o.size.z ?? 0;
+      const dist = Math.hypot(o.position.x - p.x, o.position.z - p.z) - Math.max(w, d) / 2;
+      if (dist <= radius) summary.附近碰撞盒++;
+    });
+
+    // 附近模型
+    const rows = [];
+    const gb = this.world && this.world.generatedBuildings;
+    if (gb && gb.forEach) {
+      gb.forEach((entry, id) => {
+        if (!entry || !entry.model) return;
+        const data = entry.data || {};
+        const ax = data.position_x, az = data.position_z;
+        const dAnchor = (typeof ax === 'number' && typeof az === 'number')
+          ? Math.hypot(ax - p.x, az - p.z) : -1;
+        if (dAnchor >= 0 && dAnchor > radius) return;
+        let box = null;
+        try {
+          const WB = (typeof window !== 'undefined') ? window.WorldObjectBounds : null;
+          box = (WB && WB.ensure) ? WB.ensure(id, entry.model, data)
+            : new THREE.Box3().setFromObject(entry.model);
+        } catch (e) { /* 忽略单个对象失败 */ }
+        const size = (box && !box.isEmpty())
+          ? [(box.max.x - box.min.x), (box.max.y - box.min.y), (box.max.z - box.min.z)] : null;
+        rows.push({
+          id: id,
+          锚点距: dAnchor < 0 ? '无锚点' : +dAnchor.toFixed(1),
+          碰撞: data.has_collision === true ? 'Y' : '-',
+          占位: entry.isPlaceholder ? 'Y' : '-',
+          可见: entry.model.visible === false ? 'N' : 'Y',
+          尺寸: size ? size.map(n => +n.toFixed(1)).join('×') : '无盒',
+          盒距眼: (box && !box.isEmpty()) ? +box.distanceToPoint(eye).toFixed(2) : null
+        });
+      });
+    }
+    rows.sort((a, b) => (a.盒距眼 ?? 999) - (b.盒距眼 ?? 999));
+
+    console.log('[camDiag] 摘要', summary);
+    console.table(rows.slice(0, 25));
+    return { summary, rows: rows.slice(0, 25) };
   }
 
   broadcastPosition() {
@@ -1840,4 +2231,10 @@ class Player {
 // 暴露到全局作用域
 if (typeof window !== 'undefined') {
   window.Player = Player;
+  // 遮挡诊断：控制台 __camDiag() / __camDiag(40)
+  window.__camDiag = function (r) {
+    const p = window.player || (window.gameWorld && window.gameWorld.player);
+    if (!p || typeof p._camDiag !== 'function') return 'player 未就绪';
+    return p._camDiag(r);
+  };
 }

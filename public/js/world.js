@@ -944,6 +944,16 @@ class World {
    * 优化纹理
    */
   optimizeTexture(texture) {
+    // 各向异性过滤（2026-11-24）：GLTFLoader 默认 anisotropy=1，模型上的小字
+    // 在斜视/远看时会糊成一团。提到 8 能明显改善，且**不额外占显存**
+    // （各向异性靠采样次数实现，硬件支持时无额外纹理内存）。
+    try {
+      const caps = this.renderer && this.renderer.capabilities;
+      const maxAniso = (caps && typeof caps.getMaxAnisotropy === 'function')
+        ? caps.getMaxAnisotropy() : 1;
+      const target = Math.min(8, maxAniso || 1);
+      if (texture.anisotropy !== target) texture.anisotropy = target;
+    } catch (e) { /* renderer 未就绪时忽略，下次 optimize 会再设 */ }
     // 设置纹理参数以提高性能
     texture.minFilter = THREE.LinearMipmapLinearFilter;
     texture.magFilter = THREE.LinearFilter;
