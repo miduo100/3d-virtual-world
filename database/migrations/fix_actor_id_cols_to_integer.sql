@@ -23,10 +23,13 @@ DECLARE
   r record;
 BEGIN
   FOR r IN
+    -- 【2026-10-31 修正】portals.created_by 不在此列：它存的是 users.id（UUID，
+    -- 由 routes/portal.js 写入 req.userId），误转 INTEGER 会让
+    -- GET /api/portal 的 LEFT JOIN users 直接 500（integer = uuid）。
+    -- 已转成 INTEGER 的库由 migrations/fix_portals_created_by_uuid.sql 改回 UUID。
     SELECT * FROM (VALUES
       ('ui_controls',            'created_by'),
       ('ui_controls',            'updated_by'),
-      ('portals',                'created_by'),
       ('ai_provider_configs',    'updated_by'),
       ('ai_provider_audit_log',  'changed_by')
     ) AS t(tbl, col)

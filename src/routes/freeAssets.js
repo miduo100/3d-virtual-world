@@ -29,6 +29,8 @@ const router = express.Router();
 const { pool } = require('../database/db');
 const providers = require('../services/freeAssetProviders');
 const kits = require('../services/polyforkKits');
+// 入库后记录模型尺度半径（编辑器范围加载按「到模型边缘的距离」判定）
+const { recordModelBounds } = require('../services/modelBounds');
 
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
 const FETCH_TIMEOUT_MS = 20000;
@@ -221,6 +223,9 @@ async function ensureLocalGlb(provider, assetId, title) {
       }
     }
   }
+
+  // 记录尺度半径（失败不影响导入）
+  recordModelBounds(webPath, 'import').catch(() => {});
 
   return { webPath, size: bytes, reused, modelId };
 }

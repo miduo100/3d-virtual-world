@@ -13,6 +13,9 @@ const { compressIfNeeded } = require('../services/modelAutoCompress');
 const { compressTextures } = require('../services/textureCompress');
 const { decimateIfNeeded } = require('../services/modelDecimate');
 const { generateLodVariants } = require('../services/modelLod');
+// 模型尺度半径：解决「原点不在中心 / 体量超大」的模型在编辑器里远近显隐错乱
+// （详见 services/modelBounds.js 文件头）
+const { recordModelBounds, getBoundsMap, backfillMissing } = require('../services/modelBounds');
 
 /**
  * 上传压缩总开关（2026-10-23 定稿）
@@ -209,6 +212,10 @@ router.post('/upload-model', upload.single('model'), async (req, res) => {
     }
     result.rows[0].decimation = decimation;
 
+    // 记录模型尺度半径（scale=1 时的水平半径）：编辑器按「模型边缘距离」做范围加载，
+    // 避免原点不在中心/体量超大的模型出现「远看有、近看没」。失败不阻断上传。
+    result.rows[0].unit_radius = await recordModelBounds(result.rows[0].path, 'upload');
+
     res.json({
       success: true,
       message: '模型上传成功',
@@ -378,6 +385,8 @@ router.post('/upload-models-batch', upload.array('models', 20), async (req, res)
           result.rows[0].lod = lod;
         }
         result.rows[0].decimation = decimation;
+        // 记录模型尺度半径（同单文件上传，失败不影响批量结果）
+        result.rows[0].unit_radius = await recordModelBounds(result.rows[0].path, 'upload');
 
         results.push({
           success: true,
@@ -485,6 +494,18 @@ router.get('/uploaded-models', async (req, res) => {
       row.original_file_name = row.is_decimated ? String(row.saved_file_name || '').replace('_dec.glb', '.glb') : null;
     }));
 
+    // 附加模型尺度半径（scale=1 时），编辑器据此做「边缘距离」范围加载。
+    // 一次批量查表，避免 N+1。
+    try {
+      const boundsMap = await getBoundsMap(result.rows.map((r) => String(r.path || '')).filter(Boolean));
+      for (const row of result.rows) {
+        const v = boundsMap.get(String(row.path || ''));
+        row.unit_radius = (v === undefined ? null : v);
+      }
+    } catch (e) {
+      for (const row of result.rows) row.unit_radius = null;
+    }
+
     res.json({
       success: true,
       models: result.rows,
@@ -503,6 +524,39 @@ router.get('/uploaded-models', async (req, res) => {
       error: '获取列表失败',
       details: error.message
     });
+  }
+});
+
+/**
+ * GET /api/model-bounds
+ * 全量返回「模型路径 → 尺度半径」表（scale=1 时的水平半径，米）。
+ * 编辑器打开时取一次，用于把「相机到对象原点的距离」换算成「到模型边缘的距离」。
+ * 表很小（几千行 × 2 列），一次拉完比逐条查省事。
+ */
+router.get('/model-bounds', async (req, res) => {
+  try {
+    const map = await getBoundsMap();
+    const bounds = {};
+    for (const [k, v] of map) bounds[k] = v;
+    res.json({ success: true, count: map.size, bounds });
+  } catch (error) {
+    console.error('❌ 获取模型半径表失败:', error);
+    res.status(500).json({ success: false, error: '获取模型半径表失败', details: error.message });
+  }
+});
+
+/**
+ * POST /api/model-bounds/backfill
+ * 回填历史模型的半径（每次最多 200 个）。上传时已自动记录，这里只补老数据。
+ * body: { limit?: number }
+ */
+router.post('/model-bounds/backfill', async (req, res) => {
+  try {
+    const r = await backfillMissing({ limit: req.body && req.body.limit });
+    res.json({ success: true, ...r });
+  } catch (error) {
+    console.error('❌ 回填模型半径失败:', error);
+    res.status(500).json({ success: false, error: '回填失败', details: error.message });
   }
 });
 
@@ -592,6 +646,8 @@ router.post('/uploaded-models/:id/decimate', async (req, res) => {
         'low-poly': '该模型面数较少，无需减面',
         'not-reduced': '减面未生效（输出面数未减少），已保留原文件',
         'no-output': '减面失败（无输出），已保留原文件',
+        // Draco 源解码失败（2026-11-23）：gltfpack 本身不支持 Draco，需先解码
+        'draco-decode-failed': '该模型为 Draco 压缩格式，解码失败，无法减面（请尝试重新导出时关闭 Draco 压缩）',
         'error': '减面失败，已保留原文件'
       }[dec.reason] || '减面跳过';
       return res.json({ success: true, message: reasonMsg, decimated: false, reason: dec.reason });
@@ -607,6 +663,8 @@ router.post('/uploaded-models/:id/decimate', async (req, res) => {
     );
     // 同步场景中所有已放置的该模型对象指向减面版
     await pool.query('UPDATE world_objects SET model_path = $1 WHERE model_path = $2', [newFilePath, model.path]);
+    // 新路径补一条半径记录（几何不变，但 path 变了）
+    await recordModelBounds(newFilePath, 'decimate');
 
     const updated = (await pool.query('SELECT * FROM uploaded_models WHERE id = $1', [id])).rows[0];
     console.log(`✂️ 模型减面成功: ID ${id}, ${dec.origTris} → ${dec.newTris} 面`);
@@ -654,6 +712,7 @@ router.post('/uploaded-models/:id/restore', async (req, res) => {
     );
     // 同步场景中所有已放置的该模型对象回到完整细节版
     await pool.query('UPDATE world_objects SET model_path = $1 WHERE model_path = $2', [originalPath, model.path]);
+    await recordModelBounds(originalPath, 'restore');
 
     const updated = (await pool.query('SELECT * FROM uploaded_models WHERE id = $1', [id])).rows[0];
     console.log(`🔄 模型已还原原版: ID ${id}`);

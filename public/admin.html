@@ -1164,6 +1164,13 @@
               <div style="margin-top: 8px; font-size: 12px; color: #888;" data-i18n="adminAssets.modelFileHint">
                 支持 GLB、GLTF、OBJ，单个文件 ≤100MB
               </div>
+              <label style="display:flex;gap:6px;align-items:center;margin-top:10px;font-size:12px;color:var(--muted);cursor:pointer">
+                <input type="checkbox" id="upload-model-no-compress" style="margin:0" onchange="onNoCompressToggle()">
+                <span data-i18n="adminAssets.noCompress">不压缩（模型已优化过，原样入库）</span>
+              </label>
+              <div id="upload-no-compress-hint" style="display:none;margin-top:4px;font-size:11px;color:var(--muted)" data-i18n="adminAssets.noCompressHint">
+                原样入库：大贴图/高面数不会自动优化，手机端加载可能变慢
+              </div>
             </div>
             <div id="upload-file-list" class="upf-list" style="display:none"></div>
             <div id="upload-progress-container" style="display:none;margin-top:12px">
@@ -3913,7 +3920,7 @@
 <script src="js/adminTerrain.js?v=3" defer></script><!-- 🗺️ 地形（=地块）：列表/新建/位置面积/启用 -->
 <script src="js/adminTerrainForm.js?v=9" defer></script><!-- 🗺️ 地形表单：位置与范围 + 参数 + 俯视预览 -->
 <script src="js/adminRuntimePanel.js?v=2" defer></script><!-- AI World Brain Phase 7：运行状态面板（自注入浮动按钮） -->
-<script src="js/adminModelBundle.js?v=2" defer></script>
+<script src="js/adminModelBundle.js?v=3" defer></script>
 <!-- 📚 零件库（Phase 1）：上传文件夹 / 扫描服务器目录 / 检索 / 库详情 -->
 <script src="js/adminPartLibrary.js?v=3" defer></script>
 <script src="js/adminPartLibraryImport.js?v=8" defer></script>
@@ -4604,8 +4611,8 @@
         <th data-i18n="admin.usersColActions">操作</th>
       </tr></thead>
       <tbody>${userList.map(u => `<tr>
-        <td>${u.username}</td>
-        <td style="color:var(--muted)">${u.email}</td>
+        <td>${escapeHtml(u.username || '')}</td>
+        <td style="color:var(--muted)">${escapeHtml(u.email || '')}</td>
         <td><span class="badge ${u.role === 'admin' ? 'badge-red' : 'badge-gray'}">${u.role}</span></td>
         <td style="color:var(--yellow)">${u.character_level || 1}</td>
         <td style="color:var(--muted)">${u.character_exp || 0}</td>
@@ -4617,8 +4624,8 @@
             <option value="user" ${u.role==='user'?'selected':''}>user</option>
             <option value="admin" ${u.role==='admin'?'selected':''}>admin</option>
           </select>
-          <button class="btn btn-sm btn-blue" onclick="openCharacterModal('${u.character_id}','${u.username}')" data-i18n="admin.usersCharDetails">角色详情</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteUser('${u.id}','${u.username}')" data-i18n="admin.usersDelete">删除</button>
+          <button class="btn btn-sm btn-blue" onclick="openCharacterModal('${escapeAttrJs(u.character_id)}','${escapeAttrJs(u.username)}')" data-i18n="admin.usersCharDetails">角色详情</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteUser('${escapeAttrJs(u.id)}','${escapeAttrJs(u.username)}')" data-i18n="admin.usersDelete">删除</button>
         </div></td>
       </tr>`).join('')}</tbody>
     </table></div>`;
@@ -5561,9 +5568,29 @@
   // 上传模型相关函数
   let currentModelId = null;
 
+  // ---- 不压缩（原样入库）：默认不勾 = 走压缩流程；勾选状态记住上次选择 ----
+  const NO_COMPRESS_KEY = 'adminNoCompressUpload';
+  function _noCompressChecked() {
+    const cb = document.getElementById('upload-model-no-compress');
+    return !!(cb && cb.checked);
+  }
+  function onNoCompressToggle() {
+    const on = _noCompressChecked();
+    const hint = document.getElementById('upload-no-compress-hint');
+    if (hint) hint.style.display = on ? 'block' : 'none';
+    try { localStorage.setItem(NO_COMPRESS_KEY, on ? '1' : '0'); } catch (e) { /* 隐私模式忽略 */ }
+  }
+
   function showUploadModelModal() {
     document.getElementById('upload-model-modal').classList.add('active');
     applyAdminTranslations(document.getElementById('upload-model-modal'));
+    const cb = document.getElementById('upload-model-no-compress');
+    if (cb) {
+      let saved = '0';
+      try { saved = localStorage.getItem(NO_COMPRESS_KEY) || '0'; } catch (e) { /* ignore */ }
+      cb.checked = saved === '1';
+      onNoCompressToggle();
+    }
   }
 
   function closeUploadModelModal() {
@@ -5638,6 +5665,12 @@
       return;
     }
     if (comp.skipped) {
+      if (comp.reason === 'disabled') {
+        // 用户勾了「不压缩」：原样入库，不要说成"无需压缩"
+        statusEl.textContent = window.i18n.t('adminAssets.noCompressDone');
+        if (subEl) subEl.textContent = '';
+        return;
+      }
       if (comp.reason === 'error') {
         statusEl.textContent = window.i18n.t('adminAssets.compressFailed');
         if (subEl) subEl.textContent = comp.error || '';
@@ -5662,6 +5695,8 @@
       fd.append('display_name', displayName);
       if (tagsInput) fd.append('tags', tagsInput);
       if (agentDesc) fd.append('agent_description', agentDesc);   // 🤖 AI 描述
+      // 勾了「不压缩」→ off：后端跳过减面/几何压缩/贴图重编码，原样入库（LOD 变体照旧生成）
+      fd.append('compress', _noCompressChecked() ? 'off' : 'on');
 
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/upload-model');
@@ -5673,6 +5708,12 @@
         }
       };
       xhr.upload.onload = function() {
+        // 不压缩（原样入库）：只等落库 + LOD，别显示"压缩中"误导
+        if (_noCompressChecked()) {
+          setStatus(window.i18n.t('adminAssets.savingToLibrary'), 'uploading');
+          if (subEl) subEl.textContent = '';
+          return;
+        }
         // 上传完成、响应未到：进入压缩中状态（轮换文案）
         setStatus(window.i18n.tp('adminAssets.compressing', { index: String(index + 1), total: String(total) }), 'uploading');
         if (subEl) {
@@ -6204,6 +6245,16 @@
 
   function escapeJs(str) {
     return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
+  }
+
+  // 【安全修复 2026-11-27】用于 onclick="fn('${...}')" 这种双引号 HTML 属性内嵌 JS 字符串：
+  // 先做 JS 字符串转义（\ 与 '），再做 HTML 属性转义（& " < >），防止属性被闭合或实体解码后逃逸。
+  function escapeAttrJs(str) {
+    return escapeJs(String(str == null ? '' : str))
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
   }
 
   // ===== 画廊管理页面加载 =====

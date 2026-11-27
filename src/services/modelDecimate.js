@@ -6,9 +6,13 @@
  * 分级：15-50 万面 -si 0.3 | 50-100 万面 -si 0.15 | >100 万面 -si 0.08
  * 安全：输出为空/面数未减少 → 清理输出、保留原文件；任何失败都不抛错阻断上传
  * 注意：不使用 -sn（平滑法线），它会拆分顶点导致 POSITION accessor 计数失真，干扰面数校验
+ * ★ Draco 源（2026-11-23）：gltfpack 0.24 无 Draco 解码器，遇到 KHR_draco_mesh_compression
+ *   直接抛「file requires Draco mesh compression support」。故先用 dracoDecode 解成临时
+ *   未压缩 GLB 再简化，临时文件用完即删；解码失败则跳过减面（reason: draco-decode-failed）。
  */
 const path = require('path');
 const fs = require('fs');
+const { decodeDracoToTemp, hasDracoCompression } = require('./dracoDecode');
 
 const TRI_THRESHOLD = 50000; // auto 模式减面阈值（5 万面，大量复制的场景模型默认都减）
 const DEC_SUFFIX = '_dec.glb';
@@ -106,10 +110,38 @@ async function decimateIfNeeded(absPath, { mode = 'auto' } = {}) {
     }
 
     const ratio = _pickRatio(origTris);
-    const log = await _runPack(absPath, decPath, ratio);
+
+    // ★ Draco 源：gltfpack 0.24 无解码器，先解成临时未压缩 GLB 再简化（2026-11-23）
+    let packSrc = absPath;
+    let dracoTmp = null;
+    let dracoInfo = null;
+    if (hasDracoCompression(absPath)) {
+      const decoded = await decodeDracoToTemp(absPath);
+      if (!decoded.decoded) {
+        console.warn('[modelDecimate] Draco 解码失败，跳过减面:',
+          path.basename(absPath), decoded.reason, decoded.error || '');
+        return {
+          decimated: false, skipped: true, reason: 'draco-decode-failed',
+          origTris, decodeReason: decoded.reason, error: decoded.error,
+        };
+      }
+      packSrc = decoded.decodedPath;
+      dracoTmp = decoded.decodedPath;
+      dracoInfo = { sourceSize: decoded.sourceSize, decodedSize: decoded.decodedSize };
+      console.log(`[modelDecimate] Draco 源已解码: ${path.basename(absPath)} `
+        + `${(decoded.sourceSize / 1048576).toFixed(1)}MB → 未压缩 ${(decoded.decodedSize / 1048576).toFixed(1)}MB`);
+    }
+
+    let log;
+    try {
+      log = await _runPack(packSrc, decPath, ratio);
+    } finally {
+      // 临时解码文件无论成败都清掉（可能上百 MB）
+      if (dracoTmp) await fs.promises.unlink(dracoTmp).catch(() => {});
+    }
     if (!fs.existsSync(decPath)) {
       console.warn('[modelDecimate] 减面无输出，保留原文件:', absPath, log);
-      return { decimated: false, skipped: true, reason: 'no-output' };
+      return { decimated: false, skipped: true, reason: 'no-output', origTris, draco: dracoInfo };
     }
 
     const newTris = countTris(decPath);
@@ -117,10 +149,13 @@ async function decimateIfNeeded(absPath, { mode = 'auto' } = {}) {
       // 输出无效或未变小 → 清理输出，保留原文件
       await fs.promises.unlink(decPath).catch(() => {});
       console.warn(`[modelDecimate] 减面未生效(${origTris}->${newTris})，已回退原文件:`, absPath);
-      return { decimated: false, skipped: true, reason: 'not-reduced', origTris, newTris };
+      return { decimated: false, skipped: true, reason: 'not-reduced', origTris, newTris, draco: dracoInfo };
     }
 
-    return { decimated: true, decimatedPath: decPath, origTris, newTris, ratio: +(newTris / origTris).toFixed(3) };
+    return {
+      decimated: true, decimatedPath: decPath, origTris, newTris,
+      ratio: +(newTris / origTris).toFixed(3), draco: dracoInfo,
+    };
   } catch (e) {
     await fs.promises.unlink(decPath).catch(() => {});
     console.warn('[modelDecimate] 减面失败，保留原文件:', absPath, e.message);

@@ -1100,7 +1100,7 @@ CREATE TRIGGER trigger_update_ai_scenes_updated_at
 -- =====================================================================
 
 INSERT INTO admin_users (username, password_hash, email, full_name, role) VALUES
-('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMye/pKq3g.zhCdPMKdYH5B4M5HJq3VXQW', 'admin@example.com', '系统管理员', 'super_admin')
+('admin', '$2b$10$2Xv6EqbUq9r58Q9xwf7hbOCLoQGZN0wLy8d.HO7da3PRUCKKJ2whS', 'admin@example.com', '系统管理员', 'super_admin')
 ON CONFLICT (username) DO NOTHING;
 
 INSERT INTO ai_providers (provider_name, display_name, provider_type, is_enabled, is_default, config_schema, description) VALUES

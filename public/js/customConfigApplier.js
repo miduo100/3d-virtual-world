@@ -280,12 +280,115 @@
     return { applied: applied, skipped: skipped, useMap: usedMap };
   }
 
+  // ========== 1.6 部件隐藏（2026-11-25） ==========
+  //
+  // 配置形态：custom_config.hiddenParts = { version:1, items:[{path:'12/0', label, tris}] }
+  //   path 口径来自 ModelSurface.makeTarget（相对 root 的 children 索引链）。
+  //
+  // ★ 为什么加载期必须「摘节点」而不是设 visible=false：
+  //   three r185 实测 Box3.setFromObject() 会把 visible=false 的对象也算进包围盒，
+  //   只设不可见 → 玩家看不见东西却照样撞得到。摘掉节点后，
+  //   world.js 里那段 new Box3().setFromObject(model) 算出的碰撞盒会自然收缩。
+  //
+  // ★ 为什么先全部解析、再统一摘：
+  //   摘掉前面的兄弟会让后面节点的 children 索引整体前移，
+  //   边解析边删会把后面的 path 直接指错。
+  function resolvePartPath(root, path) {
+    if (!root || !path) return null;
+    var parts = String(path).split('/');
+    var cur = root;
+    for (var i = 0; i < parts.length; i++) {
+      var k = parseInt(parts[i], 10);
+      if (isNaN(k) || !cur.children || !cur.children[k]) return null;
+      cur = cur.children[k];
+    }
+    return cur;
+  }
+
+  function applyHiddenParts(root, config) {
+    var hp = config && config.hiddenParts;
+    var items = hp ? (Array.isArray(hp) ? hp : hp.items) : null;
+    if (!root || !items || !items.length) return 0;
+
+    // 防重复应用：path 是「相对当前树」的索引链，同一份配置在已经摘过的树上再跑一遍，
+    // 路径会整体前移 → 删到别的部件。用配置指纹认一下，已经按这份配置处理过就跳过。
+    // （指纹只认 path 集合，所以后来又加删了新部件、配置变了，仍会正常应用）
+    var sig = '';
+    for (var k = 0; k < items.length; k++) sig += (items[k] && items[k].path) + '|';
+    if (root.userData && root.userData.__hiddenPartsSig === sig) return 0;
+
+    var targets = [];
+    for (var i = 0; i < items.length; i++) {
+      var node = resolvePartPath(root, items[i] && items[i].path);
+      if (node && node.parent) targets.push(node);
+    }
+    var removed = 0;
+    for (var j = 0; j < targets.length; j++) {
+      if (targets[j].parent) {
+        targets[j].removeFromParent();
+        removed++;
+      }
+    }
+    // 只有全部命中才记指纹：部分没匹配上说明模型文件换过了，
+    // 不记指纹 → 下次加载还会再试一次（并再警告一次），方便排查而不是静默失效。
+    if (removed === items.length && root.userData) root.userData.__hiddenPartsSig = sig;
+
+    if (removed < items.length) {
+      // 不静默失败：path 对不上说明模型文件被换过（重新减面/换贴图版），
+      // 需要在编辑器里重新选一次部件。
+      console.warn('[CustomConfigApplier] hiddenParts 有 ' + (items.length - removed) +
+        '/' + items.length + ' 条没匹配上（模型文件可能已更换，需要在编辑器里重新隐藏）');
+    }
+    if (removed) {
+      console.log('[CustomConfigApplier] 🚫 已隐藏 ' + removed + ' 个部件：' + root.name);
+    }
+    return removed;
+  }
+
+  /**
+   * 摘完部件后通知胶囊碰撞重建 BVH（2026-11-25）
+   *
+   * 为什么必须做：CapsuleCollision 的 sweep() 每 2s 扫一遍场景，用 registerModel()
+   * 把模型当前的所有 mesh 建成 BVH。它只在「模型变换变了」时才重建（_bakedDiffersFromBake），
+   * 摘掉子节点不改变换 → 一旦它在部件被摘之前先注册过，BVH 里就会**永久留着已删部件的碰撞面**，
+   * 表现就是「部件看不见了，但走过去还是撞」。
+   *
+   * 反查 id 要延迟一个 tick：world.js 是「先 apply（摘部件）→ 再 generatedBuildings.set(id)」，
+   * 同步执行时还查不到条目。
+   */
+  function syncCapsuleCollision(root) {
+    if (!root || !window.CapsuleCollision || typeof window.CapsuleCollision.refresh !== 'function') return;
+    var run = function () {
+      var world = window.gameWorld;
+      if (!world || !world.generatedBuildings) return;
+      var foundId = null;
+      world.generatedBuildings.forEach(function (entry, id) {
+        if (entry && entry.model === root) foundId = id;
+      });
+      if (foundId === null) return;
+      try {
+        // refresh = unregisterModel + registerModel：会重新遍历当前模型树，
+        // 已摘掉的节点自然不在新 BVH 里；BVH 异步建好之前由 AABB 兜底盒挡人。
+        window.CapsuleCollision.refresh(foundId);
+      } catch (e) {
+        console.warn('[CustomConfigApplier] 隐藏部件后重建碰撞失败:', e);
+      }
+    };
+    if (typeof setTimeout === 'function') setTimeout(run, 0);
+    else run();
+  }
+
   /**
    * 应用 custom_config 到上传模型
    */
   function applyUploadedModel(root, config, modelData) {
     if (!root) return;
     if (!config) return;
+
+    // ⓪ 先摘掉被隐藏的部件（必须在灯光/材质/包围盒之前）：
+    //    后面的遍历少走一些死节点，碰撞盒也能拿到去掉部件后的真实包围盒。
+    var hidden = applyHiddenParts(root, config);
+    if (hidden > 0) syncCapsuleCollision(root);
 
     // ① 先做灯光与部件发光（内部会 cleanup 重新克隆材质，必须最先跑，
     //    否则后面的 restore 会把已应用的材质换回原始状态）
@@ -400,6 +503,8 @@
     // 自发光：单独导出，方便后台/批量工具直接调用
     applyModelEmissive,
     hasEmissiveConfig,
+    // 部件隐藏：加载期摘节点（编辑器里改完想立刻看效果也可以直接调）
+    applyHiddenParts,
     getCircleTexture
   };
 

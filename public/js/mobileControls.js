@@ -7,6 +7,7 @@ class MobileControls {
   constructor() {
     this.enabled = false;
     this.joystickActive = false;
+    this.joystickTouchId = null; // 摇杆手指的 identifier（多指时必须认自己那根）
     this.joystickStartX = 0;
     this.joystickStartY = 0;
     this.joystickCurrentX = 0;
@@ -17,7 +18,7 @@ class MobileControls {
     this.touchCameraActive = false;
     this.touchCameraLastX = 0;
     this.touchCameraLastY = 0;
-    this.touchCameraSensitivity = 0.005; // 触摸相机灵敏度（平衡速度，避免震动）
+    this.touchCameraSensitivity = 0.008; // 滑屏灵敏度：改单链写入后按标称值补回（原 0.005 实际被两条监听各写一次=0.01）
     
     // DOM元素
     this.joystickContainer = null;
@@ -239,22 +240,38 @@ class MobileControls {
   }
   
   setupTouchEvents() {
-    // 摇杆触摸事件
+    // 摇杆触摸事件（按 identifier 归属：多指时只认落在摇杆上的那根手指）
     this.joystickContainer.addEventListener('touchstart', (e) => {
       e.preventDefault();
-      this.handleJoystickStart(e.touches[0]);
+      const t = e.changedTouches[0];
+      if (!t) return;
+      this.joystickTouchId = t.identifier;
+      this.handleJoystickStart(t);
     });
-    
+
     this.joystickContainer.addEventListener('touchmove', (e) => {
       e.preventDefault();
-      this.handleJoystickMove(e.touches[0]);
+      // 原实现用 e.touches[0]：先滑屏再按摇杆时会认成滑屏那根手指，手柄被拽到错误位置
+      const t = this._findTouch(e.touches, this.joystickTouchId);
+      if (t) this.handleJoystickMove(t);
     });
-    
+
     this.joystickContainer.addEventListener('touchend', (e) => {
       e.preventDefault();
-      this.handleJoystickEnd();
+      // 只有摇杆手指抬起才结束，滑屏手指抬起不应松开摇杆
+      if (this._findTouch(e.changedTouches, this.joystickTouchId)) {
+        this.joystickTouchId = null;
+        this.handleJoystickEnd();
+      }
     });
-    
+
+    this.joystickContainer.addEventListener('touchcancel', (e) => {
+      if (this._findTouch(e.changedTouches, this.joystickTouchId)) {
+        this.joystickTouchId = null;
+        this.handleJoystickEnd();
+      }
+    });
+
     // 跳跃按钮
     this.jumpButton.addEventListener('touchstart', (e) => {
       e.preventDefault();
@@ -327,70 +344,87 @@ class MobileControls {
       this.turnRightButton.style.background = 'rgba(0, 255, 255, 0.25)';
     });
 
-    // 画面右侧触摸控制相机
+    // 画面滑屏控制相机（2026-11-24 重做：按 identifier 归属，单指/双指都可用）
+    // 为什么要重做：原实现只登记「起手位置在屏幕右半屏」的触摸，左手按摇杆时右手从中间起滑就完全不登记；
+    // 而 main.js 里另一条同名监听又用 e.touches.length === 1 把双指情形整体挡掉，两者叠加 = 视角转不动。
+    // 现在全局只有这一条链：谁先落在 canvas 上谁就是相机手指，直到它自己抬起为止。
     const canvas = document.getElementById('canvas');
     if (canvas) {
-      let activeTouches = new Map(); // 跟踪多点触摸
-      
+      let camTouchId = null;   // 正在驱动相机的触摸点 identifier
+      let camLastX = 0;
+      let camLastY = 0;
+      let camFirstMove = true;
+
       canvas.addEventListener('touchstart', (e) => {
-        for (let i = 0; i < e.touches.length; i++) {
-          const touch = e.touches[i];
-          // 右侧屏幕用于相机控制
-          if (touch.clientX > window.innerWidth / 2) {
-            activeTouches.set(touch.identifier, {
-              startX: touch.clientX,
-              startY: touch.clientY,
-              lastX: touch.clientX,
-              lastY: touch.clientY
-            });
-          }
-        }
-      });
-      
+        // 已有相机手指在用时，后来的手指不抢控制权（避免双指瞬间跳视角）
+        if (camTouchId !== null) return;
+        const t = e.changedTouches[0];
+        if (!t) return;
+        // 摇杆和按钮都是独立 DOM，落在它们上面的触摸不会到这里；
+        // 能进到 canvas 的就是「滑屏看四周」的那根手指。
+        camTouchId = t.identifier;
+        camLastX = t.clientX;
+        camLastY = t.clientY;
+        camFirstMove = true;
+        MOUSE.isDragging = true;  // 第三人称「不拖拽时俯仰自动回水平」依赖这个标志
+      }, { passive: true });
+
       canvas.addEventListener('touchmove', (e) => {
+        if (camTouchId === null) return;
+        const t = this._findTouch(e.touches, camTouchId);
+        if (!t) {
+          // 自愈：相机手指已不在屏幕上（部分浏览器双指同时抬起时 changedTouches 只报一根）
+          camTouchId = null;
+          MOUSE.isDragging = false;
+          return;
+        }
         e.preventDefault();
-        
-        for (let i = 0; i < e.touches.length; i++) {
-          const touch = e.touches[i];
-          const touchData = activeTouches.get(touch.identifier);
-          
-          if (touchData) {
-            const deltaX = touch.clientX - touchData.lastX;
-            const deltaY = touch.clientY - touchData.lastY;
-            
-            // 更新目标旋转角度（平滑过渡）
-            MOUSE.targetRotationY -= deltaX * this.touchCameraSensitivity;
-            
-            // 第一视角和第三视角方向不同
-            if (GAME_STATE.cameraMode === 'first-person') {
-              MOUSE.targetRotationX -= deltaY * this.touchCameraSensitivity;
-            } else {
-              MOUSE.targetRotationX += deltaY * this.touchCameraSensitivity;
-            }
-            
-            // 限制垂直旋转目标
-            MOUSE.targetRotationX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, MOUSE.targetRotationX));
-            
-            // 更新last位置
-            touchData.lastX = touch.clientX;
-            touchData.lastY = touch.clientY;
-          }
+        if (camFirstMove) {          // 跳过第一次 move，避免按下瞬间跳变
+          camLastX = t.clientX;
+          camLastY = t.clientY;
+          camFirstMove = false;
+          return;
         }
-      });
-      
-      canvas.addEventListener('touchend', (e) => {
-        // 移除结束的触摸点
-        for (let i = 0; i < e.changedTouches.length; i++) {
-          activeTouches.delete(e.changedTouches[i].identifier);
+        const deltaX = t.clientX - camLastX;
+        const deltaY = t.clientY - camLastY;
+        camLastX = t.clientX;
+        camLastY = t.clientY;
+        // 过滤异常跳变，阈值与桌面端 mousemove 的 maxDelta 一致
+        if (Math.abs(deltaX) > 100 || Math.abs(deltaY) > 100) return;
+
+        MOUSE.targetRotationY -= deltaX * this.touchCameraSensitivity;
+        if (GAME_STATE.cameraMode === 'first-person') {
+          MOUSE.targetRotationX -= deltaY * this.touchCameraSensitivity;
+        } else {
+          MOUSE.targetRotationX += deltaY * this.touchCameraSensitivity;
         }
-      });
-      
-      canvas.addEventListener('touchcancel', (e) => {
-        for (let i = 0; i < e.changedTouches.length; i++) {
-          activeTouches.delete(e.changedTouches[i].identifier);
+        MOUSE.targetRotationX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, MOUSE.targetRotationX));
+      }, { passive: false });
+
+      const endCameraTouch = (e) => {
+        if (camTouchId === null) return;
+        // 只有相机手指自己抬起才收尾：抬摇杆手指不能把滑屏状态一起清掉
+        // e.touches.length === 0 兜底双指同时抬起（此时 changedTouches 未必包含相机手指）
+        if (e.touches.length === 0 || this._findTouch(e.changedTouches, camTouchId)) {
+          camTouchId = null;
+          MOUSE.isDragging = false;
         }
-      });
+      };
+      canvas.addEventListener('touchend', endCameraTouch);
+      canvas.addEventListener('touchcancel', endCameraTouch);
     }
+  }
+
+  /**
+   * 在 TouchList 里按 identifier 找指针对应的触摸点
+   * 多指场景下不能用 touches[0]，否则会认成另一根手指
+   */
+  _findTouch(list, id) {
+    if (id === null || id === undefined || !list) return null;
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].identifier === id) return list[i];
+    }
+    return null;
   }
   
   handleJoystickStart(touch) {

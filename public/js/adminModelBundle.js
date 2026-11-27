@@ -56,6 +56,10 @@
             glTF（.gltf+.bin+贴图）与 OBJ（.obj+.mtl+贴图）均为多文件格式，请整个文件夹或整包上传；
             共享贴图只存一份。glTF 自动生成中/低模变体并压缩贴图；OBJ 变体功能二期提供。
           </div>
+          <label style="display:flex;gap:6px;align-items:center;margin-top:10px;font-size:12px;color:var(--muted);cursor:pointer">
+            <input type="checkbox" id="amb-no-compress" style="margin:0">
+            <span>不压缩贴图（图集/调色板贴图已优化，原样入库）</span>
+          </label>
         </div>
         <div id="amb-preview" class="upf-list" style="display:none"></div>
         <div id="amb-progress" style="display:none;margin-top:12px">
@@ -136,6 +140,9 @@
     document.getElementById('amb-result').style.display = 'none';
 
     const fd = new FormData();
+    // 勾了「不压缩贴图」→ false：后端跳过外置贴图重编码（变体/LOD 照旧生成，不碰原文件）
+    const noCompress = document.getElementById('amb-no-compress');
+    if (noCompress && noCompress.checked) fd.append('compressTextures', 'false');
     if (picked.mode === 'folder') {
       for (const f of picked.files) fd.append('files', f, f.name);
       fd.append('relPaths', JSON.stringify(picked.relPaths));
@@ -149,7 +156,7 @@
       if (!e.lengthComputable) return;
       const pct = Math.round((e.loaded / e.total) * 100);
       fill.style.width = pct + '%';
-      text.textContent = `上传中 ${pct}%（服务器随后自动生成变体并压缩贴图…）`;
+      text.textContent = `上传中 ${pct}%（服务器随后自动生成变体${noCompress && noCompress.checked ? '' : '并压缩贴图'}…）`;
     };
     xhr.onload = () => {
       document.getElementById('amb-upload').disabled = false;

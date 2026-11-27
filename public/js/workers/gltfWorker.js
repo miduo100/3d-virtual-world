@@ -446,11 +446,21 @@ function serializeGltf(gltf, staticMode, strictMode) {
       nodeIndices.set(n, nodeIndices.size);
       for (var i = 0; i < n.children.length; i++) walk(n.children[i]);
     })(root);
+  }
+  // 【2026-11-26】static 模式也序列化动画：
+  // 原设计认为「世界对象不播动画」，所以 static 下把 gltf.animations 直接丢弃。
+  // 现在世界端要播内置动画（卡丁车/无人机/灯这类节点 TRS 动画，无蒙皮），
+  // 主线程侧 buildAnimations() 本来就支持重建，这里补上数据即可。
+  // 注意：strictMode 仍额外带 skeletons；static 下 SkinnedMesh 照旧烘焙为静态，
+  // 蒙皮模型的骨骼动画不会生效（那类需要走 strict 路径，另行处理）。
+  if (strictMode || staticMode) {
     animationsOut = (gltf.animations || []).map(serializeClip);
   }
   var payload = { root: node(root), images: images, textures: textures, materials: materials, geometries: geometries, interleaved: interleaved };
   if (strictMode) {
     payload.skeletons = skeletons;
+  }
+  if (animationsOut.length) {
     payload.animations = animationsOut;
   }
   payload.transfer = collectTransfer();

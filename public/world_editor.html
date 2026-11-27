@@ -3770,6 +3770,8 @@
             if (document.hidden) { controls.update(); return; }
             // 空闲 2 秒后隔帧渲染（约 30fps），降帧期间仍驱动高斯上屏，不拖慢加载
             const now = performance.now();
+            // 内嵌动画推进：放在跳帧判断之前，空闲降帧时动画仍然连续
+            tickEditorAnimations(now);
             const idle = now - _idleSince > 2000;
             if (idle) {
                 _skipIdleFrame = !_skipIdleFrame;
@@ -4666,6 +4668,168 @@
         const EDITOR_UNLOAD_RADIUS = 240;  // 超出此半径切换回占位符显示（占位符常驻）
         let EDITOR_RANGE_SCAN_MS = 400;  // 范围巡检节流（随档位切换）
         let EDITOR_MAX_LOAD_PER_SCAN = 1; // 保留旧变量（档位联动仍在写它），实际由 EDITOR_BATCH_LOAD 控制
+
+        // ===== 模型尺度半径（2026-11-26 通用修复）=========================
+        // 问题：范围加载原来用「相机 → 对象原点」判定远近。若模型原点不在几何中心、
+        // 或体量几十上百米（整张赛道/场景类模型），这个距离严重失真：
+        // 站在模型这一端，到对象原点的距离可能已 >240m → 判定「太远」→ 真实模型被换回
+        // 1×1×1 占位盒，表现就是「远处看得到、走近反而没了」。
+        // 方案：服务端记录每个模型的「尺度半径」（model_bounds.unit_radius），
+        // 这里把原点距离换算成「到模型边缘的距离」，大模型自动获得更大的有效判定半径。
+        // 半径未知时返回 0，退化为原逻辑（零回归）。
+        const modelBoundsCache = new Map();   // modelPath -> unit_radius（scale=1 时的水平半径，米）
+        let modelBoundsReady = false;
+
+        function refreshModelBoundsCache() {
+            return fetch('/api/model-bounds', { cache: 'no-store' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (d) {
+                    if (!d || !d.bounds) return;
+                    for (const k in d.bounds) {
+                        const v = Number(d.bounds[k]);
+                        if (Number.isFinite(v) && v > 0) modelBoundsCache.set(k, v);
+                    }
+                    modelBoundsReady = true;
+                    console.log('📏 模型尺度半径表已加载:', modelBoundsCache.size, '条');
+                })
+                .catch(function (e) {
+                    console.warn('📏 模型半径表加载失败（按原点距离兜底）:', e && e.message);
+                });
+        }
+        refreshModelBoundsCache();
+
+        // 取对象当前的水平半径（世界单位）：unit_radius × 对象 scale（X/Z 取较大者）
+        // 优先级：本次加载实测值 > 服务端半径表 > 0（未知）
+        function objectRadius(wo) {
+            if (!wo) return 0;
+            const u = (wo.mesh && wo.mesh.userData) || {};
+            if (Number.isFinite(u._modelRadius) && u._modelRadius > 0) return u._modelRadius;
+            const p = u.modelPath || wo.model_path || (u.pendingGlb && u.pendingGlb.modelPath);
+            if (!p) return 0;
+            const unit = modelBoundsCache.get(String(p));
+            if (!Number.isFinite(unit) || unit <= 0) return 0;
+            const m = wo.mesh;
+            const sx = m ? Math.abs(m.scale.x) : 1;
+            const sz = m ? Math.abs(m.scale.z) : 1;
+            return unit * Math.max(sx, sz, 0.0001);
+        }
+
+        // 真实模型挂载后实测一次半径（Box3 比解析值更准，同时覆盖服务端没记录的历史模型）
+        function calibrateObjectRadius(wo, inst) {
+            try {
+                if (!wo || !wo.mesh || !inst || !THREE.Box3) return;
+                const box = new THREE.Box3().setFromObject(inst);
+                if (!box || box.isEmpty()) return;
+                const m = wo.mesh;
+                const org = m.getWorldPosition(new THREE.Vector3());
+                let r2 = 0;
+                for (let i = 0; i < 2; i++) {
+                    for (let j = 0; j < 2; j++) {
+                        const x = i ? box.max.x : box.min.x;
+                        const z = j ? box.max.z : box.min.z;
+                        const dx = x - org.x;
+                        const dz = z - org.z;
+                        const dd = dx * dx + dz * dz;
+                        if (dd > r2) r2 = dd;
+                    }
+                }
+                const rWorld = Math.sqrt(r2);
+                if (!Number.isFinite(rWorld) || rWorld <= 0) return;
+                m.userData._modelRadius = rWorld;
+                const p = m.userData.modelPath || wo.model_path;
+                if (p && !modelBoundsCache.has(String(p))) {
+                    const sx = Math.abs(m.scale.x) || 1;
+                    const sz = Math.abs(m.scale.z) || 1;
+                    modelBoundsCache.set(String(p), rWorld / Math.max(sx, sz, 0.0001));
+                }
+            } catch (e) { /* 校准失败不影响渲染 */ }
+        }
+
+        // ===== 内嵌动画播放（2026-11-26）==================================
+        // 症状：带动画的 GLB 在编辑器里一动不动。
+        // 原因：编辑器从头到尾没有 AnimationMixer —— 只挂载 scene，gltf.animations 直接丢掉；
+        //       世界端也一样（world.js:2465「建立 mixer 但不播放」）。
+        // 这里补齐，并做三层保护，避免 1000 个实例同时播把主线程打满：
+        //   1) 只对「已加载真实模型 + 相机近处」的实例建 mixer，超距自动停；
+        //   2) 全局同时最多 EDITOR_ANIM_MAX 个，超出淘汰最远的；
+        //   3) 带动画的模型入缓存时跳过按材质合并（否则动画绑定的节点会被摘掉）。
+        const EDITOR_ANIM_NEAR = 90;     // 进入此距离开始播
+        const EDITOR_ANIM_FAR = 180;     // 超出此距离停止（留滞回区间，避免边界抖动）
+        const EDITOR_ANIM_MAX = 24;      // 同时播放的实例上限
+        const editorAnimRecs = new Map(); // inst.uuid → { mixer, inst, dist }
+        let _lastAnimTs = 0;
+
+        // 实例挂载完成后的统一收尾：记录模型路径 + 实测半径 + 动画能力标记
+        function onInstanceMounted(placeholder, inst, modelPath) {
+            if (!inst) return;
+            inst.userData._animModelPath = modelPath;
+            const entry = modelPath ? editorModelCache.get(modelPath) : null;
+            if (!(entry && entry.animations && entry.animations.length)) inst.userData._noAnim = true;
+            calibrateObjectRadius({ mesh: placeholder, model_path: modelPath }, inst);
+        }
+
+        function ensureEditorAnim(inst, dist) {
+            if (!inst || inst.userData._noAnim) return;
+            const rec = editorAnimRecs.get(inst.uuid);
+            if (rec) { rec.dist = dist; return; }
+            const p = inst.userData._animModelPath;
+            const entry = p ? editorModelCache.get(p) : null;
+            const clips = entry && entry.animations;
+            if (!clips || !clips.length) { inst.userData._noAnim = true; return; }
+            try {
+                const mixer = new THREE.AnimationMixer(inst);
+                for (let i = 0; i < clips.length; i++) {
+                    mixer.clipAction(clips[i]).play();
+                }
+                editorAnimRecs.set(inst.uuid, { mixer: mixer, inst: inst, dist: dist });
+                if (editorAnimRecs.size > EDITOR_ANIM_MAX) {
+                    let farUuid = null, farDist = -1;
+                    editorAnimRecs.forEach(function (r, k) {
+                        if (k !== inst.uuid && r.dist > farDist) { farDist = r.dist; farUuid = k; }
+                    });
+                    if (farUuid) dropEditorAnimByUuid(farUuid);
+                }
+            } catch (e) {
+                inst.userData._noAnim = true;
+                console.warn('[动画] mixer 创建失败:', e && e.message);
+            }
+        }
+
+        function dropEditorAnim(inst) {
+            if (inst) dropEditorAnimByUuid(inst.uuid);
+        }
+
+        function dropEditorAnimByUuid(uuid) {
+            const rec = editorAnimRecs.get(uuid);
+            if (!rec) return;
+            try { rec.mixer.stopAllAction(); rec.mixer.uncacheRoot(rec.inst); } catch (e) { /* 忽略 */ }
+            editorAnimRecs.delete(uuid);
+        }
+
+        function tickEditorAnimations(now) {
+            if (!editorAnimRecs.size) { _lastAnimTs = now; return; }
+            const dt = _lastAnimTs ? Math.min(0.12, (now - _lastAnimTs) / 1000) : 0.016;
+            _lastAnimTs = now;
+            editorAnimRecs.forEach(function (rec) {
+                try { rec.mixer.update(dt); } catch (e) { dropEditorAnimByUuid(rec.inst.uuid); }
+            });
+        }
+        // 只读调试钩子：控制台执行 __editorAnimCount() 可查当前在播的动画实例数
+        window.__editorAnimCount = function () { return editorAnimRecs.size; };
+        // 只读调试钩子：返回每个在播实例的动画时间轴，便于确认「真的在推进」而不是静帧
+        window.__editorAnimDebug = function () {
+            const out = [];
+            editorAnimRecs.forEach(function (r, k) {
+                out.push({
+                    uuid: String(k).slice(0, 8),
+                    time: Math.round(r.mixer.time * 100) / 100,
+                    actions: (r.mixer._actions || []).length,
+                    dist: Math.round(r.dist)
+                });
+            });
+            return out;
+        };
+
         // 【2026-11-12】单轮巡检最多触发多少个加载。原逻辑用 EDITOR_MAX_LOAD_PER_SCAN（标准档=3），
         // 按 250ms 一轮算只有 12 个/秒，945 个近处对象要 79 秒。
         // 现在「缓存直通」让同模型实例不再排下载队列，可以把单轮批量放大到 40 个：
@@ -4750,7 +4914,13 @@
                 placeholder.scale.set(obj.scale_x || 1, obj.scale_y || 1, obj.scale_z || 1);
 
                 // 添加加载指示器
-                const loaderGeometry = new THREE.BoxGeometry(1, 1, 1);
+                // 【2026-11-26】占位盒尺寸跟随模型体量：原来固定 1×1×1（再乘对象 scale，
+                // 大模型只有 0.5m 一个小绿点，远处根本看不出「那里有个大东西」）。
+                // unit_radius 是 scale=1 时的半径，直接当局部边长，世界尺寸≈模型半径。
+                // 未知半径时保持 1×1×1，与原来一致。
+                const _unitR = modelBoundsCache.get(String(obj.model_path)) || 0;
+                const _phSize = _unitR > 0.5 ? Math.min(_unitR, 500) : 1;
+                const loaderGeometry = new THREE.BoxGeometry(_phSize, _phSize, _phSize);
                 const loaderMaterial = new THREE.MeshBasicMaterial({ 
                     color: 0x00ff00, 
                     wireframe: true 
@@ -4776,6 +4946,7 @@
                         placeholder.userData._showReal = true;
                         placeholder.add(inst);
                         invalidatePickCaches(placeholder);
+                        onInstanceMounted(placeholder, inst, modelPath);
                         console.log('✅ 从缓存加载模型:', modelPath);
                     } else {
                         // 2) 缓存未命中：范围加载，进入 EDITOR_LOAD_RADIUS 后才入队。
@@ -4941,6 +5112,7 @@
                                 ph.add(inst);
                                 applyShadowFlagsTo(inst, task.obj);
                                 invalidatePickCaches(ph);
+                                onInstanceMounted(ph, inst, task.modelPath);
                             }
                         } catch (e) {
                             console.warn('[缓存直通] 克隆挂载失败:', e);
@@ -5044,7 +5216,12 @@
                     continue;
                 }
                 const wp = wo.mesh.getWorldPosition(_rangeScanVec);
-                const d = cam.distanceTo(wp);
+                const dRaw = cam.distanceTo(wp);
+                // 【2026-11-26】用「到模型边缘的距离」而非「到对象原点的距离」。
+                // 半径未知（0）时 d === dRaw，与修改前完全一致，零回归。
+                // 大模型/原点偏移的模型不会再因为「站在模型这端、离原点太远」被误判为远处。
+                const _rad = objectRadius(wo);
+                const d = _rad > 0 ? Math.max(0, dRaw - _rad) : dRaw;
 
                 // 【2026-11-12 统一裁剪】geometry:模板 / threejs_code 这类「同步建真几何、
                 // 没有占位符」的对象，原先完全没有距离概念——拉多远都实心画着
@@ -5052,6 +5229,16 @@
                 const _u = wo.mesh.userData || {};
                 const noPlaceholder = !_u._realMesh && !_u._loaderMesh &&
                     !_u.pendingGlb && !_u.pendingGeometry && !_u.pendingGaussian;
+
+                // 内嵌动画调度：近处真实模型播放、超出范围停止。
+                // 用 dRaw（到对象原点的真实距离）而非边缘距离 —— 动画开销跟"人在不在旁边看"
+                // 直接相关，跟模型多大无关；巨型模型的半径可能几百米，用边缘距离会到处都在播。
+                const _realInst = _u._realMesh;
+                if (_realInst && !_realInst.userData._noAnim) {
+                    if (dRaw <= EDITOR_ANIM_NEAR) ensureEditorAnim(_realInst, dRaw);
+                    else if (dRaw > EDITOR_ANIM_FAR) dropEditorAnim(_realInst);
+                }
+
                 if (noPlaceholder) {
                     if (d > EDITOR_UNLOAD_RADIUS) {
                         if (wo.mesh.visible) { wo.mesh.visible = false; wo._hiddenByDist = true; }
@@ -9518,7 +9705,7 @@
                             // 纹理降级：4K→1K，几何体完全不动，形状轮廓不变。
                             // rAF 分帧异步执行，避免多个 GLB 回调集中同步重采样阻塞主线程
                             downsizeSceneTexturesAsync(gltf.scene, EDITOR_TEXTURE_MAX_SIZE);
-                            addToEditorModelCache(modelPath, gltf.scene);
+                            addToEditorModelCache(modelPath, gltf.scene, gltf.animations);
                             // 分帧浅克隆实例：避免大场景树一次性同步克隆阻塞主线程。
                             // 克隆期间保持 loaderMesh 显示，完成后无缝切换并结束本任务
                             cloneModelForInstancingAsync(gltf.scene, (inst) => {
@@ -9538,6 +9725,7 @@
                                     // 这里补一次，否则「投射/接收阴影」在模型加载完成后被 three 默认值覆盖。
                                     applyShadowFlagsTo(inst, obj);
                                     invalidatePickCaches(placeholder);
+                                    onInstanceMounted(placeholder, inst, modelPath);
                                 } catch (e) {
                                     console.error('❌ 克隆实例挂载失败:', e);
                                 }
@@ -9592,6 +9780,7 @@
                         placeholder.userData._showReal = true;
                         placeholder.add(inst);
                         applyShadowFlagsTo(inst, obj);
+                        onInstanceMounted(placeholder, inst, modelPath);
                         resolve();
                     });
                     return;
@@ -9885,15 +10074,23 @@
         }
 
         // 入缓存（统一入口：GLB/OBJ 共用），超限时淘汰最旧并释放其资源
-        function addToEditorModelCache(modelPath, scene) {
+        function addToEditorModelCache(modelPath, scene, animations) {
+            const clips = Array.isArray(animations) ? animations : [];
             // 【会话3 P2-2】入缓存前按材质合并（缓存里即合并后的结构 → 后续所有实例共享合并结果）
             // 【2026-10-29】例外：第三方在线资产（polyfork 等）**不合并**。
             //   它们的"可动部件"靠命名节点定位（wheel-fl / steer-fl / door-fl / hatch…），
             //   按材质合并会把 9 个 mesh 压成 1 个、层级整体扁平化 → 铰接结构消失，
             //   后续"轮子随口转动、门可开合"就无从下手。这类资产单件仅几百 KB、单材质，
             //   少合并损失的 8 个 draw call 可忽略，保留层级远比省 draw call 值钱。
+            // 【2026-11-26】带内嵌动画的模型同样**不合并**：
+            //   mergeModelByMaterial 会把原 mesh 从节点树上摘掉、换成 merged_N 挂到 root，
+            //   而动画轨道按「节点名.position/quaternion」绑定 → 轨道全部找不到目标，
+            //   表现就是「模型明明是动态的，却一动不动」。层级必须原样保留。
             if (isThirdPartyAssetUrl(modelPath)) {
                 console.log('🌐 [编辑器] 第三方在线资产，跳过按材质合并（保留可动部件层级）:', modelPath);
+            } else if (clips.length) {
+                console.log('🎬 [编辑器] 带内嵌动画，跳过按材质合并（保留动画绑定节点）:',
+                    modelPath, '动画', clips.length, '段');
             } else {
                 try { mergeModelByMaterial(scene); } catch (e) { console.warn('⚠️ mergeModelByMaterial 失败（保留原结构）:', e); }
             }
@@ -9903,7 +10100,7 @@
                 if (old && old.scene) disposeSharedScene(old.scene);
                 editorModelCache.delete(oldestKey);
             }
-            editorModelCache.set(modelPath, { scene });
+            editorModelCache.set(modelPath, { scene, animations: clips });
         }
 
         // 深度释放一个场景树的所有 GPU 资源（仅用于缓存淘汰，此时无任何实例引用）

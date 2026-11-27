@@ -24,7 +24,13 @@
   const BOUNDS_MARGIN = 200;
   const POLL_INTERVAL = 2500;   // 轮询间隔（ms）
   const FETCH_LIMIT = 500;      // 单次请求上限（与后端 MAX_LIMIT 对齐）
-  const MAX_OBJECTS = 5000;     // 全图对象安全阀
+  // 全图对象安全阀。
+  // 【2026-11-26 修复】原值 5000 比首次加载量还小：出生点 800 米方框内就有 6495 条，
+  // initialLoad 一结束 loadedIds.size 就 >5000，_hitLimit() 恒为 true，
+  // 增量轮询从开局就永久停摆 —— 玩家走到 600 米外，那里一条对象都不会被拉进来，
+  // 表现就是「世界里有 10872 个模型，远处那 4377 个永远不显示」。
+  // 现在放到 30000（覆盖全表 1.1 万条，仍能防住异常数据无限拉取）。
+  const MAX_OBJECTS = 30000;
 
   class WorldSpatialManager {
     constructor(world) {
@@ -54,7 +60,12 @@
     }
 
     _hitLimit() {
-      return this.loadedIds.size >= MAX_OBJECTS;
+      const hit = this.loadedIds.size >= MAX_OBJECTS;
+      if (hit && !this._limitWarned) {
+        this._limitWarned = true;
+        console.warn('[空间分页] ⛔ 已达对象上限 ' + MAX_OBJECTS + '（已拉 ' + this.loadedIds.size + '），增量拉取停止');
+      }
+      return hit;
     }
 
     // ---- 拉取与合并 ----

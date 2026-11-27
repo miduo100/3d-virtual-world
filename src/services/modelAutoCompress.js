@@ -8,6 +8,7 @@
  */
 const path = require('path');
 const fs = require('fs');
+const { hasDracoCompression } = require('./dracoDecode');
 
 const COMPRESS_THRESHOLD = 10 * 1024 * 1024; // 10MB
 // gltfpack 0.24 无 -tw（WebP）选项；-tc（KTX2）需 r128 不支持的 KTX2Loader，故仅做几何 meshopt 压缩
@@ -53,6 +54,14 @@ async function compressIfNeeded(absPath, originalSize) {
       : fs.statSync(absPath).size;
     if (size < COMPRESS_THRESHOLD) {
       return { compressed: false, skipped: true, reason: 'size' };
+    }
+
+    // 2.5) Draco 源跳过（2026-11-23）：gltfpack 无 Draco 解码器，读入即抛
+    //      「file requires Draco mesh compression support」。Draco 几何本身已高度压缩，
+    //      再走 -cc(meshopt) 收益也有限，故只标记不处理（避免每次上传白跑一次 wasm 报错）。
+    //      注意：减面成功后的模型已是非 Draco（gltfpack 输出），压缩会正常执行。
+    if (hasDracoCompression(absPath)) {
+      return { compressed: false, skipped: true, reason: 'draco-unsupported' };
     }
 
     // 3) 压缩

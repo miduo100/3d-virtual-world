@@ -33,6 +33,8 @@ const {
   listFilesRecursive,
 } = require('../services/nativeModelPipeline');
 const { generateLodVariants } = require('../services/modelLod');
+// 入库后记录模型尺度半径（编辑器范围加载按「到模型边缘的距离」判定）
+const { recordModelBounds } = require('../services/modelBounds');
 
 const UPLOAD_ROOT = path.join(__dirname, '../../public/models/uploaded');
 const TMP_DIR = path.join(UPLOAD_ROOT, '_tmp_bundle_upload');
@@ -141,6 +143,9 @@ async function ingestBundle(bundleName, opts = {}) {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) RETURNING id`,
       [path.basename(rel), rel, `/models/uploaded/${bundleName}/${rel}`, ext, fileSize, displayName, null, target]
     );
+
+    // 记录尺度半径（失败不影响导入）
+    await recordModelBounds(`/models/uploaded/${bundleName}/${rel}`, 'import').catch(() => null);
 
     const rec = {
       id: insert.rows[0].id,

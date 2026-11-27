@@ -1989,7 +1989,7 @@
   <script src="js/geometryBatcher.js?v=4"></script>
   <script src="js/capsuleCollision.js?v=13"></script>
   <!-- 【2026-09-08 会话2】GLB 解析 Worker 客户端（worker 内 parse，主线程零停顿） -->
-  <script src="js/gltfWorkerClient.js?v=5"></script>
+  <script src="js/gltfWorkerClient.js?v=6"></script>
   <script src="js/loadingProgress.js?v=8"></script>
   <script src="js/skyPresets.js?v=1"></script>
   <script src="js/skyManager.js?v=9"></script>
@@ -1998,7 +1998,7 @@
   <script src="js/terrain/terrainHeight.js?v=8"></script>
   <script src="js/terrain/terrainChunk.js?v=2"></script>
   <script src="js/terrain/terrainSystem.js?v=6"></script>
-  <script src="js/world.js?v=35"></script>
+  <script src="js/world.js?v=37"></script>
   <!-- 【2026-11-13】世界 NPC 动作：从外部接管 _bakeSkinsToStatic，角色不再被去蒙皮并播 Idle。
        不改 world.js；删本行 + js/npcAnimator.js 即可完全回退。 -->
   <script src="js/npcAnimator.js?v=6"></script>
@@ -2014,7 +2014,7 @@
   <script>if (window.WorldLodAssets) window.WorldLodAssets.fetchEnabled();</script>
   <!-- frameBudgetScheduler.js 引用移除：该文件从未存在（git 历史为空），每次加载 404 -->
   <script src="js/worldLoadingOptimizer.js?v=2"></script>
-  <script src="js/worldSpatialManager.js?v=4"></script>
+  <script src="js/worldSpatialManager.js?v=5"></script>
   <!-- 【首屏丝滑化 Step1】环境就绪闸门：几何体全上屏 + 队列无<15MB对象（或12s兜底） -->
   <script src="js/worldReadyGate.js?v=2"></script>
   <!-- 【首屏丝滑化 Step3 + 二期B】同模板多玩家复用（解析/显存 N→1，miss 走 Worker）+ 玩家模型调度（就绪放行/视野过滤/让路） -->
@@ -2032,18 +2032,18 @@
   <script src="js/modelSurface.js?v=2"></script>
   <script src="js/modelLighting.js?v=8"></script>
   <script src="js/modelHaloField.js?v=2"></script>
-  <script src="js/customConfigApplier.js?v=7"></script>
+  <script src="js/customConfigApplier.js?v=9"></script>
   <script src="js/galleryRenderer.js?v=1"></script>
   <script src="js/debug_controls.js"></script>
   
-  <script src="js/player.js?v=17"></script>
+  <script src="js/player.js?v=18"></script>
   <script src="js/voice.js?v=2"></script>
   <script src="js/websocket.js?v=11"></script>
   <script src="js/wsPresenceGuard.js?v=1"></script>
   <script src="js/agentPositionSmoother.js?v=4"></script>
   <script src="js/ui.js?v=1"></script>
   <script src="js/portalManager.js?v=2"></script>
-  <script src="js/mobileControls.js?v=1"></script>
+  <script src="js/mobileControls.js?v=2"></script><!-- v2：滑屏转向改按 identifier 归属，双指（摇杆+滑屏）不再互相干扰 -->
   <script src="js/buildingCopyLoader.js?v=1"></script>
   <script src="js/buildingCollisionToggle.js?v=3"></script>
   <script src="js/buildingManager.js?v=8"></script>
@@ -2053,9 +2053,10 @@
   <script src="js/adminModelLightingBus.js?v=1"></script>
   <script src="js/adminModelLightingHandles.js?v=2"></script>
   <script src="js/adminModelLightingFloat.js?v=3"></script>
-  <script src="js/adminModelLightingTool.js?v=5"></script>
-  <script src="js/adminModelSurfacePick.js?v=3"></script>
-  <script src="js/adminModelLightingPanel.js?v=12"></script>
+  <script src="js/adminModelLightingTool.js?v=6"></script>
+  <script src="js/adminModelSurfacePick.js?v=4"></script>
+  <script src="js/adminModelPartDelete.js?v=1"></script>
+  <script src="js/adminModelLightingPanel.js?v=14"></script>
   <script src="js/soundFederation.js?v=1"></script>
   <script src="js/federationUI.js?v=3"></script>
 
@@ -2079,7 +2080,7 @@
       if (document.body) document.body.classList.remove('ui-config-pending');
     }, 3000);
   </script>
-  <script src="js/main.js?v=4"></script><!-- v4：初始化改在 DOMContentLoaded（不再等可能永不触发的 window.load） -->
+  <script src="js/main.js?v=5"></script><!-- v5：触摸转向移交 mobileControls，去掉 touches.length===1 门槛；v4：初始化改在 DOMContentLoaded（不再等可能永不触发的 window.load） -->
   <script src="js/worldGroundSync.js"></script>
   
   <!-- 国际化语言初始化 -->

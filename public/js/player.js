@@ -21,7 +21,8 @@ const CAM_SPRING = {
   min: 0.02,         // 遮挡收缩下限（≈0 即第一人称，不取 0 避免数学退化）
   padding: 0.25,     // 命中点前留白，避免贴面穿模
   hideDist: 1.2,     // 低于此距离隐藏本体模型（等同第一人称观感）
-  eye: 1.6,          // 眼高（相对人物锚点，GLB 脚底口径）
+  eye: 1.6,          // 眼高：从**脚底**量起（1.8 米人的正常眼位）。
+                     //   方块人 position 在脚底上方 1.5，用前必须扣 _footOffsetY()
   rise: 0.4,         // 相机额外抬升：d=期望值 时 1.6+0.4=2.0，与旧实现 +2.0 对齐
   pitchBias: 0.1,    // 俯角补偿（rad，约 5.7°）：抵消旧实现恒定 lookAt 胸口的下压
   pull: 0.65,        // 拉近系数（每秒比例基准）：60fps 约 2~3 帧到位。
@@ -854,7 +855,7 @@ class Player {
       // Look at player - use fixed position for third-person
       const lookTarget = new THREE.Vector3(
         this.position.x,
-        this.position.y + 1.5,
+        this.position.y - this._footOffsetY() + 1.5,
         this.position.z
       );
       camera.lookAt(lookTarget);
@@ -883,8 +884,8 @@ class Player {
         cameraBone.getWorldPosition(bonePos);
         targetCameraPos = bonePos;
       } else {
-        // Default head level position
-        const cameraOffset = new THREE.Vector3(0, 1.6, 0);
+        // Default head level position（同样要扣脚底偏移，见 _footOffsetY）
+        const cameraOffset = new THREE.Vector3(0, CAM_SPRING.eye - this._footOffsetY(), 0);
         targetCameraPos = this.position.clone().add(cameraOffset);
       }
       
@@ -901,6 +902,23 @@ class Player {
       euler.x = MOUSE.rotationX;
       camera.quaternion.setFromEuler(euler);
     }
+  }
+
+  /**
+   * 脚底相对 this.position 的偏移（米）。
+   *
+   * 【2026-11-26 方块人身高归一后必须区分】两种角色的 position 语义不同：
+   *   - GLB 角色：fitModel 已把原点贴到脚底 → position 就是脚底，偏移 0
+   *   - 方块人  ：原点在脚底上方 1.5（addPlayer 的坐标契约，脚底钉在组内 -1.5）→ 偏移 1.5
+   *
+   * 凡是要"从脚底往上量"的高度（眼高、看向点）都必须减掉它，否则方块人缩到
+   * 1.8 米后，按"锚点 + 1.6"算出的相机眼位会悬在头顶上方 1.5 米。
+   * 与 handleVerticalMovement / checkSideCollision 里那两处 `1.5` 同源。
+   */
+  _footOffsetY() {
+    const isGlb = !!(this.worldObject && this.worldObject.userData &&
+                     this.worldObject.userData.isGlbLoaded);
+    return isGlb ? 0 : 1.5;
   }
 
   /**
@@ -930,7 +948,10 @@ class Player {
     // 【2026-11-24 修振荡】早先写成 eyeY = 1.6 + 0.4*(d/base)：眼位随距离抬降，
     // 而距离又由以眼位为起点的射线决定 →「距离变→眼位变→命中变→距离变」正反馈。
     // 模型上沿与眼位齐平时射线在命中/不命中之间反复，表现为镜头来回拉近拉远。
-    const eyeY = this.position.y + CAM_SPRING.eye;
+    //
+    // 【2026-11-26】减去脚底偏移：方块人的 position 在脚底上方 1.5，不扣就会悬在
+    // 头顶上方（人身高缩到 1.8 后立刻可见）；GLB 偏移为 0，行为与改前完全一致。
+    const eyeY = this.position.y - this._footOffsetY() + CAM_SPRING.eye;
     _csEye.set(this.position.x, eyeY, this.position.z);
     _csDir.set(bx, by, bz);
     if (_csDir.lengthSq() < 1e-8) _csDir.set(0, 0, -1);

@@ -69,6 +69,11 @@
   function begin() {
     var t = Tool();
     if (!t || !t.hasTarget()) return false;
+    // 【2026-11-25】与部件删除模式互斥：删除模式的点击优先级更高，
+    // 不关掉的话会「选部件」按钮没反应、点哪都变成删。
+    if (window.AdminModelPartDelete && window.AdminModelPartDelete.isActive()) {
+      window.AdminModelPartDelete.cancel();
+    }
     picking = true;
     target = null;
     t.cancelPlace();
@@ -243,6 +248,9 @@
     cancel: cancel,
     clear: clear,
     pick: pick,
+    // 【2026-11-25】导出射线，供 adminModelPartDelete 复用同一套命中规则
+    // （过滤 isPickProxy / 灯光手柄 / 不可见对象，避免两个模块对"点中了什么"判断不一致）
+    raycastAt: raycastAt,
     commit: commit,
     removeCurrent: removeCurrent,
     glowing: glowing,

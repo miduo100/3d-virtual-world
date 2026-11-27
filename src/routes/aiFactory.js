@@ -314,7 +314,15 @@ router.post('/generate', async (req, res) => {
         }
         
         // 检查T-Pose文件是否存在
-        const modelPath = path.join(__dirname, '../../public' + tposeFile);
+        // 【安全修复 2026-11-27】tposeFile 来自客户端，必须解析为绝对路径后校验
+        // 仍落在 public 目录内，防止 "../" 穿越读取项目根的 .env 等敏感文件。
+        // 正常值形如 /uploads/ai-factory-models/xxx.glb、/models/blockman_tpose.glb，
+        // 解析后都在 public 内，不受影响。
+        const publicRoot = path.resolve(__dirname, '../../public');
+        const modelPath = path.resolve(publicRoot, '.' + tposeFile);
+        if (modelPath !== publicRoot && !modelPath.startsWith(publicRoot + path.sep)) {
+            return res.status(400).json({ success: false, message: '无效的模型路径' });
+        }
         if (!fs.existsSync(modelPath)) {
             return res.status(400).json({ success: false, message: '模型文件不存在: ' + tposeFile });
         }

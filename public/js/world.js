@@ -263,6 +263,13 @@ class World {
     // + 浏览器 HTTP 30 天强缓存（回来重载零流量，仅 Worker 后台重解析几十 ms）
     this.maxModelCacheBytes = 150 * 1024 * 1024;
     this._modelCacheBytes = 0;
+
+    // 【2026-11-26】世界对象内置动画（卡丁车/无人机/灯这类节点 TRS 动画）
+    // 之前 worker static 模式会丢弃 gltf.animations，世界对象一律静止。
+    // _modelAnimClips：model_path → AnimationClip[]（内存缓存，页面刷新后重新解析即恢复）
+    // _modelAnimRecs ：worldObjectId → { mixer, model }
+    this._modelAnimClips = new Map();
+    this._modelAnimRecs = new Map();
     
     // 纹理压缩支持
     this.textureLoader = new THREE.TextureLoader();
@@ -706,6 +713,60 @@ class World {
   }
 
   /**
+   * 世界对象内置动画（2026-11-26）
+   * ---------------------------------------------------------------------
+   * 背景：世界端解析一直走 worker 的 static 模式，原设计认为「世界对象不播动画」，
+   * gltf.animations 被直接丢弃，所以带动画的 GLB（卡丁车场景、无人机、灯…）
+   * 在世界里永远静止。现在 worker 已保留动画数据，这里负责建 mixer 播放。
+   *
+   * 限制：
+   *   · 只对「无蒙皮」的节点 TRS 动画有效（_bakeSkinsToStatic 会烘掉骨骼，
+   *     蒙皮模型的骨骼动画仍需走 strict 路径，另行处理）；
+   *   · 同时播放上限 40 个，超出丢弃最早登记的（远处模型本来也会被卸载）。
+   */
+  _attachModelAnimation(model, clips, id) {
+    if (!model || !clips || !clips.length || id === undefined || id === null) return;
+    if (this._modelAnimRecs.has(id)) return;
+    if (model.userData && model.userData.__skinnedBaked) {
+      // 蒙皮模型已被烘焙成静态网格：动画轨道找不到骨骼，建 mixer 只是空转
+      return;
+    }
+    try {
+      const mixer = new THREE.AnimationMixer(model);
+      for (let i = 0; i < clips.length; i++) {
+        try { mixer.clipAction(clips[i]).play(); } catch (e) { /* 单条轨道异常不影响其他 */ }
+      }
+      this._modelAnimRecs.set(id, { mixer: mixer, model: model });
+      if (this._modelAnimRecs.size > 40) {
+        const firstKey = this._modelAnimRecs.keys().next().value;
+        if (firstKey !== id) this._detachModelAnimation(firstKey);
+      }
+      console.log(`🎬 [世界动画] id=${id} 已播放 ${clips.length} 段内置动画`);
+    } catch (e) {
+      console.warn('[世界动画] mixer 创建失败:', e && e.message);
+    }
+  }
+
+  _detachModelAnimation(id) {
+    const rec = this._modelAnimRecs.get(id);
+    if (!rec) return;
+    try { rec.mixer.stopAllAction(); rec.mixer.uncacheRoot(rec.model); } catch (e) { /* 忽略 */ }
+    this._modelAnimRecs.delete(id);
+  }
+
+  updateModelAnimations(delta) {
+    if (!this._modelAnimRecs || !this._modelAnimRecs.size) return;
+    const dt = Math.min(0.12, (delta || 16.7) / 1000);
+    const dead = [];
+    this._modelAnimRecs.forEach((rec, id) => {
+      // 模型已被卸载出场景 → 一并清理，避免 mixer 空转+内存泄漏
+      if (!rec.model || !rec.model.parent) { dead.push(id); return; }
+      try { rec.mixer.update(dt); } catch (e) { dead.push(id); }
+    });
+    for (let i = 0; i < dead.length; i++) this._detachModelAnimation(dead[i]);
+  }
+
+  /**
    * 将模型树中的 SkinnedMesh 烘焙为静态网格（移除蒙皮与骨骼）
    * - 顶点固定在 bind pose 位置，不再被骨骼矩阵"甩"到远处
    * - 移除骨骼节点，setFromObject 包围盒不再包含远处骨骼（消除视锥剔除闪烁）
@@ -736,6 +797,12 @@ class World {
     for (let i = 0; i < bones.length; i++) {
       const bone = bones[i];
       if (bone.parent) bone.parent.remove(bone);
+    }
+    // 【2026-11-26】标记「已烘焙」：骨骼节点已从树上摘除，
+    // 内置骨骼动画的轨道再也找不到目标，_attachModelAnimation 据此跳过建 mixer。
+    if (bones.length > 0) {
+      if (!obj.userData) obj.userData = {};
+      obj.userData.__skinnedBaked = true;
     }
   }
 
@@ -1958,6 +2025,29 @@ class World {
     // Player character body
     const characterGroup = new THREE.Group();
 
+    // 【2026-11-26 身高归一】默认方块人的三维件是按总高 3.1 米拼的
+    // （头中心 1.2 半径 0.4 → 头顶 1.6；大腿根 -0.3，两节腿 -1.2 → 脚底 -1.5），
+    // 而 GLB 角色被 fitModel 统一缩放到 1.8 米（config.js glbTargetHeight），
+    // 于是方块人比所有角色模型高约 1.7 倍。
+    //
+    // 修法：图形件全部包进 bodyGroup，用局部缩放压到 1.8 米，并用 position.y
+    // 把「脚底仍在组内 -1.5」这个坐标契约保持住。这样 player.js / adminFlyToggle.js /
+    // worldTeleportLanding.js 里 4 处 `isGlbLoaded ? 0 : 1.5` 全部无需改动。
+    //
+    // ⚠️ bodyGroup 内部坐标系 = 3.1 米体系的 0.58 倍。已知限制见
+    //    _木棍人身高归一_改动规范_20261126.md 第 2.2 / 2.3 节：
+    //    rotation 类动画不受影响；若在 bodyGroup 内部改 position 做位移动画，
+    //    幅度会被缩到 0.58 倍，需按 1/0.58 换算，或绕到 characterGroup 上加。
+    const BLOCK_AVATAR_SCALE    = 1.8 / 3.1;                        // 0.580645…
+    const BLOCK_AVATAR_OFFSET_Y = -1.5 * (1 - BLOCK_AVATAR_SCALE);  // -0.629032…
+    const BLOCK_AVATAR_HEAD_TOP = 1.6 * BLOCK_AVATAR_SCALE + BLOCK_AVATAR_OFFSET_Y; // 0.3
+    const bodyGroup = new THREE.Group();
+    bodyGroup.name = 'blockAvatarBody';
+    bodyGroup.scale.setScalar(BLOCK_AVATAR_SCALE);
+    bodyGroup.position.y = BLOCK_AVATAR_OFFSET_Y;
+    characterGroup.add(bodyGroup);
+    characterGroup.userData.blockAvatarBody = bodyGroup;   // 调试/验收用
+
     // Body (torso)
     const bodyGeometry = new THREE.BoxGeometry(0.6, 1.2, 0.3);
     const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x4a90e2 });
@@ -1965,7 +2055,7 @@ class World {
     body.position.y = 0.3;
     body.castShadow = true;
     body.receiveShadow = true;
-    characterGroup.add(body);
+    bodyGroup.add(body);
 
     // Head (低多边形球体 - 8面)
     // 未登录用户显示灰色，已登录用户显示正常肤色
@@ -1976,7 +2066,7 @@ class World {
     head.position.y = 1.2;
     head.castShadow = true;
     head.receiveShadow = true;
-    characterGroup.add(head);
+    bodyGroup.add(head);
 
     // 左臂 (上臂+肘关节+前臂)
     const upperArmGeometry = new THREE.CylinderGeometry(0.08, 0.08, 0.5, 6);
@@ -2003,7 +2093,7 @@ class World {
     leftElbowGroup.add(leftForearm);
     
     leftArmGroup.add(leftElbowGroup);
-    characterGroup.add(leftArmGroup);
+    bodyGroup.add(leftArmGroup);
 
     // 右臂 (上臂+肘关节+前臂)
     const rightArmGroup = new THREE.Group();
@@ -2026,7 +2116,7 @@ class World {
     rightElbowGroup.add(rightForearm);
     
     rightArmGroup.add(rightElbowGroup);
-    characterGroup.add(rightArmGroup);
+    bodyGroup.add(rightArmGroup);
 
     // 左腿 (大腿+膝关节+小腿)
     const thighGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.6, 6);
@@ -2053,7 +2143,7 @@ class World {
     leftKneeGroup.add(leftCalf);
     
     leftLegGroup.add(leftKneeGroup);
-    characterGroup.add(leftLegGroup);
+    bodyGroup.add(leftLegGroup);
 
     // 右腿 (大腿+膝关节+小腿)
     const rightLegGroup = new THREE.Group();
@@ -2076,7 +2166,7 @@ class World {
     rightKneeGroup.add(rightCalf);
     
     rightLegGroup.add(rightKneeGroup);
-    characterGroup.add(rightLegGroup);
+    bodyGroup.add(rightLegGroup);
     
     // 右手武器：仅当 weaponConfig 有效（非 null 且为对象）时才创建
     const hasWeapon = (typeof weaponConfig === 'object' && weaponConfig !== null);
@@ -2204,7 +2294,10 @@ class World {
 
     // Name label（使用评估高度，模型加载后会重新校准）
     const estimatedHeight = parseFloat(localStorage.getItem('selectedTemplateHeight') || '1.8');
-    const nameSprite = this.createNameSprite(characterName, estimatedHeight);
+    // 方块人视觉头顶在组内只剩 BLOCK_AVATAR_HEAD_TOP（0.3）；GLB 玩家仍按模板估值，
+    // 加载成功后 fitModel 会用 actualHeight + 0.15 覆盖（见下方昵称高度校准）
+    const spriteHeadY = glbUrl ? estimatedHeight : BLOCK_AVATAR_HEAD_TOP;
+    const nameSprite = this.createNameSprite(characterName, spriteHeadY);
     characterGroup.add(nameSprite);
     characterGroup.userData.nameSprite = nameSprite;
 
@@ -2212,6 +2305,10 @@ class World {
     this.scene.add(characterGroup);
 
     // 存储动画时间和四肢Group引用（用于旋转）
+    // 方块人：视觉头顶相对 group 的 y（0.3）。updatePlayerName 重建名牌时读此字段，
+    // 缺省 fallback 1.8 会把名牌顶到空中 1.65 米。GLB 加载成功后 fitModel 会把它
+    // 覆盖为 actualHeight（约 1.8），两条路径互不干扰。
+    characterGroup.userData.modelHeight = BLOCK_AVATAR_HEAD_TOP;
     characterGroup.userData.animTime = 0;
     characterGroup.userData.leftArm = leftArmGroup;
     characterGroup.userData.rightArm = rightArmGroup;
@@ -7025,6 +7122,12 @@ class World {
           data: modelData
         });
 
+        // 【2026-11-26】缓存命中的实例同样补播内置动画（clips 从内存表取）
+        try {
+          const _clips = this._modelAnimClips.get(model_path);
+          if (_clips && _clips.length) this._attachModelAnimation(model, _clips, id);
+        } catch (e) { console.warn('[世界动画] 缓存挂载失败:', e && e.message); }
+
         // 添加碰撞盒（仅当 has_collision 为 true 时）
         if (modelData.has_collision === true) {
           const box = new THREE.Box3().setFromObject(model);
@@ -7075,8 +7178,14 @@ class World {
     const isOBJ = !isGLTF && (_ext === 'obj' || model_type === 'obj' || (!model_type && _ext !== 'glb' && _ext !== 'gltf'));
 
     // 处理模型加载成功后的逻辑
-    const onModelLoaded = async (model) => {
+    const onModelLoaded = async (model, animations) => {
       console.log('✅ 上传模型加载成功:', model_path);
+
+      // 【2026-11-26】记录内置动画：同一 model_path 只存一次，
+      // 供后续缓存命中的实例复用（worker static 模式现已带回 gltf.animations）
+      if (animations && animations.length && !this._modelAnimClips.has(model_path)) {
+        this._modelAnimClips.set(model_path, animations);
+      }
       
       // 将模型添加到缓存中（同 URL 仅首次入库，批量副本避免重复序列化+写 IndexedDB）
       if (!this.modelCache.has(model_path)) {
@@ -7142,6 +7251,14 @@ class World {
         model: modelClone,
         data: modelData
       });
+
+      // 【2026-11-26】播放内置动画（无蒙皮的节点 TRS 动画；蒙皮模型已被烘焙，自动跳过）
+      try {
+        const _clips = (animations && animations.length)
+          ? animations
+          : this._modelAnimClips.get(model_path);
+        if (_clips && _clips.length) this._attachModelAnimation(modelClone, _clips, id);
+      } catch (e) { console.warn('[世界动画] 挂载失败:', e && e.message); }
 
       // 添加碰撞盒（仅当 has_collision 为 true 时）
       if (modelData.has_collision === true) {
@@ -7216,7 +7333,7 @@ class World {
           model_path,
           (gltf) => {
             console.log('✅ Fallback: 作为GLTF加载成功:', model_path);
-            onModelLoaded(gltf.scene);
+            onModelLoaded(gltf.scene, gltf.animations);
             resolve();
           },
           undefined,
@@ -7369,7 +7486,7 @@ class World {
               if (this._abortLoadOutOfRange(modelData)) { resolve(); return; }
               console.log('✅ 大模型GLTF加载成功:', name);
               this.removePlaceholder(id);
-              onModelLoaded(gltf.scene);
+              onModelLoaded(gltf.scene, gltf.animations);
               resolve();
             },
             (error) => {
@@ -7393,7 +7510,7 @@ class World {
               if (this._abortLoadOutOfRange(modelData)) { resolve(); return; }
               console.log('✅ GLTF模型加载成功');
               this.removePlaceholder(id);
-              onModelLoaded(gltf.scene);
+              onModelLoaded(gltf.scene, gltf.animations);
               resolve();
             },
             (error) => {
@@ -8388,6 +8505,8 @@ class World {
     }
     // 技能系统更新
     if (window.skillsManager) window.skillsManager.update();
+    // 【2026-11-26】世界对象内置动画推进（卡丁车/无人机/灯这类节点 TRS 动画）
+    if (this._modelAnimRecs && this._modelAnimRecs.size) this.updateModelAnimations(delta);
     // 建筑管理器更新
     if (this.buildingManager) this.buildingManager.update();
     // ===== 鼠标旋转 + 玩家更新 结束 =====

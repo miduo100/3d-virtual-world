@@ -1055,75 +1055,20 @@ function setupKeyboardShortcuts() {
   });
   
   // 添加触摸事件支持（手机端）
+  // 【2026-11-24 双指冲突修复】转向手势统一交给 mobileControls.js 管理（按 identifier 归属相机手指）。
+  // 这里原先也写 MOUSE.targetRotationY，造成两个后果：
+  //   ① 单指滑屏时两条监听各写一次，实际灵敏度是 0.005 x 2 = 0.01；
+  //   ② 门槛 e.touches.length === 1 让「摇杆按住 + 另一指滑屏」时整段转向被跳过，视角僵住。
+  // 现在只保留「点屏幕攻击」和「隐藏操作提示」，isDragging 的维护也移交 mobileControls.js。
   canvas.addEventListener('touchstart', (e) => {
     if (e.touches.length === 1) {
-      const touch = e.touches[0];
-      
       // 触发攻击动画
       if (window.gameWorld && GAME_STATE.characterId) {
         window.gameWorld.triggerAttackAnimation(GAME_STATE.characterId);
       }
-      
-      MOUSE.isDragging = true;
-      MOUSE.lastX = touch.clientX;
-      MOUSE.lastY = touch.clientY;
-      isFirstMove = true;
       UI.hideControlsHint();
       e.preventDefault();
     }
-  });
-  
-  canvas.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 1 && MOUSE.isDragging) {
-      const touch = e.touches[0];
-      
-      // 跳过第一次移动事件
-      if (isFirstMove) {
-        MOUSE.lastX = touch.clientX;
-        MOUSE.lastY = touch.clientY;
-        isFirstMove = false;
-        return;
-      }
-      
-      const deltaX = touch.clientX - MOUSE.lastX;
-      const deltaY = touch.clientY - MOUSE.lastY;
-      
-      // 过滤异常大的跳变
-      const maxDelta = 100;
-      if (Math.abs(deltaX) > maxDelta || Math.abs(deltaY) > maxDelta) {
-        MOUSE.lastX = touch.clientX;
-        MOUSE.lastY = touch.clientY;
-        return;
-      }
-      
-      MOUSE.lastX = touch.clientX;
-      MOUSE.lastY = touch.clientY;
-      
-      // 使用配置的灵敏度
-      const sensitivity = MOUSE.sensitivity || 0.005;
-      
-      // 更新目标旋转角度
-      MOUSE.targetRotationY -= deltaX * sensitivity;
-      
-      if (GAME_STATE.cameraMode === 'first-person') {
-        MOUSE.targetRotationX -= deltaY * sensitivity;
-      } else {
-        MOUSE.targetRotationX += deltaY * sensitivity;
-      }
-      
-      MOUSE.targetRotationX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, MOUSE.targetRotationX));
-      e.preventDefault();
-    }
-  });
-  
-  canvas.addEventListener('touchend', (e) => {
-    MOUSE.isDragging = false;
-    isFirstMove = false;
-  });
-  
-  canvas.addEventListener('touchcancel', (e) => {
-    MOUSE.isDragging = false;
-    isFirstMove = false;
   });
 
   // Keyboard state management

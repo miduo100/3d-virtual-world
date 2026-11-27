@@ -23,6 +23,8 @@ const path = require('path');
 const { query } = require('../../database/db');
 const configService = require('../../services/configService');
 const tripoService = require('../../services/tripo');
+// 入库后记录模型尺度半径（编辑器范围加载按「到模型边缘的距离」判定）
+const { recordModelBounds } = require('../../services/modelBounds');
 
 const PUBLIC_MODELS_DIR = path.join(__dirname, '..', '..', '..', 'public', 'models', 'uploaded');
 /** Tripo 有效版本（实测 v2.0-20240919 已弃用 code 2015；v2.5-20250123 实测合法——403 只卡余额） */
@@ -207,6 +209,8 @@ const tripoProvider = {
     } catch (e) {
       return { ok: true, status: 'failed', error: '产物落库失败（uploaded_models）：' + String(e.message || e).slice(0, 240), errorCode: 'DB_INSERT_FAILED' };
     }
+    // 记录尺度半径（AI 生成模型体量差异大，同样需要；失败不影响结果）
+    await recordModelBounds(url, 'gen3d').catch(() => null);
     return {
       ok: true, status: 'succeeded',
       model: { url, triangles: v.stats.triangles, fileSizeBytes: v.stats.fileSizeBytes, format: 'glb' },

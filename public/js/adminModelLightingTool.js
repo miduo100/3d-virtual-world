@@ -242,10 +242,36 @@
     markDirty();
   }
 
+  /**
+   * 把当前模型的 custom_config 写回世界物件（2026-11-25）
+   * 供部件删除等模块复用，口径与面板的「保存」完全一致（PUT /api/world/objects/:id）
+   * @returns {Promise} 成功 resolve 接口返回，失败 reject Error
+   */
+  function saveConfig() {
+    var d = dataOf();
+    if (!d) return Promise.reject(new Error('没有可保存的模型'));
+    var id = d.id || (root && root.userData && root.userData.worldObjectId);
+    if (!id) return Promise.reject(new Error('缺少物件 id'));
+    return fetch('/api/world/objects/' + id, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + localStorage.getItem('token')
+      },
+      body: JSON.stringify({ custom_config: d.custom_config })
+    }).then(function (r) {
+      return r.json();
+    }).then(function (res) {
+      if (!res || !res.success) throw new Error((res && res.error) || '保存失败');
+      return res;
+    });
+  }
+
   function beginPlace() {
     if (!root) return false;
     placing = true;
     if (window.AdminModelSurfacePick) window.AdminModelSurfacePick.cancel();
+    if (window.AdminModelPartDelete) window.AdminModelPartDelete.cancel();
     selectedId = null;
     if (bm && bm.transformControls) bm.transformControls.detach();
     fireChange();
@@ -263,6 +289,15 @@
     if (!root || !bm || !bm.renderer) return;
     if (event.target !== bm.renderer.domElement) return;
     if (bm.transformControls && bm.transformControls.dragging) return;
+
+    // 部件删除模式（2026-11-25）：优先级最高，点哪隐藏哪，抢在其他拾取之前
+    var partDel = window.AdminModelPartDelete;
+    if (partDel && partDel.isActive()) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      partDel.pick(event);
+      return;
+    }
 
     var picker = window.AdminModelSurfacePick;
     if (picker && picker.isPicking()) {
@@ -303,6 +338,11 @@
 
     // 必须抢在 buildingManager 的 window 监听之前（它会把 Delete 当成删除整个模型）
     if (event.key === 'Escape') {
+      if (window.AdminModelPartDelete && window.AdminModelPartDelete.isActive()) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        window.AdminModelPartDelete.cancel();
+        return;
+      }
       if (placing) {
         event.preventDefault(); event.stopImmediatePropagation(); cancelPlace(); return;
       }
@@ -358,6 +398,8 @@
   function cleanupCurrent() {
     placing = false;
     if (window.AdminModelSurfacePick) window.AdminModelSurfacePick.cancel();
+    // 换模型时退出部件删除模式，避免对着新模型误删
+    if (window.AdminModelPartDelete) window.AdminModelPartDelete.cancel();
     if (window.AdminSelectionOutline) window.AdminSelectionOutline.removeMesh(bm);
     removeHandles();
     selectedId = null;
@@ -476,6 +518,7 @@
     getRoot: function () { return root; },
     getConfig: getConfig,
     setConfig: setConfig,
+    saveConfig: saveConfig,
 
     deleteSelected: deleteSelected,
     refresh: function () { applyAll(true); },

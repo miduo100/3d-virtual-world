@@ -229,7 +229,35 @@ router.post('/forgot-step1', async (req, res) => {
 });
 
 // ==================== 找回密码步骤2：验证答案 ====================
-router.post('/forgot-step2', async (req, res) => {
+// 【安全修复 2026-11-27】轻量 IP 限速：防止无限暴力猜测安全问题答案。
+// 独立内存窗口，不复用 loginRateLimiter 的账号锁定逻辑（避免正常用户找回被误锁）。
+// 正常用户一分钟内猜几次答案不会触发；只有机械式连续猜测才会被挡。
+const forgotStep2Attempts = new Map();
+const FORGOT_STEP2_WINDOW_MS = 60 * 1000;
+const FORGOT_STEP2_MAX = 10;
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, rec] of forgotStep2Attempts) {
+    if (now - rec.start >= FORGOT_STEP2_WINDOW_MS) forgotStep2Attempts.delete(ip);
+  }
+}, 60 * 1000).unref?.();
+
+function forgotStep2RateLimit(req, res, next) {
+  const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+  const now = Date.now();
+  let rec = forgotStep2Attempts.get(ip);
+  if (!rec || now - rec.start >= FORGOT_STEP2_WINDOW_MS) {
+    rec = { start: now, count: 0 };
+    forgotStep2Attempts.set(ip, rec);
+  }
+  if (rec.count >= FORGOT_STEP2_MAX) {
+    return res.status(429).json({ error: '尝试次数过多，请稍后再试', code: 'RATE_LIMITED' });
+  }
+  rec.count++;
+  next();
+}
+
+router.post('/forgot-step2', forgotStep2RateLimit, async (req, res) => {
   try {
     const { username, answer } = req.body;
 

@@ -136,6 +136,37 @@
     return html;
   }
 
+  // ---------------- 部件删除（2026-11-25） ----------------
+  //
+  // 与部件发光共用射线和 path 口径：点哪个部件隐藏哪个。
+  // 编辑期只关 visible（树不动，path 不会失效，可随时点回来）；
+  // 真正摘节点 + 碰撞盒收缩发生在下次加载（CustomConfigApplier.applyHiddenParts）。
+
+  function partDeleteBlockHtml() {
+    var pd = window.AdminModelPartDelete;
+    if (!pd) return '';
+    var items = pd.list();
+    var html = '<div class="aml-sec">部件删除 ' +
+      '<span style="font-size:9px;opacity:.6">已隐藏 ' + items.length + ' 个</span></div>';
+    html += '<button class="aml-btn ' + (pd.isActive() ? 'red' : 'warm') + '" data-act="part-del-mode">' +
+      (pd.isActive() ? '✕ 退出删除模式' : '🗑 点模型上的部件删除') + '</button>';
+    if (pd.isActive()) {
+      html += '<div class="aml-tip">点哪个部件就隐藏哪个，<b>立即生效</b>并自动保存；<b>Esc</b> 退出</div>';
+    }
+    if (items.length) {
+      html += '<div class="aml-chips">';
+      for (var i = 0; i < items.length; i++) {
+        html += '<span class="aml-chip" data-hpath="' + escapeHtml(items[i].path) +
+          '" title="点一下恢复">' + escapeHtml(items[i].label || items[i].path) + ' ↩</span>';
+      }
+      html += '</div>';
+      html += '<button class="aml-btn" data-act="part-del-restore-all">↩ 恢复全部（' + items.length + '）</button>';
+    }
+    html += '<div class="aml-tip">只影响显示，不改模型文件。<b>碰撞要刷新页面（F5）后才会跟着消失</b>：' +
+      '碰撞是加载时按模型几何建的，编辑期只摘显示。</div>';
+    return html;
+  }
+
   // ---------------- 整体调亮（整模型自发光） ----------------
   //
   // 与 world_editor.html「模型参数」面板共用同一份 custom_config：
@@ -330,6 +361,7 @@
     }
 
     html += surfaceBlockHtml();
+    html += partDeleteBlockHtml();
     html += wholeBlockHtml();
 
     html += '<div class="aml-sec">调光辅助</div>';
@@ -459,6 +491,12 @@
 
   function bindEvents() {
     float.el.addEventListener('click', function (e) {
+      var hchip = e.target.closest('.aml-chip[data-hpath]');
+      if (hchip) {
+        var pd0 = window.AdminModelPartDelete;
+        if (pd0) pd0.restore(hchip.getAttribute('data-hpath'));
+        return;
+      }
       var schip = e.target.closest('.aml-chip[data-sid]');
       if (schip) {
         var sp0 = window.AdminModelSurfacePick;
@@ -476,7 +514,16 @@
       }
       if (!act) return;
       var name = act.getAttribute('data-act');
-      if (name === 'surface-pick') {
+      if (name === 'part-del-mode') {
+        var pd = window.AdminModelPartDelete;
+        if (!pd) return;
+        if (pd.isActive()) pd.cancel();
+        else if (pd.begin()) notify('点模型上的部件即可删除', 'Esc 退出');
+        render();
+      } else if (name === 'part-del-restore-all') {
+        var pd2 = window.AdminModelPartDelete;
+        if (pd2) pd2.restoreAll();
+      } else if (name === 'surface-pick') {
         if (!sp) return;
         if (sp.isPicking()) sp.cancel();
         else if (sp.begin()) notify('点模型上的部件', '点已有=切换，点没配过=新建');
@@ -612,6 +659,11 @@
     });
     if (window.AdminModelSurfacePick) {
       window.AdminModelSurfacePick.onChange(function () {
+        try { if (float && float.isOpen() && !suppressRender) render(); } catch (e) { /* 忽略 */ }
+      });
+    }
+    if (window.AdminModelPartDelete) {
+      window.AdminModelPartDelete.onChange(function () {
         try { if (float && float.isOpen() && !suppressRender) render(); } catch (e) { /* 忽略 */ }
       });
     }
